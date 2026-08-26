@@ -450,6 +450,9 @@ export async function validateTransfer(tenantId, transferId, {
                 ownerId: line.ownerId,
                 tracking,
                 allowNegative,
+                productLabel: product?.nameEn || product?.sku || product?.nameAr,
+                locationLabel: srcLoc?.completeName || srcLoc?.name,
+                requestedQty: decStr(qty),
               },
             );
           }

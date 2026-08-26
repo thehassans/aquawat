@@ -105,7 +105,6 @@ const ProductPackagingPage = lazy(() => import('./pages/inventory/ExtraPages').t
 const ReturnsPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ReturnsPage })))
 const ReferencesPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ReferencesPage })))
 const DeliveryMethodsPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.DeliveryMethodsPage })))
-const ShippingConnectorsPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ShippingConnectorsPage })))
 const AttributesPage = lazy(() => import('./pages/inventory/VariantPages').then((m) => ({ default: m.AttributesPage })))
 const VariantsPage = lazy(() => import('./pages/inventory/VariantPages').then((m) => ({ default: m.VariantsPage })))
 const BatchTransfersPage = lazy(() => import('./pages/inventory/BatchPages').then((m) => ({ default: m.BatchTransfersPage })))
@@ -856,7 +855,7 @@ function App() {
           <Route path="attributes" element={<AttributesPage />} />
           <Route path="uom" element={<InventoryUomPage />} />
           <Route path="delivery-methods" element={<DeliveryMethodsPage />} />
-          <Route path="shipping-connectors" element={<ShippingConnectorsPage />} />
+          <Route path="shipping-connectors" element={<Navigate to="/app/dashboard/inventory/delivery-methods" replace />} />
         </Route>
         <Route path="suppliers" element={<BusinessTypeRoute allowedTypes={['trading']}><Suppliers /></BusinessTypeRoute>} />
         <Route path="suppliers/new" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierForm /></BusinessTypeRoute>} />

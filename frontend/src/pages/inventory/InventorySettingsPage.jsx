@@ -11,18 +11,6 @@ import {
   resolveInventoryAccountingMode,
 } from '../../lib/inventoryAccountingMode'
 
-const CARRIERS = [
-  { key: 'moduleCarrierSmsa', label: 'SMSA', note: 'Saudi — connector not installed' },
-  { key: 'moduleCarrierAramex', label: 'Aramex', note: 'Saudi — connector not installed' },
-  { key: 'moduleCarrierNaqel', label: 'Naqel', note: 'Saudi — connector not installed' },
-  { key: 'moduleCarrierUps', label: 'UPS', note: 'Connector not installed — contact admin' },
-  { key: 'moduleCarrierDhl', label: 'DHL', note: 'Connector not installed — contact admin' },
-  { key: 'moduleCarrierFedex', label: 'FedEx', note: 'Connector not installed — contact admin' },
-  { key: 'moduleCarrierUsps', label: 'USPS', note: 'Connector not installed — contact admin' },
-  { key: 'moduleCarrierEasypost', label: 'Easypost', note: 'Connector not installed — contact admin' },
-  { key: 'moduleCarrierSendcloud', label: 'Sendcloud', note: 'Connector not installed — contact admin' },
-]
-
 function PrintJobsPanel({ ar }) {
   const { data } = useQuery({
     queryKey: ['inv-print-jobs'],
@@ -433,21 +421,17 @@ export default function InventorySettingsPage() {
         <Toggle search={s} label={ar ? 'تأكيد SMS' : 'SMS confirmation'} checked={current.stockSmsConfirmation} onChange={() => toggle('stockSmsConfirmation')} disabled={!smsOk} hint={!smsOk ? (ar ? 'فعّل مزود SMS أولاً' : 'Configure SMS provider first') : undefined} />
         <Toggle search={s} label={ar ? 'توقيع التسليم' : 'Signature on delivery'} checked={current.signatureOnDelivery ?? current.groupStockSignDelivery} onChange={() => toggle('signatureOnDelivery')} />
         <Toggle search={s} label={ar ? 'طرق التسليم' : 'Delivery methods'} checked={current.groupDeliveryMethods} onChange={() => toggle('groupDeliveryMethods')} />
-        <div className="sm:col-span-2 space-y-2 rounded-lg border border-dashed border-slate-200 p-3 dark:border-dark-600">
-          <p className="text-xs font-medium text-slate-600 dark:text-slate-300">{ar ? 'الناقلون' : 'Carriers'}</p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {CARRIERS.map((c) => (
-              <Toggle
-                key={c.key}
-                search={s}
-                label={c.label}
-                hint={c.note}
-                checked={current[c.key]}
-                onChange={() => toggle(c.key)}
-              />
-            ))}
-          </div>
-        </div>
+        <p className="sm:col-span-2 text-xs text-slate-500">
+          {ar
+            ? 'طرق التسليم المحلية (سعر ثابت) من '
+            : 'Local fixed-price delivery methods are managed on '}
+          <Link to="/app/dashboard/inventory/delivery-methods" className="text-primary-600 hover:underline">
+            {ar ? 'طرق التسليم' : 'Delivery Methods'}
+          </Link>
+          {ar
+            ? '. موصلات UPS/DHL/FedEx خارج نطاق v4 — لا تُعرض.'
+            : '. External carrier connectors (UPS/DHL/FedEx, etc.) are out of v4 scope and are not shown here.'}
+        </p>
       </Section>
 
       <Section title={ar ? 'المنتجات' : 'Products'} search={s} matchKeys={['variant', 'uom', 'packaging', 'product']}>

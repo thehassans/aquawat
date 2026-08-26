@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 import { Link, useParams } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import api from '../../lib/api'
+import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 
@@ -23,9 +24,17 @@ export default function LotsList() {
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
           {language === 'ar' ? 'الدفعات والأرقام التسلسلية' : 'Lots / Serials'}
         </h2>
-        <div className="relative min-w-[220px]">
-          <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input className="input w-full ps-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder={language === 'ar' ? 'بحث…' : 'Search…'} />
+        <div className="flex flex-wrap items-center gap-2">
+          <InventoryIeButtons
+            model="lots"
+            ar={language === 'ar'}
+            filters={{ q: q || undefined }}
+            onImported={() => window.location.reload()}
+          />
+          <div className="relative min-w-[220px]">
+            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input className="input w-full ps-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder={language === 'ar' ? 'بحث…' : 'Search…'} />
+          </div>
         </div>
       </div>
 

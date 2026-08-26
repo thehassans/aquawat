@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 import { Link, useSearchParams, useLocation } from 'react-router-dom'
 import { Plus, Search } from 'lucide-react'
 import api from '../../lib/api'
+import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import { StatusChip } from './inventoryUi'
 import EmptyState from '../../components/ui/EmptyState'
 
@@ -81,10 +82,18 @@ export default function TransfersList() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h2>
-        <Link to={`${basePath}/new`} className="btn btn-primary text-sm">
-          <Plus className="h-4 w-4" />
-          {ar ? 'جديد' : 'New'}
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <InventoryIeButtons
+            model="transfers"
+            importable={false}
+            ar={ar}
+            filters={{ code, state: state || undefined }}
+          />
+          <Link to={`${basePath}/new`} className="btn btn-primary text-sm">
+            <Plus className="h-4 w-4" />
+            {ar ? 'جديد' : 'New'}
+          </Link>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

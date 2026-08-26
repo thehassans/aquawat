@@ -303,8 +303,8 @@ export function DeliveryMethodsPage() {
         </h2>
         <p className="text-sm text-slate-500">
           {ar
-            ? 'تسعير ثابت محليًا — الموصلات الحية تبقى غير مثبتة'
-            : 'Local fixed-price rating — live connectors stay not installed'}
+            ? 'تسعير ثابت محلي — أضف طريقة تسليم واربطها بتحويلات الصادر.'
+            : 'Local fixed-price methods — add a method and link it on outgoing transfers.'}
         </p>
       </div>
 
@@ -362,8 +362,7 @@ export function DeliveryMethodsPage() {
                   <td className="px-3 py-2.5 tabular-nums">{c.fixedPrice}</td>
                   <td className="px-3 py-2.5 tabular-nums">{c.freeAbove ?? '—'}</td>
                   <td className="px-3 py-2.5">
-                    {c.providerCode}
-                    {c.installed ? '' : (ar ? ' (وهمي)' : ' (stub)')}
+                    {c.providerCode || 'fixed'}
                   </td>
                   <td className="px-3 py-2.5 text-end">
                     <button
@@ -381,67 +380,6 @@ export function DeliveryMethodsPage() {
           </table>
         </div>
       )}
-    </div>
-  )
-}
-
-export function ShippingConnectorsPage() {
-  const { language } = useSelector((s) => s.ui)
-  const ar = language === 'ar'
-
-  const { data: settings } = useQuery({
-    queryKey: ['stock-settings'],
-    queryFn: () => api.get('/stock/settings').then((r) => r.data),
-  })
-  const { data } = useQuery({
-    queryKey: ['delivery-carriers'],
-    queryFn: () => api.get('/stock/delivery-carriers').then((r) => asInvList(r.data)),
-  })
-
-  const flags = [
-    ['moduleCarrierSmsa', 'SMSA'],
-    ['moduleCarrierAramex', 'Aramex'],
-    ['moduleCarrierNaqel', 'Naqel'],
-    ['moduleCarrierUps', 'UPS'],
-    ['moduleCarrierDhl', 'DHL'],
-    ['moduleCarrierFedex', 'FedEx'],
-    ['moduleCarrierUsps', 'USPS'],
-    ['moduleCarrierEasypost', 'Easypost'],
-    ['moduleCarrierSendcloud', 'Sendcloud'],
-  ]
-
-  return (
-    <div className="space-y-4" dir={ar ? 'rtl' : 'ltr'}>
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-          {ar ? 'موصلات الشحن' : 'Shipping connectors'}
-        </h2>
-        <p className="text-sm text-slate-500">
-          {ar
-            ? 'العلم يفعّل صفًا وهميًا فقط — لا واجهات حية حتى يُؤكَّد'
-            : 'Flags only create stub carrier rows — no live APIs until confirmed'}
-        </p>
-      </div>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {flags.map(([key, label]) => (
-          <div key={key} className="rounded-xl border border-slate-200/80 px-3 py-2 text-sm dark:border-dark-600">
-            <div className="font-medium">{label}</div>
-            <div className={`text-xs ${settings?.[key] ? 'text-emerald-600' : 'text-slate-400'}`}>
-              {settings?.[key]
-                ? (ar ? 'مفعّل (وهمي)' : 'Enabled (stub)')
-                : (ar ? 'متوقف — من الإعدادات' : 'Off — enable in Settings')}
-            </div>
-          </div>
-        ))}
-      </div>
-      <p className="text-xs text-slate-500">
-        {(data?.items || []).filter((c) => c.providerCode && c.providerCode !== 'none').length}{' '}
-        {ar ? 'صف موصل في القاعدة' : 'provider stub row(s) in DB'}
-        {' · '}
-        <Link to="/app/dashboard/inventory/settings" className="text-primary-600 hover:underline">
-          {ar ? 'الإعدادات' : 'Settings'}
-        </Link>
-      </p>
     </div>
   )
 }

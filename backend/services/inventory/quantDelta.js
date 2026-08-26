@@ -73,12 +73,15 @@ export async function applyQuantDelta(
 
   if (newQty.lt(0) && !dims.allowNegative) {
     const available = decStr(quant.quantity);
+    const productLabel = dims.productLabel || dims.productName || String(productId);
+    const locationLabel = dims.locationLabel || dims.locationName || String(locationId);
+    const requested = dims.requestedQty != null ? String(dims.requestedQty) : decStr(D(qtyDelta).abs());
     throw new InventoryValidationError(
-      `Insufficient stock — only ${available} available in inventory`,
+      `Cannot validate: ${requested} units of ${productLabel} are not available at ${locationLabel}. Available: ${available}.`,
       'INSUFFICIENT_STOCK',
       {
-        messageAr: `المخزون غير كافٍ — المتاح في المخزون ${available} فقط`,
-        details: { available, onHand: available },
+        messageAr: `لا يمكن التحقق: ${requested} وحدة من ${productLabel} غير متوفرة في ${locationLabel}. المتاح: ${available}.`,
+        details: { available, onHand: available, productLabel, locationLabel, requested },
       },
     );
   }

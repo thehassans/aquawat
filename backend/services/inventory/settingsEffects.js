@@ -85,39 +85,11 @@ const CARRIER_FLAG_TO_PROVIDER = {
 };
 
 /**
- * When a carrier module flag turns on, upsert a non-installed carrier stub row.
+ * v4 kill list: external carrier connectors removed — no stub rows.
+ * Local fixed-price delivery methods remain on DeliveryMethodsPage.
  */
-export async function syncCarrierStubs(tenantId, settingsDoc, prior = {}) {
-  const { default: InvDeliveryCarrier } = await import('../../models/inventory/InvDeliveryCarrier.js');
-  const { toObjectId } = await import('../../models/inventory/common.js');
-  const tid = toObjectId(tenantId);
-  const synced = [];
-
-  for (const [flag, provider] of Object.entries(CARRIER_FLAG_TO_PROVIDER)) {
-    const nowOn = !!settingsDoc?.[flag];
-    const wasOn = !!prior?.[flag];
-    if (!nowOn || wasOn) continue;
-
-    const name = provider.toUpperCase();
-    await InvDeliveryCarrier.findOneAndUpdate(
-      { tenantId: tid, providerCode: provider },
-      {
-        $setOnInsert: {
-          tenantId: tid,
-          name,
-          nameAr: name,
-          carrierType: 'provider',
-          providerCode: provider,
-          installed: false,
-          active: true,
-        },
-        $set: { active: true, installed: false },
-      },
-      { upsert: true },
-    );
-    synced.push(provider);
-  }
-  return synced;
+export async function syncCarrierStubs(_tenantId, _settingsDoc, _prior = {}) {
+  return [];
 }
 
 const GS1_RULES = [

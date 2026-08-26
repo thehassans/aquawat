@@ -406,14 +406,6 @@ export const INVENTORY_MENU_TREE = [
         permission: { module: 'inventory', action: 'read' },
       },
       {
-        id: 'shipping-connectors',
-        label: 'Shipping Connectors',
-        labelAr: 'موصلات الشحن',
-        href: '/app/dashboard/inventory/shipping-connectors',
-        flag: 'deliveryMethods',
-        permission: { module: 'inventory', action: 'read' },
-      },
-      {
         id: 'landed-costs',
         label: 'Landed Costs',
         labelAr: 'التكاليف الإضافية',

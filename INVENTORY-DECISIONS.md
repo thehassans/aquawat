@@ -2,6 +2,18 @@
 
 Last updated: 2026-08-26
 
+## v4 Part A — zero-defect pass (2026-08-26)
+
+| Topic | Decision |
+|---|---|
+| Build order | **Part A entirely before Part B** — no parallel feature work |
+| Carrier connectors | **Deleted dead UI** per v4 kill list — removed settings toggles, menu item, `ShippingConnectorsPage`; `/shipping-connectors` redirects to delivery methods. Local fixed-price methods remain on `DeliveryMethodsPage` |
+| INSUFFICIENT_STOCK | Actionable bilingual message includes product label, location, requested qty, available (A.2 #4) |
+| A.3 regression matrix | **Complete scaffold** — `inventoryRegressionA3.test.js`: 4 unit proofs + 22 integration tests + #16 cross-ref to `inventoryConcurrentReserve.test.js`; all integration cases gated on `STOCK_TEST_MONGODB_URI` + replica set |
+| A.2 silent failures | Key paths log warnings (`settingsService`, `invPrint`, `quantDelta`, `bootstrap`, `jobRunner`, `invMetrics`) — not a full-repo empty-catch sweep |
+| IE on lists | `InventoryIeButtons` wired on Transfers (export-only) + Lots (import/export) |
+| Part B | **Unblocked for dev** once integration matrix runs green on rs0 Mongo + live W1–W24 audit PASS |
+
 ## v4.1 Data portability & document output (2026-08-26)
 
 | Topic | Decision |
@@ -45,7 +57,8 @@ Last updated: 2026-08-26
 | Form / sales UI (shipped) | ProductForm Sales: relations CRUD + “Suggested by”; Variants: attribute exclusions editor; Quotation + sell invoice: cross-sell / accessories / upsell swap (+ optional on quotation); Bakala POS strip when `BakalaProduct.productId` links to trading Product (catalogue preload via `GET /stock/relations`) |
 | Still open | Per-variant valuation layers in reports; history-based proposals; POS strip without trading productId link; IE enrich columns (salesQty30d, stockByWarehouse); ProductForm tags/documents/vendors/combo |
 | Shipped (2026-08-26 cont.) | `variantId` on Invoice/Quotation/PO lines + engine post; `getOrCreateVariant` template price extras; PI count accepts variantId; expanded `product_variants` IE; ProductForm fields + template price extras UI; GS1 DataMatrix via `bwip-js`; print jobs panel in settings |
-| Shipped (2026-08-26 cont.2) | React #31 fix (`formatInvError` / `pickApiErrorPayload`); **ProductVariantsGrid** on product form; **VariantLineSelect** on sell invoice / quotation / PO lines; GRN receive + PO sync match by `variantId`; quotation route preserves `variantId` |
+| Shipped (2026-08-26 cont.5) | A.3 remaining 10 scenarios (#3 two-step, #5 expiry lot, #6 landed cost, #9 FEFO reserve, #11 return, #18b cancel propagate, #21 IE round-trip, #22 import dry-run, #23 concurrent sequences); harness two-step/FIFO/lot helpers; IE on TransfersList + LotsList; A.2 logging in bootstrap/jobRunner/invMetrics |
+| Shipped (2026-08-26 cont.4) | A.3 +6 integration tests (#2 backorder, #13/#14 physical count, #15 scrap, #18 cancel, #19 done immutability); harness `seedStockViaReceipt` / `findQuantId` |
 
 ## Verification phase (2026-08-26)
 

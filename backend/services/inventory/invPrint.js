@@ -677,7 +677,9 @@ export async function renderInventoryPdf(tenantId, {
       await InvTransfer.updateOne(
         { _id: id, tenantId: toObjectId(tenantId) },
         { $inc: { printedCount: 1 }, $set: { lastPrintedAt: new Date() } },
-      ).catch(() => {});
+      ).catch((err) => {
+        console.warn('[invPrint] failed to bump printedCount', err?.message || err);
+      });
     }
     const merged = chunks.map((h) => h.replace(/<\/?html[^>]*>/gi, '').replace(/<\/?body[^>]*>/gi, '').replace(/<head[\s\S]*?<\/head>/gi, '')).join('<div style="page-break-before:always"></div>');
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${baseCss()}</style></head><body>${merged}</body></html>`;

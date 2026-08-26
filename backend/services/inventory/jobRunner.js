@@ -41,8 +41,9 @@ export async function finishJobRun(job, {
     if (counts?.cacheAssertMismatches != null || counts?.mismatchCount != null) {
       recordCacheDrift(counts.cacheAssertMismatches ?? counts.mismatchCount);
     }
-  } catch { /* non-blocking */ }
-  return job;
+  } catch (err) {
+    console.warn('[inventory] job metrics recording failed:', err?.message || err);
+  }
 }
 
 export async function runIntegrityJob(tenantId, {

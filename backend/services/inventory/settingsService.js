@@ -320,8 +320,8 @@ export async function updateInvSettings(tenantId, userId, body) {
     const { syncCarrierStubs, syncGs1Nomenclature } = await import('./settingsEffects.js');
     await syncCarrierStubs(tid, updated, prior);
     await syncGs1Nomenclature(tid, updated, prior);
-  } catch {
-    /* non-blocking */
+  } catch (err) {
+    console.warn('[inventory] carrier/GS1 settings side-effect failed:', err?.message || err);
   }
 
   try {
@@ -336,8 +336,8 @@ export async function updateInvSettings(tenantId, userId, body) {
       resourceName: 'InvSettings',
       changes,
     });
-  } catch {
-    /* non-blocking */
+  } catch (err) {
+    console.warn('[inventory] settings config audit failed:', err?.message || err);
   }
 
   return updated;

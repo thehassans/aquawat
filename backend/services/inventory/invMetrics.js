@@ -97,7 +97,9 @@ export function stockMetricsMiddleware() {
       try {
         const hdr = res.getHeader('X-Inv-Query-Count');
         if (hdr != null) recordInvQueryCount(path, Number(hdr));
-      } catch { /* */ }
+      } catch (err) {
+        console.warn('[inventory] query count metric failed:', err?.message || err);
+      }
     });
     next();
   };

@@ -85,8 +85,8 @@ export async function ensureInventoryBootstrap(tenantId, userId = null) {
   try {
     const { backfillProductIds } = await import('./productIdentity.js');
     await backfillProductIds(tid);
-  } catch {
-    // non-fatal — index/create races should not block bootstrap
+  } catch (err) {
+    console.warn('[inventory] productId backfill during bootstrap failed:', err?.message || err);
   }
 
   return { settings, uom, rootCat, roots, bootstrappedWarehouses: bootstrapped };
