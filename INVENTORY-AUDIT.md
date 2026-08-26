@@ -3,7 +3,7 @@
 **Date:** 2026-08-26  
 **Code HEAD:** `4cab7b52` (`origin` → `https://github.com/thehassans/aquawat.git`)  
 **Auditor method:** Static route/menu/engine/schema/UI scan + recent production console evidence from `trading-maqder.maqder.com`.  
-**Live seed tenant (§1.2):** **Not available in this session** — no clean dual-tenant seed with MAIN/WH2, 12 products, role matrix. Therefore **no item may be marked PASS under §1.1 evidence rules** for end-to-end UI/API behaviour.
+**Live seed tenant (§1.2):** **Provisioned locally** via `backend/scripts/seedInventoryAuditTenant.js` (see §15). Runtime W1–W24 still **NOT_EXECUTED** until an auditor runs the checklist against this seed (Admin + Operator passes).
 
 > **Rule applied:** Where only code was inspected, status is `CODE_PRESENT` / `CODE_GAP` / `NOT_EXECUTED` — never `PASS`. Production incidents from the operator session are recorded as `PARTIAL` / `FAIL` with evidence.
 
@@ -286,7 +286,7 @@ Prioritised after S1/S2 defects. Effort: S &lt; 1d · M 1–3d · L &gt; 3d.
 
 Per user instruction §12.1: **report first; do not begin repairs while auditing.**
 
-1. **Provision audit harness** — scripted seed tenant (§1.2) + CI smoke for W1–W4 minimum.  
+1. ~~**Provision audit harness**~~ — `seedInventoryAuditTenant.js` done (local). Next: run Admin/Operator checklist.  
 2. **Error UX platform** — finish `formatInvError` adoption; enrich E14 messages (D01/D02).  
 3. **Identity & returns** — InvSequence for PO/WO; `isReturn` fields (D04/D05).  
 4. **List/form shell** — one shared list + form chrome closing L7–L9 / F2/F5/F16 (D07/D08).  
@@ -317,7 +317,30 @@ Per user instruction §12.1: **report first; do not begin repairs while auditing
 
 ## 14. Ask / stop conditions
 
-1. **Seed tenant:** Can we provision §1.2 (or point at a staging DB) so W1–W24 and L/F matrices can be executed?  
+1. **Seed tenant:** Local seed is ready (§15). Staging/replica-set needed for full 2-step `recomputeWarehouseRoutes`.  
 2. **Orphans:** Keep batch/quality/shipping extras or delete?  
 3. **Path contract:** Prefer redirects to spec URLs, or update the verification doc to Maqder’s actual paths?  
-4. **Deploy:** Confirm `4cab7b52` is live on `trading-maqder` before treating D01/D03 as closed.
+4. **Deploy:** Confirm `4cab7b52+` is live on trading-maqder before treating D01/D03 as closed.
+
+---
+
+## 15. Audit seed harness (§1.2)
+
+**Script:** `backend/scripts/seedInventoryAuditTenant.js`  
+**Run:** `npm run seed:inventory-audit` (from `backend/`) or `node scripts/seedInventoryAuditTenant.js [--reset] [--password=…]`
+
+| Item | Value |
+|------|--------|
+| Primary tenant | `inv-audit-a` |
+| Isolation tenant | `inv-audit-b` |
+| Admin | `admin@inv-audit-a.test` — role `inventory_manager` |
+| Operator | `operator@inv-audit-a.test` — inventory create/read/update, `warehouseIds=[MAIN]` |
+| Default password | `InvAudit2026!` |
+| MAIN | 1-step receive (`one`) / deliver (`ship`) + Stock / Input / Output / Shelf-A |
+| WH2 | 2-step receive (`two`) / deliver (`pickShip`) + Stock / Input / Output / Shelf-A |
+| Categories | Standard Cost · FIFO Cost · Average Cost (`valuationMode: manual`) |
+| Products | 4 simple · 4 lot · 2 serial · 2 expiry (lot+expiry) — SKUs `AUD-*` |
+| Partners | VEND-01/02 · CUST-01/02 |
+| Settings | engine on · mode `costing` · `enforceWarehouseRestriction` on |
+
+**Caveat:** On standalone Mongo (no replica set), `recomputeWarehouseRoutes` cannot run transactions; the seed creates Input/Output locations and rewires default OT locations. For full W3/W6 multi-step chains, use Compose `rs0` (or any replica set).
