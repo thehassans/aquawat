@@ -999,49 +999,51 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                           />
                         </div>
                         {isTradingContext ? (
-                          <div className="mb-2">
-                            <Select
-                              className="react-select-container"
-                              classNamePrefix="react-select"
-                              value={
-                                values?.lineItems?.[index]?.productId
-                                  ? {
-                                      value: values.lineItems[index].productId,
-                                      label: productPickerLabel(
-                                        (products || []).find((p) => p._id === values.lineItems[index].productId) || {},
-                                        language
-                                      )
-                                    }
-                                  : null
-                              }
-                              onChange={(option) => onSelectProduct(index, option ? option.value : '')}
-                              options={(products || []).map((item) => ({
-                                value: item._id,
-                                label: productPickerLabel(item, language)
-                              }))}
-                              placeholder={language === 'ar' ? 'ابحث عن منتج...' : 'Search for a product...'}
-                              isClearable
-                              isSearchable
-                            />
-                          </div>
-                          {watch(`lineItems.${index}.productId`) ? (
+                          <>
                             <div className="mb-2">
-                              <VariantLineSelect
-                                productId={watch(`lineItems.${index}.productId`)}
-                                value={watch(`lineItems.${index}.variantId`)}
-                                language={language}
-                                onChange={(variantId, variant) => {
-                                  setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })
-                                  if (variant?.name) {
-                                    setValue(`lineItems.${index}.productName`, variant.name, { shouldDirty: true })
-                                  }
-                                  if (variant?.price != null && Number(variant.price) > 0) {
-                                    setValue(`lineItems.${index}.unitPrice`, Number(variant.price), { shouldDirty: true })
-                                  }
-                                }}
+                              <Select
+                                className="react-select-container"
+                                classNamePrefix="react-select"
+                                value={
+                                  values?.lineItems?.[index]?.productId
+                                    ? {
+                                        value: values.lineItems[index].productId,
+                                        label: productPickerLabel(
+                                          (products || []).find((p) => p._id === values.lineItems[index].productId) || {},
+                                          language
+                                        )
+                                      }
+                                    : null
+                                }
+                                onChange={(option) => onSelectProduct(index, option ? option.value : '')}
+                                options={(products || []).map((item) => ({
+                                  value: item._id,
+                                  label: productPickerLabel(item, language)
+                                }))}
+                                placeholder={language === 'ar' ? 'ابحث عن منتج...' : 'Search for a product...'}
+                                isClearable
+                                isSearchable
                               />
                             </div>
-                          ) : null}
+                            {watch(`lineItems.${index}.productId`) ? (
+                              <div className="mb-2">
+                                <VariantLineSelect
+                                  productId={watch(`lineItems.${index}.productId`)}
+                                  value={watch(`lineItems.${index}.variantId`)}
+                                  language={language}
+                                  onChange={(variantId, variant) => {
+                                    setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })
+                                    if (variant?.name) {
+                                      setValue(`lineItems.${index}.productName`, variant.name, { shouldDirty: true })
+                                    }
+                                    if (variant?.price != null && Number(variant.price) > 0) {
+                                      setValue(`lineItems.${index}.unitPrice`, Number(variant.price), { shouldDirty: true })
+                                    }
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+                          </>
                         ) : null}
                         <input {...register(`lineItems.${index}.productName`)} className="input" placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'} />
                       </div>

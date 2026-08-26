@@ -427,9 +427,6 @@ export default function InventorySettingsPage() {
         </div>
         <PrintJobsPanel ar={ar} />
       </Section>
-        <Toggle search={s} label={ar ? 'ماسح الباركود' : 'Barcode scanner'} checked={current.groupStockBarcode} onChange={() => toggle('groupStockBarcode')} />
-        <Toggle search={s} label={ar ? 'تسمية GS1' : 'GS1 nomenclature'} checked={current.groupGs1Nomenclature} onChange={() => toggle('groupGs1Nomenclature')} />
-      </Section>
 
       <Section title={ar ? 'الشحن' : 'Shipping'} search={s} matchKeys={['email', 'sms', 'signature', 'delivery', 'carrier', 'shipping']}>
         <Toggle search={s} label={ar ? 'تأكيد بالبريد' : 'Email confirmation'} checked={current.emailConfirmationOnDelivery} onChange={() => toggle('emailConfirmationOnDelivery')} />
@@ -457,6 +454,8 @@ export default function InventorySettingsPage() {
         <Toggle search={s} label={ar ? 'المتغيرات' : 'Variants'} checked={current.groupProductVariant} onChange={() => toggle('groupProductVariant')} />
         <Toggle search={s} label={ar ? 'وحدات القياس' : 'Units of measure'} hint={ar ? 'قائمة الوحدات + تحويل في المحرك' : 'UoM list + engine conversion'} checked={current.groupUom} onChange={() => toggle('groupUom')} />
         <Toggle search={s} label={ar ? 'تعبئة المنتجات' : 'Product packagings'} hint={ar ? 'كمية لكل عبوة · اختيار على أسطر النقل' : 'Qty per pack · selector on transfer lines'} checked={current.groupStockPackaging} onChange={() => toggle('groupStockPackaging')} />
+        <Toggle search={s} label={ar ? 'ماسح الباركود' : 'Barcode scanner'} checked={current.groupStockBarcode} onChange={() => toggle('groupStockBarcode')} />
+        <Toggle search={s} label={ar ? 'تسمية GS1' : 'GS1 nomenclature'} checked={current.groupGs1Nomenclature} onChange={() => toggle('groupGs1Nomenclature')} />
         <p className="sm:col-span-2 text-xs text-slate-500">
           <Link to="/app/dashboard/inventory/uom" className="text-primary-600 hover:underline">{ar ? 'وحدات القياس' : 'Units of measure'}</Link>
           {' · '}
