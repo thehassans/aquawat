@@ -1218,6 +1218,21 @@ router.get('/products/:productId/relations', checkPermission('inventory', 'read'
   }
 });
 
+/** Catalogue preload for POS/sales — all active relations (optional type filter). */
+router.get('/relations', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { listRelations } = await import('../services/inventory/productRelations.js');
+    return sendList(res, await listRelations(req.user.tenantId, {
+      productId: req.query.productId,
+      type: req.query.type,
+      direction: req.query.direction || 'outgoing',
+      activeOnly: req.query.active !== 'false',
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.post('/relations', checkPermission('inventory', 'create'), async (req, res) => {
   try {
     const { upsertRelation } = await import('../services/inventory/productRelations.js');

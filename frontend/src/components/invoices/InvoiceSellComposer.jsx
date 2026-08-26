@@ -30,6 +30,7 @@ import RichTextNoteField from './RichTextNoteField'
 import MarqueeEventFields from '../marquee/MarqueeEventFields'
 import { isAppAccessValid } from '../../lib/appStoreTrial'
 import { isPakistanTenant, getTaxLabel, getTaxIdLabel, getTenantCountryCode, showArabicFields as isArabicTenantMarket } from '../../lib/saudiTenant'
+import { LineRelationSuggestions } from '../inventory/ProductRelationSuggestions'
 
 const getEmptyLine = (tenant) => {
   const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
@@ -742,6 +743,40 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     if (typeof product.sellingPrice === 'number') {
       setValue(`lineItems.${index}.unitPrice`, product.sellingPrice)
     }
+  }
+
+  const resolveRelatedProduct = (row) => {
+    const rel = row?.relatedProductId
+    const id = String(rel?._id || rel || '')
+    if (!id) return null
+    return (products || []).find((p) => String(p._id) === id) || (typeof rel === 'object' ? rel : null)
+  }
+
+  const appendRelatedProduct = (row) => {
+    const product = resolveRelatedProduct(row)
+    if (!product?._id) return
+    const already = (getValues('lineItems') || []).some((l) => String(l.productId) === String(product._id))
+    if (already) {
+      toast(language === 'ar' ? 'المنتج موجود في البنود' : 'Product already on the invoice')
+      return
+    }
+    append({
+      ...getEmptyLine(tenant),
+      productId: product._id,
+      productName: product.nameEn || product.name || '',
+      productNameAr: product.nameAr || product.nameEn || '',
+      unitCode: product.unitOfMeasure || 'PCE',
+      taxRate: typeof product.taxRate === 'number' ? product.taxRate : 15,
+      unitPrice: typeof product.sellingPrice === 'number' ? product.sellingPrice : 0,
+      productType: normalizeProductType(product.productType),
+      quantity: 1,
+    })
+  }
+
+  const swapLineProduct = (index, row) => {
+    const product = resolveRelatedProduct(row)
+    if (!product?._id) return
+    onSelectProduct(index, product._id)
   }
 
   const onSelectCustomer = (customerId) => {
@@ -1637,6 +1672,18 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       {fields.length > 1 && <button type="button" onClick={() => remove(index)} className="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-4 h-4" /></button>}
                     </div>
                   </div>
+                  {isTradingContext && lineItems?.[index]?.productId ? (
+                    <div className="mt-3">
+                      <LineRelationSuggestions
+                        productId={lineItems[index].productId}
+                        currentUnitPrice={lineItems[index].unitPrice}
+                        products={products || []}
+                        language={language}
+                        onAdd={appendRelatedProduct}
+                        onSwap={(row) => swapLineProduct(index, row)}
+                      />
+                    </div>
+                  ) : null}
                   {isTravelContext && (() => {
                     const line = lineItems?.[index] || {}
                     const summaryLine = totals.lines[index] || {}

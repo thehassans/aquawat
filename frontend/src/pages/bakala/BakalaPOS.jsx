@@ -15,6 +15,9 @@ import { generateZatcaQrValue } from '../../lib/zatcaQr';
 import { generateFbrQrValue } from '../../lib/fbrQr';
 import { getThermalPrinterSettings, getBodyWidthCss, getPageCss } from '../../lib/thermalPrinter';
 import { isAndroidPos, isAndroidDevice, detectBridge, isWebUsbSupported, isWebSerialSupported, printText as androidPrintText, openCashDrawer as androidOpenCashDrawer, openCashDrawerViaRaw, openCashDrawerViaWebUSB, openCashDrawerViaSerial, openCashDrawerViaSystemPrint, printViaSystemPrint, buildReceiptHtml } from '../../lib/androidPosPrinter';
+import { PosRelationStrip, buildRelationsBySource } from '../../components/inventory/ProductRelationSuggestions';
+import { asInvList } from '../../lib/invList';
+import { useQuery } from '@tanstack/react-query';
 
 // ─── Memoized single product card — only re-renders if this specific product changes ───
 const ProductCard = React.memo(function ProductCard({ item, onAddItem }) {
@@ -100,8 +103,41 @@ export default function BakalaPOS() {
     prescriberName: '',
     pharmacistNote: '',
   });
+  const [lastSuggestTradingId, setLastSuggestTradingId] = useState(null);
 
   const heldBills = getHeldBills();
+
+  const hasLinkedTradingProducts = useMemo(
+    () => (allProducts || []).some((p) => p?.productId),
+    [allProducts],
+  );
+
+  const { data: relationsCatalogue = [] } = useQuery({
+    queryKey: ['inv-relations-catalogue', 'pos'],
+    queryFn: () => api.get('/stock/relations').then((r) => asInvList(r.data)),
+    enabled: hasLinkedTradingProducts,
+    staleTime: 120_000,
+  });
+
+  const relationsBySource = useMemo(
+    () => (relationsCatalogue.length ? buildRelationsBySource(relationsCatalogue) : null),
+    [relationsCatalogue],
+  );
+
+  const bakalaByTradingId = useMemo(() => {
+    const m = new Map();
+    for (const p of allProducts || []) {
+      if (p?.productId) m.set(String(p.productId), p);
+    }
+    return m;
+  }, [allProducts]);
+
+  const addPosItem = (item) => {
+    if (!item) return;
+    addItem(item);
+    const tid = item.productId ? String(item.productId) : null;
+    setLastSuggestTradingId(tid);
+  };
 
   const getBillTotal = (bill) => {
     if (bill.totals && typeof bill.totals.grandTotal === 'number') {
@@ -609,7 +645,7 @@ export default function BakalaPOS() {
           retailPrice: priceSAR,
           name: `${scaleMatch.name} (${isWeightBased ? 'Weighed' : 'Counted'})`
         };
-        addItem(scaledItem);
+        addPosItem(scaledItem);
         setSearchTerm('');
         return;
       }
@@ -619,16 +655,16 @@ export default function BakalaPOS() {
     const exactMatch = allProducts.find(p => p.primaryBarcode === term || p.barcodes?.includes(term));
     
     if (exactMatch) {
-      addItem(exactMatch);
+      addPosItem(exactMatch);
       setSearchTerm('');
     } else {
       // If no exact match but there's only 1 item in the filtered list, add that one
       if (fastItems.length === 1) {
-        addItem(fastItems[0]);
+        addPosItem(fastItems[0]);
         setSearchTerm('');
       } else {
         // Fallback for manual test item
-        addItem({
+        addPosItem({
           _id: uuidv4(),
           name: `Item ${term}`,
           primaryBarcode: term,
@@ -1371,13 +1407,25 @@ export default function BakalaPOS() {
             <ProductGrid
               items={fastItems}
               onAddItem={(item) => {
-                addItem(item);
+                addPosItem(item);
                 setSearchTerm('');
                 barcodeInputRef.current?.focus();
               }}
             />
           )}
         </div>
+
+        {lastSuggestTradingId && cartItems.length > 0 ? (
+          <PosRelationStrip
+            tradingProductId={lastSuggestTradingId}
+            relationsBySource={relationsBySource}
+            resolveAddable={(tradingId) => bakalaByTradingId.get(String(tradingId)) || null}
+            onAdd={(bakalaProduct) => {
+              if (bakalaProduct) addPosItem(bakalaProduct);
+            }}
+            language="en"
+          />
+        ) : null}
 
         {/* Summary Card */}
         <div className="p-6 bg-white border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] z-10 rounded-tl-3xl">

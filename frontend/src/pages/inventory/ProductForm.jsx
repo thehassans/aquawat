@@ -18,6 +18,8 @@ import { normalizeProductType } from '../../lib/productType'
 import ProductTypeToggle from '../../components/ui/ProductTypeToggle'
 import CategoryCombobox from '../../components/inventory/CategoryCombobox'
 import ProductImageGallery from '../../components/inventory/ProductImageGallery'
+import ProductRelationsEditor from '../../components/inventory/ProductRelationsEditor'
+import AttributeExclusionsEditor from '../../components/inventory/AttributeExclusionsEditor'
 import { formatInvError } from '../../lib/invError'
 
 function AttributeValuesMulti({ attributeId, valueIds, onChange, language }) {
@@ -816,6 +818,7 @@ export default function ProductForm() {
               </div>
             </div>
           </div>
+          <ProductRelationsEditor productId={isEdit ? id : null} language={language} />
         </motion.div>
         )}
 
@@ -1228,6 +1231,13 @@ export default function ProductForm() {
               >
                 {language === 'ar' ? 'توليد المتغيرات' : 'Generate variants'}
               </button>
+            )}
+            {isEdit && (
+              <AttributeExclusionsEditor
+                productId={id}
+                attributeLines={attributeLines}
+                language={language}
+              />
             )}
           </motion.div>
         )}

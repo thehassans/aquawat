@@ -12,8 +12,9 @@ Last updated: 2026-08-26
 | Attribute UX fields | `displayType`, value `htmlColor` / `imageUrl` / `isCustom` |
 | Generation | Exclusions applied; max 1000 combos; reactivate archived; archive-with-history / delete unused; mode change blocked when in use |
 | Seed fixture | `AUD-TEE-01` Colour(Red/Blue/Silk)×Size(S/M/L/XXL) − Silk×XXL → **11** variants; accessory→AUD-SIM-01; upsell→AUD-SIM-02; kit `AUD-KIT-01`; `groupProductVariant=true` |
-| APIs | `/stock/exclusions`, `/stock/relations`, `/stock/products/:id/bundle`, `/kit-availability`, `/variants/get-or-create`, template-attribute-values |
-| Still open (later steps) | Valuation/lot/putaway/cache per variant; Invoice/PO `line.variantId`; sales/POS relationship UI; import dry-run; full form field completion |
+| APIs | `/stock/exclusions`, `/stock/relations` (+ list preload), `/stock/products/:id/relations`, `/suggestions`, `/bundle`, `/kit-availability`, `/variants/get-or-create`, template-attribute-values |
+| Form / sales UI (shipped) | ProductForm Sales: relations CRUD + “Suggested by”; Variants: attribute exclusions editor; Quotation + sell invoice: cross-sell / accessories / upsell swap (+ optional on quotation); Bakala POS strip when `BakalaProduct.productId` links to trading Product (catalogue preload via `GET /stock/relations`) |
+| Still open | Valuation/lot/putaway/cache **per variant**; Invoice/PO/Quotation `line.variantId`; import dry-run variant counts; full form field completion; history-based “frequently bought” proposals (manual curation only for now); POS strip on verticals without trading `productId` link |
 
 ## Verification phase (2026-08-26)
 

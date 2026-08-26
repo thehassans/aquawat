@@ -24,6 +24,7 @@ import ProductTypeToggle from '../ui/ProductTypeToggle'
 import RichTextNoteField from '../invoices/RichTextNoteField'
 import MarqueeEventFields from '../marquee/MarqueeEventFields'
 import { isAppAccessValid } from '../../lib/appStoreTrial'
+import { LineRelationSuggestions } from '../inventory/ProductRelationSuggestions'
 
 const getEmptyLine = (tenant) => {
   const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
@@ -427,6 +428,42 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     setValue(`lineItems.${index}.taxRate`, typeof product.taxRate === 'number' ? product.taxRate : 15)
     setValue(`lineItems.${index}.unitPrice`, typeof product.sellingPrice === 'number' ? product.sellingPrice : 0)
     setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType))
+  }
+
+  const resolveRelatedProduct = (row) => {
+    const rel = row?.relatedProductId
+    const id = String(rel?._id || rel || '')
+    if (!id) return null
+    return (products || []).find((p) => String(p._id) === id) || (typeof rel === 'object' ? rel : null)
+  }
+
+  const appendRelatedProduct = (row) => {
+    const product = resolveRelatedProduct(row)
+    if (!product?._id) return
+    const already = (getValues('lineItems') || []).some((l) => String(l.productId) === String(product._id))
+    if (already) {
+      toast(language === 'ar' ? 'المنتج موجود في البنود' : 'Product already on the quotation')
+      return
+    }
+    append({
+      ...getEmptyLine(tenant),
+      productId: product._id,
+      productName: product.nameEn || product.name || '',
+      productNameAr: product.nameAr || product.nameEn || '',
+      description: product.descriptionEn || '',
+      descriptionAr: product.descriptionAr || '',
+      unitCode: product.unitOfMeasure || 'PCE',
+      taxRate: typeof product.taxRate === 'number' ? product.taxRate : 15,
+      unitPrice: typeof product.sellingPrice === 'number' ? product.sellingPrice : 0,
+      productType: normalizeProductType(product.productType),
+      quantity: 1,
+    })
+  }
+
+  const swapLineProduct = (index, row) => {
+    const product = resolveRelatedProduct(row)
+    if (!product?._id) return
+    onSelectProduct(index, product._id)
   }
 
   const onSelectCustomer = (customerId) => {
@@ -1069,6 +1106,18 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                         </button>
                       </div>
                     </div>
+
+                    {isTradingContext && values?.lineItems?.[index]?.productId ? (
+                      <LineRelationSuggestions
+                        productId={values.lineItems[index].productId}
+                        currentUnitPrice={values.lineItems[index].unitPrice}
+                        products={products || []}
+                        language={language}
+                        includeOptional
+                        onAdd={appendRelatedProduct}
+                        onSwap={(row) => swapLineProduct(index, row)}
+                      />
+                    ) : null}
 
                     <div className="flex items-center justify-between border-t border-slate-200/70 pt-3 dark:border-white/10">
                       <p className="text-sm text-slate-500 dark:text-slate-400">
