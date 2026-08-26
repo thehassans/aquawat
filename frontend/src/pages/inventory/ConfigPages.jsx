@@ -326,8 +326,8 @@ export function LocationForm() {
             </h3>
             <p className="mt-1 text-xs text-slate-500">
               {language === 'ar'
-                ? 'تُستخدم هذه الحسابات عند تقييم الحركات إلى هذا الموقع أو منه.'
-                : 'These accounts apply when valuation journals involve this location.'}
+                ? 'تجاوز اختياري عند محاسبة المخزون الكاملة (أنجلو ساكسون) — يُستخدم إن وُجد بدلاً من الفئة/المنتج.'
+                : 'Optional overrides for Full inventory accounting (Anglo-Saxon) — used when set, ahead of category/product.'}
             </p>
           </div>
           <div>
@@ -863,6 +863,13 @@ export function ProductCategoryForm() {
   const journalOptions = Array.isArray(journals) ? journals.filter((j) => j?.active !== false) : []
 
   useEffect(() => {
+    if (isEdit || !invSettings) return
+    if (!fullAccounting) {
+      setForm((f) => (f.valuationMode === 'manual' ? f : { ...f, valuationMode: 'manual' }))
+    }
+  }, [isEdit, invSettings, fullAccounting])
+
+  useEffect(() => {
     if (!existing) return
     setForm({
       name: existing.name || '',
@@ -1087,7 +1094,12 @@ export function ProductCategoryForm() {
           </h3>
         </div>
         <div>
-          <label className="label">{language === 'ar' ? 'حساب الإيراد' : 'Income Account'}</label>
+          <label className="label">
+            {language === 'ar' ? 'حساب الإيراد' : 'Income Account'}
+            <span className="ms-1 font-normal text-slate-400">
+              {language === 'ar' ? '(للمنتجات المباعة)' : '(for sold products)'}
+            </span>
+          </label>
           <select className="select" value={form.incomeAccountId} onChange={(e) => setForm({ ...form, incomeAccountId: e.target.value })}>
             <option value="">—</option>
             {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}

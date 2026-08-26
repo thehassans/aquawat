@@ -53,3 +53,18 @@ test('helpers for evaluation and GL', () => {
   assert.equal(isStockGlOn({ inventoryAccountingMode: 'costing' }), false);
   assert.equal(isStockGlOn({ inventoryAccountingMode: 'ops_only' }), false);
 });
+
+test('ops_only disables evaluation even if legacy booleans were true when mode stored', () => {
+  assert.equal(isInventoryEvaluationOn({
+    inventoryAccountingMode: 'ops_only',
+    inventoryEvaluationEnabled: true,
+  }), false);
+});
+
+test('missing mode derives full_accounting from legacy defaults (both on)', () => {
+  assert.equal(resolveInventoryAccountingMode({}), 'full_accounting');
+  assert.equal(resolveInventoryAccountingMode({
+    inventoryEvaluationEnabled: false,
+    stockAccountingEnabled: false,
+  }), 'ops_only');
+});

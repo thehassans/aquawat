@@ -191,6 +191,48 @@ export async function resolveStockAccounts(tenantId) {
 }
 
 /**
+ * Prefill empty tenant propertyStock* / stockJournalId from COA codes + STJ.
+ * Does not overwrite accounts the user already chose.
+ */
+export async function linkDefaultPropertyStockAccounts(tenantId, userId = null) {
+  const tid = toObjectId(tenantId);
+  await ensureStockAccountingAccounts(tid, userId);
+  const settings = await InvSettings.findOne({ tenantId: tid });
+  if (!settings) return null;
+
+  const resolved = await resolveStockAccounts(tid);
+  let dirty = false;
+  if (!settings.propertyStockValuationAccountId && resolved.inventory?._id) {
+    settings.propertyStockValuationAccountId = resolved.inventory._id;
+    dirty = true;
+  }
+  if (!settings.propertyStockInputAccountId && resolved.stockInput?._id) {
+    settings.propertyStockInputAccountId = resolved.stockInput._id;
+    dirty = true;
+  }
+  if (!settings.propertyStockOutputAccountId && resolved.stockOutput?._id) {
+    settings.propertyStockOutputAccountId = resolved.stockOutput._id;
+    dirty = true;
+  }
+  if (!settings.propertyLandedCostAccountId && resolved.landedCredit?._id) {
+    settings.propertyLandedCostAccountId = resolved.landedCredit._id;
+    dirty = true;
+  }
+  if (!settings.stockJournalId) {
+    const book = await ensureDefaultStockJournal(tid, userId);
+    if (book?._id) {
+      settings.stockJournalId = book._id;
+      dirty = true;
+    }
+  }
+  if (dirty) {
+    if (userId) settings.updatedBy = userId;
+    await settings.save();
+  }
+  return settings;
+}
+
+/**
  * Ordered preferred account ids for a stock role.
  * Preference: product override → category → location → inventory settings.
  * Pure helper (no DB) so unit tests can assert the resolution order.

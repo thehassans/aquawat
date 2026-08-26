@@ -287,21 +287,20 @@ export async function updateInvSettings(tenantId, userId, body) {
     { new: true, upsert: true },
   );
 
-  // Opting into full Anglo-Saxon accounting: seed STJ + interim COA (never invent category links)
+  // Opting into full Anglo-Saxon accounting: seed STJ + interim COA + prefill tenant defaults
   if (
     updated.inventoryAccountingMode === 'full_accounting'
     && prior.inventoryAccountingMode !== 'full_accounting'
   ) {
     try {
-      const {
-        ensureStockAccountingAccounts,
-        ensureDefaultStockJournal,
-      } = await import('./stockAccounting.js');
-      await ensureStockAccountingAccounts(tid, userId);
-      const book = await ensureDefaultStockJournal(tid, userId);
-      if (book?._id && !updated.stockJournalId) {
-        updated.stockJournalId = book._id;
-        await updated.save();
+      const { linkDefaultPropertyStockAccounts } = await import('./stockAccounting.js');
+      const linked = await linkDefaultPropertyStockAccounts(tid, userId);
+      if (linked) {
+        updated.propertyStockValuationAccountId = linked.propertyStockValuationAccountId;
+        updated.propertyStockInputAccountId = linked.propertyStockInputAccountId;
+        updated.propertyStockOutputAccountId = linked.propertyStockOutputAccountId;
+        updated.propertyLandedCostAccountId = linked.propertyLandedCostAccountId;
+        updated.stockJournalId = linked.stockJournalId;
       }
     } catch (err) {
       console.error('[inventory] seed full accounting defaults', err?.message || err);

@@ -475,10 +475,12 @@ export async function validateTransfer(tenantId, transferId, {
             );
           }
 
-          // Valuation when crossing internal boundary (only if inventory evaluation is enabled)
+          // Valuation when crossing internal boundary (only if costing / full accounting)
           const srcInternal = srcLoc?.usage === 'internal';
           const destInternal = destLoc?.usage === 'internal';
-          if (srcInternal !== destInternal && settings.inventoryEvaluationEnabled !== false) {
+          const { isInventoryEvaluationOn } = await import('./accountingMode.js');
+          const evaluationOn = isInventoryEvaluationOn(settings);
+          if (srcInternal !== destInternal && evaluationOn) {
             try {
               const { createValuationForMove } = await import('./valuation.js');
               const direction = destInternal && !srcInternal ? 'in' : 'out';
@@ -493,7 +495,7 @@ export async function validateTransfer(tenantId, transferId, {
                 direction,
                 unitCostOverride: direction === 'in' ? unitCost : undefined,
                 description: `${transfer.name || ''} ${direction}`,
-                evaluationEnabled: settings.inventoryEvaluationEnabled !== false,
+                evaluationEnabled: evaluationOn,
               });
               if (val?.layer) {
                 valuationJobs.push({

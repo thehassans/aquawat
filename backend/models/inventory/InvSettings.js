@@ -18,18 +18,17 @@ const schema = new mongoose.Schema({
   schedulerEnabled: { type: Boolean, default: false },
   /**
    * ops_only | costing | full_accounting
-   * Synced with inventoryEvaluationEnabled + stockAccountingEnabled.
-   * Default ops_only for new tenants (valuation / GL opt-in).
+   * No schema default — missing value is derived from evaluation/stockAccounting flags
+   * so existing tenants are not forced to ops_only on load.
    */
   inventoryAccountingMode: {
     type: String,
     enum: ['ops_only', 'costing', 'full_accounting'],
-    default: 'ops_only',
   },
-  /** When true, post Anglo-Saxon stock journals (requires evaluation). Prefer inventoryAccountingMode. */
-  stockAccountingEnabled: { type: Boolean, default: false },
-  /** When true, receipt/delivery writes valuation layers / AVCO. Prefer inventoryAccountingMode. */
-  inventoryEvaluationEnabled: { type: Boolean, default: false },
+  /** Synced from inventoryAccountingMode. Prefer mode field when set. */
+  stockAccountingEnabled: { type: Boolean },
+  /** Synced from inventoryAccountingMode. Prefer mode field when set. */
+  inventoryEvaluationEnabled: { type: Boolean },
   /** Global override — allow all products to go negative on validate */
   allowNegativeStock: { type: Boolean, default: false },
   propertyStockValuationAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },

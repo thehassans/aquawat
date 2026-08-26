@@ -5,6 +5,11 @@ import { useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
 import { Search } from 'lucide-react'
 import api from '../../lib/api'
+import {
+  ACCOUNTING_MODE_OPTIONS,
+  isFullInventoryAccounting,
+  resolveInventoryAccountingMode,
+} from '../../lib/inventoryAccountingMode'
 
 const CARRIERS = [
   { key: 'moduleCarrierSmsa', label: 'SMSA', note: 'Saudi — connector not installed' },
@@ -159,13 +164,16 @@ export default function InventorySettingsPage() {
       const data = res.data || {}
       qc.invalidateQueries({ queryKey: ['stock-settings'] })
       qc.invalidateQueries({ queryKey: ['stock-journal-books'] })
+      qc.invalidateQueries({ queryKey: ['accounting-accounts'] })
       if (data.skipped) {
         toast.success(ar
           ? 'محاسبة المخزون الكاملة غير مفعّلة — لا فجوات للتحقق'
           : 'Full inventory accounting is off — nothing to validate')
         setAccountGaps(null)
       } else if (data.ok) {
-        toast.success(ar ? 'كل فئات التقييم الآلي مكتملة' : 'All automated categories have accounts')
+        toast.success(ar
+          ? 'تم ربط الحسابات الافتراضية · كل فئات التقييم الآلي مكتملة'
+          : 'Default accounts linked · all automated categories complete')
         setAccountGaps(null)
       } else {
         setAccountGaps(data)
@@ -180,6 +188,8 @@ export default function InventorySettingsPage() {
   })
 
   const smsOk = !!current.smsProviderConfigured
+  const fullAccounting = isFullInventoryAccounting(current)
+  const accountingMode = resolveInventoryAccountingMode(current)
 
   const stickyBar = useMemo(
     () => (
@@ -195,9 +205,11 @@ export default function InventorySettingsPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => ensureAcc.mutate()}>
-              {ar ? 'التحقق من الحسابات' : 'Ensure accounts'}
-            </button>
+            {fullAccounting && (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => ensureAcc.mutate()}>
+                {ar ? 'التحقق من الحسابات' : 'Ensure accounts'}
+              </button>
+            )}
             {dirty && (
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDraft(null)}>
                 {ar ? 'تجاهل' : 'Discard'}
@@ -224,7 +236,7 @@ export default function InventorySettingsPage() {
         </div>
       </div>
     ),
-    [ar, dirty, draft, ensureAcc, saveMut, search],
+    [ar, dirty, draft, ensureAcc, fullAccounting, saveMut, search],
   )
 
   if (isLoading && !settings) return <div className="text-sm text-slate-500">…</div>
@@ -235,7 +247,7 @@ export default function InventorySettingsPage() {
     <div className="space-y-5 pb-16">
       {stickyBar}
 
-      {accountGaps && !accountGaps.ok && (
+      {accountGaps && !accountGaps.ok && !accountGaps.skipped && fullAccounting && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
@@ -356,29 +368,8 @@ export default function InventorySettingsPage() {
               : 'Opt-in — enable full accounting only if inventory should hit the general ledger.'}
           </p>
           <div className="grid gap-2">
-            {[
-              {
-                id: 'ops_only',
-                label: ar ? 'عمليات المخزون فقط' : 'Stock operations only',
-                hint: ar ? 'كميات وتحويلات. بلا طبقات تكلفة وبلا قيود مخزون.' : 'Quantities and transfers. No cost layers, no inventory journals.',
-              },
-              {
-                id: 'costing',
-                label: ar ? 'تكلفة بدون قيود محاسبية' : 'Costing without GL',
-                hint: ar ? 'طبقات AVCO/FIFO للتقارير فقط.' : 'AVCO/FIFO layers for reports only — no stock journals.',
-              },
-              {
-                id: 'full_accounting',
-                label: ar ? 'محاسبة مخزون كاملة (أنجلو ساكسون)' : 'Full inventory accounting (Anglo-Saxon)',
-                hint: ar ? 'قيود عند الاستلام/الصرف: تقييم ↔ وسيط / تكلفة البضاعة.' : 'Journals on receipt/delivery: valuation ↔ interim / COGS.',
-              },
-            ].map((opt) => {
-              const selected = (current.inventoryAccountingMode
-                || (current.inventoryEvaluationEnabled !== false && current.stockAccountingEnabled !== false
-                  ? 'full_accounting'
-                  : current.inventoryEvaluationEnabled !== false
-                    ? 'costing'
-                    : 'ops_only')) === opt.id
+            {ACCOUNTING_MODE_OPTIONS.map((opt) => {
+              const selected = accountingMode === opt.id
               return (
                 <label
                   key={opt.id}
@@ -396,8 +387,12 @@ export default function InventorySettingsPage() {
                     onChange={() => setField('inventoryAccountingMode', opt.id)}
                   />
                   <span>
-                    <span className="block font-medium text-slate-800 dark:text-slate-100">{opt.label}</span>
-                    <span className="block text-xs text-slate-500">{opt.hint}</span>
+                    <span className="block font-medium text-slate-800 dark:text-slate-100">
+                      {ar ? opt.ar : opt.en}
+                    </span>
+                    <span className="block text-xs text-slate-500">
+                      {ar ? opt.hintAr : opt.hintEn}
+                    </span>
                   </span>
                 </label>
               )
@@ -405,13 +400,12 @@ export default function InventorySettingsPage() {
           </div>
         </div>
         <Toggle search={s} label={ar ? 'التكاليف الإضافية' : 'Landed costs'} checked={current.groupLandedCosts} onChange={() => toggle('groupLandedCosts')} />
-        {(current.inventoryAccountingMode === 'full_accounting'
-          || (current.inventoryAccountingMode == null && current.stockAccountingEnabled !== false && current.inventoryEvaluationEnabled !== false)) && (
+        {fullAccounting && (
           <>
             <p className="sm:col-span-2 text-xs text-slate-500">
               {ar
-                ? 'افتراضات المستأجر عند غياب تجاوز الفئة/المنتج/الموقع. إن تُركت فارغة يُستخدم رمز الحساب الافتراضي.'
-                : 'Tenant defaults when category/product/location overrides are empty. Empty = use fallback COA code.'}
+                ? 'افتراضات المستأجر عند غياب تجاوز الفئة/المنتج/الموقع. «التحقق من الحسابات» يملأ الرموز الافتراضية إن كانت فارغة.'
+                : 'Tenant defaults when category/product/location overrides are empty. Ensure accounts prefills COA codes when empty.'}
             </p>
             <AccountSelect
               search={s}

@@ -18,7 +18,15 @@ export const FLAG_MAP = {
   batchTransfers: 'groupBatchTransfer',
   quality: 'moduleQuality',
   receptionReport: (s) => Boolean(s.receptionReportEnabled || s.groupReceptionReport),
-  valuation: (s) => s.inventoryEvaluationEnabled !== false || s.stockAccountingEnabled || s.groupLandedCosts,
+  valuation: (s) => {
+    const mode = s.inventoryAccountingMode;
+    if (mode === 'ops_only') return Boolean(s.groupLandedCosts);
+    if (mode === 'costing' || mode === 'full_accounting') return true;
+    // Legacy: missing mode — show when evaluation/stock GL on or landed costs
+    return s.inventoryEvaluationEnabled !== false
+      || Boolean(s.stockAccountingEnabled)
+      || Boolean(s.groupLandedCosts);
+  },
   landedCosts: 'groupLandedCosts',
   pos: 'menuPos',
   manufacturing: 'menuManufacturing',
@@ -440,8 +448,6 @@ export function isMenuFlagOn(settings, flagKey) {
     'groupPutawayRules',
     'groupUom',
     'groupLandedCosts',
-    'stockAccountingEnabled',
-    'inventoryEvaluationEnabled',
     'menuPos',
     'menuManufacturing',
   ]);

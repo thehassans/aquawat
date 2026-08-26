@@ -2286,24 +2286,23 @@ router.post('/landed-costs/:id/validate', checkPermission('inventory', 'update')
 router.post('/accounting/ensure-accounts', checkPermission('inventory', 'update'), async (req, res) => {
   try {
     const {
-      ensureStockAccountingAccounts,
       resolveStockAccounts,
       validateAutomatedCategoryAccounts,
-      ensureDefaultStockJournal,
+      linkDefaultPropertyStockAccounts,
     } = await import('../services/inventory/stockAccounting.js');
-    // Seed only the system interim COA codes + default Stock journal book — never invent category account links
-    await ensureStockAccountingAccounts(req.user.tenantId, req.user._id);
-    const stockJournal = await ensureDefaultStockJournal(req.user.tenantId, req.user._id);
-    const InvSettings = (await import('../models/inventory/InvSettings.js')).default;
-    await InvSettings.updateOne(
-      { tenantId: req.user.tenantId, $or: [{ stockJournalId: null }, { stockJournalId: { $exists: false } }] },
-      { $set: { stockJournalId: stockJournal._id } },
-    );
+    // Seed interim COA + STJ and prefill empty tenant property accounts (never invent category links)
+    const linked = await linkDefaultPropertyStockAccounts(req.user.tenantId, req.user._id);
     const validation = await validateAutomatedCategoryAccounts(req.user.tenantId);
     const accounts = await resolveStockAccounts(req.user.tenantId);
     res.json({
       ...validation,
-      defaultStockJournalId: stockJournal?._id,
+      defaultStockJournalId: linked?.stockJournalId || accounts.settings?.stockJournalId,
+      propertyAccounts: {
+        valuation: linked?.propertyStockValuationAccountId,
+        input: linked?.propertyStockInputAccountId,
+        output: linked?.propertyStockOutputAccountId,
+        landed: linked?.propertyLandedCostAccountId,
+      },
       accounts: {
         inventory: accounts.inventory?._id,
         stockInput: accounts.stockInput?._id,

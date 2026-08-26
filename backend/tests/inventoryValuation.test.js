@@ -235,4 +235,8 @@ test('assertAutomatedCategoryAccounts requires five fields when automated', asyn
     expenseAccountId: 'e',
   }));
   assert.doesNotThrow(() => assertAutomatedCategoryAccounts({ valuationMode: 'manual' }));
+  assert.doesNotThrow(() => assertAutomatedCategoryAccounts(
+    { valuationMode: 'automated' },
+    { requireStockAccounts: false },
+  ));
 });

@@ -241,9 +241,10 @@ export async function validateScrap(scrapId, tenantId, userId = null) {
       dims,
     );
 
-    // Inventory evaluation on scrap (out) when enabled
+    // Inventory evaluation on scrap (out) when costing / full accounting
     let valuationJob = null;
-    if (settings.inventoryEvaluationEnabled !== false) {
+    const { isInventoryEvaluationOn } = await import('./accountingMode.js');
+    if (isInventoryEvaluationOn(settings)) {
       try {
         const { createValuationForMove } = await import('./valuation.js');
         const val = await createValuationForMove(session, {
