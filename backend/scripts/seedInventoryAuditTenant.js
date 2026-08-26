@@ -19,7 +19,6 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
-import crypto from 'crypto';
 
 import Tenant from '../models/Tenant.js';
 import User from '../models/User.js';
@@ -59,11 +58,6 @@ function log(...args) {
   console.log('[inv-audit-seed]', ...args);
 }
 
-/** Frontend login hashes the password with SHA-256 before send; store bcrypt(sha256). */
-function clientPasswordHash(plain) {
-  return crypto.createHash('sha256').update(String(plain), 'utf8').digest('hex');
-}
-
 async function ensureTenant(slug, name) {
   let tenant = await Tenant.findOne({ slug });
   if (tenant) {
@@ -101,13 +95,15 @@ async function ensureUser({
   warehouseIds = [],
 }) {
   const existing = await User.findOne({ tenantId, email: email.toLowerCase() });
-  const hashInput = clientPasswordHash(password);
+  // Store plaintext — User pre-save bcrypt-hashes. Login sends obfuscated plaintext (not SHA-256).
   if (existing) {
     existing.role = role;
     existing.permissions = permissions;
     existing.warehouseIds = warehouseIds;
     existing.isActive = true;
-    existing.password = hashInput; // pre-save re-hashes
+    existing.password = password;
+    existing.loginAttempts = 0;
+    existing.lockUntil = undefined;
     existing.firstName = firstName;
     existing.lastName = lastName;
     await existing.save();
@@ -117,7 +113,7 @@ async function ensureUser({
   const user = await User.create({
     tenantId,
     email: email.toLowerCase(),
-    password: hashInput,
+    password,
     firstName,
     lastName,
     role,
