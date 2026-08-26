@@ -549,6 +549,8 @@ test('A.3 #11 return of done delivery restores stock', { skip: integrationSkip |
     const ret = await createReturnTransfer(ctx.tenantId, ctx.userId, delivery._id, {
       lines: [{ moveId: doneMove._id, quantity: '2' }],
     });
+    assert.equal(ret.isReturn, true);
+    assert.equal(String(ret.returnOfTransferId), String(delivery._id));
     await confirmTransfer(ctx.tenantId, ret._id, ctx.userId);
     await validateTransfer(ctx.tenantId, ret._id, { userId: ctx.userId, immediate: true });
     assert.equal(await quantOnHand(ctx.tenantId, product._id, ctx.stockLocationId), '9');

@@ -102,6 +102,8 @@ export async function createReturnTransfer(tenantId, userId, transferId, { lines
       destLocationId: original.sourceLocationId,
       scheduledDate: new Date(),
       origin: `Return of ${original.name}`,
+      isReturn: true,
+      returnOfTransferId: original._id,
       state: 'draft',
       procurementGroupId: original.procurementGroupId,
       sourceModel: original.sourceModel,

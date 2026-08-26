@@ -25,6 +25,8 @@ const schema = new mongoose.Schema({
   isScrapLocation: { type: Boolean, default: false },
   isReturnLocation: { type: Boolean, default: false },
   barcode: { type: String },
+  /** Walk order for pick lists (lower = earlier) */
+  pickSequence: { type: Number, default: undefined },
   cyclicCountFrequencyDays: { type: Number },
   lastCountDate: { type: Date },
   nextCountDate: { type: Date },

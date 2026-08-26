@@ -18,6 +18,9 @@ const schema = new mongoose.Schema({
   state: { type: String, enum: TRANSFER_STATES, default: 'draft', index: true },
   priority: { type: String, enum: ['normal', 'urgent'], default: 'normal' },
   backorderOfId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvTransfer', default: null },
+  /** True when this transfer is a customer/vendor return of a done picking */
+  isReturn: { type: Boolean, default: false, index: true },
+  returnOfTransferId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvTransfer', default: null },
   procurementGroupId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProcurementGroup', default: null },
   ownerId: { type: mongoose.Schema.Types.ObjectId, default: null },
   responsibleId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
@@ -45,6 +48,7 @@ schema.index({ tenantId: 1, operationTypeId: 1, state: 1 });
 schema.index({ tenantId: 1, state: 1, scheduledDate: 1 });
 schema.index({ tenantId: 1, origin: 1 });
 schema.index({ tenantId: 1, backorderOfId: 1 });
+schema.index({ tenantId: 1, returnOfTransferId: 1 });
 schema.index({ tenantId: 1, sourceModel: 1, sourceDocId: 1 });
 
 export { TRANSFER_STATES };

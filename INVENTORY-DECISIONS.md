@@ -72,7 +72,10 @@ Last updated: 2026-08-26
 | v4 Part B | **Blocked** until §11 exit criteria in the verification spec are met |
 | Path prefix | Canonical UI is `/app/dashboard/inventory/…` (not bare `/inventory`) |
 | Spec path slugs | Several §2 expected slugs differ from Maqder (`pos` vs `pos-orders`, reports not under `/reports/`); resolve via redirects **or** amend verification doc — ask before rewriting routes |
-| Returns model | Still `origin: "Return of …"`; proper `isReturn` / `returnOfTransferId` is a completion item (S2) |
+| Returns model | `isReturn` + `returnOfTransferId` on InvTransfer (2026-08-26); origin string kept for display |
+| PO numbering | `nextDailyDocNumber` via InvSequence `$inc` — replaces lastSeq+1 scan (D05) |
+| Path contract | Spec URL aliases redirect to Maqder routes (`pos-orders`, `reports/*`, `reordering`) |
+| pickSequence | Field on InvLocation + configMasters create/update (D06 schema gap partial) |
 
 ## Inventory accounting modes (2026-08-26)
 

@@ -91,6 +91,9 @@ export async function createLocation(tenantId, userId, body) {
     stockOutputAccountId: body.stockOutputAccountId || null,
     stockValuationAccountId: body.stockValuationAccountId || null,
     barcode: body.barcode,
+    pickSequence: body.pickSequence != null && body.pickSequence !== ''
+      ? Number(body.pickSequence)
+      : undefined,
     active: body.active !== false,
     createdBy: userId,
   });
@@ -141,6 +144,11 @@ export async function updateLocation(tenantId, userId, id, body) {
   if (body.stockOutputAccountId !== undefined) loc.stockOutputAccountId = body.stockOutputAccountId || null;
   if (body.stockValuationAccountId !== undefined) loc.stockValuationAccountId = body.stockValuationAccountId || null;
   if (body.barcode !== undefined) loc.barcode = body.barcode;
+  if (body.pickSequence !== undefined) {
+    loc.pickSequence = body.pickSequence != null && body.pickSequence !== ''
+      ? Number(body.pickSequence)
+      : undefined;
+  }
   if (body.active != null) loc.active = !!body.active;
   loc.updatedBy = userId;
 

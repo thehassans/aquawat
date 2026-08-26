@@ -805,24 +805,31 @@ function App() {
           <Route path="internal/:id" element={<TransferForm />} />
           <Route path="pos" element={<TransfersList />} />
           <Route path="pos/:id" element={<TransferForm />} />
+          <Route path="pos-orders" element={<Navigate to="/app/dashboard/inventory/pos" replace />} />
+          <Route path="pos-orders/:id" element={<PurchasesIdRedirect to="/app/dashboard/inventory/pos" />} />
           <Route path="manufacturing" element={<TransfersList />} />
           <Route path="manufacturing/:id" element={<TransferForm />} />
           <Route path="stock" element={<StockReport />} />
+          <Route path="reports/stock" element={<Navigate to="/app/dashboard/inventory/stock" replace />} />
           <Route path="physical" element={<PhysicalInventory />} />
           <Route path="scrap" element={<ScrapList />} />
           <Route path="scrap/:id" element={<ScrapForm />} />
           <Route path="lots" element={<LotsList />} />
           <Route path="lots/:id" element={<LotTraceability />} />
           <Route path="moves" element={<MovesHistory />} />
+          <Route path="reports/moves" element={<Navigate to="/app/dashboard/inventory/moves" replace />} />
           <Route path="replenishment" element={<ReplenishmentPage />} />
           <Route path="routes" element={<RoutesRulesPage />} />
           <Route path="scheduler" element={<SchedulerPage />} />
           <Route path="putaway" element={<PutawayPage />} />
           <Route path="valuation" element={<ValuationReport />} />
+          <Route path="reports/valuation" element={<Navigate to="/app/dashboard/inventory/valuation" replace />} />
           <Route path="landed-costs" element={<InvLandedCostsPage />} />
           <Route path="reports" element={<ReportingHub />} />
           <Route path="moves-analysis" element={<MovesAnalysisPage />} />
+          <Route path="reports/analysis" element={<Navigate to="/app/dashboard/inventory/moves-analysis" replace />} />
           <Route path="performance" element={<PerformancePage />} />
+          <Route path="reports/performance" element={<Navigate to="/app/dashboard/inventory/performance" replace />} />
           <Route path="forecast" element={<ForecastPage />} />
           <Route path="report/reception" element={<ReceptionReportPage />} />
           <Route path="settings" element={<InventorySettingsPage />} />
@@ -839,6 +846,7 @@ function App() {
           <Route path="packages" element={<PackagesPage />} />
           <Route path="product-packagings" element={<ProductPackagingPage />} />
           <Route path="report/locations" element={<LocationsReportPage />} />
+          <Route path="reports/locations" element={<Navigate to="/app/dashboard/inventory/report/locations" replace />} />
           <Route path="report/reconcile" element={<ReconcileReportPage />} />
           <Route path="locations" element={<LocationsPage />} />
           <Route path="locations/new" element={<LocationForm />} />
@@ -849,6 +857,7 @@ function App() {
           <Route path="rules" element={<RoutesRulesPage />} />
           <Route path="storage-categories" element={<StorageCategoriesPage />} />
           <Route path="reordering-rules" element={<ReorderingRulesPage />} />
+          <Route path="reordering" element={<Navigate to="/app/dashboard/inventory/reordering-rules" replace />} />
           <Route path="product-categories" element={<ProductCategoriesPage />} />
           <Route path="product-categories/new" element={<ProductCategoryForm />} />
           <Route path="product-categories/:id/edit" element={<ProductCategoryForm />} />

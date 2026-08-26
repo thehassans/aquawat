@@ -44,3 +44,24 @@ export async function ensureSequence(tenantId, code, prefix, session = null) {
   }], session ? { session } : undefined);
   return seq;
 }
+
+/**
+ * Atomic daily document number e.g. PO-20260826-001 (uses InvSequence $inc).
+ */
+export async function nextDailyDocNumber(tenantId, docPrefix, { padding = 3, session = null } = {}) {
+  const tid = toObjectId(tenantId);
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  const d = String(today.getDate()).padStart(2, '0');
+  const code = `${docPrefix}-${y}${m}${d}`;
+  await ensureSequence(tid, code, code, session);
+  const opts = session ? { session, new: true } : { new: true };
+  const seq = await InvSequence.findOneAndUpdate(
+    { tenantId: tid, code },
+    { $inc: { nextNumber: 1 } },
+    opts,
+  );
+  const num = (seq?.nextNumber || 2) - 1;
+  return `${code}-${String(num).padStart(padding, '0')}`;
+}

@@ -15,6 +15,7 @@ import { saveUploadBuffer, readUploadBuffer } from '../utils/objectStorage.js';
 import { normalizeProductType } from '../utils/productType.js';
 import { confirmGrnReceive, generateGrnNumber, ensureDraftGrnForApprovedPo, PurchasesValidationError, upsertDraftLandedCostForPo } from '../services/purchasesWorkflow.js';
 import { computePurchaseLineTotals, buildPoReceivingLedger, round2 } from '../services/purchasesLogic.js';
+import { nextDailyDocNumber } from '../services/inventory/sequence.js';
 
 const router = express.Router();
 
@@ -81,28 +82,8 @@ function normalizeLineItems(lineItems = []) {
   return { normalized, subtotal: totals.subtotal, totalTax: totals.totalTax, grandTotal: totals.grandTotal };
 }
 
-async function generatePoNumber(tenantFilterValue) {
-  const today = new Date();
-  const y = today.getFullYear();
-  const m = String(today.getMonth() + 1).padStart(2, '0');
-  const d = String(today.getDate()).padStart(2, '0');
-  const prefix = `PO-${y}${m}${d}`;
-
-  const last = await PurchaseOrder.findOne({
-    ...tenantFilterValue,
-    poNumber: { $regex: `^${prefix}-` }
-  })
-    .sort({ createdAt: -1 })
-    .select('poNumber');
-
-  let seq = 1;
-  if (last?.poNumber) {
-    const parts = last.poNumber.split('-');
-    const lastSeq = Number(parts[parts.length - 1]);
-    if (Number.isFinite(lastSeq)) seq = lastSeq + 1;
-  }
-
-  return `${prefix}-${String(seq).padStart(3, '0')}`;
+async function generatePoNumber(tenantId) {
+  return nextDailyDocNumber(tenantId, 'PO', { padding: 3 });
 }
 
 router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
@@ -429,7 +410,7 @@ router.post('/', checkTrialLimits('purchaseOrders'), checkPermission('supply_cha
       }
     }
 
-    const poNumber = req.body.poNumber || (await generatePoNumber(req.tenantFilter));
+    const poNumber = req.body.poNumber || (await generatePoNumber(req.user.tenantId));
 
     const { normalized, subtotal, totalTax, grandTotal } = normalizeLineItems(req.body.lineItems);
 
