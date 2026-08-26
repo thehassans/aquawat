@@ -4,6 +4,7 @@ import Supplier from '../models/Supplier.js';
 import Employee from '../models/Employee.js';
 import { WhatsAppContact } from '../models/WhatsApp.js';
 import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
+import { cacheAside } from '../lib/redis.js';
 
 const router = express.Router();
 
@@ -115,10 +116,6 @@ router.get('/', async (req, res) => {
 
     const sortDirection = (String(sortDir || 'asc').toLowerCase() === 'desc') ? -1 : 1;
 
-    const pageNum = Math.max(1, toInt(page, 1));
-    const limitNum = Math.max(1, Math.min(200, toInt(limit, 50)));
-    const skip = (pageNum - 1) * limitNum;
-
     const mapCustomer = (doc) => ({
       entityType: 'customer',
       entityId: String(doc._id),
@@ -161,10 +158,27 @@ router.get('/', async (req, res) => {
       updatedAt: doc.updatedAt
     });
 
-    const [customerDocs, supplierDocs, employeeDocs] = await Promise.all([
-      wantCustomers ? Customer.find(customerMatch).select('name nameAr email phone mobile vatNumber isActive createdAt updatedAt').lean() : [],
-      wantSuppliers ? Supplier.find(supplierMatch).select('code nameEn nameAr email phone vatNumber isActive createdAt updatedAt').lean() : [],
-      wantEmployees ? Employee.find(employeeMatch).select('employeeId firstNameEn lastNameEn firstNameAr lastNameAr email phone alternatePhone isActive createdAt updatedAt').lean() : []
+    const pageNum = Math.max(1, toInt(page, 1));
+    const limitNum = Math.max(1, Math.min(200, toInt(limit, 50)));
+    const skip = (pageNum - 1) * limitNum;
+    const fetchCap = Math.min(500, skip + limitNum + 100);
+
+    const cacheKey = `contacts:v1:${req.user.tenantId}:${pageNum}:${limitNum}:${q}:${types || ''}:${isActive || ''}:${sortBy || ''}:${sortDir || ''}`;
+
+    const payload = await cacheAside(cacheKey, 45, async () => {
+    const [customerDocs, supplierDocs, employeeDocs, customerTotal, supplierTotal, employeeTotal] = await Promise.all([
+      wantCustomers
+        ? Customer.find(customerMatch).select('name nameAr email phone mobile vatNumber isActive createdAt updatedAt').sort({ name: 1 }).limit(fetchCap).lean()
+        : [],
+      wantSuppliers
+        ? Supplier.find(supplierMatch).select('code nameEn nameAr email phone vatNumber isActive createdAt updatedAt').sort({ nameEn: 1 }).limit(fetchCap).lean()
+        : [],
+      wantEmployees
+        ? Employee.find(employeeMatch).select('employeeId firstNameEn lastNameEn firstNameAr lastNameAr email phone alternatePhone isActive createdAt updatedAt').sort({ firstNameEn: 1 }).limit(fetchCap).lean()
+        : [],
+      wantCustomers ? Customer.countDocuments(customerMatch) : 0,
+      wantSuppliers ? Supplier.countDocuments(supplierMatch) : 0,
+      wantEmployees ? Employee.countDocuments(employeeMatch) : 0,
     ]);
 
     let contacts = [
@@ -172,9 +186,8 @@ router.get('/', async (req, res) => {
       ...supplierDocs.map(mapSupplier),
       ...employeeDocs.map(mapEmployee)
     ];
-    let total = contacts.length;
+    let total = (customerTotal || 0) + (supplierTotal || 0) + (employeeTotal || 0);
 
-    // Fetch WhatsApp contacts if requested
     if (wantWhatsApp) {
       const waQuery = { ...req.tenantFilter };
       if (q) {
@@ -184,10 +197,14 @@ router.get('/', async (req, res) => {
           { formattedPhone: { $regex: q, $options: 'i' } }
         ];
       }
-      const waContacts = await WhatsAppContact.find(waQuery)
-        .select('name phoneNumber formattedPhone profileName isGroup groupId participantCount lastMessageAt totalMessages createdAt updatedAt')
-        .sort({ name: 1 })
-        .lean();
+      const [waContacts, waTotal] = await Promise.all([
+        WhatsAppContact.find(waQuery)
+          .select('name phoneNumber formattedPhone profileName isGroup groupId participantCount lastMessageAt totalMessages createdAt updatedAt')
+          .sort({ name: 1 })
+          .limit(fetchCap)
+          .lean(),
+        WhatsAppContact.countDocuments(waQuery),
+      ]);
 
       const mappedWa = waContacts.map((c) => ({
         entityType: c.isGroup ? 'whatsapp_group' : 'whatsapp',
@@ -205,7 +222,7 @@ router.get('/', async (req, res) => {
       }));
 
       contacts = contacts.concat(mappedWa);
-      total += mappedWa.length;
+      total += waTotal || 0;
     }
 
     const sortFn = (a, b) => {
@@ -216,15 +233,18 @@ router.get('/', async (req, res) => {
     contacts.sort(sortFn);
     contacts = contacts.slice(skip, skip + limitNum);
 
-    res.json({
+    return {
       contacts,
       pagination: {
         page: pageNum,
         limit: limitNum,
         total,
-        pages: Math.ceil(total / limitNum)
-      }
-    });
+        pages: Math.ceil(total / limitNum) || 0,
+      },
+    };
+    }, { staleTtlSeconds: 180, fetchTimeoutMs: 12_000 });
+
+    res.json(payload);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

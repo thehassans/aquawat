@@ -13,9 +13,21 @@ import logger from '../utils/logger.js';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const REDIS_ENABLED = process.env.REDIS_ENABLED !== 'false'; // default enabled
+const REDIS_OP_TIMEOUT_MS = Math.max(200, Number(process.env.REDIS_OP_TIMEOUT_MS || 800));
 
 let redisClient = null;
 let isRedisAvailable = false;
+
+const withRedisTimeout = async (promise, fallback = null) => {
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((resolve) => setTimeout(() => resolve(fallback), REDIS_OP_TIMEOUT_MS)),
+    ]);
+  } catch {
+    return fallback;
+  }
+};
 
 const createRedisClient = () => {
   if (!REDIS_ENABLED) {
@@ -27,6 +39,7 @@ const createRedisClient = () => {
     maxRetriesPerRequest: 1,
     enableOfflineQueue: false,
     connectTimeout: 3000,
+    commandTimeout: REDIS_OP_TIMEOUT_MS,
     lazyConnect: true,
     retryStrategy: (times) => {
       if (times > 3) {
@@ -80,7 +93,7 @@ export const isRedisReady = () => isRedisAvailable && redisClient !== null;
 export async function cacheGet(key) {
   if (!isRedisReady()) return null;
   try {
-    const val = await redisClient.get(key);
+    const val = await withRedisTimeout(redisClient.get(key));
     return val ? JSON.parse(val) : null;
   } catch {
     return null;
@@ -90,7 +103,10 @@ export async function cacheGet(key) {
 export async function cacheSet(key, value, ttlSeconds = 60) {
   if (!isRedisReady()) return;
   try {
-    await redisClient.setex(key, ttlSeconds, JSON.stringify(value));
+    await withRedisTimeout(
+      redisClient.setex(key, ttlSeconds, JSON.stringify(value)),
+      undefined
+    );
   } catch {
     // non-fatal
   }
@@ -100,7 +116,10 @@ export async function cacheSet(key, value, ttlSeconds = 60) {
 export async function cacheSetNx(key, value, ttlSeconds = 60) {
   if (!isRedisReady()) return false;
   try {
-    const result = await redisClient.set(key, JSON.stringify(value), 'EX', ttlSeconds, 'NX');
+    const result = await withRedisTimeout(
+      redisClient.set(key, JSON.stringify(value), 'EX', ttlSeconds, 'NX'),
+      null
+    );
     return result === 'OK';
   } catch {
     return false;
@@ -110,7 +129,7 @@ export async function cacheSetNx(key, value, ttlSeconds = 60) {
 export async function cacheDel(key) {
   if (!isRedisReady()) return;
   try {
-    await redisClient.del(key);
+    await withRedisTimeout(redisClient.del(key), undefined);
   } catch {
     // non-fatal
   }
@@ -122,10 +141,13 @@ export async function cacheDelPrefix(prefix) {
     let cursor = '0';
     let deleted = 0;
     do {
-      const [next, keys] = await redisClient.scan(cursor, 'MATCH', `${prefix}*`, 'COUNT', 100);
+      const [next, keys] = await withRedisTimeout(
+        redisClient.scan(cursor, 'MATCH', `${prefix}*`, 'COUNT', 100),
+        ['0', []]
+      );
       cursor = next;
       if (keys?.length) {
-        deleted += await redisClient.del(...keys);
+        deleted += await withRedisTimeout(redisClient.del(...keys), 0);
       }
     } while (cursor !== '0');
     return deleted;
@@ -141,33 +163,59 @@ function sleep(ms) {
 }
 
 /**
- * Cache-aside with single-flight: one Mongo compute per key on a miss.
- * Redis NX lock coordinates across workers; in-process Map covers one worker.
+ * Cache-aside with single-flight + stale-while-revalidate.
+ * - Returns fresh Redis hit immediately.
+ * - On miss, serves `:stale` bucket while one worker recomputes (others don't pile up).
+ * - fetchFn is capped so a slow Mongo query can't block the pool indefinitely.
  */
-export async function cacheAside(key, ttlSeconds, fetchFn) {
+export async function cacheAside(key, ttlSeconds, fetchFn, options = {}) {
+  const staleTtl = options.staleTtlSeconds ?? Math.max(ttlSeconds * 3, 120);
+  const fetchTimeoutMs = options.fetchTimeoutMs ?? Math.min(20_000, Math.max(8000, ttlSeconds * 200));
+  const staleKey = `${key}:stale`;
+
   const cached = await cacheGet(key);
   if (cached !== null) return cached;
 
+  const stale = await cacheGet(staleKey);
+
   const existing = inflight.get(key);
-  if (existing) return existing;
+  if (existing) {
+    if (stale !== null) return stale;
+    return existing;
+  }
 
   const run = (async () => {
     const lockKey = `lock:${key}`;
     const lockTtl = Math.min(30, Math.max(8, Number(ttlSeconds) || 60));
     const acquired = await cacheSetNx(lockKey, { at: Date.now() }, lockTtl);
+
     if (!acquired) {
-      for (let i = 0; i < 25; i++) {
-        await sleep(40 + i * 20);
+      for (let i = 0; i < 12; i++) {
+        await sleep(30 + i * 15);
         const again = await cacheGet(key);
         if (again !== null) return again;
       }
+      if (stale !== null) return stale;
     }
+
     try {
-      const data = await fetchFn();
+      const data = await Promise.race([
+        fetchFn(),
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('CACHE_FETCH_TIMEOUT')), fetchTimeoutMs);
+        }),
+      ]);
       if (data !== null && data !== undefined) {
         await cacheSet(key, data, ttlSeconds);
+        await cacheSet(staleKey, data, staleTtl);
       }
       return data;
+    } catch (err) {
+      if (stale !== null) {
+        logger.warn(`[cacheAside] fetch failed for ${key} — serving stale: ${err.message}`);
+        return stale;
+      }
+      throw err;
     } finally {
       await cacheDel(lockKey);
     }

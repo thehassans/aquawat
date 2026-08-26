@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, HashRouter } from 'react-router-dom'
 import { Provider } from 'react-redux'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, keepPreviousData } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import App from './App'
 import { store } from './store'
@@ -84,6 +84,7 @@ const queryClient = new QueryClient({
       refetchOnReconnect: true,
       staleTime: 5 * 60 * 1000,
       gcTime: 10 * 60 * 1000,
+      placeholderData: keepPreviousData,
       retry: (failureCount, error) => {
         const status = error?.response?.status
         if (status === 401 || status === 403 || status === 404) return false

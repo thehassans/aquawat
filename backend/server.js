@@ -200,7 +200,7 @@ const parsedMongoSocketTimeoutMs = Number(process.env.MONGODB_SOCKET_TIMEOUT_MS 
 const mongoSocketTimeoutMs = Number.isFinite(parsedMongoSocketTimeoutMs) && parsedMongoSocketTimeoutMs > 0 ? parsedMongoSocketTimeoutMs : 45000;
 const parsedMongoReconnectIntervalMs = Number(process.env.MONGODB_RECONNECT_INTERVAL_MS || 5000);
 const mongoReconnectIntervalMs = Number.isFinite(parsedMongoReconnectIntervalMs) && parsedMongoReconnectIntervalMs > 0 ? parsedMongoReconnectIntervalMs : 5000;
-const defaultMongoRequestWaitTimeoutMs = Math.max(mongoServerSelectionTimeoutMs + 1000, 10000);
+const defaultMongoRequestWaitTimeoutMs = Math.max(mongoServerSelectionTimeoutMs + 500, 6000);
 const parsedMongoRequestWaitTimeoutMs = Number(process.env.MONGODB_REQUEST_WAIT_TIMEOUT_MS || defaultMongoRequestWaitTimeoutMs);
 const mongoRequestWaitTimeoutMs = Number.isFinite(parsedMongoRequestWaitTimeoutMs) && parsedMongoRequestWaitTimeoutMs > 0 ? parsedMongoRequestWaitTimeoutMs : defaultMongoRequestWaitTimeoutMs;
 const configuredOrigins = String(process.env.FRONTEND_URL || 'http://localhost:5173')
@@ -383,6 +383,8 @@ const connectToDatabase = async () => {
   databaseConnectionPromise = mongoose.connect(mongoUri, {
     serverSelectionTimeoutMS: mongoServerSelectionTimeoutMs,
     socketTimeoutMS: mongoSocketTimeoutMs,
+    waitQueueTimeoutMS: Number(process.env.MONGODB_WAIT_QUEUE_TIMEOUT_MS || 10_000),
+    maxConnecting: Number(process.env.MONGODB_MAX_CONNECTING || 5),
     maxPoolSize: Number(process.env.MONGODB_MAX_POOL_SIZE || 20),
     minPoolSize: Number(process.env.MONGODB_MIN_POOL_SIZE || 2),
     maxIdleTimeMS: 30_000,
@@ -474,11 +476,20 @@ const waitForDatabaseReady = async () => {
 };
 
 const ensureDatabaseReady = async (req, res, next) => {
-  if (await waitForDatabaseReady()) {
+  if (isDatabaseReady()) {
     return next();
   }
 
-  return res.status(503).json({ error: 'Service temporarily unavailable. Please try again in a moment.' });
+  const ready = await waitForDatabaseReady();
+  if (ready) {
+    return next();
+  }
+
+  res.setHeader('Retry-After', '2');
+  return res.status(503).json({
+    error: 'Database is reconnecting. Please retry in a moment.',
+    code: 'DB_UNAVAILABLE',
+  });
 };
 
 // ─── Performance/observability middleware (applied before everything) ────────

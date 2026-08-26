@@ -40,6 +40,7 @@ import { statsRead } from '../utils/mongoReadPreference.js';
 // falling back to a live computation when Redis is unavailable) to absorb
 // repeated navigation/refresh hits without serving meaningfully stale data.
 const DASHBOARD_CACHE_TTL_SECONDS = 120;
+const DASHBOARD_STALE_TTL_SECONDS = 600;
 
 const router = express.Router();
 
@@ -67,7 +68,12 @@ const safeCount = async (model, filter) => {
 router.get('/', async (req, res) => {
   try {
     const cacheKey = `dashboard:v1:${req.tenant?._id || req.tenantFilter?.tenantId || 'unknown'}`;
-    const payload = await cacheAside(cacheKey, DASHBOARD_CACHE_TTL_SECONDS, () => buildDashboardPayload(req));
+    const payload = await cacheAside(
+      cacheKey,
+      DASHBOARD_CACHE_TTL_SECONDS,
+      () => buildDashboardPayload(req),
+      { staleTtlSeconds: DASHBOARD_STALE_TTL_SECONDS, fetchTimeoutMs: 18_000 }
+    );
     res.json(payload);
   } catch (error) {
     res.status(500).json({ error: error.message });

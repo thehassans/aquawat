@@ -35,7 +35,11 @@ const getApiErrorMessage = (error) => {
     return 'The server is temporarily busy. Automatically retrying in a moment...'
   }
 
-  if (error.response?.status === 502 || error.response?.status === 503 || error.response?.status === 504) {
+  if (error.response?.status === 503) {
+    const code = error.response?.data?.code
+    if (code === 'DB_UNAVAILABLE') {
+      return 'Database is reconnecting. Showing cached data when available — please wait a moment.'
+    }
     return 'The service is temporarily unavailable. Please try again in a moment.'
   }
 
@@ -50,39 +54,99 @@ const getApiErrorMessage = (error) => {
   return error.message || 'Request failed'
 }
 
+const API_CACHE_TTL_MS = 30 * 60 * 1000 // 30 minutes
+const API_CACHE_MAX_ENTRIES = 200
+
 const api = axios.create({
   baseURL: apiBaseUrl,
-  timeout: 45000,
+  timeout: 30000,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 })
 
-// In-flight GET request deduplication pool to prevent redundant parallel requests
-const inflightGetRequests = new Map();
+const buildGetCacheKey = (config) =>
+  `${config.url || ''}?${JSON.stringify(config.params || {})}`
 
-api.interceptors.request.use((config) => {
+const readApiCacheEntry = async (cacheKey) => {
+  try {
+    const db = await initDb()
+    if (!db) return null
+    return await db.get('api_cache', cacheKey)
+  } catch {
+    return null
+  }
+}
+
+const resolveStaleCacheResponse = async (config, { allowExpired = false } = {}) => {
+  if (!config || config.method !== 'get' || config.url?.includes('/auth/')) return null
+  const cacheKey = buildGetCacheKey(config)
+  const cached = await readApiCacheEntry(cacheKey)
+  if (!cached?.data) return null
+  const fresh = cached.expiresAt
+    ? cached.expiresAt > Date.now()
+    : (Date.now() - (cached.timestamp || 0) < API_CACHE_TTL_MS)
+  if (!fresh && !allowExpired) return null
+  return {
+    data: cached.data,
+    status: 200,
+    statusText: fresh ? 'OK (Cached)' : 'OK (Stale Cache)',
+    headers: { 'x-maqder-cache': fresh ? 'fresh' : 'stale' },
+    config,
+  }
+}
+
+// In-flight GET request deduplication pool to prevent redundant parallel requests
+const inflightGetRequests = new Map()
+const defaultHttpAdapter = axios.getAdapter(axios.defaults.adapter)
+
+api.interceptors.request.use(async (config) => {
   const token = localStorage.getItem('token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
 
-  // Deduplicate identical simultaneous GET requests
-  if (config.method === 'get' && !config._skipDedup) {
-    const dedupKey = `${config.url || ''}?${JSON.stringify(config.params || {})}`
-    if (inflightGetRequests.has(dedupKey)) {
-      config.adapter = () => inflightGetRequests.get(dedupKey)
-    }
+  if (config.method !== 'get' || config.url?.includes('/auth/')) {
+    return config
   }
 
+  const dedupKey = buildGetCacheKey(config)
+  const isBackgroundRefresh = Boolean(config._backgroundRefresh)
+
+  if (!config._skipDedup && inflightGetRequests.has(dedupKey)) {
+    config.adapter = () => inflightGetRequests.get(dedupKey)
+    return config
+  }
+
+  const execute = async (cfg) => {
+    if (!isBackgroundRefresh && !cfg._skipStaleFirst && !cfg.headers?.['X-No-Stale-Cache']) {
+      const stale = await resolveStaleCacheResponse(cfg, { allowExpired: true })
+      if (stale) {
+        setTimeout(() => {
+          api.request({
+            ...cfg,
+            _backgroundRefresh: true,
+            _skipDedup: true,
+            _skipStaleFirst: true,
+            headers: { ...cfg.headers, 'X-Background-Refresh': '1' },
+          }).catch(() => {})
+        }, 0)
+        return stale
+      }
+    }
+    return defaultHttpAdapter(cfg)
+  }
+
+  const shared = execute(config)
+  if (!config._skipDedup) {
+    inflightGetRequests.set(dedupKey, shared)
+    shared.finally(() => inflightGetRequests.delete(dedupKey))
+  }
+  config.adapter = () => shared
   return config
 })
 
-const API_CACHE_TTL_MS = 30 * 60 * 1000 // 30 minutes
-const API_CACHE_MAX_ENTRIES = 200
-
-/** Only these mutation prefixes may be queued while offline (POS / sales ops). */
 const OFFLINE_MUTATION_ALLOWLIST = [
   '/invoices',
   '/customers',
@@ -132,20 +196,13 @@ const backgroundCacheResponse = (config, data) => {
 
 api.interceptors.response.use(
   (response) => {
-    // Clear deduplication cache entry
-    if (response.config?.method === 'get') {
-      const dedupKey = `${response.config.url || ''}?${JSON.stringify(response.config.params || {})}`
-      inflightGetRequests.delete(dedupKey)
+    if (response.config?.method === 'get' && !response.headers?.['x-maqder-cache']) {
+      backgroundCacheResponse(response.config, response.data)
     }
-    backgroundCacheResponse(response.config, response.data)
     return response
   },
   async (error) => {
     const config = error.config;
-    if (config?.method === 'get') {
-      const dedupKey = `${config.url || ''}?${JSON.stringify(config.params || {})}`
-      inflightGetRequests.delete(dedupKey)
-    }
 
     const isNetworkError = !error.response || !navigator.onLine;
     
@@ -251,6 +308,21 @@ api.interceptors.response.use(
         } catch (e) {
           console.error('Failed to queue offline mutation:', e);
         }
+      }
+    }
+
+    // Slow DB / gateway / timeout — serve last known GET payload when online
+    if (
+      config?.method === 'get'
+      && !config._staleFallbackAttempted
+      && (error.response?.status === 503
+        || error.response?.status === 504
+        || error.code === 'ECONNABORTED')
+    ) {
+      const stale = await resolveStaleCacheResponse(config, { allowExpired: true })
+      if (stale) {
+        console.warn(`[API] Serving stale cache after ${error.response?.status || error.code} for ${config.url}`)
+        return Promise.resolve(stale)
       }
     }
 

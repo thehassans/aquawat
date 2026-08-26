@@ -7,6 +7,7 @@ import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { isStockTrackedProductType, normalizeProductType } from '../utils/productType.js';
 import { isInvEngineEnabled } from '../services/inventory/legacyAdapter.js';
 import { saveUploadBuffer } from '../utils/objectStorage.js';
+import { cacheAside } from '../lib/redis.js';
 
 const router = express.Router();
 const imageUpload = multer({
@@ -171,43 +172,48 @@ router.get('/lookup', checkPermission('inventory', 'read'), async (req, res) => 
 // @route   GET /api/products/stats
 router.get('/stats', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const products = await Product.find({ ...req.tenantFilter, isActive: { $ne: false } })
-      .select('stocks allowNegativeStock costPrice sellingPrice category status productType')
-      .lean();
+    const cacheKey = `products:stats:v1:${req.user.tenantId}`;
+    const payload = await cacheAside(cacheKey, 90, async () => {
+      const products = await Product.find({ ...req.tenantFilter, isActive: { $ne: false } })
+        .select('stocks allowNegativeStock costPrice sellingPrice category status productType')
+        .lean();
 
-    const rows = products.map((p) => enrichInventory(p));
-    const byHealth = { in_stock: 0, low_stock: 0, out_of_stock: 0, backorder: 0, not_tracked: 0 };
-    const byType = { goods: 0, service: 0 };
-    let totalStock = 0;
-    let totalValue = 0;
-    for (const p of rows) {
-      const health = p.inventory?.health || 'in_stock';
-      byHealth[health] = (byHealth[health] || 0) + 1;
-      const type = normalizeProductType(p.productType);
-      byType[type] = (byType[type] || 0) + 1;
-      if (p.inventory?.tracked !== false) {
-        totalStock += p.inventory?.onHand || 0;
-        totalValue += (Number(p.costPrice) || 0) * (p.inventory?.onHand || 0);
+      const rows = products.map((p) => enrichInventory(p));
+      const byHealth = { in_stock: 0, low_stock: 0, out_of_stock: 0, backorder: 0, not_tracked: 0 };
+      const byType = { goods: 0, service: 0 };
+      let totalStock = 0;
+      let totalValue = 0;
+      for (const p of rows) {
+        const health = p.inventory?.health || 'in_stock';
+        byHealth[health] = (byHealth[health] || 0) + 1;
+        const type = normalizeProductType(p.productType);
+        byType[type] = (byType[type] || 0) + 1;
+        if (p.inventory?.tracked !== false) {
+          totalStock += p.inventory?.onHand || 0;
+          totalValue += (Number(p.costPrice) || 0) * (p.inventory?.onHand || 0);
+        }
       }
-    }
 
-    res.json({
-      byHealth,
-      byType,
-      totals: [{
-        totalProducts: rows.length,
-        totalStock,
-        totalValue,
-        inStock: byHealth.in_stock,
-        lowStock: byHealth.low_stock,
-        outOfStock: byHealth.out_of_stock,
-        backorder: byHealth.backorder,
-        services: byType.service,
-        goods: byType.goods,
-      }],
-      lowStock: [{ count: byHealth.low_stock }],
-      allowNegativeStock: [{ count: byHealth.backorder }],
-    });
+      return {
+        byHealth,
+        byType,
+        totals: [{
+          totalProducts: rows.length,
+          totalStock,
+          totalValue,
+          inStock: byHealth.in_stock,
+          lowStock: byHealth.low_stock,
+          outOfStock: byHealth.out_of_stock,
+          backorder: byHealth.backorder,
+          services: byType.service,
+          goods: byType.goods,
+        }],
+        lowStock: [{ count: byHealth.low_stock }],
+        allowNegativeStock: [{ count: byHealth.backorder }],
+      };
+    }, { staleTtlSeconds: 300, fetchTimeoutMs: 15_000 });
+
+    res.json(payload);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

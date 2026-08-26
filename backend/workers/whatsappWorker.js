@@ -21,7 +21,13 @@ const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/zatca-erp
 
 async function main() {
   console.log('[whatsappWorker] Dedicated WA worker starting (WHATSAPP_WORKER=1)');
-  await mongoose.connect(mongoUri);
+  await mongoose.connect(mongoUri, {
+    serverSelectionTimeoutMS: Number(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS || 5000),
+    socketTimeoutMS: Number(process.env.MONGODB_SOCKET_TIMEOUT_MS || 45000),
+    waitQueueTimeoutMS: Number(process.env.MONGODB_WAIT_QUEUE_TIMEOUT_MS || 10_000),
+    maxPoolSize: Number(process.env.MONGODB_MAX_POOL_SIZE || 5),
+    minPoolSize: 1,
+  });
   console.log('[whatsappWorker] MongoDB connected');
   console.log('[whatsappWorker] whatsappService loaded; keep this process alive for Chromium sessions');
   // Export / retain the service so sessions can be driven from this process.
