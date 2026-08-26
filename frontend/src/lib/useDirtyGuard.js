@@ -1,24 +1,15 @@
 import { useEffect } from 'react'
-import { useBlocker } from 'react-router-dom'
 
-/** F5 — warn before leaving with unsaved form changes (tab close + in-app navigation) */
+/** F5 — warn before closing tab with unsaved form changes (BrowserRouter-safe; no useBlocker). */
 export function useDirtyGuard(dirty, message) {
-  const msg = message || 'You have unsaved changes'
-
   useEffect(() => {
     if (!dirty) return undefined
+    const msg = message || 'You have unsaved changes'
     const onBeforeUnload = (e) => {
       e.preventDefault()
       e.returnValue = msg
     }
     window.addEventListener('beforeunload', onBeforeUnload)
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
-  }, [dirty, msg])
-
-  const blocker = useBlocker(dirty)
-  useEffect(() => {
-    if (blocker.state !== 'blocked') return
-    if (window.confirm(msg)) blocker.proceed()
-    else blocker.reset()
-  }, [blocker, msg])
+  }, [dirty, message])
 }
