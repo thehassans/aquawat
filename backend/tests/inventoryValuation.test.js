@@ -6,7 +6,9 @@ import { splitLandedCostAmounts } from '../services/inventory/landedCost.js';
 import {
   buildValuationJournalLines,
   buildLandedCostJournalLines,
+  buildMultiLandedCostJournalLines,
   buildPurchaseBillClearingLines,
+  preferredStockAccountIds,
 } from '../services/inventory/stockAccounting.js';
 
 test('FIFO consume takes oldest layers first', () => {
@@ -117,4 +119,65 @@ test('purchase bill clearing with interim', () => {
   const credit = lines.reduce((s, l) => s + l.credit, 0);
   assert.equal(debit, credit);
   assert.equal(credit, 115);
+});
+
+test('preferred stock accounts: product beats category beats location beats settings', () => {
+  const ids = preferredStockAccountIds('inventory', {
+    product: { stockValuationAccountId: 'prod' },
+    category: { stockValuationAccountId: 'cat' },
+    location: { stockValuationAccountId: 'loc' },
+    settings: { propertyStockValuationAccountId: 'set' },
+  });
+  assert.deepEqual(ids, ['prod', 'cat', 'loc', 'set']);
+
+  const withoutProduct = preferredStockAccountIds('inventory', {
+    category: { stockValuationAccountId: 'cat' },
+    location: { stockValuationAccountId: 'loc' },
+    settings: { propertyStockValuationAccountId: 'set' },
+  });
+  assert.equal(withoutProduct.find((x) => x), 'cat');
+});
+
+test('preferred stock output includes expense fallbacks after output accounts', () => {
+  const ids = preferredStockAccountIds('stockOutput', {
+    product: { expenseAccountId: 'prod-exp' },
+    category: { stockOutputAccountId: 'cat-out', expenseAccountId: 'cat-exp' },
+    location: { stockOutputAccountId: 'loc-out' },
+    settings: { propertyStockOutputAccountId: 'set-out' },
+  });
+  assert.deepEqual(ids, [undefined, 'prod-exp', 'cat-out', 'cat-exp', 'loc-out', 'set-out']);
+});
+
+test('multi landed cost merges inventory accounts and balances credit', () => {
+  const lines = buildMultiLandedCostJournalLines({
+    segments: [
+      { amount: 40, inventory: { _id: 'inv-a', code: '1300' } },
+      { amount: 60, inventory: { _id: 'inv-b', code: '1301' } },
+      { amount: 10, inventory: { _id: 'inv-a', code: '1300' } },
+    ],
+    landedCredit: { _id: 'lc', code: '2200' },
+  });
+  assert.equal(lines.length, 3);
+  const debitA = lines.find((l) => l.accountId === 'inv-a');
+  assert.equal(debitA.debit, 50);
+  const credit = lines.find((l) => l.credit > 0);
+  assert.equal(credit.credit, 110);
+});
+
+test('purchase bill clearing with per-product goods debits', () => {
+  const lines = buildPurchaseBillClearingLines({
+    netAmount: 100,
+    taxAmount: 15,
+    ap: { _id: 'ap', code: '2000' },
+    vatInput: { _id: 'vat', code: '1400' },
+    goodsDebits: [
+      { account: { _id: 'si1', code: '1310' }, amount: 70 },
+      { account: { _id: 'si2', code: '1311' }, amount: 30 },
+    ],
+  });
+  const debit = lines.reduce((s, l) => s + l.debit, 0);
+  const credit = lines.reduce((s, l) => s + l.credit, 0);
+  assert.equal(debit, credit);
+  assert.equal(credit, 115);
+  assert.equal(lines.filter((l) => l.debit > 0 && l.accountCode !== '1400').length, 2);
 });

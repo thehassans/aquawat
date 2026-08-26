@@ -1443,7 +1443,7 @@ router.post('/scraps/validate-bulk', checkPermission('inventory', 'update'), asy
   try {
     const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
     if (!ids.length) return res.status(400).json({ error: 'ids required' });
-    res.json(await validateScrapsBulk(req.user.tenantId, ids));
+    res.json(await validateScrapsBulk(req.user.tenantId, ids, req.user._id));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1467,7 +1467,7 @@ router.get('/scraps/:id', checkPermission('inventory', 'read'), async (req, res)
 
 router.post('/scraps/:id/validate', checkPermission('inventory', 'update'), async (req, res) => {
   try {
-    res.json(await validateScrap(req.params.id, req.user.tenantId));
+    res.json(await validateScrap(req.params.id, req.user.tenantId, req.user._id));
   } catch (err) {
     handleInventoryError(res, err);
   }

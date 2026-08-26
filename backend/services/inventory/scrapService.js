@@ -112,11 +112,11 @@ export async function createScrap(tenantId, userId, body) {
   return created[0];
 }
 
-export async function validateScrapsBulk(tenantId, ids = []) {
+export async function validateScrapsBulk(tenantId, ids = [], userId = null) {
   const results = [];
   for (const id of ids) {
     try {
-      const scrap = await validateScrap(id, tenantId);
+      const scrap = await validateScrap(id, tenantId, userId);
       results.push({ id, ok: true, scrap });
     } catch (err) {
       results.push({
@@ -137,7 +137,7 @@ export async function validateScrapsBulk(tenantId, ids = []) {
 /**
  * Validate scrap — move qty from internal → scrap via move ledger.
  */
-export async function validateScrap(scrapId, tenantId) {
+export async function validateScrap(scrapId, tenantId, userId = null) {
   return runWithTransaction(async (session) => {
     const tid = toObjectId(tenantId);
     const scrap = await InvScrap.findOne({ _id: scrapId, tenantId: tid }).session(session);
@@ -242,10 +242,11 @@ export async function validateScrap(scrapId, tenantId) {
     );
 
     // Inventory evaluation on scrap (out) when enabled
+    let valuationJob = null;
     if (settings.inventoryEvaluationEnabled !== false) {
       try {
         const { createValuationForMove } = await import('./valuation.js');
-        await createValuationForMove(session, {
+        const val = await createValuationForMove(session, {
           tenantId: tid,
           productId: scrap.productId,
           quantity: qty,
@@ -254,6 +255,15 @@ export async function validateScrap(scrapId, tenantId) {
           description: `Scrap ${scrap.name}`,
           evaluationEnabled: true,
         });
+        if (val?.layer) {
+          valuationJob = {
+            layerId: val.layer._id,
+            direction: val.direction || 'out',
+            valuationMode: val.valuationMode,
+            productId: scrap.productId,
+            locationId: scrap.sourceLocationId,
+          };
+        }
       } catch (err) {
         console.error('[inventory] scrap valuation failed', err?.message || err);
       }
@@ -262,9 +272,27 @@ export async function validateScrap(scrapId, tenantId) {
     scrap.state = 'done';
     scrap.moveId = move._id;
     await scrap.save({ session });
-    return scrap;
-  }).then(async (scrap) => {
+    return { scrap, valuationJob };
+  }).then(async (result) => {
+    const scrap = result?.scrap || result;
     if (!scrap?.productId) return scrap;
+    if (result?.valuationJob) {
+      try {
+        const { postValuationLayerJournal } = await import('./stockAccounting.js');
+        const job = result.valuationJob;
+        await postValuationLayerJournal({
+          tenantId,
+          userId: userId || scrap.createdBy || scrap.responsibleId || null,
+          layerId: job.layerId,
+          direction: job.direction,
+          valuationMode: job.valuationMode,
+          productId: job.productId,
+          locationId: job.locationId,
+        });
+      } catch (err) {
+        console.error('[inventory] scrap valuation journal failed', err?.message || err);
+      }
+    }
     try {
       const { syncProductsStockCache } = await import('./syncProductCache.js');
       await syncProductsStockCache(tenantId, [scrap.productId]);

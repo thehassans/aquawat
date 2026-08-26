@@ -500,6 +500,9 @@ export async function validateTransfer(tenantId, transferId, {
                   layerId: val.layer._id,
                   direction: val.direction,
                   valuationMode: val.valuationMode,
+                  productId: line.productId,
+                  // Receipts: dest location; deliveries: source location
+                  locationId: direction === 'in' ? line.destLocationId : line.sourceLocationId,
                 });
               }
             } catch (err) {
@@ -582,6 +585,8 @@ export async function validateTransfer(tenantId, transferId, {
             layerId: job.layerId,
             direction: job.direction,
             valuationMode: job.valuationMode,
+            productId: job.productId,
+            locationId: job.locationId,
           });
         }
       } catch (err) {

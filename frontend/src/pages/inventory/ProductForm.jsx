@@ -144,6 +144,18 @@ export default function ProductForm() {
       }
     }
 
+    for (const key of [
+      'incomeAccountId',
+      'expenseAccountId',
+      'stockValuationAccountId',
+      'stockInputAccountId',
+      'stockOutputAccountId',
+      'categoryId',
+      'uomId',
+    ]) {
+      if (payload[key] === '' || payload[key] == null) payload[key] = null
+    }
+
     return payload
   }
 
@@ -1161,6 +1173,37 @@ export default function ProductForm() {
                   ))}
                 </select>
               </div>
+              {invSettings?.inventoryEvaluationEnabled !== false && (
+                <>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'حساب تقييم المخزون (تجاوز)' : 'Stock Valuation Account (override)'}</label>
+                    <select {...register('stockValuationAccountId')} className="select">
+                      <option value="">{language === 'ar' ? '— من الفئة / الموقع —' : '— From category / location —'}</option>
+                      {activeAccounts.map((a) => (
+                        <option key={a._id} value={a._id}>{a.code ? `${a.code} · ${language === 'ar' ? (a.nameAr || a.name) : a.name}` : (language === 'ar' ? (a.nameAr || a.name) : a.name)}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'حساب إدخال المخزون (تجاوز)' : 'Stock Input Account (override)'}</label>
+                    <select {...register('stockInputAccountId')} className="select">
+                      <option value="">{language === 'ar' ? '— من الفئة / الموقع —' : '— From category / location —'}</option>
+                      {activeAccounts.map((a) => (
+                        <option key={a._id} value={a._id}>{a.code ? `${a.code} · ${language === 'ar' ? (a.nameAr || a.name) : a.name}` : (language === 'ar' ? (a.nameAr || a.name) : a.name)}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'حساب إخراج المخزون (تجاوز)' : 'Stock Output Account (override)'}</label>
+                    <select {...register('stockOutputAccountId')} className="select">
+                      <option value="">{language === 'ar' ? '— من الفئة / الموقع —' : '— From category / location —'}</option>
+                      {activeAccounts.map((a) => (
+                        <option key={a._id} value={a._id}>{a.code ? `${a.code} · ${language === 'ar' ? (a.nameAr || a.name) : a.name}` : (language === 'ar' ? (a.nameAr || a.name) : a.name)}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
             </div>
             {(() => {
               const cat = (Array.isArray(invCategories) ? invCategories : []).find(

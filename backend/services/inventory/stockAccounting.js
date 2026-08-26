@@ -48,26 +48,170 @@ export async function ensureStockAccountingAccounts(tenantId, userId = null) {
   }
 }
 
+async function loadActiveAccount(tenantId, id) {
+  if (!id) return null;
+  return ChartOfAccount.findOne({ _id: id, tenantId, isActive: true });
+}
+
+/**
+ * First non-null active account id wins, then COA code fallback(s).
+ * Pure preference order helper used by tenant defaults and contextual valuation.
+ */
+export async function resolveAccountChain(tenantId, preferredIds = [], fallbackCodes = []) {
+  const tid = toObjectId(tenantId);
+  for (const id of preferredIds) {
+    const acct = await loadActiveAccount(tid, id);
+    if (acct) return acct;
+  }
+  for (const code of fallbackCodes) {
+    if (!code) continue;
+    const acct = await getAccountByCode(tid, code);
+    if (acct) return acct;
+  }
+  return null;
+}
+
 export async function resolveStockAccounts(tenantId) {
   const tid = toObjectId(tenantId);
   await ensureStockAccountingAccounts(tid);
   const settings = await InvSettings.findOne({ tenantId: tid }).lean();
 
-  const byId = async (id, fallbackCode) => {
-    if (id) {
-      const a = await ChartOfAccount.findOne({ _id: id, tenantId: tid, isActive: true });
-      if (a) return a;
-    }
-    return getAccountByCode(tid, fallbackCode);
-  };
-
-  const inventory = await byId(settings?.propertyStockValuationAccountId, '1300');
-  const stockInput = await byId(settings?.propertyStockInputAccountId, '1310');
-  const stockOutput = await byId(settings?.propertyStockOutputAccountId, '1320');
-  const landedCredit = await byId(settings?.propertyLandedCostAccountId, '2200');
+  const inventory = await resolveAccountChain(
+    tid,
+    [settings?.propertyStockValuationAccountId],
+    ['1300'],
+  );
+  const stockInput = await resolveAccountChain(
+    tid,
+    [settings?.propertyStockInputAccountId],
+    ['1310'],
+  );
+  const stockOutput = await resolveAccountChain(
+    tid,
+    [settings?.propertyStockOutputAccountId],
+    ['1320', '5000'],
+  );
+  const landedCredit = await resolveAccountChain(
+    tid,
+    [settings?.propertyLandedCostAccountId],
+    ['2200'],
+  );
   const cogs = await getAccountByCode(tid, '5000');
 
   return { inventory, stockInput, stockOutput, landedCredit, cogs, settings };
+}
+
+/**
+ * Ordered preferred account ids for a stock role.
+ * Preference: product override → category → location → inventory settings.
+ * Pure helper (no DB) so unit tests can assert the resolution order.
+ *
+ * @param {'inventory'|'stockInput'|'stockOutput'} role
+ * @param {{ product?: object|null, category?: object|null, location?: object|null, settings?: object|null }} ctx
+ */
+export function preferredStockAccountIds(role, {
+  product = null,
+  category = null,
+  location = null,
+  settings = null,
+} = {}) {
+  if (role === 'inventory') {
+    return [
+      product?.stockValuationAccountId,
+      category?.stockValuationAccountId,
+      location?.stockValuationAccountId,
+      settings?.propertyStockValuationAccountId,
+    ];
+  }
+  if (role === 'stockInput') {
+    return [
+      product?.stockInputAccountId,
+      category?.stockInputAccountId,
+      location?.stockInputAccountId,
+      settings?.propertyStockInputAccountId,
+    ];
+  }
+  // Outgoing / scrap: output accounts, then expense accounts, then settings
+  return [
+    product?.stockOutputAccountId,
+    product?.expenseAccountId,
+    category?.stockOutputAccountId,
+    category?.expenseAccountId,
+    location?.stockOutputAccountId,
+    settings?.propertyStockOutputAccountId,
+  ];
+}
+
+/**
+ * Contextual valuation accounts.
+ * Preference: product override → category → location → inventory settings → COA fallback.
+ *
+ * @param {object} opts
+ * @param {string|import('mongoose').Types.ObjectId} [opts.productId]
+ * @param {string|import('mongoose').Types.ObjectId} [opts.locationId] — dest for in, source for out
+ * @param {'in'|'out'} [opts.direction]
+ */
+export async function resolveValuationAccounts(tenantId, {
+  productId = null,
+  locationId = null,
+  direction = 'in',
+} = {}) {
+  const tid = toObjectId(tenantId);
+  await ensureStockAccountingAccounts(tid);
+
+  const settings = await InvSettings.findOne({ tenantId: tid }).lean();
+  let product = null;
+  let category = null;
+  let location = null;
+
+  if (productId) {
+    const Product = (await import('../../models/Product.js')).default;
+    product = await Product.findOne({ _id: productId, tenantId: tid })
+      .select('categoryId expenseAccountId incomeAccountId stockValuationAccountId stockInputAccountId stockOutputAccountId')
+      .lean();
+    if (product?.categoryId) {
+      const InvProductCategory = (await import('../../models/inventory/InvProductCategory.js')).default;
+      category = await InvProductCategory.findOne({ _id: product.categoryId, tenantId: tid })
+        .select('stockValuationAccountId stockInputAccountId stockOutputAccountId expenseAccountId incomeAccountId valuationMode')
+        .lean();
+    }
+  }
+
+  if (locationId) {
+    const InvLocation = (await import('../../models/inventory/InvLocation.js')).default;
+    location = await InvLocation.findOne({ _id: locationId, tenantId: tid })
+      .select('stockValuationAccountId stockInputAccountId stockOutputAccountId usage isScrapLocation')
+      .lean();
+  }
+
+  const ctx = { product, category, location, settings };
+
+  const inventory = await resolveAccountChain(tid, preferredStockAccountIds('inventory', ctx), ['1300']);
+  const stockInput = await resolveAccountChain(tid, preferredStockAccountIds('stockInput', ctx), ['1310']);
+  const stockOutput = await resolveAccountChain(tid, preferredStockAccountIds('stockOutput', ctx), ['1320', '5000']);
+
+  const landedCredit = await resolveAccountChain(
+    tid,
+    [settings?.propertyLandedCostAccountId],
+    ['2200'],
+  );
+  const cogs = await getAccountByCode(tid, '5000');
+
+  return {
+    inventory,
+    stockInput,
+    stockOutput,
+    landedCredit,
+    cogs,
+    settings,
+    sources: {
+      productId: product?._id || null,
+      categoryId: category?._id || null,
+      locationId: location?._id || null,
+      direction,
+      valuationMode: category?.valuationMode || 'automated',
+    },
+  };
 }
 
 /** Five accounts required on each Automated-valuation product category. */
@@ -196,6 +340,51 @@ export function buildLandedCostJournalLines({
   ];
 }
 
+/**
+ * Multi-product landed cost: debit each inventory account (merged by id), credit landed once.
+ * @param {{ amount: number, inventory: { _id: any, code?: string } }[]} segments
+ */
+export function buildMultiLandedCostJournalLines({
+  segments = [],
+  landedCredit,
+  description = '',
+}) {
+  if (!landedCredit || !segments.length) return [];
+
+  const byAcct = new Map();
+  for (const seg of segments) {
+    const amt = round2(Math.abs(Number(seg.amount) || 0));
+    if (amt <= 0 || !seg.inventory?._id) continue;
+    const key = String(seg.inventory._id);
+    const prev = byAcct.get(key);
+    if (prev) prev.debit = round2(prev.debit + amt);
+    else {
+      byAcct.set(key, {
+        accountId: seg.inventory._id,
+        accountCode: seg.inventory.code,
+        debit: amt,
+        credit: 0,
+        description: description || 'Landed cost to inventory',
+      });
+    }
+  }
+
+  const debitLines = [...byAcct.values()];
+  const total = round2(debitLines.reduce((s, l) => s + l.debit, 0));
+  if (total <= 0) return [];
+
+  return [
+    ...debitLines,
+    {
+      accountId: landedCredit._id,
+      accountCode: landedCredit.code,
+      debit: 0,
+      credit: total,
+      description: description || 'Landed cost accrued',
+    },
+  ];
+}
+
 export function buildPurchaseBillClearingLines({
   netAmount,
   taxAmount = 0,
@@ -205,24 +394,49 @@ export function buildPurchaseBillClearingLines({
   vatInput,
   useInterim = true,
   description = '',
+  /** Optional per-account goods debits (already rounded, should sum to net). */
+  goodsDebits = null,
 }) {
   const net = round2(Math.abs(Number(netAmount) || 0));
   const tax = round2(Math.max(0, Number(taxAmount) || 0));
   const gross = round2(net + tax);
   if (gross <= 0 || !ap) return [];
 
-  const goodsAcct = useInterim && stockInput ? stockInput : inventory;
-  if (!goodsAcct) return [];
+  const lines = [];
 
-  const lines = [
-    {
+  if (Array.isArray(goodsDebits) && goodsDebits.length) {
+    const byAcct = new Map();
+    for (const g of goodsDebits) {
+      const amt = round2(Math.abs(Number(g.amount) || 0));
+      if (amt <= 0 || !g.account?._id) continue;
+      const key = String(g.account._id);
+      const prev = byAcct.get(key);
+      if (prev) prev.debit = round2(prev.debit + amt);
+      else {
+        byAcct.set(key, {
+          accountId: g.account._id,
+          accountCode: g.account.code,
+          debit: amt,
+          credit: 0,
+          description: description || 'Clear stock interim / inventory',
+        });
+      }
+    }
+    lines.push(...byAcct.values());
+  } else {
+    const goodsAcct = useInterim && stockInput ? stockInput : inventory;
+    if (!goodsAcct) return [];
+    lines.push({
       accountId: goodsAcct._id,
       accountCode: goodsAcct.code,
       debit: net,
       credit: 0,
       description: description || 'Clear stock interim / inventory',
-    },
-  ];
+    });
+  }
+
+  if (!lines.length) return [];
+
   if (tax > 0 && vatInput) {
     lines.push({
       accountId: vatInput._id,
@@ -232,7 +446,7 @@ export function buildPurchaseBillClearingLines({
       description: description || 'VAT input',
     });
   } else if (tax > 0) {
-    lines[0].debit = gross;
+    lines[0].debit = round2(lines[0].debit + tax);
   }
   lines.push({
     accountId: ap._id,
@@ -256,6 +470,10 @@ async function findExistingSourceEntry(tenantId, sourceModel, sourceId) {
 
 /**
  * Post journal for a valuation layer (idempotent). Skip when category valuation is manual.
+ * Accounts resolve: product → category → location (from move) → settings → COA codes.
+ *
+ * @param {object} opts
+ * @param {string} [opts.locationId] optional override; otherwise taken from the move
  */
 export async function postValuationLayerJournal({
   tenantId,
@@ -263,6 +481,8 @@ export async function postValuationLayerJournal({
   layerId,
   direction,
   valuationMode = 'automated',
+  locationId = null,
+  productId = null,
 }) {
   if (valuationMode === 'manual') return null;
   if (!(await isStockAccountingEnabled(tenantId))) return null;
@@ -284,7 +504,26 @@ export async function postValuationLayerJournal({
   const amount = Math.abs(Number(layer.value) || 0);
   if (decIsZero(D(amount))) return null;
 
-  const accounts = await resolveStockAccounts(tid);
+  let resolvedLocationId = locationId || null;
+  if (!resolvedLocationId && layer.moveId) {
+    const InvMove = (await import('../../models/inventory/InvMove.js')).default;
+    const move = await InvMove.findOne({ _id: layer.moveId, tenantId: tid })
+      .select('sourceLocationId destLocationId')
+      .lean();
+    if (move) {
+      // Receipts value into dest; deliveries / scrap value out of source
+      resolvedLocationId = direction === 'in' ? move.destLocationId : move.sourceLocationId;
+    }
+  }
+
+  const accounts = await resolveValuationAccounts(tid, {
+    productId: productId || layer.productId,
+    locationId: resolvedLocationId,
+    direction,
+  });
+
+  if (accounts.sources?.valuationMode === 'manual') return null;
+
   const lines = buildValuationJournalLines({
     direction,
     amount,
@@ -332,17 +571,25 @@ export async function postLandedCostJournal({ tenantId, userId, landedCostId }) 
     return existing;
   }
 
-  const total = (lc.valuationAdjustmentLines || []).reduce(
-    (s, a) => s + Math.abs(Number(a.additionalCost) || 0),
-    0,
-  );
-  if (round2(total) <= 0) return null;
+  const adjustments = lc.valuationAdjustmentLines || [];
+  const segments = [];
+  for (const adj of adjustments) {
+    const amt = round2(Math.abs(Number(adj.additionalCost) || 0));
+    if (amt <= 0) continue;
+    const accounts = await resolveValuationAccounts(tid, {
+      productId: adj.productId,
+      direction: 'in',
+    });
+    if (!accounts.inventory) continue;
+    segments.push({ amount: amt, inventory: accounts.inventory });
+  }
+  if (!segments.length) return null;
 
-  const accounts = await resolveStockAccounts(tid);
-  const lines = buildLandedCostJournalLines({
-    amount: total,
-    inventory: accounts.inventory,
-    landedCredit: accounts.landedCredit || accounts.stockInput,
+  const defaults = await resolveStockAccounts(tid);
+  const landedCredit = defaults.landedCredit || defaults.stockInput;
+  const lines = buildMultiLandedCostJournalLines({
+    segments,
+    landedCredit,
     description: `Landed cost ${lc.name}`,
   });
   if (lines.length < 2) return null;
@@ -370,6 +617,7 @@ export async function postLandedCostJournal({ tenantId, userId, landedCostId }) 
 /**
  * Post vendor bill journal: clear Stock Interim Received into Accounts Payable.
  * Idempotent on Invoice sourceId.
+ * Goods debits resolve per line product (product → category → settings).
  */
 export async function postPurchaseInvoiceJournal({
   tenantId,
@@ -394,18 +642,60 @@ export async function postPurchaseInvoiceJournal({
   }
   if (gross <= 0) return null;
 
-  const accounts = await resolveStockAccounts(tid);
+  const useInterim = Boolean(invoice.sourcePurchaseOrderId || invoice.sourceGrnId);
+  const defaults = await resolveStockAccounts(tid);
   const vatInput = await getAccountByCode(tid, '1400');
   const ap = await getAccountByCode(tid, '2000');
+
+  const lineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
+  const goodsLines = lineItems.filter(
+    (li) => li?.productId && (li.productType == null || li.productType === 'goods'),
+  );
+
+  let goodsDebits = null;
+  if (goodsLines.length) {
+    const lineNets = goodsLines.map((li) => round2(Math.abs(Number(li.lineTotal) || 0)));
+    const sumLines = round2(lineNets.reduce((s, n) => s + n, 0));
+    goodsDebits = [];
+    for (let i = 0; i < goodsLines.length; i += 1) {
+      let share = lineNets[i];
+      // Scale line totals to invoice taxable net when they differ (discounts / rounding)
+      if (sumLines > 0 && sumLines !== net) {
+        share = round2((lineNets[i] / sumLines) * net);
+      }
+      if (share <= 0) continue;
+      const accounts = await resolveValuationAccounts(tid, {
+        productId: goodsLines[i].productId,
+        direction: 'in',
+      });
+      const account = useInterim
+        ? (accounts.stockInput || accounts.inventory)
+        : (accounts.inventory || accounts.stockInput);
+      if (!account) continue;
+      goodsDebits.push({ account, amount: share });
+    }
+    // Fix rounding residue on last debit so sum equals net
+    if (goodsDebits.length) {
+      const allocated = round2(goodsDebits.reduce((s, g) => s + g.amount, 0));
+      const delta = round2(net - allocated);
+      if (delta !== 0) {
+        goodsDebits[goodsDebits.length - 1].amount = round2(
+          goodsDebits[goodsDebits.length - 1].amount + delta,
+        );
+      }
+    }
+    if (!goodsDebits.length) goodsDebits = null;
+  }
 
   const lines = buildPurchaseBillClearingLines({
     netAmount: net,
     taxAmount: tax,
-    stockInput: accounts.stockInput,
-    inventory: accounts.inventory,
+    stockInput: defaults.stockInput,
+    inventory: defaults.inventory,
     ap,
     vatInput,
-    useInterim: Boolean(invoice.sourcePurchaseOrderId || invoice.sourceGrnId),
+    useInterim,
+    goodsDebits,
     description: `Vendor bill ${invoice.invoiceNumber || ''}`,
   });
   if (lines.length < 2) return null;
