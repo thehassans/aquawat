@@ -92,6 +92,7 @@ async function loadExportRows(tenantId, model, filters = {}) {
         unitOfMeasure: p.unitOfMeasure || 'PCE',
         canBeSold: p.canBeSold !== false,
         canBePurchased: p.canBePurchased !== false,
+        canBeExpensed: p.canBeExpensed === true,
         category: p.category || '',
         'category/name': p.category || '',
       }));

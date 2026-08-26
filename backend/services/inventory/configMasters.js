@@ -87,6 +87,9 @@ export async function createLocation(tenantId, userId, body) {
     removalStrategy: body.removalStrategy || undefined,
     isScrapLocation: !!body.isScrapLocation,
     isReturnLocation: !!body.isReturnLocation,
+    stockInputAccountId: body.stockInputAccountId || null,
+    stockOutputAccountId: body.stockOutputAccountId || null,
+    stockValuationAccountId: body.stockValuationAccountId || null,
     barcode: body.barcode,
     active: body.active !== false,
     createdBy: userId,
@@ -134,6 +137,9 @@ export async function updateLocation(tenantId, userId, id, body) {
   if (body.removalStrategy !== undefined) loc.removalStrategy = body.removalStrategy || undefined;
   if (body.isScrapLocation != null) loc.isScrapLocation = !!body.isScrapLocation;
   if (body.isReturnLocation != null) loc.isReturnLocation = !!body.isReturnLocation;
+  if (body.stockInputAccountId !== undefined) loc.stockInputAccountId = body.stockInputAccountId || null;
+  if (body.stockOutputAccountId !== undefined) loc.stockOutputAccountId = body.stockOutputAccountId || null;
+  if (body.stockValuationAccountId !== undefined) loc.stockValuationAccountId = body.stockValuationAccountId || null;
   if (body.barcode !== undefined) loc.barcode = body.barcode;
   if (body.active != null) loc.active = !!body.active;
   loc.updatedBy = userId;

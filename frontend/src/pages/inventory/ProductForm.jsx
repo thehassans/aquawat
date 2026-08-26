@@ -65,10 +65,13 @@ export default function ProductForm() {
   const { register, handleSubmit, reset, setValue, watch, control } = useForm({
     defaultValues: {
       productType: 'goods',
+      costPrice: 0,
+      sellingPrice: 0,
       unitOfMeasure: getDefaultUom(tenant),
       taxRate: defaultTaxRate,
       canBeSold: true,
       canBePurchased: true,
+      canBeExpensed: false,
       canBeSoldOnPos: true,
       trackInventory: true,
       tracking: 'none',
@@ -85,6 +88,10 @@ export default function ProductForm() {
   const uomOptions = getAvailableUomOptions(tenant)
   const selectedProductType = normalizeProductType(watch('productType'))
   const isService = selectedProductType === 'service'
+  const canBeSold = watch('canBeSold') !== false
+  const canBePurchased = !!watch('canBePurchased')
+  const canBeExpensed = !!watch('canBeExpensed')
+  const canBeSoldOnPos = !!watch('canBeSoldOnPos')
 
   const buildPayload = (data) => {
     const payload = { ...data }
@@ -255,6 +262,16 @@ export default function ProductForm() {
     queryFn: () => api.get('/stock/routes').then((r) => asInvList(r.data)),
     enabled: invSettings?.groupAdvLocation !== false,
   })
+  const { data: invRules } = useQuery({
+    queryKey: ['inv-rules-all'],
+    queryFn: () => api.get('/stock/rules').then((r) => asInvList(r.data)),
+    enabled: invSettings?.groupAdvLocation !== false,
+  })
+  const { data: accountingAccounts } = useQuery({
+    queryKey: ['accounting-accounts'],
+    queryFn: () => api.get('/accounting/accounts').then((r) => r.data || []),
+    staleTime: 60_000,
+  })
 
   const [productTab, setProductTab] = useState('general')
   const [attributeLines, setAttributeLines] = useState([])
@@ -266,6 +283,26 @@ export default function ProductForm() {
     enabled: invSettings?.groupProductVariant !== false,
   })
   const attrs = attrsData || []
+  const activeAccounts = useMemo(
+    () => (Array.isArray(accountingAccounts) ? accountingAccounts : []).filter((a) => a?.isActive !== false),
+    [accountingAccounts],
+  )
+  const invRouteRows = Array.isArray(invRoutes) ? invRoutes : []
+  const ruleRows = Array.isArray(invRules) ? invRules : []
+  const routeActionGroups = useMemo(() => {
+    const buy = new Set()
+    const manufacture = new Set()
+    for (const rule of ruleRows) {
+      const rid = String(rule.routeId?._id || rule.routeId || '')
+      if (!rid) continue
+      if (rule.action === 'buy') buy.add(rid)
+      if (rule.action === 'manufacture') manufacture.add(rid)
+    }
+    return {
+      buy: [...buy],
+      manufacture: [...manufacture],
+    }
+  }, [ruleRows])
 
   const { data: previewCount } = useQuery({
     queryKey: ['variant-preview-count', attributeLines],
@@ -320,6 +357,55 @@ export default function ProductForm() {
     setStockQuantity(Number(s?.quantity || 0))
     setStockReorderPoint(Number.isFinite(Number(s?.reorderPoint)) ? Number(s.reorderPoint) : 10)
   }, [isEdit, product, stockWarehouseId])
+
+  useEffect(() => {
+    if (!canBeSold && canBeSoldOnPos) {
+      setValue('canBeSoldOnPos', false, { shouldDirty: true })
+    }
+  }, [canBeSold, canBeSoldOnPos, setValue])
+
+  const visibleTabs = useMemo(() => ([
+    { id: 'general', en: 'General', ar: 'عام' },
+    { id: 'sales', en: 'Sales', ar: 'المبيعات', hide: !canBeSold },
+    { id: 'purchase', en: 'Purchase', ar: 'الشراء', hide: !canBePurchased },
+    { id: 'expense', en: 'Expense', ar: 'المصروفات', hide: !canBeExpensed },
+    { id: 'inventory', en: 'Inventory', ar: 'المخزون', hide: isService },
+    { id: 'variants', en: 'Attributes & Variants', ar: 'السمات والمتغيرات', hide: invSettings?.groupProductVariant === false },
+    { id: 'accounting', en: 'Accounting', ar: 'المحاسبة' },
+  ].filter((t) => !t.hide)), [canBeSold, canBePurchased, canBeExpensed, isService, invSettings?.groupProductVariant])
+
+  useEffect(() => {
+    if (!visibleTabs.some((t) => t.id === productTab)) {
+      setProductTab(visibleTabs[0]?.id || 'general')
+    }
+  }, [productTab, visibleTabs])
+
+  const selectedRouteIds = (watch('routeIds') || []).map(String)
+  const selectedSupplyPreset = useMemo(() => {
+    const buyIds = routeActionGroups.buy
+    const manufactureIds = routeActionGroups.manufacture
+    const hasBuy = buyIds.some((id) => selectedRouteIds.includes(id))
+    const hasManufacture = manufactureIds.some((id) => selectedRouteIds.includes(id))
+    if (hasBuy && hasManufacture) return 'both'
+    if (hasBuy) return 'buy'
+    if (hasManufacture) return 'manufacture'
+    return 'custom'
+  }, [routeActionGroups, selectedRouteIds])
+
+  const applySupplyPreset = (preset) => {
+    if (preset === 'buy') {
+      setValue('routeIds', routeActionGroups.buy, { shouldDirty: true })
+      return
+    }
+    if (preset === 'manufacture') {
+      setValue('routeIds', routeActionGroups.manufacture, { shouldDirty: true })
+      return
+    }
+    if (preset === 'both') {
+      setValue('routeIds', [...new Set([...routeActionGroups.buy, ...routeActionGroups.manufacture])], { shouldDirty: true })
+      return
+    }
+  }
 
   const mutation = useMutation({
     mutationFn: (data) => isEdit ? api.put(`/products/${id}`, data) : api.post('/products', data),
@@ -446,23 +532,23 @@ export default function ProductForm() {
           {language === 'ar' ? 'مبيعات' : 'Sales'}
         </label>
         <label className="flex items-center gap-2">
-          <input type="checkbox" {...register('canBeSoldOnPos')} className="rounded border-gray-300 text-primary-600" />
-          {language === 'ar' ? 'نقطة البيع' : 'Point of Sale'}
-        </label>
-        <label className="flex items-center gap-2">
           <input type="checkbox" {...register('canBePurchased')} className="rounded border-gray-300 text-primary-600" />
           {language === 'ar' ? 'مشتريات' : 'Purchase'}
         </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" {...register('canBeExpensed')} className="rounded border-gray-300 text-primary-600" />
+          {language === 'ar' ? 'مصروفات' : 'Expense'}
+        </label>
+        {canBeSold && (
+          <label className="ms-2 flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 dark:border-dark-600 dark:text-slate-300">
+            <input type="checkbox" {...register('canBeSoldOnPos')} className="rounded border-gray-300 text-primary-600" />
+            {language === 'ar' ? 'متاح في نقطة البيع' : 'Available in POS'}
+          </label>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-1">
-        {[
-          { id: 'general', en: 'General', ar: 'عام' },
-          { id: 'variants', en: 'Attributes & Variants', ar: 'السمات والمتغيرات', hide: invSettings?.groupProductVariant === false },
-          { id: 'purchase', en: 'Purchase', ar: 'الشراء' },
-          { id: 'inventory', en: 'Inventory', ar: 'المخزون' },
-          { id: 'accounting', en: 'Accounting', ar: 'المحاسبة' },
-        ].filter((t) => !t.hide).map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -594,23 +680,16 @@ export default function ProductForm() {
           </div>
         </motion.div>
 
+        </>
+        )}
 
-        {/* Pricing */}
+        {productTab === 'sales' && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="card p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg"><DollarSign className="w-5 h-5 text-emerald-600" /></div>
-            <h3 className="text-lg font-semibold">{language === 'ar' ? 'التسعير' : 'Pricing'}</h3>
+          <div className="mb-6 flex items-center gap-3">
+            <div className="rounded-lg bg-emerald-100 p-2 dark:bg-emerald-900/30"><DollarSign className="h-5 w-5 text-emerald-600" /></div>
+            <h3 className="text-lg font-semibold">{language === 'ar' ? 'المبيعات' : 'Sales'}</h3>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="label">
-                <span className="inline-flex items-center gap-1.5">
-                  {t('costPrice')}
-                  <CurrencySymbol currency={currency} />
-                </span>
-              </label>
-              <input type="number" step="0.01" {...register('costPrice', { valueAsNumber: true })} className="input" />
-            </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <label className="label">
                 <span className="inline-flex items-center gap-1.5">
@@ -618,7 +697,7 @@ export default function ProductForm() {
                   <CurrencySymbol currency={currency} />
                 </span>
               </label>
-              <input type="number" step="0.01" {...register('sellingPrice', { valueAsNumber: true, required: true })} className="input" />
+              <input type="number" step="0.01" {...register('sellingPrice', { valueAsNumber: true, required: canBeSold })} className="input" />
             </div>
             <div>
               <label className="label">{language === 'ar' ? 'نسبة الضريبة' : 'Tax Rate'} %</label>
@@ -630,22 +709,42 @@ export default function ProductForm() {
                 ))}
               </select>
             </div>
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 px-4 py-3 text-sm text-slate-600 dark:border-dark-600 dark:bg-dark-800/60 dark:text-slate-300">
+              <div className="font-medium text-slate-900 dark:text-white">{language === 'ar' ? 'نقطة البيع' : 'Point of Sale'}</div>
+              <div className="mt-1 text-xs">
+                {canBeSoldOnPos
+                  ? (language === 'ar' ? 'هذا المنتج متاح في شاشة نقطة البيع.' : 'This product will be available in the POS catalog.')
+                  : (language === 'ar' ? 'فعّل خيار نقطة البيع من أعلى النموذج.' : 'Enable POS availability from the top behavior bar.')}
+              </div>
+            </div>
           </div>
         </motion.div>
-        </>
         )}
 
-        {(productTab === 'inventory' || productTab === 'purchase') && (
+        {(productTab === 'inventory' || productTab === 'purchase' || productTab === 'expense') && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="card p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg"><Warehouse className="w-5 h-5 text-blue-600" /></div>
             <h3 className="text-lg font-semibold">
               {productTab === 'purchase'
                 ? (language === 'ar' ? 'الشراء' : 'Purchase')
+                : productTab === 'expense'
+                  ? (language === 'ar' ? 'المصروفات' : 'Expense')
                 : (language === 'ar' ? 'المخزون' : 'Inventory')}
             </h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {(productTab === 'purchase' || productTab === 'expense') && (
+              <div>
+                <label className="label">
+                  <span className="inline-flex items-center gap-1.5">
+                    {t('costPrice')}
+                    <CurrencySymbol currency={currency} />
+                  </span>
+                </label>
+                <input type="number" step="0.01" {...register('costPrice', { valueAsNumber: true })} className="input" />
+              </div>
+            )}
             {!isService && productTab === 'inventory' && (
               <>
                 <div className="md:col-span-3 flex flex-wrap gap-4">
@@ -683,7 +782,37 @@ export default function ProductForm() {
                   </>
                 )}
                 {invSettings?.groupAdvLocation !== false && (
-                  <div className="md:col-span-3">
+                  <div className="md:col-span-3 space-y-3">
+                    <div>
+                      <label className="label">{language === 'ar' ? 'مصدر التزويد' : 'Supply Route'}</label>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { id: 'buy', en: 'Buy', ar: 'شراء', disabled: routeActionGroups.buy.length === 0 },
+                          { id: 'manufacture', en: 'Manufacture', ar: 'تصنيع', disabled: routeActionGroups.manufacture.length === 0 },
+                          { id: 'both', en: 'Buy + Manufacture', ar: 'شراء + تصنيع', disabled: routeActionGroups.buy.length === 0 || routeActionGroups.manufacture.length === 0 },
+                        ].map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            disabled={opt.disabled}
+                            onClick={() => applySupplyPreset(opt.id)}
+                            className={`rounded-xl border px-3 py-2 text-xs font-medium transition ${
+                              selectedSupplyPreset === opt.id
+                                ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-950/30'
+                                : 'border-slate-200 text-slate-600 dark:border-dark-600 dark:text-slate-300'
+                            } ${opt.disabled ? 'opacity-40' : ''}`}
+                          >
+                            {language === 'ar' ? opt.ar : opt.en}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        {language === 'ar'
+                          ? 'حدّد هل يُجلب هذا المنتج بالشراء أو بالتصنيع. ويمكن ضبط المسارات التفصيلية أسفل ذلك.'
+                          : 'Choose whether this product is supplied by buying or by manufacturing, then refine with detailed routes below.'}
+                      </p>
+                    </div>
+                    <div>
                     <label className="label">{language === 'ar' ? 'المسارات' : 'Routes'}</label>
                     <select
                       multiple
@@ -694,13 +823,21 @@ export default function ProductForm() {
                         setValue('routeIds', vals, { shouldDirty: true })
                       }}
                     >
-                      {(Array.isArray(invRoutes) ? invRoutes : []).map((r) => (
+                      {invRouteRows.map((r) => (
                         <option key={r._id} value={r._id}>{r.name}</option>
                       ))}
                     </select>
+                    </div>
                   </div>
                 )}
               </>
+            )}
+            {productTab === 'expense' && (
+              <div className="md:col-span-2 rounded-xl border border-amber-100 bg-amber-50/70 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100">
+                {language === 'ar'
+                  ? 'هذا التبويب للمواد أو الخدمات التي تُشترى كمصروفات تشغيلية وتحتاج تعيين حساب مصروف واضح.'
+                  : 'Use this tab for products or services primarily handled as operating expenses with a dedicated expense account.'}
+              </div>
             )}
             <div>
               <label className="label">{language === 'ar' ? 'وحدة القياس (اختياري)' : 'Unit of Measure (Optional)'}</label>
@@ -1005,6 +1142,26 @@ export default function ProductForm() {
                 ? 'طريقة التكلفة والتقييم تأتي من فئة المخزون المحددة في التبويب العام.'
                 : 'Costing method and valuation come from the inventory category set on the General tab.'}
             </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="label">{language === 'ar' ? 'حساب الإيراد' : 'Income Account'}</label>
+                <select {...register('incomeAccountId')} className="select">
+                  <option value="">—</option>
+                  {activeAccounts.map((a) => (
+                    <option key={a._id} value={a._id}>{a.code ? `${a.code} · ${language === 'ar' ? (a.nameAr || a.name) : a.name}` : (language === 'ar' ? (a.nameAr || a.name) : a.name)}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label">{language === 'ar' ? 'حساب المصروف' : 'Expense Account'}</label>
+                <select {...register('expenseAccountId')} className="select">
+                  <option value="">—</option>
+                  {activeAccounts.map((a) => (
+                    <option key={a._id} value={a._id}>{a.code ? `${a.code} · ${language === 'ar' ? (a.nameAr || a.name) : a.name}` : (language === 'ar' ? (a.nameAr || a.name) : a.name)}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             {(() => {
               const cat = (Array.isArray(invCategories) ? invCategories : []).find(
                 (c) => String(c._id) === String(watch('categoryId') || ''),
@@ -1014,6 +1171,10 @@ export default function ProductForm() {
                   <div><dt className="text-slate-400">{language === 'ar' ? 'المسار' : 'Path'}</dt><dd>{cat.completePath}</dd></div>
                   <div><dt className="text-slate-400">{language === 'ar' ? 'التكلفة' : 'Costing'}</dt><dd>{cat.costingMethod}</dd></div>
                   <div><dt className="text-slate-400">{language === 'ar' ? 'التقييم' : 'Valuation'}</dt><dd>{cat.valuationMode}</dd></div>
+                  <div><dt className="text-slate-400">{language === 'ar' ? 'حساب الإيراد الموروث' : 'Inherited Income Account'}</dt><dd>{cat.incomeAccountId?.code || cat.incomeAccountId?.name || '—'}</dd></div>
+                  <div><dt className="text-slate-400">{language === 'ar' ? 'حساب المصروف الموروث' : 'Inherited Expense Account'}</dt><dd>{cat.expenseAccountId?.code || cat.expenseAccountId?.name || '—'}</dd></div>
+                  <div><dt className="text-slate-400">{language === 'ar' ? 'حساب تقييم المخزون' : 'Stock Valuation Account'}</dt><dd>{cat.stockValuationAccountId?.code || cat.stockValuationAccountId?.name || '—'}</dd></div>
+                  <div><dt className="text-slate-400">{language === 'ar' ? 'حساب الإدخال/الإخراج' : 'Stock Input / Output'}</dt><dd>{[cat.stockInputAccountId?.code || cat.stockInputAccountId?.name, cat.stockOutputAccountId?.code || cat.stockOutputAccountId?.name].filter(Boolean).join(' / ') || '—'}</dd></div>
                 </dl>
               ) : (
                 <p className="text-sm text-slate-400">{language === 'ar' ? 'لا فئة محددة' : 'No category selected'}</p>

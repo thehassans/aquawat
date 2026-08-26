@@ -240,7 +240,12 @@ router.get('/locations', checkPermission('inventory', 'read'), async (req, res) 
     if (req.query.usage) filter.usage = req.query.usage;
     if (req.query.warehouseId) filter.warehouseId = req.query.warehouseId;
     if (req.query.active !== 'false') filter.active = true;
-    const locations = await InvLocation.find(filter).sort({ completePath: 1 }).lean();
+    const locations = await InvLocation.find(filter)
+      .populate('stockValuationAccountId', 'code name nameAr')
+      .populate('stockInputAccountId', 'code name nameAr')
+      .populate('stockOutputAccountId', 'code name nameAr')
+      .sort({ completePath: 1 })
+      .lean();
     return sendList(res, locations, {
       appliedFilters: {
         usage: req.query.usage || null,
@@ -255,7 +260,11 @@ router.get('/locations', checkPermission('inventory', 'read'), async (req, res) 
 
 router.get('/locations/:id', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const loc = await InvLocation.findOne({ _id: req.params.id, ...req.tenantFilter }).lean();
+    const loc = await InvLocation.findOne({ _id: req.params.id, ...req.tenantFilter })
+      .populate('stockValuationAccountId', 'code name nameAr')
+      .populate('stockInputAccountId', 'code name nameAr')
+      .populate('stockOutputAccountId', 'code name nameAr')
+      .lean();
     if (!loc) return res.status(404).json({ error: 'Location not found' });
     res.json(loc);
   } catch (err) {
@@ -401,7 +410,17 @@ router.patch('/operation-types/:id', checkPermission('inventory', 'update'), asy
 
 router.get('/product-categories', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    return sendList(res, await InvProductCategory.find({ ...req.tenantFilter }).sort({ completePath: 1 }));
+    return sendList(
+      res,
+      await InvProductCategory.find({ ...req.tenantFilter })
+        .populate('incomeAccountId', 'code name nameAr')
+        .populate('expenseAccountId', 'code name nameAr')
+        .populate('priceDifferenceAccountId', 'code name nameAr')
+        .populate('stockValuationAccountId', 'code name nameAr')
+        .populate('stockInputAccountId', 'code name nameAr')
+        .populate('stockOutputAccountId', 'code name nameAr')
+        .sort({ completePath: 1 }),
+    );
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -428,7 +447,14 @@ router.get('/product-categories/popular', checkPermission('inventory', 'read'), 
 
 router.get('/product-categories/:id', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const cat = await InvProductCategory.findOne({ _id: req.params.id, ...req.tenantFilter }).lean();
+    const cat = await InvProductCategory.findOne({ _id: req.params.id, ...req.tenantFilter })
+      .populate('incomeAccountId', 'code name nameAr')
+      .populate('expenseAccountId', 'code name nameAr')
+      .populate('priceDifferenceAccountId', 'code name nameAr')
+      .populate('stockValuationAccountId', 'code name nameAr')
+      .populate('stockInputAccountId', 'code name nameAr')
+      .populate('stockOutputAccountId', 'code name nameAr')
+      .lean();
     if (!cat) return res.status(404).json({ error: 'Category not found' });
     res.json(cat);
   } catch (err) {

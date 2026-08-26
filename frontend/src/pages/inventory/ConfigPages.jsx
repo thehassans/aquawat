@@ -9,10 +9,26 @@ import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import ImportExportDialog, { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 
-const USAGES = [
-  'view', 'internal', 'vendor', 'customer',
-  'inventoryLoss', 'scrap', 'production', 'transit',
+const USAGE_OPTIONS = [
+  { value: 'vendor', en: 'Vendor Location', ar: 'موقع المورد' },
+  { value: 'view', en: 'View', ar: 'عرض' },
+  { value: 'internal', en: 'Internal Location', ar: 'موقع داخلي' },
+  { value: 'customer', en: 'Customer Location', ar: 'موقع العميل' },
+  { value: 'inventoryLoss', en: 'Inventory Loss', ar: 'فاقد المخزون' },
+  { value: 'production', en: 'Production', ar: 'الإنتاج' },
+  { value: 'transit', en: 'Transit Location', ar: 'موقع العبور' },
 ]
+
+const categoryAccountLabel = (row, language) => {
+  if (!row) return '—'
+  const name = language === 'ar' ? (row.nameAr || row.name) : row.name
+  return row.code ? `${row.code} · ${name}` : name
+}
+
+const journalLabel = (row) => {
+  if (!row) return '—'
+  return row.code ? `${row.code} · ${row.name}` : row.name
+}
 
 function ListShell({ title, subtitle, action, children, empty, loading }) {
   return (
@@ -141,6 +157,11 @@ export function LocationForm() {
     parentId: '',
     usage: 'internal',
     warehouseId: '',
+    isScrapLocation: false,
+    isReturnLocation: false,
+    stockValuationAccountId: '',
+    stockInputAccountId: '',
+    stockOutputAccountId: '',
     barcode: '',
     active: true,
   })
@@ -158,6 +179,18 @@ export function LocationForm() {
     queryKey: ['warehouses-lite'],
     queryFn: () => api.get('/warehouses').then((r) => r.data?.warehouses || r.data || []),
   })
+  const { data: settings } = useQuery({
+    queryKey: ['stock-settings'],
+    queryFn: () => api.get('/stock/settings').then((r) => r.data),
+    staleTime: 60_000,
+  })
+  const { data: accounts } = useQuery({
+    queryKey: ['accounting-accounts'],
+    queryFn: () => api.get('/accounting/accounts').then((r) => r.data || []),
+    staleTime: 60_000,
+  })
+  const accountingEnabled = settings?.inventoryEvaluationEnabled !== false
+  const activeAccounts = Array.isArray(accounts) ? accounts.filter((a) => a?.isActive !== false) : []
 
   useEffect(() => {
     if (existing) {
@@ -165,8 +198,13 @@ export function LocationForm() {
         name: existing.name || '',
         nameAr: existing.nameAr || '',
         parentId: existing.parentId || '',
-        usage: existing.usage || 'internal',
+        usage: existing.usage === 'scrap' ? 'inventoryLoss' : (existing.usage || 'internal'),
         warehouseId: existing.warehouseId || '',
+        isScrapLocation: !!(existing.isScrapLocation || existing.usage === 'scrap'),
+        isReturnLocation: !!existing.isReturnLocation,
+        stockValuationAccountId: existing.stockValuationAccountId?._id || existing.stockValuationAccountId || '',
+        stockInputAccountId: existing.stockInputAccountId?._id || existing.stockInputAccountId || '',
+        stockOutputAccountId: existing.stockOutputAccountId?._id || existing.stockOutputAccountId || '',
         barcode: existing.barcode || '',
         active: existing.active !== false,
       })
@@ -202,6 +240,10 @@ export function LocationForm() {
           ...form,
           parentId: form.parentId || null,
           warehouseId: form.warehouseId || null,
+          usage: form.usage || 'internal',
+          stockValuationAccountId: form.stockValuationAccountId || null,
+          stockInputAccountId: form.stockInputAccountId || null,
+          stockOutputAccountId: form.stockOutputAccountId || null,
         })
       }}
     >
@@ -226,7 +268,9 @@ export function LocationForm() {
         <div>
           <label className="label">{language === 'ar' ? 'الاستخدام' : 'Usage'} *</label>
           <select className="select" value={form.usage} onChange={(e) => setForm({ ...form, usage: e.target.value })}>
-            {USAGES.map((u) => <option key={u} value={u}>{u}</option>)}
+            {USAGE_OPTIONS.map((u) => (
+              <option key={u.value} value={u.value}>{language === 'ar' ? u.ar : u.en}</option>
+            ))}
           </select>
         </div>
         <div>
@@ -242,6 +286,24 @@ export function LocationForm() {
           <label className="label">{language === 'ar' ? 'الباركود' : 'Barcode'}</label>
           <input className="input" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} />
         </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="loc-scrap"
+            checked={form.isScrapLocation}
+            onChange={(e) => setForm({ ...form, isScrapLocation: e.target.checked })}
+          />
+          <label htmlFor="loc-scrap" className="text-sm">{language === 'ar' ? 'موقع خردة' : 'Scrap location'}</label>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="loc-return"
+            checked={form.isReturnLocation}
+            onChange={(e) => setForm({ ...form, isReturnLocation: e.target.checked })}
+          />
+          <label htmlFor="loc-return" className="text-sm">{language === 'ar' ? 'موقع مرتجعات' : 'Return location'}</label>
+        </div>
         {isEdit && (
           <div className="flex items-center gap-2 md:col-span-2">
             <input
@@ -254,6 +316,42 @@ export function LocationForm() {
           </div>
         )}
       </div>
+
+      {accountingEnabled && (
+        <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 md:grid-cols-2 dark:border-dark-600">
+          <div className="md:col-span-2">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+              {language === 'ar' ? 'خصائص حسابات المخزون' : 'Stock Account Properties'}
+            </h3>
+            <p className="mt-1 text-xs text-slate-500">
+              {language === 'ar'
+                ? 'تُستخدم هذه الحسابات عند تقييم الحركات إلى هذا الموقع أو منه.'
+                : 'These accounts apply when valuation journals involve this location.'}
+            </p>
+          </div>
+          <div>
+            <label className="label">{language === 'ar' ? 'حساب تقييم المخزون' : 'Stock Valuation Account'}</label>
+            <select className="select" value={form.stockValuationAccountId} onChange={(e) => setForm({ ...form, stockValuationAccountId: e.target.value })}>
+              <option value="">—</option>
+              {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">{language === 'ar' ? 'حساب الإدخال' : 'Stock Input Account'}</label>
+            <select className="select" value={form.stockInputAccountId} onChange={(e) => setForm({ ...form, stockInputAccountId: e.target.value })}>
+              <option value="">—</option>
+              {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">{language === 'ar' ? 'حساب الإخراج' : 'Stock Output Account'}</label>
+            <select className="select" value={form.stockOutputAccountId} onChange={(e) => setForm({ ...form, stockOutputAccountId: e.target.value })}>
+              <option value="">—</option>
+              {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
+            </select>
+          </div>
+        </div>
+      )}
     </FormShell>
   )
 }
@@ -724,6 +822,13 @@ export function ProductCategoryForm() {
     valuationMode: 'automated',
     allowNegativeStock: false,
     forceRemovalStrategy: '',
+    stockValuationAccountId: '',
+    stockJournalId: '',
+    stockInputAccountId: '',
+    stockOutputAccountId: '',
+    incomeAccountId: '',
+    expenseAccountId: '',
+    priceDifferenceAccountId: '',
   })
   const [costingPreview, setCostingPreview] = useState(null)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -737,6 +842,18 @@ export function ProductCategoryForm() {
     queryKey: ['inv-product-categories'],
     queryFn: () => api.get('/stock/product-categories').then((r) => asInvList(r.data)),
   })
+  const { data: accounts } = useQuery({
+    queryKey: ['accounting-accounts'],
+    queryFn: () => api.get('/accounting/accounts').then((r) => r.data || []),
+    staleTime: 60_000,
+  })
+  const { data: journals } = useQuery({
+    queryKey: ['accounting-journals-select'],
+    queryFn: () => api.get('/accounting/journals', { params: { limit: 200 } }).then((r) => r.data?.journals || r.data || []),
+    staleTime: 60_000,
+  })
+  const activeAccounts = Array.isArray(accounts) ? accounts.filter((a) => a?.isActive !== false) : []
+  const journalOptions = Array.isArray(journals) ? journals.filter((j) => j?.status !== 'void') : []
 
   useEffect(() => {
     if (!existing) return
@@ -748,6 +865,13 @@ export function ProductCategoryForm() {
       valuationMode: existing.valuationMode || 'automated',
       allowNegativeStock: !!existing.allowNegativeStock,
       forceRemovalStrategy: existing.forceRemovalStrategy || '',
+      stockValuationAccountId: existing.stockValuationAccountId?._id || existing.stockValuationAccountId || '',
+      stockJournalId: existing.stockJournalId?._id || existing.stockJournalId || '',
+      stockInputAccountId: existing.stockInputAccountId?._id || existing.stockInputAccountId || '',
+      stockOutputAccountId: existing.stockOutputAccountId?._id || existing.stockOutputAccountId || '',
+      incomeAccountId: existing.incomeAccountId?._id || existing.incomeAccountId || '',
+      expenseAccountId: existing.expenseAccountId?._id || existing.expenseAccountId || '',
+      priceDifferenceAccountId: existing.priceDifferenceAccountId?._id || existing.priceDifferenceAccountId || '',
     })
   }, [existing])
 
@@ -804,6 +928,13 @@ export function ProductCategoryForm() {
           ...form,
           parentId: form.parentId || null,
           forceRemovalStrategy: form.forceRemovalStrategy || undefined,
+          stockValuationAccountId: form.stockValuationAccountId || null,
+          stockJournalId: form.stockJournalId || null,
+          stockInputAccountId: form.stockInputAccountId || null,
+          stockOutputAccountId: form.stockOutputAccountId || null,
+          incomeAccountId: form.incomeAccountId || null,
+          expenseAccountId: form.expenseAccountId || null,
+          priceDifferenceAccountId: form.priceDifferenceAccountId || null,
         })
       }}
     >
@@ -858,6 +989,73 @@ export function ProductCategoryForm() {
               ? 'السماح بالمخزون السالب عند الاعتماد'
               : 'Allow negative stock on validate'}
           </label>
+        </div>
+      </div>
+
+      {form.valuationMode === 'automated' && (
+        <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 md:grid-cols-2 dark:border-dark-600">
+          <div className="md:col-span-2">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+              {language === 'ar' ? 'خصائص حسابات المخزون' : 'Account Stock Properties'}
+            </h3>
+          </div>
+          <div>
+            <label className="label">{language === 'ar' ? 'حساب تقييم المخزون' : 'Stock Valuation Account'}</label>
+            <select className="select" value={form.stockValuationAccountId} onChange={(e) => setForm({ ...form, stockValuationAccountId: e.target.value })}>
+              <option value="">—</option>
+              {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">{language === 'ar' ? 'دفتر المخزون' : 'Stock Journal'}</label>
+            <select className="select" value={form.stockJournalId} onChange={(e) => setForm({ ...form, stockJournalId: e.target.value })}>
+              <option value="">—</option>
+              {journalOptions.map((j) => <option key={j._id} value={j._id}>{journalLabel(j)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">{language === 'ar' ? 'حساب الإدخال' : 'Stock Input Account'}</label>
+            <select className="select" value={form.stockInputAccountId} onChange={(e) => setForm({ ...form, stockInputAccountId: e.target.value })}>
+              <option value="">—</option>
+              {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">{language === 'ar' ? 'حساب الإخراج' : 'Stock Output Account'}</label>
+            <select className="select" value={form.stockOutputAccountId} onChange={(e) => setForm({ ...form, stockOutputAccountId: e.target.value })}>
+              <option value="">—</option>
+              {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
+            </select>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 md:grid-cols-2 dark:border-dark-600">
+        <div className="md:col-span-2">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+            {language === 'ar' ? 'خصائص الحسابات' : 'Account Properties'}
+          </h3>
+        </div>
+        <div>
+          <label className="label">{language === 'ar' ? 'حساب الإيراد' : 'Income Account'}</label>
+          <select className="select" value={form.incomeAccountId} onChange={(e) => setForm({ ...form, incomeAccountId: e.target.value })}>
+            <option value="">—</option>
+            {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label">{language === 'ar' ? 'حساب المصروف' : 'Expense Account'}</label>
+          <select className="select" value={form.expenseAccountId} onChange={(e) => setForm({ ...form, expenseAccountId: e.target.value })}>
+            <option value="">—</option>
+            {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label">{language === 'ar' ? 'حساب فرق السعر' : 'Price Difference Account'}</label>
+          <select className="select" value={form.priceDifferenceAccountId} onChange={(e) => setForm({ ...form, priceDifferenceAccountId: e.target.value })}>
+            <option value="">—</option>
+            {activeAccounts.map((a) => <option key={a._id} value={a._id}>{categoryAccountLabel(a, language)}</option>)}
+          </select>
         </div>
       </div>
 

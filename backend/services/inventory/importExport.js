@@ -133,7 +133,7 @@ export async function csvTextToXlsxBuffer(csvText, sheetName = 'Export') {
 
 const PRODUCT_EXPORT_COLUMNS = [
   'productId', 'externalId', 'sku', 'barcode', 'nameEn', 'nameAr', 'costPrice', 'salePrice',
-  'category', 'tracking', 'unitOfMeasure', 'canBeSold', 'canBePurchased',
+  'category', 'tracking', 'unitOfMeasure', 'canBeSold', 'canBePurchased', 'canBeExpensed',
 ];
 
 export async function exportCollection(tenantId, collection, { warehouseId } = {}) {
@@ -160,6 +160,7 @@ export async function exportCollection(tenantId, collection, { warehouseId } = {
       unitOfMeasure: p.unitOfMeasure || 'PCE',
       canBeSold: p.canBeSold !== false,
       canBePurchased: p.canBePurchased !== false,
+      canBeExpensed: p.canBeExpensed === true,
     }));
     return { filename: 'products-export.csv', csv: rowsToCsv(rows, PRODUCT_EXPORT_COLUMNS) };
   }

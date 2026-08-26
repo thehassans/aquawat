@@ -93,9 +93,12 @@ const productSchema = new mongoose.Schema({
   alertDays: { type: Number, default: 0 },
   canBeSold: { type: Boolean, default: true },
   canBePurchased: { type: Boolean, default: true },
+  canBeExpensed: { type: Boolean, default: false },
   canBeSoldOnPos: { type: Boolean, default: true },
   invoicingPolicy: { type: String, enum: ['ordered', 'delivered'], default: 'ordered' },
   isFavorite: { type: Boolean, default: false },
+  incomeAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+  expenseAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
 
   
   // Physical Attributes

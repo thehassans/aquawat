@@ -25,6 +25,7 @@ export const IE_MODELS = {
       { key: 'unitOfMeasure', label: 'UoM', importable: true },
       { key: 'canBeSold', label: 'Can Be Sold', importable: true },
       { key: 'canBePurchased', label: 'Can Be Purchased', importable: true },
+      { key: 'canBeExpensed', label: 'Can Be Expensed', importable: true },
       {
         key: 'category',
         label: 'Category',
