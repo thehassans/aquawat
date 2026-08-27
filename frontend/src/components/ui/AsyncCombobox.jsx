@@ -50,10 +50,18 @@ export default function AsyncCombobox({
 
   const { data: options = [], isFetching, isError } = useQuery({
     queryKey: [queryKeyPrefix, debounced],
-    queryFn: () => fetchOptions(debounced),
+    queryFn: async () => {
+      try {
+        const rows = await fetchOptions(debounced)
+        return Array.isArray(rows) ? rows : []
+      } catch {
+        return []
+      }
+    },
     enabled,
     staleTime: 60_000,
     placeholderData: (prev) => prev,
+    retry: false,
   })
 
   const displayValue = useMemo(() => {
@@ -67,14 +75,24 @@ export default function AsyncCombobox({
     setPicked(opt)
     setTerm('')
     setOpen(false)
-    onChange?.(opt?._id || '', opt)
+    try {
+      const result = onChange?.(opt?._id || '', opt)
+      Promise.resolve(result).catch(() => {})
+    } catch {
+      /* ignore sync handler errors */
+    }
   }
 
   const clear = (e) => {
     e.stopPropagation()
     setPicked(null)
     setTerm('')
-    onChange?.('', null)
+    try {
+      const result = onChange?.('', null)
+      Promise.resolve(result).catch(() => {})
+    } catch {
+      /* ignore */
+    }
   }
 
   const showEmptyActions = Boolean(

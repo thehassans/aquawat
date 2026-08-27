@@ -66,7 +66,8 @@ window.addEventListener('vite:preloadError', (event) => {
 })
 
 window.addEventListener('unhandledrejection', (event) => {
-  if (isChunkLoadError(event.reason)) {
+  const reason = event.reason
+  if (isChunkLoadError(reason)) {
     event?.preventDefault?.()
     const KEY = 'chunk-load-retry-ts'
     const lastReload = Number(sessionStorage.getItem(KEY) || 0)
@@ -74,6 +75,36 @@ window.addEventListener('unhandledrejection', (event) => {
       sessionStorage.setItem(KEY, Date.now().toString())
       purgeStaleCachesAndReload()
     }
+    return
+  }
+
+  // Vite minifies AxiosError → "H" in production. Suppress expected noise.
+  const code = reason?.code
+  const status = reason?.response?.status
+  const isAxiosLike = Boolean(
+    reason?.isAxiosError
+    || reason?.config
+    || reason?.response
+    || code === 'ERR_NETWORK'
+    || code === 'ERR_CANCELED'
+    || code === 'ECONNABORTED',
+  )
+  if (isAxiosLike) {
+    // Cancelled queries / aborted requests are normal with React Query
+    if (code === 'ERR_CANCELED' || reason?.name === 'CanceledError' || reason?.name === 'AbortError') {
+      event?.preventDefault?.()
+      return
+    }
+    // Auth cascade after token clear — many in-flight GETs reject together
+    if (status === 401) {
+      event?.preventDefault?.()
+      return
+    }
+    event?.preventDefault?.()
+    const method = String(reason?.config?.method || 'get').toUpperCase()
+    const url = reason?.config?.url || ''
+    const msg = reason?.userMessage || reason?.message || 'Request failed'
+    console.warn(`[API] ${status || code || 'error'} ${method} ${url} — ${msg}`)
   }
 })
 

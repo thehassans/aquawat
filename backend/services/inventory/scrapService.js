@@ -3,6 +3,7 @@ import InvScrap from '../../models/inventory/InvScrap.js';
 import InvLocation from '../../models/inventory/InvLocation.js';
 import InvMove from '../../models/inventory/InvMove.js';
 import InvMoveLine from '../../models/inventory/InvMoveLine.js';
+import InvProductVariant from '../../models/inventory/InvProductVariant.js';
 import Product from '../../models/Product.js';
 import { toObjectId } from '../../models/inventory/common.js';
 import { nextSequenceName, ensureSequence } from './sequence.js';
@@ -47,7 +48,6 @@ async function buildScrapDoc(tid, userId, body, scrapLocationId, defaultUom) {
   }
 
   if (body.variantId) {
-    const { default: InvProductVariant } = await import('../../models/inventory/InvProductVariant.js');
     const variant = await InvProductVariant.findOne({
       _id: body.variantId,
       tenantId: tid,

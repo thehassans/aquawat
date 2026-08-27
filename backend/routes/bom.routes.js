@@ -2,6 +2,8 @@ import express from 'express';
 import { protect, tenantFilter, requireTenantFilter, checkPermission } from '../middleware/auth.js';
 import { ManufacturingBOM } from '../models/Manufacturing.js';
 import Product from '../models/Product.js';
+// Ensure populate('components.variantId') can resolve the model
+import '../models/inventory/InvProductVariant.js';
 
 const router = express.Router();
 router.use(protect);

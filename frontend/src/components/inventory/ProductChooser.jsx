@@ -216,7 +216,12 @@ export default function ProductChooser({
 
   const pick = (product) => {
     if (!product) return
-    onPick(product)
+    try {
+      const result = onPick(product)
+      Promise.resolve(result).catch(() => {})
+    } catch {
+      /* ignore sync pick errors */
+    }
     setTerm('')
     setOpen(false)
   }

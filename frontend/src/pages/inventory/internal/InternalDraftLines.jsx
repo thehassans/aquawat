@@ -177,65 +177,69 @@ export function InternalDraftLines({
                         return o.sku || ''
                       }}
                       onChange={async (_id, opt) => {
-                        if (!opt) {
-                          onChangeLine(idx, {
-                            ...line,
-                            productId: '',
-                            productName: '',
-                            sku: '',
-                            variantId: null,
-                            variantName: '',
-                            variants: [],
-                            needsVariant: false,
-                          })
-                          return
-                        }
-                        // Variant row already binds concrete productId + variantId
-                        if (opt.kind === 'variant' || opt.variantId) {
+                        try {
+                          if (!opt) {
+                            onChangeLine(idx, {
+                              ...line,
+                              productId: '',
+                              productName: '',
+                              sku: '',
+                              variantId: null,
+                              variantName: '',
+                              variants: [],
+                              needsVariant: false,
+                            })
+                            return
+                          }
+                          // Variant row already binds concrete productId + variantId
+                          if (opt.kind === 'variant' || opt.variantId) {
+                            onPickResolved?.(idx, {
+                              productId: opt.productId,
+                              productName: opt.productName || opt.name,
+                              sku: opt.sku || '',
+                              variantId: opt.variantId || null,
+                              variantName: opt.variantName || '',
+                              uomId: opt.uomId,
+                              uomLabel: opt.unitOfMeasure || '',
+                              needsVariant: false,
+                              variants: [],
+                            })
+                            return
+                          }
+                          // Product template — resolve specific variant when required
+                          let variantId = null
+                          let variantName = ''
+                          let variants = []
+                          let needsVariant = false
+                          if (variantsEnabled && opt.productId) {
+                            try {
+                              const data = await api.get('/stock/variants', {
+                                params: { productId: opt.productId, limit: 50 },
+                              }).then((r) => r.data)
+                              const items = Array.isArray(data) ? data : (data?.items || [])
+                              variants = items
+                              if (items.length === 1) {
+                                variantId = items[0]._id
+                                variantName = items[0].name || ''
+                              } else if (items.length > 1) {
+                                needsVariant = true
+                              }
+                            } catch { /* optional */ }
+                          }
                           onPickResolved?.(idx, {
                             productId: opt.productId,
                             productName: opt.productName || opt.name,
                             sku: opt.sku || '',
-                            variantId: opt.variantId || null,
-                            variantName: opt.variantName || '',
+                            variantId,
+                            variantName,
                             uomId: opt.uomId,
                             uomLabel: opt.unitOfMeasure || '',
-                            needsVariant: false,
-                            variants: [],
+                            needsVariant,
+                            variants,
                           })
-                          return
+                        } catch {
+                          /* never leak unhandled axios/rejection to window */
                         }
-                        // Product template — resolve specific variant when required
-                        let variantId = null
-                        let variantName = ''
-                        let variants = []
-                        let needsVariant = false
-                        if (variantsEnabled && opt.productId) {
-                          try {
-                            const data = await api.get('/stock/variants', {
-                              params: { productId: opt.productId, limit: 50 },
-                            }).then((r) => r.data)
-                            const items = Array.isArray(data) ? data : (data?.items || [])
-                            variants = items
-                            if (items.length === 1) {
-                              variantId = items[0]._id
-                              variantName = items[0].name || ''
-                            } else if (items.length > 1) {
-                              needsVariant = true
-                            }
-                          } catch { /* optional */ }
-                        }
-                        onPickResolved?.(idx, {
-                          productId: opt.productId,
-                          productName: opt.productName || opt.name,
-                          sku: opt.sku || '',
-                          variantId,
-                          variantName,
-                          uomId: opt.uomId,
-                          uomLabel: opt.unitOfMeasure || '',
-                          needsVariant,
-                          variants,
-                        })
                       }}
                     />
                     {variantsEnabled && line.needsVariant && Array.isArray(line.variants) && line.variants.length > 0 && (
