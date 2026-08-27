@@ -33,6 +33,16 @@ import { isPakistanTenant, getTaxLabel, getTaxIdLabel, getTenantCountryCode, sho
 import { LineRelationSuggestions } from '../inventory/ProductRelationSuggestions'
 import VariantLineSelect from '../inventory/VariantLineSelect'
 import { formatInvError } from '../../lib/invError'
+import {
+  backBtnClass,
+  fieldControlClass,
+  fieldLabelClass,
+  pageSubtitleClass,
+  pageTitleClass,
+  sectionCardClass,
+  sectionEyebrowClass,
+  sectionTitleClass,
+} from '../../pages/sales/salesUi'
 
 const getEmptyLine = (tenant) => {
   const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
@@ -107,13 +117,8 @@ const mapSellLineItems = (invoice, tenant) => {
 }
 const selectableContexts = ['trading', 'marquee', 'construction', 'travel_agency', 'restaurant', 'manpower', 'furniture', 'furniture_shop']
 
-/** High-contrast premium ERP form tokens */
-const fieldLabelClass = 'mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200'
-const fieldControlClass = 'w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 dark:border-dark-500 dark:bg-dark-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-teal-400'
-const sectionCardClass = 'rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_12px_40px_-28px_rgba(15,23,42,0.35)] sm:p-6 dark:border-dark-600 dark:bg-dark-800'
-const sectionEyebrowClass = 'text-[11px] font-bold uppercase tracking-[0.18em] text-teal-700 dark:text-teal-300'
-const sectionTitleClass = 'mt-1 text-xl font-semibold tracking-[-0.02em] text-slate-950 dark:text-white'
 const bilingualPairGridClass = 'grid grid-cols-1 gap-x-10 gap-y-6 md:grid-cols-2'
+
 /** Always EN left / AR right regardless of UI language for Arabic markets; English only for others */
 const BilingualLabel = ({ en, ar, htmlFor, as = 'label', showArabic = true }) => {
   const Tag = as
@@ -1037,12 +1042,27 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <button onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices/new')} className="btn btn-ghost btn-icon">
-          <ArrowLeft className="w-5 h-5" />
+        <button
+          type="button"
+          onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices/new')}
+          className={backBtnClass}
+        >
+          <ArrowLeft className="h-5 w-5" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{isEdit ? (language === 'ar' ? 'تعديل فاتورة البيع' : 'Edit Sell Invoice') : (language === 'ar' ? 'فاتورة بيع جديدة' : 'New Sell Invoice')}</h1>
-          <p className="mt-1 text-gray-500 dark:text-gray-400">{isEdit ? (language === 'ar' ? 'حدّث بيانات الفاتورة وشاهد المعاينة المباشرة قبل الحفظ' : 'Update the invoice details and review the live preview before saving') : (language === 'ar' ? 'اختر صيغة الفاتورة وشروط الدفع وشاهد المعاينة قبل الحفظ' : 'Choose invoice format, payment terms, and see a live preview before saving')}</p>
+          <p className={sectionEyebrowClass}>
+            {language === 'ar' ? 'المبيعات' : 'Sales'}
+          </p>
+          <h1 className={pageTitleClass}>
+            {isEdit
+              ? (language === 'ar' ? 'تعديل فاتورة البيع' : 'Edit sales invoice')
+              : (language === 'ar' ? 'فاتورة بيع جديدة' : 'New sales invoice')}
+          </h1>
+          <p className={pageSubtitleClass}>
+            {isEdit
+              ? (language === 'ar' ? 'حدّث بيانات الفاتورة وشاهد المعاينة المباشرة قبل الحفظ' : 'Update details and review the live preview before saving')
+              : (language === 'ar' ? 'اختر صيغة الفاتورة وشروط الدفع وشاهد المعاينة قبل الحفظ' : 'Choose format, payment terms, and preview before saving')}
+          </p>
         </div>
       </div>
 

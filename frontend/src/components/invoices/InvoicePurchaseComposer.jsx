@@ -28,6 +28,17 @@ import ProductTypeToggle from '../ui/ProductTypeToggle'
 import RichTextNoteField from './RichTextNoteField'
 import PurchaseReceivingLedger from '../../pages/purchases/PurchaseReceivingLedger'
 import { PURCHASES_PATH, formatDay, ghostBtn, primaryBtn } from '../../pages/purchases/purchasesUi'
+import {
+  backBtnClass,
+  fieldControlClass,
+  fieldLabelClass,
+  pageSubtitleClass,
+  pageTitleClass,
+  sectionCardClass,
+  sectionEyebrowClass,
+  sectionTitleClass,
+  selectTileClass,
+} from '../../pages/sales/salesUi'
 
 const getEmptyLine = (tenant) => ({
   productId: '',
@@ -44,9 +55,9 @@ const purchaseContexts = ['trading', 'construction', 'travel_agency', 'furniture
 
 function BilingualLabel({ en, ar, showArabic = true }) {
   return (
-    <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+    <label className={`${fieldLabelClass} !mb-1.5 !flex items-baseline justify-between gap-3`} dir="ltr">
       <span>{en}</span>
-      {showArabic && ar ? <span dir="rtl" className="font-medium text-gray-500">{ar}</span> : null}
+      {showArabic && ar ? <span dir="rtl" className="font-medium text-slate-500 dark:text-slate-400">{ar}</span> : null}
     </label>
   )
 }
@@ -717,45 +728,69 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <button onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices/new')} className="btn btn-ghost btn-icon"><ArrowLeft className="w-5 h-5" /></button>
+        <button
+          type="button"
+          onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices/new')}
+          className={backBtnClass}
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <p className={sectionEyebrowClass}>
+            {language === 'ar' ? 'المشتريات' : 'Purchases'}
+          </p>
+          <h1 className={pageTitleClass}>
             {isEdit
-              ? (language === 'ar' ? 'تعديل فاتورة الشراء' : 'Edit Purchase Invoice')
+              ? (language === 'ar' ? 'تعديل فاتورة الشراء' : 'Edit purchase invoice')
               : (selectedPoId || poIdParam)
-                ? (language === 'ar' ? 'فاتورة المورد (Vendor Bill)' : 'Vendor Bill')
-                : (language === 'ar' ? 'فاتورة شراء جديدة' : 'New Purchase Invoice')}
+                ? (language === 'ar' ? 'فاتورة المورد' : 'Vendor bill')
+                : (language === 'ar' ? 'فاتورة شراء جديدة' : 'New purchase invoice')}
           </h1>
-          <p className="mt-1 text-gray-500 dark:text-gray-400">
+          <p className={pageSubtitleClass}>
             {isEdit
               ? (language === 'ar' ? 'حدّث بيانات الفاتورة قبل حفظ التعديلات' : 'Update the invoice details before saving your changes')
               : (selectedPoId || poIdParam)
-                ? (language === 'ar' ? 'إصدار فاتورة مورد لطلب الشراء واستلام البضاعة' : 'Billing vendor invoice for purchase order')
-                : (language === 'ar' ? 'إنشاء فاتورة شراء مباشرة وتحديث المخزون' : 'Direct purchase invoice and inventory entry')}
+                ? (language === 'ar' ? 'إصدار فاتورة مورد لطلب الشراء واستلام البضاعة' : 'Bill a vendor for the linked purchase order')
+                : (language === 'ar' ? 'إنشاء فاتورة شراء مباشرة وتحديث المخزون' : 'Create a purchase invoice and update inventory')}
           </p>
         </div>
       </div>
 
       <div className="mx-auto w-full max-w-6xl space-y-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className="card p-6">
-            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'سياق الشراء' : 'Purchase Context'}</h3>
+          <div className={sectionCardClass}>
+            <p className={sectionEyebrowClass}>{language === 'ar' ? 'السياق' : 'Context'}</p>
+            <h3 className={`${sectionTitleClass} mb-4`}>{language === 'ar' ? 'سياق الشراء' : 'Purchase context'}</h3>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               {tenantBusinessTypes.filter((type) => purchaseContexts.includes(type)).map((type) => (
-                <button key={type} type="button" onClick={() => setValue('businessContext', type)} className={`rounded-2xl border p-4 text-start ${businessContext === type ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-600'}`}>
-                  <p className="font-semibold text-gray-900 dark:text-white">{type === 'trading' ? (language === 'ar' ? 'تجارة' : 'Trading') : type === 'construction' ? (language === 'ar' ? 'مقاولات' : 'Construction') : (language === 'ar' ? 'سفر' : 'Travel Agency')}</p>
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setValue('businessContext', type)}
+                  className={selectTileClass(businessContext === type)}
+                >
+                  <span className={`block text-sm font-semibold ${businessContext === type ? '' : 'text-slate-900 dark:text-white'}`}>
+                    {type === 'trading'
+                      ? (language === 'ar' ? 'تجارة' : 'Trading')
+                      : type === 'construction'
+                        ? (language === 'ar' ? 'مقاولات' : 'Construction')
+                        : type === 'furniture' || type === 'furniture_shop'
+                          ? (language === 'ar' ? 'أثاث' : 'Furniture')
+                          : (language === 'ar' ? 'سفر' : 'Travel Agency')}
+                  </span>
                 </button>
               ))}
             </div>
             <input type="hidden" {...register('businessContext')} />
           </div>
 
-          <div className="card p-6">
-            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'الإعدادات الأساسية' : 'Basic Settings'}</h3>
+          <div className={sectionCardClass}>
+            <p className={sectionEyebrowClass}>{language === 'ar' ? 'الإعدادات' : 'Settings'}</p>
+            <h3 className={`${sectionTitleClass} mb-4`}>{language === 'ar' ? 'الإعدادات الأساسية' : 'Basic settings'}</h3>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
-                <label className="label">{language === 'ar' ? 'النوع' : 'Type'}</label>
-                <select value={transactionType} onChange={(e) => { setTransactionType(e.target.value); setValue('transactionType', e.target.value) }} className="select">
+                <label className={fieldLabelClass}>{language === 'ar' ? 'النوع' : 'Type'}</label>
+                <select value={transactionType} onChange={(e) => { setTransactionType(e.target.value); setValue('transactionType', e.target.value) }} className={fieldControlClass}>
                   <option value="B2B">{t('b2bInvoice')}</option>
                   <option value="B2C">{t('b2cInvoice')}</option>
                 </select>
@@ -763,7 +798,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               {isTradingContext && (
                 <>
                   <div>
-                    <label className="label">{language === 'ar' ? 'طلب الشراء' : 'Purchase order'}</label>
+                    <label className={fieldLabelClass}>{language === 'ar' ? 'طلب الشراء' : 'Purchase order'}</label>
                     <select
                       value={selectedPoId}
                       onChange={(e) => {
@@ -774,7 +809,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                         shouldFillFromPoRef.current = Boolean(next)
                         if (!next) replace([emptyLine])
                       }}
-                      className="select"
+                      className={fieldControlClass}
                     >
                       <option value="">{language === 'ar' ? 'اختر طلب شراء لتعبئة الفاتورة' : 'Select a purchase order to fill the invoice'}</option>
                       {(Array.isArray(purchaseOrders) ? purchaseOrders : []).map((po) => (
@@ -786,19 +821,19 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                     <input type="hidden" {...register('sourcePurchaseOrderId')} />
                   </div>
                   <div>
-                    <label className="label">{language === 'ar' ? 'المستودع' : 'Warehouse'}</label>
-                    <select {...register('warehouseId')} className="select"><option value="">{language === 'ar' ? 'بدون تحديد حالياً' : 'No warehouse selected yet'}</option>{(Array.isArray(warehouses) ? warehouses : warehouses?.warehouses || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}</select>
+                    <label className={fieldLabelClass}>{language === 'ar' ? 'المستودع' : 'Warehouse'}</label>
+                    <select {...register('warehouseId')} className={fieldControlClass}><option value="">{language === 'ar' ? 'بدون تحديد حالياً' : 'No warehouse selected yet'}</option>{(Array.isArray(warehouses) ? warehouses : warehouses?.warehouses || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}</select>
                     <div className="mt-2 flex gap-2">
                       <button type="button" className="btn btn-secondary" onClick={() => setValue('warehouseId', '')} disabled={!selectedWarehouseId}>{language === 'ar' ? 'إلغاء التحديد' : 'Clear'}</button>
                       <button type="button" className="btn btn-action-dark" onClick={() => navigate(`/app/dashboard/inventory/warehouses/new?returnTo=${encodeURIComponent('/app/dashboard/invoices/new/purchase')}`)}>{language === 'ar' ? 'إضافة مستودع' : 'Add Warehouse'}</button>
                     </div>
                   </div>
                   <div>
-                    <label className="label flex items-baseline justify-between gap-2">
+                    <label className={`${fieldLabelClass} flex items-baseline justify-between gap-2`}>
                       <span>{language === 'ar' ? 'المورد' : 'Supplier'}</span>
                       <span className="text-xs font-normal text-gray-500">({language === 'ar' ? 'اختياري' : 'Optional'})</span>
                     </label>
-                    <select {...register('supplierId', { onChange: (e) => onSelectSupplier(e.target.value) })} className="select">
+                    <select {...register('supplierId', { onChange: (e) => onSelectSupplier(e.target.value) })} className={fieldControlClass}>
                       <option value="">{language === 'ar' ? 'اختر مورد (اختياري)' : 'Select supplier (Optional)'}</option>
                       {(suppliers || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}
                     </select>
@@ -917,7 +952,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
 
           <input type="hidden" {...register('pdfTemplateId')} />
 
-          <div className="card p-6">
+          <div className={sectionCardClass}>
             <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'بيانات المورد / البائع' : 'Vendor / Seller Details'}</h3>
             {invoiceSubtype === 'travel_ticket' ? (
               <TravelInvoiceFields language={language} register={register} control={control} watch={watch} setValue={setValue} partyPrefix="seller" partyNameLabel={language === 'ar' ? 'اسم المورد / الجهة' : 'Vendor / Supplier Name'} />
@@ -925,83 +960,83 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2" dir="ltr">
                 <div>
                   <FieldLabel en="Name / Company" ar="الاسم / الشركة" />
-                  <input {...register('seller.name')} className="input" placeholder={language === 'ar' ? 'اسم المورد أو الشركة' : 'Supplier or vendor name'} />
+                  <input {...register('seller.name')} className={fieldControlClass} placeholder={language === 'ar' ? 'اسم المورد أو الشركة' : 'Supplier or vendor name'} />
                 </div>
                 {showArabicFields ? (
                   <div>
                     <FieldLabel en="Name (Arabic)" ar="الاسم بالعربية" />
-                    <input {...register('seller.nameAr')} className="input" dir="rtl" />
+                    <input {...register('seller.nameAr')} className={fieldControlClass} dir="rtl" />
                   </div>
                 ) : (
                   <input type="hidden" {...register('seller.nameAr')} />
                 )}
                 <div>
                   <FieldLabel en={isPk ? "NTN / STRN" : "VAT Number"} ar="الرقم الضريبي" />
-                  <input {...register('seller.vatNumber')} className="input" />
+                  <input {...register('seller.vatNumber')} className={fieldControlClass} />
                 </div>
                 <div>
                   <FieldLabel en="CR Number" ar="السجل التجاري" />
-                  <input {...register('seller.crNumber')} className="input" />
+                  <input {...register('seller.crNumber')} className={fieldControlClass} />
                 </div>
                 <div>
                   <FieldLabel en="Phone Number" ar="رقم الهاتف" />
-                  <input {...register('seller.contactPhone')} className="input" />
+                  <input {...register('seller.contactPhone')} className={fieldControlClass} />
                 </div>
                 <div>
                   <FieldLabel en="Email" ar="البريد الإلكتروني" />
-                  <input type="email" {...register('seller.contactEmail')} className="input" />
+                  <input type="email" {...register('seller.contactEmail')} className={fieldControlClass} />
                 </div>
                 <div>
                   <FieldLabel en="City" ar="المدينة" />
-                  <input {...register('seller.address.city')} className="input" />
+                  <input {...register('seller.address.city')} className={fieldControlClass} />
                 </div>
                 {showArabicFields ? (
                   <div>
                     <FieldLabel en="City (Arabic)" ar="المدينة بالعربية" />
-                    <input {...register('seller.address.cityAr')} className="input" dir="rtl" />
+                    <input {...register('seller.address.cityAr')} className={fieldControlClass} dir="rtl" />
                   </div>
                 ) : null}
                 <div>
                   <FieldLabel en="District" ar="الحي" />
-                  <input {...register('seller.address.district')} className="input" />
+                  <input {...register('seller.address.district')} className={fieldControlClass} />
                 </div>
                 {showArabicFields ? (
                   <div>
                     <FieldLabel en="District (Arabic)" ar="الحي بالعربية" />
-                    <input {...register('seller.address.districtAr')} className="input" dir="rtl" />
+                    <input {...register('seller.address.districtAr')} className={fieldControlClass} dir="rtl" />
                   </div>
                 ) : null}
                 <div>
                   <FieldLabel en="Street" ar="الشارع" />
-                  <input {...register('seller.address.street')} className="input" />
+                  <input {...register('seller.address.street')} className={fieldControlClass} />
                 </div>
                 {showArabicFields ? (
                   <div>
                     <FieldLabel en="Street (Arabic)" ar="الشارع بالعربية" />
-                    <input {...register('seller.address.streetAr')} className="input" dir="rtl" />
+                    <input {...register('seller.address.streetAr')} className={fieldControlClass} dir="rtl" />
                   </div>
                 ) : null}
                 <div>
                   <FieldLabel en="Postal Code" ar="الرمز البريدي" />
-                  <input {...register('seller.address.postalCode')} className="input" />
+                  <input {...register('seller.address.postalCode')} className={fieldControlClass} />
                 </div>
                 <div>
                   <FieldLabel en="Country" ar="الدولة" />
-                  <input {...register('seller.address.country')} className="input" placeholder={getTenantCountryCode(tenant)} />
+                  <input {...register('seller.address.country')} className={fieldControlClass} placeholder={getTenantCountryCode(tenant)} />
                 </div>
                 <div>
                   <FieldLabel en="Building Number" ar="رقم المبنى" />
-                  <input {...register('seller.address.buildingNumber')} className="input" />
+                  <input {...register('seller.address.buildingNumber')} className={fieldControlClass} />
                 </div>
                 <div>
                   <FieldLabel en="Additional Number" ar="الرقم الإضافي" />
-                  <input {...register('seller.address.additionalNumber')} className="input" />
+                  <input {...register('seller.address.additionalNumber')} className={fieldControlClass} />
                 </div>
               </div>
             )}
           </div>
 
-          <div className="card p-6">
+          <div className={sectionCardClass}>
             <div className="mb-4 flex items-center justify-between"><h3 className="text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'بنود الفاتورة' : 'Line Items'}</h3><button type="button" onClick={() => append(getEmptyLine(tenant))} className="btn btn-secondary"><Plus className="w-4 h-4" />{t('add')}</button></div>
             <div className="space-y-4">
               {fields.map((field, index) => (
@@ -1011,7 +1046,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                   <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12" dir="ltr">
                     <div className={showArabicFields ? 'md:col-span-3' : 'md:col-span-4'}>
                       <div className="mb-1.5 flex items-center gap-2" dir="ltr">
-                        <label htmlFor={`product-select-${index}`} className="label !mb-0 min-w-0 flex-1">
+                        <label htmlFor={`product-select-${index}`} className={`${fieldLabelClass} !mb-0 min-w-0 flex-1`}>
                           <span>Product Name *</span>
                           <span className="ms-1.5 font-medium text-gray-500" dir="rtl">اسم المنتج</span>
                         </label>
@@ -1052,25 +1087,25 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                             }}
                           />
                           <input type="hidden" {...register(`lineItems.${index}.productId`)} />
-                          <input {...register(`lineItems.${index}.productName`, { required: true })} className="input mt-2" readOnly={Boolean(lineItems?.[index]?.productId)} placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'} />
+                          <input {...register(`lineItems.${index}.productName`, { required: true })} className={`${fieldControlClass} mt-2`} readOnly={Boolean(lineItems?.[index]?.productId)} placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'} />
                         </div>
                       ) : (
-                        <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`, { required: true })} className="input" placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
+                        <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`, { required: true })} className={fieldControlClass} placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                       )}
                     </div>
                     {showArabicFields ? (
                       <div className="md:col-span-3">
-                        <label className="label flex items-baseline justify-between gap-2" dir="ltr">
+                        <label className={`${fieldLabelClass} flex items-baseline justify-between gap-2`} dir="ltr">
                           <span>Arabic name</span>
                           <span dir="rtl" className="font-medium text-gray-500">اسم البند بالعربية</span>
                         </label>
-                        <input {...register(`lineItems.${index}.productNameAr`)} className="input" dir="rtl" placeholder="اسم المنتج أو الخدمة" />
+                        <input {...register(`lineItems.${index}.productNameAr`)} className={fieldControlClass} dir="rtl" placeholder="اسم المنتج أو الخدمة" />
                       </div>
                     ) : (
                       <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
                     )}
                     <div className="md:col-span-2">
-                      <label htmlFor={`unit-${index}`} className="label">{language === 'ar' ? 'الوحدة (اختياري)' : 'UOM (Optional)'}</label>
+                      <label htmlFor={`unit-${index}`} className={fieldLabelClass}>{language === 'ar' ? 'الوحدة (اختياري)' : 'UOM (Optional)'}</label>
                       <Select
                         className="react-select-container"
                         classNamePrefix="react-select"
@@ -1096,11 +1131,11 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                       />
                     </div>
                     <div className="md:col-span-1">
-                      <label htmlFor={`qty-${index}`} className="label">{t('quantity')}</label>
-                      <input id={`qty-${index}`} type="number" min="0.0001" step="any" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} className="input" />
+                      <label htmlFor={`qty-${index}`} className={fieldLabelClass}>{t('quantity')}</label>
+                      <input id={`qty-${index}`} type="number" min="0.0001" step="any" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} className={fieldControlClass} />
                     </div>
-                    <div className="md:col-span-2"><label htmlFor={`price-${index}`} className="label">{t('unitPrice')}</label><input id={`price-${index}`} type="number" step="0.01" {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })} className="input" /></div>
-                    <div className="md:col-span-2"><label className="label">{t('tax')} %</label><select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className="select"><option value={15}>15%</option><option value={0}>0%</option></select></div>
+                    <div className="md:col-span-2"><label htmlFor={`price-${index}`} className={fieldLabelClass}>{t('unitPrice')}</label><input id={`price-${index}`} type="number" step="0.01" {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })} className={fieldControlClass} /></div>
+                    <div className="md:col-span-2"><label className={fieldLabelClass}>{t('tax')} %</label><select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className={fieldControlClass}><option value={15}>15%</option><option value={0}>0%</option></select></div>
                     <div className="md:col-span-2 flex items-center gap-2">
                       <div className="flex-1 text-end">
                         <p className="mb-1 text-xs text-gray-500">{t('total')}</p>
@@ -1120,7 +1155,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
             </div>
           </div>
 
-          <div className="card p-6 space-y-5">
+          <div className={`${sectionCardClass} space-y-5`}>
             <div>
               <h3 className="text-lg font-semibold tracking-[-0.02em] text-slate-950 dark:text-white">
                 {language === 'ar' ? 'معلومات إضافية' : 'Additional Information'}
@@ -1191,23 +1226,23 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                   </div>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
-                      <label className="label">{language === 'ar' ? 'الاسم' : 'Name'}</label>
-                      <input {...register('authorizedPersonName')} className="input mt-1.5" placeholder={language === 'ar' ? 'مثال: Arthur Michael' : 'e.g. Arthur Michael'} />
+                      <label className={fieldLabelClass}>{language === 'ar' ? 'الاسم' : 'Name'}</label>
+                      <input {...register('authorizedPersonName')} className={`${fieldControlClass} mt-1.5`} placeholder={language === 'ar' ? 'مثال: Arthur Michael' : 'e.g. Arthur Michael'} />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'الاسم بالعربية' : 'Arabic Name'}</label>
-                      <input {...register('authorizedPersonNameAr')} className="input mt-1.5" dir="rtl" />
+                      <label className={fieldLabelClass}>{language === 'ar' ? 'الاسم بالعربية' : 'Arabic Name'}</label>
+                      <input {...register('authorizedPersonNameAr')} className={`${fieldControlClass} mt-1.5`} dir="rtl" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'المسمى الوظيفي' : 'Designation'}</label>
-                      <input {...register('authorizedPersonDesignation')} className="input mt-1.5" placeholder={language === 'ar' ? 'مثال: Coordinator' : 'e.g. Coordinator'} />
+                      <label className={fieldLabelClass}>{language === 'ar' ? 'المسمى الوظيفي' : 'Designation'}</label>
+                      <input {...register('authorizedPersonDesignation')} className={`${fieldControlClass} mt-1.5`} placeholder={language === 'ar' ? 'مثال: Coordinator' : 'e.g. Coordinator'} />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'المسمى الوظيفي بالعربية' : 'Arabic Designation'}</label>
-                      <input {...register('authorizedPersonDesignationAr')} className="input mt-1.5" dir="rtl" />
+                      <label className={fieldLabelClass}>{language === 'ar' ? 'المسمى الوظيفي بالعربية' : 'Arabic Designation'}</label>
+                      <input {...register('authorizedPersonDesignationAr')} className={`${fieldControlClass} mt-1.5`} dir="rtl" />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="label">{language === 'ar' ? 'التوقيع' : 'Signature'}</label>
+                      <label className={fieldLabelClass}>{language === 'ar' ? 'التوقيع' : 'Signature'}</label>
                       <div className="flex items-center gap-3 mt-1.5">
                         <input type="file" accept="image/*" className="hidden" id="purchase-signature-upload" onChange={(e) => {
                           const file = e.target.files?.[0]
@@ -1238,7 +1273,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                       <p className="text-xs text-gray-400 mt-2">{language === 'ar' ? 'يجب أن تكون صورة التوقيع بخلفية شفافة أو بيضاء.' : 'Signature image should have a transparent or white background.'}</p>
                     </div>
                     <div className="md:col-span-2">
-                      <label className="label">{language === 'ar' ? 'الختم' : 'Stamp'}</label>
+                      <label className={fieldLabelClass}>{language === 'ar' ? 'الختم' : 'Stamp'}</label>
                       <div className="flex items-center gap-3 mt-1.5">
                         <input type="file" accept="image/*" className="hidden" id="purchase-stamp-upload" onChange={(e) => {
                           const file = e.target.files?.[0]
@@ -1324,7 +1359,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                   className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
                 >
                   <div className="mb-3 flex items-center justify-between">
-                    <label className="label font-semibold">{language === 'ar' ? 'بيانات البنك' : 'Bank Details'}</label>
+                    <label className={`${fieldLabelClass} font-semibold`}>{language === 'ar' ? 'بيانات البنك' : 'Bank Details'}</label>
                     <button type="button" onClick={() => handleToggleBankDetails(false)} className="text-xs font-semibold text-slate-500 hover:text-red-600">
                       {language === 'ar' ? 'إزالة' : 'Remove'}
                     </button>
@@ -1337,19 +1372,19 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2" dir="ltr">
                     <div>
                       <FieldLabel en="Bank Name" ar="اسم البنك" />
-                      <input {...register('bankDetails.bankName')} className="input mt-1.5" placeholder={showArabicFields ? "Al Rajhi Bank / SNB" : "Habib Bank / Standard Chartered"} />
+                      <input {...register('bankDetails.bankName')} className={`${fieldControlClass} mt-1.5`} placeholder={showArabicFields ? "Al Rajhi Bank / SNB" : "Habib Bank / Standard Chartered"} />
                     </div>
                     <div>
                       <FieldLabel en="Account Name" ar="اسم الحساب" />
-                      <input {...register('bankDetails.accountName')} className="input mt-1.5" />
+                      <input {...register('bankDetails.accountName')} className={`${fieldControlClass} mt-1.5`} />
                     </div>
                     <div>
                       <FieldLabel en="Account Number" ar="رقم الحساب" />
-                      <input {...register('bankDetails.accountNumber')} className="input mt-1.5 font-mono" />
+                      <input {...register('bankDetails.accountNumber')} className={`${fieldControlClass} mt-1.5 font-mono`} />
                     </div>
                     <div>
                       <FieldLabel en={showArabicFields ? "IBAN" : "IBAN / Swift"} ar="الآيبان" />
-                      <input {...register('bankDetails.iban')} className="input mt-1.5 font-mono" placeholder={showArabicFields ? "SA0000000000000000000000" : "PK00XXXX0000000000000000"} />
+                      <input {...register('bankDetails.iban')} className={`${fieldControlClass} mt-1.5 font-mono`} placeholder={showArabicFields ? "SA0000000000000000000000" : "PK00XXXX0000000000000000"} />
                     </div>
                   </div>
                   <input type="hidden" {...register('includeBankDetails')} />
@@ -1369,12 +1404,12 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
             )}
           </div>
 
-          <div className="card p-6">
+          <div className={sectionCardClass}>
             <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
               <div className="space-y-3 md:w-80">
                 <div>
-                  <label className="label">{language === 'ar' ? 'طريقة الدفع' : 'Payment Method'}</label>
-                  <select {...register('paymentMethod')} className="select">
+                  <label className={fieldLabelClass}>{language === 'ar' ? 'طريقة الدفع' : 'Payment Method'}</label>
+                  <select {...register('paymentMethod')} className={fieldControlClass}>
                     <option value="cash">{language === 'ar' ? 'نقداً' : 'Cash'}</option>
                     <option value="card">{language === 'ar' ? 'بطاقة' : 'Card'}</option>
                     <option value="bank_transfer">{language === 'ar' ? 'تحويل بنكي' : 'Bank Transfer'}</option>
@@ -1382,10 +1417,10 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                   </select>
                 </div>
                 <div>
-                  <label className="label">{language === 'ar' ? 'مدفوعة / غير مدفوعة' : 'Paid / Unpaid'}</label>
+                  <label className={fieldLabelClass}>{language === 'ar' ? 'مدفوعة / غير مدفوعة' : 'Paid / Unpaid'}</label>
                   <select
                     {...register('paymentStatus')}
-                    className="select"
+                    className={fieldControlClass}
                     onChange={(e) => {
                       const status = e.target.value
                       setValue('paymentStatus', status, { shouldDirty: true })
@@ -1403,13 +1438,13 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 </div>
                 {watch('paymentMethod') === 'credit' && watch('paymentStatus') !== 'paid' && (
                   <div>
-                    <label className="label text-primary-600 font-semibold">{language === 'ar' ? 'المبلغ المدفوع (مقدم)' : 'Paid Amount (Advance)'}</label>
-                    <input type="number" min="0" max={totals.grandTotal} step="0.01" {...register('paidAmount', { valueAsNumber: true, min: 0 })} className="input border-primary-300" placeholder="0.00" />
+                    <label className={`${fieldLabelClass} font-semibold text-teal-700 dark:text-teal-300`}>{language === 'ar' ? 'المبلغ المدفوع (مقدم)' : 'Paid Amount (Advance)'}</label>
+                    <input type="number" min="0" max={totals.grandTotal} step="0.01" {...register('paidAmount', { valueAsNumber: true, min: 0 })} className={fieldControlClass} placeholder="0.00" />
                   </div>
                 )}
                 <div>
-                  <label className="label">{language === 'ar' ? 'خصم الفاتورة' : 'Invoice Discount'}</label>
-                  <input type="number" min="0" step="0.01" {...register('invoiceDiscount', { valueAsNumber: true, min: 0 })} className="input" />
+                  <label className={fieldLabelClass}>{language === 'ar' ? 'خصم الفاتورة' : 'Invoice Discount'}</label>
+                  <input type="number" min="0" step="0.01" {...register('invoiceDiscount', { valueAsNumber: true, min: 0 })} className={fieldControlClass} />
                 </div>
                 <div className="flex justify-between text-sm"><span className="text-gray-500">{t('subtotal')}</span><span><Money value={totals.subtotal} /></span></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-500">{t('discount')}</span><span><Money value={totals.totalDiscount} /></span></div>
@@ -1435,7 +1470,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         </form>
 
         <div className="space-y-4">
-          <div className="card p-4"><h3 className="text-base font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'المعاينة المباشرة' : 'Live Preview'}</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? 'تعرض المعاينة شكل الطباعة النهائي تقريباً.' : 'The preview closely reflects the final printed layout.'}</p></div>
+          <div className={sectionCardClass}><h3 className="text-base font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'المعاينة المباشرة' : 'Live Preview'}</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? 'تعرض المعاينة شكل الطباعة النهائي تقريباً.' : 'The preview closely reflects the final printed layout.'}</p></div>
           <InvoiceLivePreview invoice={previewInvoice} tenant={tenant} language={language} templateId={selectedTemplateId} bilingual={previewInvoice?.invoiceSubtype === 'travel_ticket' || ['travel_agency', 'trading', 'construction'].includes(previewInvoice?.businessContext)} />
         </div>
       </div>

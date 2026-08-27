@@ -114,8 +114,8 @@ export default function SalesLayout() {
       <div className="relative z-[30] border-b border-slate-200 bg-white dark:border-dark-600 dark:bg-dark-900">
         <div className="flex flex-wrap items-end justify-between gap-3 px-1 pb-0 pt-2">
           <div className="flex items-center gap-3 px-3 pb-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-500/10 text-primary-600 dark:text-primary-400">
-              <FileText className="h-5 w-5" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-200">
+              <FileText className="h-5 w-5" strokeWidth={1.75} />
             </div>
             <div>
               <h1 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">

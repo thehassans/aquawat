@@ -27,6 +27,14 @@ import { isAppAccessValid } from '../../lib/appStoreTrial'
 import { LineRelationSuggestions } from '../inventory/ProductRelationSuggestions'
 import VariantLineSelect from '../inventory/VariantLineSelect'
 import { formatInvError } from '../../lib/invError'
+import {
+  backBtnClass,
+  fieldLabelClass,
+  pageSubtitleClass,
+  pageTitleClass,
+  sectionCardClass,
+  sectionEyebrowClass,
+} from '../../pages/sales/salesUi'
 
 const getEmptyLine = (tenant) => {
   const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
@@ -73,9 +81,9 @@ const CONTEXT_META = {
 function FieldLabel({ en, ar, showArabic = true, as = 'p' }) {
   const Tag = as
   return (
-    <Tag className="label flex items-baseline justify-between gap-2" dir="ltr">
+    <Tag className={`${fieldLabelClass} !mb-1.5 !flex items-baseline justify-between gap-3`} dir="ltr">
       <span>{en}</span>
-      {showArabic && ar ? <span dir="rtl" className="font-medium text-slate-500">{ar}</span> : null}
+      {showArabic && ar ? <span dir="rtl" className="font-medium text-slate-500 dark:text-slate-400">{ar}</span> : null}
     </Tag>
   )
 }
@@ -611,44 +619,39 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     },
   }
 
-  const sectionShell = 'rounded-[1.5rem] border border-slate-200/80 bg-white p-5 sm:p-6 shadow-[0_10px_30px_-22px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-dark-800'
+  const sectionShell = sectionCardClass
 
   return (
-    <div className="relative space-y-6">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 -top-8 h-48 bg-[radial-gradient(ellipse_at_top,_rgba(16,185,129,0.08),_transparent_70%)] dark:bg-[radial-gradient(ellipse_at_top,_rgba(16,185,129,0.12),_transparent_70%)]"
-      />
-
-      <div className="relative flex items-center gap-4">
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
         <button
           type="button"
           onClick={() => navigate(isEdit ? `/app/dashboard/quotations/${quotationId}` : '/app/dashboard/quotations')}
-          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200/80 bg-white text-slate-600 shadow-sm transition hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300 dark:hover:border-emerald-500/40 dark:hover:text-emerald-300"
+          className={backBtnClass}
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">
+          <p className={sectionEyebrowClass}>
             {language === 'ar' ? 'عروض الأسعار' : 'Quotations'}
           </p>
-          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
-            {isEdit ? (language === 'ar' ? 'تعديل عرض السعر' : 'Edit Quotation') : (language === 'ar' ? 'عرض سعر جديد' : 'New Quotation')}
+          <h1 className={pageTitleClass}>
+            {isEdit ? (language === 'ar' ? 'تعديل عرض السعر' : 'Edit quotation') : (language === 'ar' ? 'عرض سعر جديد' : 'New quotation')}
           </h1>
-          <p className="mt-1.5 max-w-xl text-sm text-slate-500 dark:text-slate-400">
+          <p className={`${pageSubtitleClass} max-w-xl`}>
             {language === 'ar'
-              ? 'عرض السعر على ورق رسمي: السجل التجاري والضريبة أعلى الصفحة، والعنوان والبريد والهاتف في التذييل. نزّل PDF قابلاً للتعديل في Foxit.'
-              : 'Create a quotation on formal letterhead — C.R. and VAT on top, address, email and phone in the footer. Download an editable PDF for Foxit or Word.'}
+              ? 'عرض السعر على ورق رسمي مع السجل التجاري والضريبة والترويسة. نزّل PDF قابلاً للتعديل.'
+              : 'Formal letterhead quotation with company details. Preview live and download an editable PDF.'}
           </p>
         </div>
       </div>
 
-      <div className="relative mx-auto w-full max-w-6xl space-y-6">
+      <div className="mx-auto w-full max-w-6xl space-y-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className={sectionShell}>
             <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-400">
+                <p className={sectionEyebrowClass}>
                   {language === 'ar' ? 'البائع' : 'Seller'}
                 </p>
                 <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
@@ -1368,7 +1371,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             <button
               type="submit"
               disabled={saveMutation.isPending}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_12px_28px_-12px_rgba(5,150,105,0.65)] transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              className="btn btn-action-dark inline-flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-semibold sm:w-auto"
             >
               {saveMutation.isPending ? (
                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -1383,7 +1386,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
         <div className="space-y-4">
           <div className={`${sectionShell} !p-4`}>
             <div className="flex items-center gap-2.5">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300">
                 <Eye className="h-4 w-4" />
               </span>
               <div>

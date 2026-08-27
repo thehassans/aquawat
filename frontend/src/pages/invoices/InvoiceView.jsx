@@ -20,6 +20,19 @@ import { tenantHasEmailAddon } from '../../lib/emailAddon'
 import { tenantHasSmsAddon } from '../../lib/smsAddon'
 import { printThermalElement, getThermalPrinterSettings } from '../../lib/thermalPrinter'
 import { getTaxQrLabel, isSaudiTenant } from '../../lib/saudiTenant'
+import {
+  actionBarClass,
+  backBtnClass,
+  dangerActionClass,
+  ghostActionClass,
+  metaRowClass,
+  metaValueClass,
+  pageSubtitleClass,
+  pageTitleClass,
+  sectionCardClass,
+  sectionEyebrowClass,
+  softChipClass,
+} from '../sales/salesUi'
 
 const blobToBase64 = (blob) => new Promise((resolve, reject) => {
   const reader = new FileReader()
@@ -314,17 +327,24 @@ export default function InvoiceView() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="btn btn-ghost btn-icon">
-            <ArrowLeft className="w-5 h-5" />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex items-start gap-4">
+          <button type="button" onClick={() => navigate(-1)} className={backBtnClass}>
+            <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{invoice?.invoiceNumber}</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">
+            <p className={sectionEyebrowClass}>
+              {invoice?.flow === 'purchase'
+                ? (language === 'ar' ? 'فاتورة مشتريات' : 'Purchase invoice')
+                : (language === 'ar' ? 'فاتورة مبيعات' : 'Sales invoice')}
+            </p>
+            <h1 className={pageTitleClass}>{invoice?.invoiceNumber}</h1>
+            <p className={pageSubtitleClass}>
               {new Date(invoice?.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}
               {' '}
-              <span className="text-gray-400 text-sm">{new Date(invoice?.issueDate).toLocaleTimeString(language === 'ar' ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+              <span className="text-slate-400">
+                {new Date(invoice?.issueDate).toLocaleTimeString(language === 'ar' ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
+              </span>
             </p>
             {(() => {
               const createdByEn = [invoice?.createdBy?.firstName, invoice?.createdBy?.lastName].filter(Boolean).join(' ')
@@ -333,20 +353,20 @@ export default function InvoiceView() {
                 ? (invoice?.createdByNameAr || createdByAr || invoice?.createdByName || createdByEn)
                 : (invoice?.createdByName || createdByEn || invoice?.createdByNameAr || createdByAr)
               return creator ? (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {language === 'ar' ? 'تم الإنشاء بواسطة' : 'Created by'}: <span className="font-medium text-gray-700 dark:text-gray-300">{creator}</span>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {language === 'ar' ? 'تم الإنشاء بواسطة' : 'Created by'}: <span className="font-medium text-slate-700 dark:text-slate-200">{creator}</span>
                 </p>
               ) : null
             })()}
             {invoice?.paymentStatus && (
-              <p className="text-xs mt-1 text-gray-500">
-                {language === 'ar' ? 'حالة الدفع' : 'Payment'}: <span className="font-medium text-gray-800 dark:text-gray-200">{invoice.paymentStatus}</span>
+              <p className="mt-1 text-xs text-slate-500">
+                {language === 'ar' ? 'حالة الدفع' : 'Payment'}: <span className="font-medium text-slate-800 dark:text-slate-200">{invoice.paymentStatus}</span>
                 {remainingBalance > 0.005 ? ` · ${language === 'ar' ? 'المتبقي' : 'Due'} ${remainingBalance.toFixed(2)}` : ''}
               </p>
             )}
           </div>
         </div>
-        <div className="flex gap-3 flex-wrap">
+        <div className={`${actionBarClass} max-w-3xl justify-start lg:justify-end`}>
           {canRecordPayment && (
             <button
               type="button"
@@ -354,7 +374,7 @@ export default function InvoiceView() {
                 setPayAmount(remainingBalance.toFixed(2))
                 setPayOpen(true)
               }}
-              className="btn btn-primary"
+              className="btn btn-action-dark btn-sm"
             >
               <Banknote className="w-4 h-4" />
               {language === 'ar' ? 'تسجيل دفعة' : 'Record payment'}
@@ -364,7 +384,7 @@ export default function InvoiceView() {
             <button
               type="button"
               onClick={() => navigate(`/app/dashboard/invoices/${id}/edit`)}
-              className="btn btn-secondary"
+              className={ghostActionClass}
             >
               <Edit className="w-4 h-4" />
               {language === 'ar' ? 'تعديل' : 'Edit'}
@@ -383,7 +403,7 @@ export default function InvoiceView() {
                   }
                 }}
                 disabled={creditNoteMutation.isPending || debitNoteMutation.isPending}
-                className="btn btn-secondary border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
+                className={dangerActionClass}
               >
                 {creditNoteMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Undo2 className="w-4 h-4" />}
                 {language === 'ar' ? 'إشعار دائن' : 'Credit note'}
@@ -396,7 +416,7 @@ export default function InvoiceView() {
                   }
                 }}
                 disabled={creditNoteMutation.isPending || debitNoteMutation.isPending}
-                className="btn btn-secondary border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                className={ghostActionClass}
               >
                 {debitNoteMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
                 {language === 'ar' ? 'إشعار مدين' : 'Debit note'}
@@ -408,7 +428,7 @@ export default function InvoiceView() {
               type="button"
               onClick={() => convertProformaMutation.mutate()}
               disabled={convertProformaMutation.isPending}
-              className="btn btn-primary"
+              className="btn btn-action-dark btn-sm"
             >
               {convertProformaMutation.isPending ? (
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -434,7 +454,7 @@ export default function InvoiceView() {
                 toast.error(language === 'ar' ? 'تعذر تجهيز الطباعة' : 'Unable to prepare print view')
               }
             }}
-            className="btn btn-secondary"
+            className={ghostActionClass}
           >
             <Printer className="w-4 h-4" />
             {language === 'ar' ? 'طباعة' : 'Print'}
@@ -456,7 +476,7 @@ export default function InvoiceView() {
               }
             }}
             disabled={!invoice || downloadingPdf}
-            className="btn btn-secondary"
+            className={ghostActionClass}
           >
             {downloadingPdf ? (
               <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
@@ -470,7 +490,7 @@ export default function InvoiceView() {
               type="button"
               onClick={() => sendEmailMutation.mutate()}
               disabled={sendEmailMutation.isPending}
-              className="btn btn-secondary"
+              className={ghostActionClass}
             >
               {sendEmailMutation.isPending ? (
                 <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
@@ -485,7 +505,7 @@ export default function InvoiceView() {
               type="button"
               onClick={() => sendSmsMutation.mutate()}
               disabled={sendSmsMutation.isPending}
-              className="btn btn-secondary"
+              className={ghostActionClass}
             >
               {sendSmsMutation.isPending ? (
                 <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
@@ -500,13 +520,13 @@ export default function InvoiceView() {
               type="button"
               onClick={() => sendWhatsAppMutation.mutate()}
               disabled={sendWhatsAppMutation.isPending}
-              className="btn btn-secondary border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700/50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+              className={ghostActionClass}
               title={language === 'ar' ? 'إرسال الفاتورة عبر واتساب' : 'Send invoice via WhatsApp'}
             >
               {sendWhatsAppMutation.isPending ? (
                 <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
               ) : (
-                <MessageCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <MessageCircle className="w-4 h-4" />
               )}
               <span>{language === 'ar' ? 'إرسال عبر واتساب' : 'Send WhatsApp'}</span>
             </button>
@@ -515,7 +535,7 @@ export default function InvoiceView() {
             <button
               onClick={() => signMutation.mutate()}
               disabled={signMutation.isPending}
-              className="btn btn-primary"
+              className="btn btn-action-dark btn-sm"
             >
               {signMutation.isPending ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -531,7 +551,7 @@ export default function InvoiceView() {
             <a
               href={`/api/invoices/${id}/xml`}
               target="_blank"
-              className="btn btn-secondary"
+              className={ghostActionClass}
             >
               <Download className="w-4 h-4" />
               {t('viewXml')}
@@ -557,7 +577,7 @@ export default function InvoiceView() {
                   toast.error(error?.response?.data?.error || (language === 'ar' ? 'فشل حذف الفاتورة' : 'Failed to delete invoice'))
                 }
               }}
-              className="btn btn-secondary border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
+              className={dangerActionClass}
             >
               <Trash2 className="w-4 h-4" />
               {language === 'ar' ? 'حذف' : 'Delete'}
@@ -573,12 +593,12 @@ export default function InvoiceView() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="card p-4 sm:p-6"
+            className={sectionCardClass}
           >
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-primary-100 dark:bg-primary-900/30 rounded-xl">
-                  <FileText className="w-6 h-6 text-primary-600" />
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-200">
+                  <FileText className="h-5 w-5" strokeWidth={1.75} />
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">{language === 'ar' ? 'نوع الفاتورة' : 'Invoice Type'}</p>
@@ -656,7 +676,7 @@ export default function InvoiceView() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              className="card p-6"
+              className={sectionCardClass}
             >
               <p className="text-sm font-medium text-gray-500 mb-3">
                 {language === 'ar' ? 'دفعات المخزون' : 'Stock lots'}
@@ -691,7 +711,7 @@ export default function InvoiceView() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="card p-6"
+              className={sectionCardClass}
             >
               <p className="text-sm font-medium text-gray-500 mb-3">{language === 'ar' ? 'المرجع' : 'Reference'}</p>
               <div className="space-y-2 text-sm">
@@ -741,7 +761,7 @@ export default function InvoiceView() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="card p-6"
+              className={sectionCardClass}
             >
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <QrCode className="w-5 h-5" />
@@ -762,7 +782,7 @@ export default function InvoiceView() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="card p-6"
+              className={sectionCardClass}
             >
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 {tenant?.zatca?.phase === 1 ? (language === 'ar' ? 'معلومات الفاتورة الإلكترونية' : 'E-Invoice Information') : (language === 'ar' ? 'معلومات هيئة الزكاة' : 'ZATCA Information')}
@@ -799,7 +819,7 @@ export default function InvoiceView() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="card p-6"
+              className={sectionCardClass}
             >
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 {language === 'ar' ? 'معلومات FBR' : 'FBR Digital Invoicing'}

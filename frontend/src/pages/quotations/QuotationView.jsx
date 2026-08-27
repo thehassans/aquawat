@@ -12,6 +12,17 @@ import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../../lib/
 import { buildQuotationPdfBlob, downloadQuotationPdf, printQuotationSnapshot } from '../../lib/invoicePdf'
 import { exportToExcel } from '../../lib/export'
 import { tenantHasEmailAddon } from '../../lib/emailAddon'
+import {
+  actionBarClass,
+  backBtnClass,
+  ghostActionClass,
+  metaRowClass,
+  metaValueClass,
+  pageSubtitleClass,
+  pageTitleClass,
+  sectionCardClass,
+  sectionEyebrowClass,
+} from '../sales/salesUi'
 
 const trimPartyName = (value) => String(value || '').trim()
 
@@ -193,27 +204,32 @@ export default function QuotationView() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="btn btn-ghost btn-icon">
-            <ArrowLeft className="w-5 h-5" />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex items-start gap-4">
+          <button type="button" onClick={() => navigate(-1)} className={backBtnClass}>
+            <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{quotation?.quotationNumber}</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">{quotation?.issueDate ? new Date(quotation.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US') : ''}</p>
+            <p className={sectionEyebrowClass}>
+              {language === 'ar' ? 'عرض سعر' : 'Quotation'}
+            </p>
+            <h1 className={pageTitleClass}>{quotation?.quotationNumber}</h1>
+            <p className={pageSubtitleClass}>
+              {quotation?.issueDate ? new Date(quotation.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US') : ''}
+            </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className={`${actionBarClass} max-w-3xl justify-start lg:justify-end`}>
           {canApproveQuotation(quotation) ? (
             <button
               type="button"
               onClick={() => approveMutation.mutate()}
               disabled={approveMutation.isPending}
-              className="btn btn-primary"
+              className="btn btn-action-dark btn-sm"
             >
               {approveMutation.isPending ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <CheckCircle className="w-4 h-4" />
               )}
@@ -225,10 +241,10 @@ export default function QuotationView() {
               type="button"
               onClick={() => rejectMutation.mutate()}
               disabled={rejectMutation.isPending}
-              className="btn btn-secondary"
+              className={ghostActionClass}
             >
               {rejectMutation.isPending ? (
-                <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
               ) : (
                 <XCircle className="w-4 h-4" />
               )}
@@ -239,7 +255,7 @@ export default function QuotationView() {
             <button
               type="button"
               onClick={() => navigate(`/app/dashboard/invoices/${convertedInvoiceId}`)}
-              className="btn btn-secondary"
+              className={ghostActionClass}
             >
               <FileText className="w-4 h-4" />
               {language === 'ar' ? 'عرض الفاتورة' : 'View Invoice'}
@@ -249,27 +265,26 @@ export default function QuotationView() {
               type="button"
               onClick={() => convertMutation.mutate()}
               disabled={convertMutation.isPending}
-              className="btn btn-primary"
+              className="btn btn-action-dark btn-sm"
             >
               {convertMutation.isPending ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <FileText className="w-4 h-4" />
               )}
               {language === 'ar' ? 'تحويل إلى فاتورة' : 'Convert to Invoice'}
             </button>
           ) : !convertedInvoiceId ? (
-            <button type="button" className="btn btn-secondary" disabled>
+            <button type="button" className={ghostActionClass} disabled>
               <FileText className="w-4 h-4" />
-              {language === 'ar' ? 'يتطلب الاعتماد للتحويل' : 'Approval Required to Convert'}
+              {language === 'ar' ? 'يتطلب الاعتماد' : 'Approval required'}
             </button>
           ) : null}
 
-          {/* Create Delivery Note */}
           <button
             type="button"
             onClick={() => navigate(`/app/dashboard/delivery-notes/new?quotationId=${id}`)}
-            className="btn btn-secondary text-sky-600 hover:text-sky-700 dark:text-sky-400"
+            className={ghostActionClass}
             title={language === 'ar' ? 'إنشاء سند تسليم من عرض السعر هذا' : 'Create Delivery Note from this quotation'}
           >
             <Truck className="w-4 h-4" />
@@ -277,7 +292,7 @@ export default function QuotationView() {
           </button>
 
           {isEditableQuotation(quotation) ? (
-            <button type="button" onClick={() => navigate(`/app/dashboard/quotations/${id}/edit`)} className="btn btn-secondary">
+            <button type="button" onClick={() => navigate(`/app/dashboard/quotations/${id}/edit`)} className={ghostActionClass}>
               <Edit className="w-4 h-4" />
               {language === 'ar' ? 'تعديل' : 'Edit'}
             </button>
@@ -294,7 +309,7 @@ export default function QuotationView() {
                 toast.error(language === 'ar' ? 'تعذر تجهيز الطباعة' : 'Unable to prepare print view')
               }
             }}
-            className="btn btn-secondary"
+            className={ghostActionClass}
           >
             <Printer className="w-4 h-4" />
             {language === 'ar' ? 'طباعة' : 'Print'}
@@ -311,11 +326,11 @@ export default function QuotationView() {
                 setDownloadingPdf(false)
               }
             }}
-            className="btn btn-secondary"
+            className={ghostActionClass}
             disabled={downloadingPdf}
           >
             {downloadingPdf ? (
-              <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
             ) : (
               <Download className="w-4 h-4" />
             )}
@@ -334,7 +349,7 @@ export default function QuotationView() {
                 setDownloadingPdf(false)
               }
             }}
-            className="btn btn-secondary"
+            className={ghostActionClass}
             disabled={downloadingPdf}
           >
             <PenLine className="w-4 h-4" />
@@ -342,7 +357,7 @@ export default function QuotationView() {
           </button>
           <button
             type="button"
-            className="btn btn-secondary"
+            className={ghostActionClass}
             onClick={async () => {
               try {
                 await exportToExcel({
@@ -370,34 +385,34 @@ export default function QuotationView() {
             Excel
           </button>
           {hasEmailAddon && (
-            <button type="button" onClick={() => sendEmailMutation.mutate()} disabled={sendEmailMutation.isPending} className="btn btn-secondary">
+            <button type="button" onClick={() => sendEmailMutation.mutate()} disabled={sendEmailMutation.isPending} className={ghostActionClass}>
               {sendEmailMutation.isPending ? (
-                <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
               ) : (
                 <Mail className="w-4 h-4" />
               )}
-              {language === 'ar' ? 'إرسال بالبريد' : 'Send Email'}
+              {language === 'ar' ? 'بريد' : 'Email'}
             </button>
           )}
           <button
             type="button"
             onClick={() => sendWhatsAppMutation.mutate()}
             disabled={sendWhatsAppMutation.isPending}
-            className="btn btn-secondary border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700/50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+            className={ghostActionClass}
             title={language === 'ar' ? 'إرسال عرض السعر عبر واتساب' : 'Send quotation via WhatsApp'}
           >
             {sendWhatsAppMutation.isPending ? (
-              <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
             ) : (
-              <MessageCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <MessageCircle className="w-4 h-4" />
             )}
-            <span>{language === 'ar' ? 'إرسال عبر واتساب' : 'Send WhatsApp'}</span>
+            WhatsApp
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.2fr)_300px]">
-        <div ref={previewRef}>
+        <div ref={previewRef} className={sectionCardClass}>
           <InvoiceLivePreview
             invoice={quotation}
             tenant={tenant}
@@ -410,41 +425,50 @@ export default function QuotationView() {
         </div>
 
         <div className="space-y-4">
-          <div className="card p-5">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'ملخص عرض السعر' : 'Quotation Summary'}</h3>
-            <div className="mt-4 space-y-3 text-sm">
-              <div className="flex items-center justify-between"><span>{language === 'ar' ? 'الحالة' : 'Status'}</span><span className="font-semibold">{quotation?.status || 'draft'}</span></div>
-              <div className="flex items-center justify-between gap-4"><span>{language === 'ar' ? 'العميل' : 'Customer'}</span><PartyNames party={quotation?.buyer} /></div>
-              <div className="flex items-center justify-between"><span>{language === 'ar' ? 'صالح حتى' : 'Valid Until'}</span><span className="font-semibold">{quotation?.validUntil ? new Date(quotation.validUntil).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US') : '—'}</span></div>
+          <div className={sectionCardClass}>
+            <p className={sectionEyebrowClass}>{language === 'ar' ? 'الملخص' : 'Summary'}</p>
+            <h3 className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">
+              {language === 'ar' ? 'ملخص عرض السعر' : 'Quotation summary'}
+            </h3>
+            <div className="mt-4 space-y-3">
+              <div className={metaRowClass}><span>{language === 'ar' ? 'الحالة' : 'Status'}</span><span className={metaValueClass}>{quotation?.status || 'draft'}</span></div>
+              <div className={metaRowClass}><span>{language === 'ar' ? 'العميل' : 'Customer'}</span><PartyNames party={quotation?.buyer} /></div>
+              <div className={metaRowClass}><span>{language === 'ar' ? 'صالح حتى' : 'Valid Until'}</span><span className={metaValueClass}>{quotation?.validUntil ? new Date(quotation.validUntil).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US') : '—'}</span></div>
               {quotation?.approvedAt ? (
-                <div className="flex items-center justify-between"><span>{language === 'ar' ? 'اعتمد في' : 'Approved At'}</span><span className="font-semibold">{new Date(quotation.approvedAt).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}</span></div>
+                <div className={metaRowClass}><span>{language === 'ar' ? 'اعتمد في' : 'Approved At'}</span><span className={metaValueClass}>{new Date(quotation.approvedAt).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}</span></div>
               ) : null}
               {quotation?.approvedByName || quotation?.approvedByNameAr ? (
-                <div className="flex items-center justify-between"><span>{language === 'ar' ? 'اعتمد بواسطة' : 'Approved By'}</span><span className="font-semibold text-end">{language === 'ar' ? (quotation?.approvedByNameAr || quotation?.approvedByName || '—') : (quotation?.approvedByName || quotation?.approvedByNameAr || '—')}</span></div>
+                <div className={metaRowClass}><span>{language === 'ar' ? 'اعتمد بواسطة' : 'Approved By'}</span><span className={metaValueClass}>{language === 'ar' ? (quotation?.approvedByNameAr || quotation?.approvedByName || '—') : (quotation?.approvedByName || quotation?.approvedByNameAr || '—')}</span></div>
               ) : null}
               {quotation?.rejectedAt ? (
-                <div className="flex items-center justify-between"><span>{language === 'ar' ? 'رُفض في' : 'Rejected At'}</span><span className="font-semibold">{new Date(quotation.rejectedAt).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}</span></div>
+                <div className={metaRowClass}><span>{language === 'ar' ? 'رُفض في' : 'Rejected At'}</span><span className={metaValueClass}>{new Date(quotation.rejectedAt).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}</span></div>
               ) : null}
               {quotation?.rejectedByName || quotation?.rejectedByNameAr ? (
-                <div className="flex items-center justify-between"><span>{language === 'ar' ? 'رُفض بواسطة' : 'Rejected By'}</span><span className="font-semibold text-end">{language === 'ar' ? (quotation?.rejectedByNameAr || quotation?.rejectedByName || '—') : (quotation?.rejectedByName || quotation?.rejectedByNameAr || '—')}</span></div>
+                <div className={metaRowClass}><span>{language === 'ar' ? 'رُفض بواسطة' : 'Rejected By'}</span><span className={metaValueClass}>{language === 'ar' ? (quotation?.rejectedByNameAr || quotation?.rejectedByName || '—') : (quotation?.rejectedByName || quotation?.rejectedByNameAr || '—')}</span></div>
               ) : null}
               {convertedInvoiceId ? (
                 <button
                   type="button"
                   onClick={() => navigate(`/app/dashboard/invoices/${convertedInvoiceId}`)}
-                  className="flex w-full items-center justify-between border-t border-gray-200 dark:border-dark-600 pt-3 text-start text-primary-600 hover:underline"
+                  className="flex w-full items-center justify-between border-t border-slate-100 pt-3 text-start text-teal-700 hover:underline dark:border-white/10 dark:text-teal-300"
                 >
                   <span>{language === 'ar' ? 'الفاتورة الناتجة' : 'Converted Invoice'}</span>
                   <span className="font-semibold">{convertedInvoiceNumber || (language === 'ar' ? 'عرض' : 'Open')}</span>
                 </button>
               ) : null}
-              <div className="flex items-center justify-between border-t border-gray-200 dark:border-dark-600 pt-3"><span>{language === 'ar' ? 'الإجمالي النهائي' : 'Grand Total'}</span><span className="font-bold">{Number(quotation?.grandTotal || 0).toFixed(2)} {quotation?.currency || 'SAR'}</span></div>
+              <div className={`${metaRowClass} border-t border-slate-100 pt-3 dark:border-white/10`}>
+                <span>{language === 'ar' ? 'الإجمالي النهائي' : 'Grand Total'}</span>
+                <span className="text-base font-bold text-slate-900 dark:text-white">{Number(quotation?.grandTotal || 0).toFixed(2)} {quotation?.currency || 'SAR'}</span>
+              </div>
             </div>
           </div>
           {quotation?.notes ? (
-            <div className="card p-5">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'ملاحظات' : 'Notes'}</h3>
-              <p className="mt-3 whitespace-pre-line text-sm text-gray-600 dark:text-gray-300">{quotation.notes}</p>
+            <div className={sectionCardClass}>
+              <p className={sectionEyebrowClass}>{language === 'ar' ? 'ملاحظات' : 'Notes'}</p>
+              <h3 className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">
+                {language === 'ar' ? 'ملاحظات' : 'Notes'}
+              </h3>
+              <p className="mt-3 whitespace-pre-line text-sm text-slate-600 dark:text-slate-300">{quotation.notes}</p>
             </div>
           ) : null}
         </div>
