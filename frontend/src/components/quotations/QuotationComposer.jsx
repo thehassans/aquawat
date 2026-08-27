@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -26,6 +26,7 @@ import MarqueeEventFields from '../marquee/MarqueeEventFields'
 import { isAppAccessValid } from '../../lib/appStoreTrial'
 import { LineRelationSuggestions } from '../inventory/ProductRelationSuggestions'
 import VariantLineSelect from '../inventory/VariantLineSelect'
+import PartnerCombobox from '../inventory/PartnerCombobox'
 import { formatInvError } from '../../lib/invError'
 import {
   backBtnClass,
@@ -152,12 +153,18 @@ const buildQuotationFormValues = ({ quotation, tenant, defaultBusinessContext })
 
 export default function QuotationComposer({ quotationId = '', initialQuotation = null }) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const partnerIdParam = String(searchParams.get('partnerId') || '').trim()
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
   const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const isEdit = Boolean(quotationId)
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
+  const [selectedCustomer, setSelectedCustomer] = useState(() => {
+    const c = initialQuotation?.customerId
+    return c && typeof c === 'object' ? c : null
+  })
   const [showAuthorizedPerson, setShowAuthorizedPerson] = useState(() => {
     return Boolean(
       initialQuotation?.authorizedPersonName ||
@@ -390,6 +397,15 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     const customerId = initialQuotation?.customerId?._id || initialQuotation?.customerId || ''
     if (!customerId) return
     setCustomerLookupId(String(customerId))
+    if (typeof initialQuotation?.customerId === 'object') {
+      setSelectedCustomer(initialQuotation.customerId)
+      return
+    }
+    let cancelled = false
+    api.get(`/customers/${customerId}`).then((res) => {
+      if (!cancelled && res.data) setSelectedCustomer(res.data)
+    }).catch(() => {})
+    return () => { cancelled = true }
   }, [initialQuotation?.customerId])
 
   const { data: products } = useQuery({
@@ -398,10 +414,55 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     enabled: isTradingContext,
   })
 
-  const { data: customers } = useQuery({
-    queryKey: ['customers-lookup'],
-    queryFn: () => api.get('/customers', { params: { limit: 200 } }).then((res) => res.data.customers),
-  })
+  const fillBuyerFromParty = (customer) => {
+    if (!customer) return
+    setCustomerLookupId(String(customer._id))
+    setValue('customerId', customer._id)
+    setValue('buyer.name', customer.name || customer.nameEn || '')
+    setValue('buyer.nameAr', customer.nameAr || customer.name || customer.nameEn || '')
+    setValue('buyer.vatNumber', customer.vatNumber || '')
+    setValue('buyer.crNumber', customer.crNumber || '')
+    setValue('buyer.contactPhone', customer.phone || customer.mobile || '')
+    setValue('buyer.contactEmail', customer.email || '')
+    setValue('buyer.address.city', customer.address?.city || '')
+    setValue('buyer.address.district', customer.address?.district || '')
+    setValue('buyer.address.street', customer.address?.street || '')
+    setValue('buyer.address.postalCode', customer.address?.postalCode || '')
+    setValue('buyer.address.country', customer.address?.country || getTenantCountryCode(tenant))
+    setValue('buyer.address.buildingNumber', customer.address?.buildingNumber || '')
+    setValue('buyer.address.additionalNumber', customer.address?.additionalNumber || '')
+  }
+
+  const onSelectCustomer = (customerId, opt) => {
+    if (!customerId) {
+      setCustomerLookupId('')
+      setValue('customerId', '')
+      setSelectedCustomer(null)
+      return
+    }
+    if (opt) {
+      fillBuyerFromParty(opt)
+      setSelectedCustomer(opt)
+      return
+    }
+    api.get(`/customers/${customerId}`).then((res) => {
+      if (!res.data) return
+      fillBuyerFromParty(res.data)
+      setSelectedCustomer(res.data)
+    }).catch(() => {})
+  }
+
+  useEffect(() => {
+    if (!partnerIdParam || isEdit) return
+    let cancelled = false
+    api.get(`/customers/${partnerIdParam}`).then((res) => {
+      if (cancelled || !res.data) return
+      fillBuyerFromParty(res.data)
+      setSelectedCustomer(res.data)
+    }).catch(() => {})
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partnerIdParam, isEdit])
 
   const saveMutation = useMutation({
     mutationFn: (payload) => isEdit
@@ -477,26 +538,6 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     const product = resolveRelatedProduct(row)
     if (!product?._id) return
     onSelectProduct(index, product._id)
-  }
-
-  const onSelectCustomer = (customerId) => {
-    setCustomerLookupId(customerId)
-    const customer = (customers || []).find((item) => String(item._id) === String(customerId))
-    if (!customer) return
-    setValue('customerId', customer._id)
-    setValue('buyer.name', customer.name || '')
-    setValue('buyer.nameAr', customer.nameAr || customer.name || '')
-    setValue('buyer.vatNumber', customer.vatNumber || '')
-    setValue('buyer.crNumber', customer.crNumber || '')
-    setValue('buyer.contactPhone', customer.phone || customer.mobile || '')
-    setValue('buyer.contactEmail', customer.email || '')
-    setValue('buyer.address.city', customer.address?.city || '')
-    setValue('buyer.address.district', customer.address?.district || '')
-    setValue('buyer.address.street', customer.address?.street || '')
-    setValue('buyer.address.postalCode', customer.address?.postalCode || '')
-    setValue('buyer.address.country', customer.address?.country || getTenantCountryCode(tenant))
-    setValue('buyer.address.buildingNumber', customer.address?.buildingNumber || '')
-    setValue('buyer.address.additionalNumber', customer.address?.additionalNumber || '')
   }
 
   const [showPreviewModal, setShowPreviewModal] = useState(false)
@@ -870,12 +911,14 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             </div>
             <div className="mb-4">
               <label className="label">{language === 'ar' ? 'اختر عميل موجود' : 'Select Existing Customer'}</label>
-              <select value={customerLookupId} onChange={(e) => onSelectCustomer(e.target.value)} className="select">
-                <option value="">{language === 'ar' ? 'اختياري: اختر عميل' : 'Optional: Select customer'}</option>
-                {(customers || []).map((item) => (
-                  <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.name) : item.name}</option>
-                ))}
-              </select>
+              <PartnerCombobox
+                role="customer"
+                value={customerLookupId || values?.customerId || ''}
+                selectedOption={selectedCustomer}
+                ar={language === 'ar'}
+                language={language}
+                onChange={onSelectCustomer}
+              />
             </div>
             <input type="hidden" {...register('customerId')} />
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2" dir="ltr">

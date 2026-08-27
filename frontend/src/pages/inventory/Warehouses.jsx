@@ -8,6 +8,7 @@ import { useTranslation } from '../../lib/translations'
 import ExportMenu from '../../components/ui/ExportMenu'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import Money from '../../components/ui/Money'
+import { invTableWrapClass, invTableClass, invThClass } from './inventoryUi'
 
 export default function Warehouses() {
   const { language } = useSelector((state) => state.ui)
@@ -125,21 +126,21 @@ export default function Warehouses() {
           </Link>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-          <table className="w-full min-w-[720px] text-sm">
+        <div className={invTableWrapClass}>
+          <table className={invTableClass}>
             <thead className="border-b border-slate-100 bg-slate-50/80 text-start text-xs uppercase tracking-wide text-slate-500 dark:border-dark-600 dark:bg-dark-900/50">
               <tr>
-                <th className="min-w-[150px] px-3 py-3">
+                <th className={invThClass}>
                   <input type="checkbox" checked={selected.size === rows.length && rows.length > 0} onChange={toggleAll} />
                 </th>
-                <th className="min-w-[150px] px-3 py-3 font-medium">{ar ? 'المستودع' : 'Warehouse'}</th>
-                <th className="min-w-[150px] px-3 py-3 font-medium">{ar ? 'الرمز' : 'Short Name'}</th>
-                <th className="min-w-[150px] px-3 py-3 font-medium">{ar ? 'موقع المخزون' : 'Location Stock'}</th>
-                <th className="min-w-[150px] px-3 py-3 font-medium">{ar ? 'العنوان' : 'Address'}</th>
-                <th className="min-w-[150px] px-3 py-3 font-medium">{ar ? 'الاستلام' : 'Reception'}</th>
-                <th className="min-w-[150px] px-3 py-3 font-medium">{ar ? 'التسليم' : 'Delivery'}</th>
-                <th className="min-w-[150px] px-3 py-3 font-medium">{ar ? 'القيمة' : 'On-hand Value'}</th>
-                <th className="min-w-[150px] px-3 py-3 font-medium">{ar ? 'الحالة' : 'Active'}</th>
+                <th className={invThClass}>{ar ? 'المستودع' : 'Warehouse'}</th>
+                <th className={invThClass}>{ar ? 'الرمز' : 'Short Name'}</th>
+                <th className={invThClass}>{ar ? 'موقع المخزون' : 'Location Stock'}</th>
+                <th className={invThClass}>{ar ? 'العنوان' : 'Address'}</th>
+                <th className={invThClass}>{ar ? 'الاستلام' : 'Reception'}</th>
+                <th className={invThClass}>{ar ? 'التسليم' : 'Delivery'}</th>
+                <th className={invThClass}>{ar ? 'القيمة' : 'On-hand Value'}</th>
+                <th className={invThClass}>{ar ? 'الحالة' : 'Active'}</th>
               </tr>
             </thead>
             <tbody>

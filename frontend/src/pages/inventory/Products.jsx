@@ -14,6 +14,7 @@ import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
 import { getUomLabel } from '../../lib/uomOptions'
 import { formatProductTypeLabel, isStockTrackedProductType, normalizeProductType, productTypeBadgeClass } from '../../lib/productType'
 import { formatInvError } from '../../lib/invError'
+import { invTableWrapClass, invTableClass } from './inventoryUi'
 
 const healthMeta = {
   in_stock: { en: 'In stock', ar: 'متوفر', className: 'bg-emerald-50 text-emerald-800' },
@@ -388,8 +389,8 @@ export default function Products() {
               )
             }}
           >
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[880px] text-sm">
+            <div className={invTableWrapClass}>
+              <table className={`${invTableClass} min-w-[880px]`}>
                 <thead>
                   <tr className="border-b border-slate-100 text-start text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
                     <th className="min-w-[150px] px-5 py-3 font-semibold">{t('productName')}</th>

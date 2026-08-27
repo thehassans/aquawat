@@ -32,6 +32,7 @@ import { isAppAccessValid } from '../../lib/appStoreTrial'
 import { isPakistanTenant, getTaxLabel, getTaxIdLabel, getTenantCountryCode, showArabicFields as isArabicTenantMarket } from '../../lib/saudiTenant'
 import { LineRelationSuggestions } from '../inventory/ProductRelationSuggestions'
 import VariantLineSelect from '../inventory/VariantLineSelect'
+import PartnerCombobox from '../inventory/PartnerCombobox'
 import { formatInvError } from '../../lib/invError'
 import {
   backBtnClass,
@@ -183,7 +184,9 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
   paymentMethod: invoice?.paymentMethod || 'cash',
   paidAmount: toNumber(invoice?.paidAmount, 0),
   paymentStatus: formPaymentStatusFromInvoice(invoice),
-  customerId: invoice?.customerId || '',
+  customerId: (invoice?.customerId && typeof invoice.customerId === 'object')
+    ? (invoice.customerId._id || '')
+    : (invoice?.customerId || ''),
   warehouseId: invoice?.warehouseId || '',
   restaurantOrderId: invoice?.restaurantOrderId || '',
   travelBookingId: invoice?.travelBookingId || '',
@@ -243,6 +246,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const isProformaCreate = searchParams.get('proforma') === '1'
+  const partnerIdParam = String(searchParams.get('partnerId') || '').trim()
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
   const { tenant, user } = useSelector((state) => state.auth)
@@ -254,6 +258,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const [invoiceType, setInvoiceType] = useState('B2B')
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const isEdit = Boolean(invoiceId)
+  const [selectedCustomer, setSelectedCustomer] = useState(() => {
+    const c = initialInvoice?.customerId
+    return c && typeof c === 'object' ? c : null
+  })
   const FieldLabel = (props) => <BilingualLabel {...props} showArabic={showArabicFields} />
   const [showAuthorizedPerson, setShowAuthorizedPerson] = useState(() => {
     return Boolean(
@@ -556,10 +564,70 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     if (primary?._id) setValue('warehouseId', String(primary._id))
   }, [engineRequiresWarehouse, warehouses, selectedWarehouseId, setValue])
 
-  const { data: customers } = useQuery({
-    queryKey: ['customers-lookup'],
-    queryFn: () => api.get('/customers', { params: { limit: 200 } }).then((res) => res.data.customers),
-  })
+  useEffect(() => {
+    if (!partnerIdParam || isEdit) return
+    let cancelled = false
+    api.get(`/customers/${partnerIdParam}`).then((res) => {
+      if (cancelled || !res.data) return
+      fillBuyerFromParty(res.data)
+      setSelectedCustomer(res.data)
+    }).catch(() => {})
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partnerIdParam, isEdit])
+
+  useEffect(() => {
+    const c = initialInvoice?.customerId
+    if (!c) return
+    if (typeof c === 'object') {
+      setSelectedCustomer(c)
+      return
+    }
+    let cancelled = false
+    api.get(`/customers/${c}`).then((res) => {
+      if (!cancelled && res.data) setSelectedCustomer(res.data)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [initialInvoice?.customerId])
+
+  const fillBuyerFromParty = (customer) => {
+    if (!customer) return
+    setValue('customerId', customer._id)
+    setValue('buyer.name', customer.name || customer.nameEn || '')
+    setValue('buyer.nameAr', customer.nameAr || customer.name || customer.nameEn || '')
+    setValue('buyer.vatNumber', customer.vatNumber || '')
+    setValue('buyer.crNumber', customer.crNumber || '')
+    setValue('buyer.address.city', customer.address?.city || '')
+    setValue('buyer.address.cityAr', customer.address?.cityAr || '')
+    setValue('buyer.address.district', customer.address?.district || '')
+    setValue('buyer.address.districtAr', customer.address?.districtAr || '')
+    setValue('buyer.address.street', customer.address?.street || '')
+    setValue('buyer.address.streetAr', customer.address?.streetAr || '')
+    setValue('buyer.address.postalCode', customer.address?.postalCode || '')
+    setValue('buyer.address.country', customer.address?.country || getTenantCountryCode(tenant))
+    setValue('buyer.address.buildingNumber', customer.address?.buildingNumber || '')
+    setValue('buyer.address.additionalNumber', customer.address?.additionalNumber || '')
+    setValue('buyer.contactPhone', customer.phone || customer.mobile || getValues('buyer.contactPhone') || '')
+    setValue('buyer.contactEmail', customer.email || getValues('buyer.contactEmail') || '')
+  }
+
+  const onSelectCustomer = (customerId, opt) => {
+    if (!customerId) {
+      setValue('customerId', '')
+      setSelectedCustomer(null)
+      return
+    }
+    if (opt) {
+      fillBuyerFromParty(opt)
+      setSelectedCustomer(opt)
+      return
+    }
+    api.get(`/customers/${customerId}`).then((res) => {
+      if (!res.data) return
+      fillBuyerFromParty(res.data)
+      setSelectedCustomer(res.data)
+    }).catch(() => {})
+  }
 
   const { data: restaurantOrders } = useQuery({
     queryKey: ['restaurant-orders-lookup'],
@@ -636,7 +704,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         })
         replace(items.length ? items : [emptyLine])
         if (data?.clientId?._id) {
-            onSelectCustomer(data.clientId._id)
+            onSelectCustomer(data.clientId._id, data.clientId)
         }
         setValue('manpowerAssignmentId', data?._id || '')
         setValue('restaurantOrderId', '')
@@ -789,28 +857,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     const product = resolveRelatedProduct(row)
     if (!product?._id) return
     onSelectProduct(index, product._id)
-  }
-
-  const onSelectCustomer = (customerId) => {
-    const customer = (customers || []).find((item) => item._id === customerId)
-    if (!customer) return
-    setValue('customerId', customer._id)
-    setValue('buyer.name', customer.name)
-    setValue('buyer.nameAr', customer.nameAr || customer.name)
-    setValue('buyer.vatNumber', customer.vatNumber || '')
-    setValue('buyer.crNumber', customer.crNumber || '')
-    setValue('buyer.address.city', customer.address?.city || '')
-    setValue('buyer.address.cityAr', customer.address?.cityAr || '')
-    setValue('buyer.address.district', customer.address?.district || '')
-    setValue('buyer.address.districtAr', customer.address?.districtAr || '')
-    setValue('buyer.address.street', customer.address?.street || '')
-    setValue('buyer.address.streetAr', customer.address?.streetAr || '')
-    setValue('buyer.address.postalCode', customer.address?.postalCode || '')
-    setValue('buyer.address.country', customer.address?.country || getTenantCountryCode(tenant))
-    setValue('buyer.address.buildingNumber', customer.address?.buildingNumber || '')
-    setValue('buyer.address.additionalNumber', customer.address?.additionalNumber || '')
-    setValue('buyer.contactPhone', customer.phone || getValues('buyer.contactPhone') || '')
-    setValue('buyer.contactEmail', customer.email || getValues('buyer.contactEmail') || '')
   }
 
   const calculateLineTotal = (index) => {
@@ -1330,10 +1376,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             </div>
             <div>
               <label className={fieldLabelClass}>{language === 'ar' ? 'اختر عميل موجود' : 'Select existing customer'}</label>
-              <select onChange={(e) => onSelectCustomer(e.target.value)} className={`mt-1.5 ${fieldControlClass}`}>
-                <option value="">{language === 'ar' ? 'اختياري: اختر عميل' : 'Optional: Select customer'}</option>
-                {(customers || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.name) : item.name}</option>)}
-              </select>
+              <div className="mt-1.5">
+                <PartnerCombobox
+                  role="customer"
+                  value={values?.customerId || ''}
+                  selectedOption={selectedCustomer}
+                  ar={language === 'ar'}
+                  language={language}
+                  onChange={onSelectCustomer}
+                />
+              </div>
             </div>
             <input type="hidden" {...register('customerId')} />
             {invoiceSubtype === 'travel_ticket' ? (

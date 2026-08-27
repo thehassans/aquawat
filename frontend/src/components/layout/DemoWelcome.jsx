@@ -58,9 +58,9 @@ export default function DemoWelcome() {
     },
     {
       icon: Users,
-      title: isArabic ? 'العملاء' : 'Customers',
-      body: isArabic ? 'أضف دفترك وابدأ العلاقات.' : 'Add your ledger and start relationships.',
-      to: '/app/dashboard/customers/new',
+      title: isArabic ? 'الشركاء' : 'Partners',
+      body: isArabic ? 'أضف عملاء وموردين من دليل موحّد.' : 'Add customers and suppliers from one partner book.',
+      to: '/app/dashboard/contacts?types=customer,supplier',
     },
     {
       icon: BarChart3,

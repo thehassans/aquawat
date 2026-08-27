@@ -27,6 +27,7 @@ import { normalizeProductType, productPickerLabel } from '../../lib/productType'
 import ProductTypeToggle from '../ui/ProductTypeToggle'
 import RichTextNoteField from './RichTextNoteField'
 import PurchaseReceivingLedger from '../../pages/purchases/PurchaseReceivingLedger'
+import PartnerCombobox from '../inventory/PartnerCombobox'
 import { PURCHASES_PATH, formatDay, ghostBtn, primaryBtn } from '../../pages/purchases/purchasesUi'
 import {
   backBtnClass,
@@ -133,6 +134,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const poIdParam = String(searchParams.get('poId') || '').trim()
+  const partnerIdParam = String(searchParams.get('partnerId') || '').trim()
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
   const { tenant, user } = useSelector((state) => state.auth)
@@ -140,6 +142,10 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const [transactionType, setTransactionType] = useState('B2B')
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const isEdit = Boolean(invoiceId)
+  const [selectedSupplier, setSelectedSupplier] = useState(() => {
+    const s = initialInvoice?.supplierId
+    return s && typeof s === 'object' ? s : null
+  })
   const [selectedPoId, setSelectedPoId] = useState(
     () => partyId(initialInvoice?.sourcePurchaseOrderId) || poIdParam
   )
@@ -486,8 +492,8 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     if (!supplier) return
     const id = partyId(supplier)
     if (id) setValue('supplierId', id)
-    setValue('seller.name', supplier.nameEn || supplier.nameAr || '')
-    setValue('seller.nameAr', supplier.nameAr || supplier.nameEn || '')
+    setValue('seller.name', supplier.nameEn || supplier.nameAr || supplier.name || '')
+    setValue('seller.nameAr', supplier.nameAr || supplier.nameEn || supplier.name || '')
     setValue('seller.vatNumber', supplier.vatNumber || '')
     setValue('seller.crNumber', supplier.crNumber || '')
     setValue('seller.contactPhone', supplier.phone || '')
@@ -502,13 +508,53 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     setValue('seller.address.country', supplier.address?.country || getTenantCountryCode(tenant))
     setValue('seller.address.buildingNumber', supplier.address?.buildingNumber || '')
     setValue('seller.address.additionalNumber', supplier.address?.additionalNumber || '')
+    setSelectedSupplier(supplier)
   }
 
-  const onSelectSupplier = (supplierId) => {
+  const onSelectSupplier = (supplierId, opt) => {
+    if (!supplierId) {
+      setValue('supplierId', '')
+      setSelectedSupplier(null)
+      return
+    }
+    if (opt) {
+      fillSellerFromParty(opt)
+      return
+    }
     const supplier = (suppliers || []).find((item) => item._id === supplierId)
-    if (!supplier) return
-    fillSellerFromParty(supplier)
+    if (supplier) {
+      fillSellerFromParty(supplier)
+      return
+    }
+    api.get(`/suppliers/${supplierId}`).then((res) => {
+      if (res.data) fillSellerFromParty(res.data)
+    }).catch(() => {})
   }
+
+  useEffect(() => {
+    if (!partnerIdParam || isEdit) return
+    let cancelled = false
+    api.get(`/suppliers/${partnerIdParam}`).then((res) => {
+      if (cancelled || !res.data) return
+      fillSellerFromParty(res.data)
+    }).catch(() => {})
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partnerIdParam, isEdit])
+
+  useEffect(() => {
+    const s = initialInvoice?.supplierId
+    if (!s) return
+    if (typeof s === 'object') {
+      setSelectedSupplier(s)
+      return
+    }
+    let cancelled = false
+    api.get(`/suppliers/${s}`).then((res) => {
+      if (!cancelled && res.data) setSelectedSupplier(res.data)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [initialInvoice?.supplierId])
 
   const applyPurchaseOrder = (po) => {
     if (!po?._id) return
@@ -833,10 +879,15 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                       <span>{language === 'ar' ? 'المورد' : 'Supplier'}</span>
                       <span className="text-xs font-normal text-gray-500">({language === 'ar' ? 'اختياري' : 'Optional'})</span>
                     </label>
-                    <select {...register('supplierId', { onChange: (e) => onSelectSupplier(e.target.value) })} className={fieldControlClass}>
-                      <option value="">{language === 'ar' ? 'اختر مورد (اختياري)' : 'Select supplier (Optional)'}</option>
-                      {(suppliers || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}
-                    </select>
+                    <PartnerCombobox
+                      role="vendor"
+                      value={values?.supplierId || ''}
+                      selectedOption={selectedSupplier}
+                      ar={language === 'ar'}
+                      language={language}
+                      onChange={onSelectSupplier}
+                    />
+                    <input type="hidden" {...register('supplierId')} />
                   </div>
                 </>
               )}

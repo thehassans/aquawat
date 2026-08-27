@@ -17,6 +17,7 @@ import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../../lib/uo
 import { normalizeProductType } from '../../lib/productType'
 import ProductTypeToggle from '../../components/ui/ProductTypeToggle'
 import CategoryCombobox from '../../components/inventory/CategoryCombobox'
+import PartnerCombobox from '../../components/inventory/PartnerCombobox'
 import ProductImageGallery from '../../components/inventory/ProductImageGallery'
 import ProductRelationsEditor from '../../components/inventory/ProductRelationsEditor'
 import AttributeExclusionsEditor from '../../components/inventory/AttributeExclusionsEditor'
@@ -251,13 +252,18 @@ export default function ProductForm() {
       )
       setTagInput((normalized?.tags || []).join(', '))
       setProductSuppliers(
-        (Array.isArray(normalized?.suppliers) ? normalized.suppliers : []).map((s) => ({
-          supplierId: String(s.supplierId?._id || s.supplierId || ''),
-          supplierSku: s.supplierSku || '',
-          cost: s.cost ?? '',
-          leadTimeDays: s.leadTimeDays ?? '',
-          isPreferred: !!s.isPreferred,
-        })),
+        (Array.isArray(normalized?.suppliers) ? normalized.suppliers : []).map((s) => {
+          const sid = String(s.supplierId?._id || s.supplierId || '')
+          const populated = s.supplierId && typeof s.supplierId === 'object' ? s.supplierId : null
+          return {
+            supplierId: sid,
+            selectedOption: populated,
+            supplierSku: s.supplierSku || '',
+            cost: s.cost ?? '',
+            leadTimeDays: s.leadTimeDays ?? '',
+            isPreferred: !!s.isPreferred,
+          }
+        }),
       )
       setProductDocuments(
         (Array.isArray(normalized?.documents) ? normalized.documents : []).map((d) => ({
@@ -326,6 +332,13 @@ export default function ProductForm() {
     queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((r) => r.data?.suppliers || r.data || []),
     enabled: canBePurchased,
   })
+  const supplierById = useMemo(() => {
+    const map = new Map()
+    for (const s of supplierOptions || []) {
+      if (s?._id) map.set(String(s._id), s)
+    }
+    return map
+  }, [supplierOptions])
   const { data: invRules } = useQuery({
     queryKey: ['inv-rules-all'],
     queryFn: () => api.get('/stock/rules').then((r) => asInvList(r.data)),
@@ -963,7 +976,7 @@ export default function ProductForm() {
                     <button
                       type="button"
                       className="btn btn-secondary btn-xs"
-                      onClick={() => setProductSuppliers((rows) => [...rows, { supplierId: '', supplierSku: '', cost: '', leadTimeDays: '', isPreferred: false }])}
+                      onClick={() => setProductSuppliers((rows) => [...rows, { supplierId: '', selectedOption: null, supplierSku: '', cost: '', leadTimeDays: '', isPreferred: false }])}
                     >
                       {language === 'ar' ? '+ مورد' : '+ Vendor'}
                     </button>
@@ -986,17 +999,19 @@ export default function ProductForm() {
                         <tbody>
                           {productSuppliers.map((row, idx) => (
                             <tr key={idx} className="border-t border-slate-100">
-                              <td className="px-2 py-1">
-                                <select
-                                  className="select select-sm w-full min-w-[8rem]"
+                              <td className="min-w-[180px] px-2 py-1">
+                                <PartnerCombobox
+                                  role="vendor"
                                   value={row.supplierId}
-                                  onChange={(e) => setProductSuppliers((rows) => rows.map((r, i) => (i === idx ? { ...r, supplierId: e.target.value } : r)))}
-                                >
-                                  <option value="">—</option>
-                                  {(supplierOptions || []).map((s) => (
-                                    <option key={s._id} value={s._id}>{s.nameEn || s.name || s.nameAr}</option>
-                                  ))}
-                                </select>
+                                  selectedOption={row.selectedOption || supplierById.get(String(row.supplierId)) || null}
+                                  ar={language === 'ar'}
+                                  language={language}
+                                  onChange={(id, opt) => setProductSuppliers((rows) => rows.map((r, i) => (
+                                    i === idx
+                                      ? { ...r, supplierId: id || '', selectedOption: opt || null }
+                                      : r
+                                  )))}
+                                />
                               </td>
                               <td className="px-2 py-1">
                                 <input className="input input-sm" value={row.supplierSku} onChange={(e) => setProductSuppliers((rows) => rows.map((r, i) => (i === idx ? { ...r, supplierSku: e.target.value } : r)))} />

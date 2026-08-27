@@ -5,7 +5,7 @@ import { Link, useSearchParams, useLocation } from 'react-router-dom'
 import { Plus, Search } from 'lucide-react'
 import api from '../../lib/api'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
-import { StatusChip } from './inventoryUi'
+import { StatusChip, invTableWrapClass, invTableClass, invThClass, invTdClass } from './inventoryUi'
 import EmptyState from '../../components/ui/EmptyState'
 import InvListShell from './InvListShell'
 import { ColumnChooser, useColumnVisibility } from './columnVisibility'
@@ -237,12 +237,12 @@ export default function TransfersList() {
           </p>
         )}
 
-        <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-          <table className="w-full min-w-[720px] text-sm">
+        <div className={invTableWrapClass}>
+          <table className={invTableClass}>
             <thead className="border-b border-slate-100 bg-slate-50/80 text-start text-xs uppercase tracking-wide text-slate-500 dark:border-dark-600 dark:bg-dark-900/50">
               <tr>
                 {activeColumns.map((col) => (
-                  <th key={col.id} className="min-w-[150px] px-4 py-3 font-medium">
+                  <th key={col.id} className={invThClass}>
                     {ar ? col.labelAr : col.labelEn}
                   </th>
                 ))}
@@ -257,7 +257,7 @@ export default function TransfersList() {
                   {activeColumns.map((col) => {
                     if (col.id === 'reference') {
                       return (
-                        <td key={col.id} className="min-w-[150px] px-4 py-3">
+                        <td key={col.id} className={invTdClass}>
                           <Link
                             to={`${basePath}/${t._id}`}
                             className="font-medium text-sky-800 hover:underline dark:text-sky-300"
