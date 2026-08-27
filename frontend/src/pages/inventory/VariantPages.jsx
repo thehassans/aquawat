@@ -1,182 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Plus } from 'lucide-react'
 import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import Money from '../../components/ui/Money'
 import { formatInvError } from '../../lib/invError'
-
-export function AttributesPage() {
-  const { language } = useSelector((s) => s.ui)
-  const ar = language === 'ar'
-  const qc = useQueryClient()
-  const [name, setName] = useState('')
-  const [nameAr, setNameAr] = useState('')
-  const [mode, setMode] = useState('always')
-  const [selectedId, setSelectedId] = useState('')
-  const [valueName, setValueName] = useState('')
-  const [valueNameAr, setValueNameAr] = useState('')
-  const [extraPrice, setExtraPrice] = useState('0')
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['inv-attributes'],
-    queryFn: () => api.get('/stock/attributes', { params: { active: 'false' } }).then((r) => asInvList(r.data)),
-  })
-  const attrs = data || []
-
-  const { data: valuesData, isLoading: valuesLoading } = useQuery({
-    queryKey: ['inv-attribute-values', selectedId],
-    queryFn: () => api.get(`/stock/attributes/${selectedId}/values`).then((r) => asInvList(r.data)),
-    enabled: Boolean(selectedId),
-  })
-  const values = valuesData || []
-
-  const createAttr = useMutation({
-    mutationFn: () => api.post('/stock/attributes', {
-      name,
-      nameAr: nameAr || undefined,
-      createVariantMode: mode,
-    }),
-    onSuccess: (res) => {
-      toast.success(ar ? 'تم إنشاء السمة' : 'Attribute created')
-      setName('')
-      setNameAr('')
-      setSelectedId(res.data._id)
-      qc.invalidateQueries({ queryKey: ['inv-attributes'] })
-    },
-    onError: (e) => toast.error(formatInvError(e, ar ? 'ar' : 'en')),
-  })
-
-  const createVal = useMutation({
-    mutationFn: () => api.post(`/stock/attributes/${selectedId}/values`, {
-      name: valueName,
-      nameAr: valueNameAr || undefined,
-      extraPrice: Number(extraPrice) || 0,
-    }),
-    onSuccess: () => {
-      toast.success(ar ? 'تم القيمة' : 'Value added')
-      setValueName('')
-      setValueNameAr('')
-      setExtraPrice('0')
-      qc.invalidateQueries({ queryKey: ['inv-attribute-values', selectedId] })
-    },
-    onError: (e) => toast.error(formatInvError(e, ar ? 'ar' : 'en')),
-  })
-
-  return (
-    <div className="space-y-4" dir={ar ? 'rtl' : 'ltr'}>
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-          {ar ? 'سمات المنتج' : 'Product attributes'}
-        </h2>
-        <p className="text-sm text-slate-500">
-          {ar
-            ? 'Always / Dynamically / Never — الرصيد يبقى على productId + variantId'
-            : 'Always / Dynamically / Never — stock stays on productId + variantId'}
-        </p>
-      </div>
-
-      <form
-        className="flex flex-wrap items-end gap-2"
-        onSubmit={(e) => { e.preventDefault(); createAttr.mutate() }}
-      >
-        <div>
-          <label className="label text-xs">{ar ? 'الاسم' : 'Name'}</label>
-          <input className="input input-sm" required value={name} onChange={(e) => setName(e.target.value)} placeholder={ar ? 'اللون' : 'Color'} />
-        </div>
-        <div>
-          <label className="label text-xs">{ar ? 'عربي' : 'Arabic'}</label>
-          <input className="input input-sm" value={nameAr} onChange={(e) => setNameAr(e.target.value)} />
-        </div>
-        <div>
-          <label className="label text-xs">{ar ? 'إنشاء متغير' : 'Create variant'}</label>
-          <select className="select select-sm" value={mode} onChange={(e) => setMode(e.target.value)}>
-            <option value="always">{ar ? 'دائماً' : 'Always'}</option>
-            <option value="dynamic">{ar ? 'ديناميكي' : 'Dynamically'}</option>
-            <option value="never">{ar ? 'أبداً' : 'Never'}</option>
-          </select>
-        </div>
-        <button type="submit" className="btn btn-primary btn-sm" disabled={createAttr.isPending}>
-          <Plus className="h-4 w-4" /> {ar ? 'سمة' : 'Attribute'}
-        </button>
-      </form>
-
-      {isLoading ? <div className="text-sm text-slate-500">…</div> : !attrs.length ? (
-        <EmptyState title={ar ? 'لا سمات' : 'No attributes'} description={ar ? 'فعّل المتغيرات من الإعدادات أولاً' : 'Enable Variants in Settings first'} />
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
-                <tr>
-                  <th className="min-w-[150px] px-3 py-2">{ar ? 'السمة' : 'Attribute'}</th>
-                  <th className="min-w-[150px] px-3 py-2">{ar ? 'الوضع' : 'Mode'}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
-                {attrs.map((a) => (
-                  <tr
-                    key={a._id}
-                    className={`cursor-pointer ${selectedId === a._id ? 'bg-primary-50/50 dark:bg-primary-950/20' : ''}`}
-                    onClick={() => setSelectedId(a._id)}
-                  >
-                    <td className="px-3 py-2.5 font-medium">
-                      {ar && a.nameAr ? a.nameAr : a.name}
-                    </td>
-                    <td className="px-3 py-2.5 text-slate-500">{a.createVariantMode || (a.createVariant !== false ? 'always' : 'never')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="space-y-3 rounded-xl border border-slate-200/80 p-3 dark:border-dark-600">
-            <h3 className="text-sm font-semibold">
-              {selectedId
-                ? (ar ? 'قيم السمة' : 'Attribute values')
-                : (ar ? 'اختر سمة' : 'Select an attribute')}
-            </h3>
-            {selectedId && (
-              <>
-                <form
-                  className="flex flex-wrap items-end gap-2"
-                  onSubmit={(e) => { e.preventDefault(); createVal.mutate() }}
-                >
-                  <input className="input input-sm" required value={valueName} onChange={(e) => setValueName(e.target.value)} placeholder={ar ? 'أحمر' : 'Red'} />
-                  <input className="input input-sm" value={valueNameAr} onChange={(e) => setValueNameAr(e.target.value)} placeholder={ar ? 'عربي' : 'AR'} />
-                  <input className="input input-sm w-24" type="number" step="0.01" value={extraPrice} onChange={(e) => setExtraPrice(e.target.value)} placeholder={ar ? 'سعر إضافي' : 'Extra'} />
-                  <button type="submit" className="btn btn-secondary btn-sm" disabled={createVal.isPending}>
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </form>
-                {valuesLoading ? <div className="text-xs text-slate-500">…</div> : !values.length ? (
-                  <p className="text-sm text-slate-500">{ar ? 'لا قيم بعد' : 'No values yet'}</p>
-                ) : (
-                  <ul className="space-y-1 text-sm">
-                    {values.map((v) => (
-                      <li key={v._id} className="flex justify-between rounded-lg bg-slate-50 px-2 py-1.5 dark:bg-dark-800">
-                        <span>{ar && v.nameAr ? v.nameAr : v.name}</span>
-                        <span className="tabular-nums text-slate-400">+{v.extraPrice || 0}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            )}
-            <Link to="/app/dashboard/inventory/variants" className="inline-block text-sm text-primary-600 hover:underline">
-              {ar ? '← المتغيرات' : '← Variants'}
-            </Link>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
 export function VariantsPage() {
   const { language } = useSelector((s) => s.ui)
@@ -200,7 +31,7 @@ export function VariantsPage() {
     queryKey: ['inv-attributes'],
     queryFn: () => api.get('/stock/attributes').then((r) => asInvList(r.data)),
   })
-  const attrs = attrsData?.items || []
+  const attrs = Array.isArray(attrsData) ? attrsData : (attrsData?.items || [])
 
   const { data: variantsData, isLoading } = useQuery({
     queryKey: ['inv-variants', productId, q, attrFilter],

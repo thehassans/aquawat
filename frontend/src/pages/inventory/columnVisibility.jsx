@@ -66,7 +66,7 @@ export function ColumnChooser({ ar, definitions, visible, onToggle }) {
         onClose={() => setOpen(false)}
         anchorRef={btnRef}
         align="start"
-        className="w-56"
+        className="w-56 !border-0 p-1 shadow-[0_16px_40px_-16px_rgba(15,23,42,0.4)] ring-1 ring-slate-900/5"
       >
         <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
           {ar ? 'إظهار الأعمدة' : 'Show columns'}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { useSelector } from 'react-redux'
@@ -15,6 +15,21 @@ import { getUomLabel } from '../../lib/uomOptions'
 import { formatProductTypeLabel, isStockTrackedProductType, normalizeProductType, productTypeBadgeClass } from '../../lib/productType'
 import { formatInvError } from '../../lib/invError'
 import { invTableWrapClass, invTableClass } from './inventoryUi'
+import { ColumnChooser, useColumnVisibility } from './columnVisibility'
+
+const PRODUCT_COL_DEFS = [
+  { id: 'name', labelEn: 'Product', labelAr: 'المنتج', locked: true },
+  { id: 'productId', labelEn: 'ID', labelAr: 'المعرّف', defaultVisible: true },
+  { id: 'sku', labelEn: 'SKU', labelAr: 'SKU', defaultVisible: true },
+  { id: 'type', labelEn: 'Type', labelAr: 'النوع', defaultVisible: true },
+  { id: 'uom', labelEn: 'UOM', labelAr: 'الوحدة', defaultVisible: true },
+  { id: 'available', labelEn: 'Available', labelAr: 'المتاح', defaultVisible: true },
+  { id: 'reorder', labelEn: 'Reorder', labelAr: 'حد الطلب', defaultVisible: true },
+  { id: 'sellingPrice', labelEn: 'Selling price', labelAr: 'سعر البيع', defaultVisible: true },
+  { id: 'stock', labelEn: 'Stock', labelAr: 'المخزون', defaultVisible: true },
+  { id: 'actions', labelEn: 'Actions', labelAr: 'إجراءات', locked: true },
+]
+
 
 const healthMeta = {
   in_stock: { en: 'In stock', ar: 'متوفر', className: 'bg-emerald-50 text-emerald-800' },
@@ -58,6 +73,10 @@ export default function Products() {
   const [stockModal, setStockModal] = useState({ isOpen: false, productId: null, productName: '' })
   const [stockWarehouseId, setStockWarehouseId] = useState('')
   const [stockQuantity, setStockQuantity] = useState(1)
+
+  const columnDefs = useMemo(() => PRODUCT_COL_DEFS, [])
+  const { visible, toggle } = useColumnVisibility('maqder-inv-product-cols', columnDefs)
+  const col = (id) => visible[id] !== false
 
   const { data: warehouses } = useQuery({
     queryKey: ['warehouses'],
@@ -208,6 +227,7 @@ export default function Products() {
               queryClient.invalidateQueries({ queryKey: ['products-stats'] })
             }}
           />
+          <ColumnChooser ar={isAr} definitions={columnDefs} visible={visible} onToggle={toggle} />
           <button
             type="button"
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 dark:border-dark-600 dark:bg-dark-800 dark:text-slate-200"
@@ -393,16 +413,16 @@ export default function Products() {
               <table className={`${invTableClass} min-w-[880px]`}>
                 <thead>
                   <tr className="border-b border-slate-100 text-start text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                    <th className="min-w-[150px] px-5 py-3 font-semibold">{t('productName')}</th>
-                    <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'المعرّف' : 'ID'}</th>
-                    <th className="min-w-[150px] px-3 py-3 font-semibold">{t('sku')}</th>
-                    <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'النوع' : 'Type'}</th>
-                    <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'الوحدة' : 'UOM'}</th>
-                    <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'المتاح' : 'Available'}</th>
-                    <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'حد الطلب' : 'Reorder'}</th>
-                    <th className="min-w-[150px] px-3 py-3 font-semibold">{t('sellingPrice')}</th>
-                    <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'المخزون' : 'Stock'}</th>
-                    <th className="min-w-[150px] px-5 py-3 font-semibold" />
+                    {col('name') && <th className="min-w-[150px] px-5 py-3 font-semibold">{t('productName')}</th>}
+                    {col('productId') && <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'المعرّف' : 'ID'}</th>}
+                    {col('sku') && <th className="min-w-[150px] px-3 py-3 font-semibold">{t('sku')}</th>}
+                    {col('type') && <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'النوع' : 'Type'}</th>}
+                    {col('uom') && <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'الوحدة' : 'UOM'}</th>}
+                    {col('available') && <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'المتاح' : 'Available'}</th>}
+                    {col('reorder') && <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'حد الطلب' : 'Reorder'}</th>}
+                    {col('sellingPrice') && <th className="min-w-[150px] px-3 py-3 font-semibold">{t('sellingPrice')}</th>}
+                    {col('stock') && <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'المخزون' : 'Stock'}</th>}
+                    {col('actions') && <th className="min-w-[150px] px-5 py-3 font-semibold" />}
                   </tr>
                 </thead>
                 <tbody>
@@ -414,83 +434,103 @@ export default function Products() {
                     const type = normalizeProductType(product.productType)
                     return (
                       <tr key={product._id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/70">
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100">
-                              {product.images?.[0] ? (
-                                <img src={product.images[0].thumbUrl || product.images[0].url} alt="" className="h-full w-full object-cover" />
-                              ) : (
-                                <Package className="h-5 w-5 text-slate-400" />
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="truncate font-semibold text-slate-900">
-                                <Link to={`/app/dashboard/inventory/products/${product._id}`} className="hover:text-emerald-800 hover:underline">
-                                  {isAr ? product.nameAr || product.nameEn : product.nameEn}
-                                </Link>
-                              </p>
-                              {product.barcode && (
-                                <p className="flex items-center gap-1 font-mono text-[11px] text-slate-400">
-                                  <QrCode className="h-3 w-3" />{product.barcode}
+                        {col('name') && (
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100">
+                                {product.images?.[0] ? (
+                                  <img src={product.images[0].thumbUrl || product.images[0].url} alt="" className="h-full w-full object-cover" />
+                                ) : (
+                                  <Package className="h-5 w-5 text-slate-400" />
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="truncate font-semibold text-slate-900">
+                                  <Link to={`/app/dashboard/inventory/products/${product._id}`} className="hover:text-emerald-800 hover:underline">
+                                    {isAr ? product.nameAr || product.nameEn : product.nameEn}
+                                  </Link>
                                 </p>
-                              )}
+                                {product.barcode && (
+                                  <p className="flex items-center gap-1 font-mono text-[11px] text-slate-400">
+                                    <QrCode className="h-3 w-3" />{product.barcode}
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-3 py-3.5 font-mono text-xs font-semibold text-emerald-700">{product.productId || '—'}</td>
-                        <td className="px-3 py-3.5 font-mono text-xs text-slate-500">{product.sku}</td>
-                        <td className="px-3 py-3.5">
-                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${productTypeBadgeClass(type)}`}>
-                            {formatProductTypeLabel(type, language)}
-                          </span>
-                        </td>
-                        <td className="px-3 py-3.5">
-                          <span className="rounded-lg bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600">
-                            {getUomLabel(product.unitOfMeasure, language) || product.unitOfMeasure || 'EA'}
-                          </span>
-                        </td>
-                        <td className="px-3 py-3.5">
-                          {tracked ? (
-                            <>
-                              <p className={`font-semibold tabular-nums ${qtyClass(health)}`}>
-                                {inv.available ?? product.totalStock ?? 0}
-                              </p>
-                              {inv.reserved > 0 && (
-                                <p className="text-[11px] text-slate-400">{inv.onHand} {isAr ? 'في اليد' : 'on hand'} · {inv.reserved} {isAr ? 'محجوز' : 'reserved'}</p>
-                              )}
-                            </>
-                          ) : (
-                            <span className="text-xs text-slate-400">{isAr ? '—' : '—'}</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-3.5 tabular-nums text-slate-500">{tracked ? (inv.reorderPoint ?? '—') : '—'}</td>
-                        <td className="px-3 py-3.5 font-semibold"><Money value={product.sellingPrice} /></td>
-                        <td className="px-3 py-3.5">
-                          {tracked ? (
-                            <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${hm.className}`}>
-                              {isAr ? hm.ar : hm.en}
+                          </td>
+                        )}
+                        {col('productId') && (
+                          <td className="px-3 py-3.5 font-mono text-xs font-semibold text-emerald-700">{product.productId || '—'}</td>
+                        )}
+                        {col('sku') && (
+                          <td className="px-3 py-3.5 font-mono text-xs text-slate-500">{product.sku}</td>
+                        )}
+                        {col('type') && (
+                          <td className="px-3 py-3.5">
+                            <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${productTypeBadgeClass(type)}`}>
+                              {formatProductTypeLabel(type, language)}
                             </span>
-                          ) : (
-                            <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-800">
-                              {isAr ? 'خدمة' : 'Service'}
+                          </td>
+                        )}
+                        {col('uom') && (
+                          <td className="px-3 py-3.5">
+                            <span className="rounded-lg bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600">
+                              {getUomLabel(product.unitOfMeasure, language) || product.unitOfMeasure || 'EA'}
                             </span>
-                          )}
-                        </td>
-                        <td className="px-5 py-3.5">
-                          <div className="flex justify-end gap-1">
+                          </td>
+                        )}
+                        {col('available') && (
+                          <td className="px-3 py-3.5">
                             {tracked ? (
-                              <button type="button" onClick={() => openStockModal(product)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-emerald-700 hover:bg-emerald-50" title={isAr ? 'استلام مخزون' : 'Receive stock'}>
-                                <Plus className="h-4 w-4" />
-                              </button>
-                            ) : null}
-                            <Link to={`/app/dashboard/inventory/products/${product._id}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                              <Eye className="h-4 w-4" />
-                            </Link>
-                            <Link to={`/app/dashboard/inventory/products/${product._id}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                              <Edit className="h-4 w-4" />
-                            </Link>
-                          </div>
-                        </td>
+                              <>
+                                <p className={`font-semibold tabular-nums ${qtyClass(health)}`}>
+                                  {inv.available ?? product.totalStock ?? 0}
+                                </p>
+                                {inv.reserved > 0 && (
+                                  <p className="text-[11px] text-slate-400">{inv.onHand} {isAr ? 'في اليد' : 'on hand'} · {inv.reserved} {isAr ? 'محجوز' : 'reserved'}</p>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-xs text-slate-400">—</span>
+                            )}
+                          </td>
+                        )}
+                        {col('reorder') && (
+                          <td className="px-3 py-3.5 tabular-nums text-slate-500">{tracked ? (inv.reorderPoint ?? '—') : '—'}</td>
+                        )}
+                        {col('sellingPrice') && (
+                          <td className="px-3 py-3.5 font-semibold"><Money value={product.sellingPrice} /></td>
+                        )}
+                        {col('stock') && (
+                          <td className="px-3 py-3.5">
+                            {tracked ? (
+                              <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${hm.className}`}>
+                                {isAr ? hm.ar : hm.en}
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-800">
+                                {isAr ? 'خدمة' : 'Service'}
+                              </span>
+                            )}
+                          </td>
+                        )}
+                        {col('actions') && (
+                          <td className="px-5 py-3.5">
+                            <div className="flex justify-end gap-1">
+                              {tracked ? (
+                                <button type="button" onClick={() => openStockModal(product)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-emerald-700 hover:bg-emerald-50" title={isAr ? 'استلام مخزون' : 'Receive stock'}>
+                                  <Plus className="h-4 w-4" />
+                                </button>
+                              ) : null}
+                              <Link to={`/app/dashboard/inventory/products/${product._id}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                                <Eye className="h-4 w-4" />
+                              </Link>
+                              <Link to={`/app/dashboard/inventory/products/${product._id}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                                <Edit className="h-4 w-4" />
+                              </Link>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     )
                   })}

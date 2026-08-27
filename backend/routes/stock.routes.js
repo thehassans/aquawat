@@ -1156,6 +1156,15 @@ router.post('/attributes', checkPermission('inventory', 'create'), async (req, r
   }
 });
 
+router.get('/attributes/:id', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { getAttribute } = await import('../services/inventory/variants.js');
+    res.json(await getAttribute(req.user.tenantId, req.params.id));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
 router.patch('/attributes/:id', checkPermission('inventory', 'update'), async (req, res) => {
   try {
     const { updateAttribute } = await import('../services/inventory/variants.js');
@@ -1192,6 +1201,15 @@ router.patch('/attribute-values/:id', checkPermission('inventory', 'update'), as
   try {
     const { updateAttributeValue } = await import('../services/inventory/variants.js');
     res.json(await updateAttributeValue(req.user.tenantId, req.params.id, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.delete('/attribute-values/:id', checkPermission('inventory', 'delete'), async (req, res) => {
+  try {
+    const { deleteAttributeValue } = await import('../services/inventory/variants.js');
+    res.json(await deleteAttributeValue(req.user.tenantId, req.params.id));
   } catch (err) {
     handleInventoryError(res, err);
   }

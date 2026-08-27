@@ -55,9 +55,29 @@ async function assertVariantsEnabled(tenantId) {
 }
 
 export async function listAttributes(tenantId, { activeOnly = true } = {}) {
-  const filter = { tenantId: toObjectId(tenantId) };
+  const tid = toObjectId(tenantId);
+  const filter = { tenantId: tid };
   if (activeOnly) filter.active = true;
-  return InvProductAttribute.find(filter).sort({ sequence: 1, name: 1 }).lean();
+  const attrs = await InvProductAttribute.find(filter).sort({ sequence: 1, name: 1 }).lean();
+  if (!attrs.length) return [];
+  const counts = await InvAttributeValue.aggregate([
+    { $match: { tenantId: tid, attributeId: { $in: attrs.map((a) => a._id) } } },
+    { $group: { _id: '$attributeId', total: { $sum: 1 } } },
+  ]);
+  const byId = new Map(counts.map((c) => [String(c._id), c.total]));
+  return attrs.map((a) => ({
+    ...a,
+    valueCount: byId.get(String(a._id)) || 0,
+  }));
+}
+
+export async function getAttribute(tenantId, id) {
+  const doc = await InvProductAttribute.findOne({
+    _id: id,
+    tenantId: toObjectId(tenantId),
+  }).lean();
+  if (!doc) throw new InventoryValidationError('Attribute not found', 'ATTR_NOT_FOUND');
+  return doc;
 }
 
 export async function createAttribute(tenantId, userId, body) {
@@ -173,6 +193,16 @@ export async function updateAttributeValue(tenantId, id, userId, body) {
   doc.updatedBy = userId;
   await doc.save();
   return doc;
+}
+
+export async function deleteAttributeValue(tenantId, id) {
+  await assertVariantsEnabled(tenantId);
+  const doc = await InvAttributeValue.findOneAndDelete({
+    _id: id,
+    tenantId: toObjectId(tenantId),
+  });
+  if (!doc) throw new InventoryValidationError('Value not found', 'VALUE_NOT_FOUND');
+  return { deleted: true, id: String(id) };
 }
 
 export async function listVariants(tenantId, {

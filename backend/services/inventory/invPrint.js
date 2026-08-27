@@ -90,6 +90,25 @@ function baseCss() {
   .sig { flex: 1; border-top: 1px solid #94a3b8; padding-top: 6px; min-height: 48px; }
   .footer { margin-top: 16px; font-size: 10px; color: #64748b; display: flex; justify-content: space-between; }
   .label-page { page-break-after: always; width: 50mm; height: 25mm; padding: 2mm; border: 1px dashed #94a3b8; }
+  .product-label {
+    display: flex; flex-direction: column; justify-content: space-between;
+    box-sizing: border-box; overflow: hidden; color: #0f172a; background: #fff;
+  }
+  .product-label .pl-name {
+    font-size: 11px; font-weight: 700; line-height: 1.2; color: #0f172a;
+    max-height: 2.4em; overflow: hidden;
+  }
+  .product-label .pl-meta {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 4px; font-size: 9px; color: #334155; margin-top: 2px;
+  }
+  .product-label .pl-sku { font-family: ui-monospace, Consolas, monospace; letter-spacing: 0.02em; }
+  .product-label .pl-price { font-weight: 700; font-size: 12px; color: #0f172a; white-space: nowrap; }
+  .product-label .pl-barcode {
+    margin-top: 2px; text-align: center; flex: 1; display: flex; align-items: center; justify-content: center;
+  }
+  .product-label .pl-barcode img { max-width: 100%; max-height: 14mm; height: auto; }
+  .product-label .pl-fallback { font-family: monospace; font-size: 10px; letter-spacing: 1px; }
   .loc-label { text-align: center; padding: 24px; }
   .loc-label .big { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
   .barcode { font-family: 'Libre Barcode 128', monospace; font-size: 36px; letter-spacing: 2px; }
@@ -281,6 +300,63 @@ async function qrDataUrl(text) {
   }
 }
 
+/** Linear barcode PNG (EAN-13 when digits fit, otherwise Code 128). */
+async function linearBarcodeDataUrl(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return '';
+  try {
+    const bwipjs = (await import('bwip-js')).default;
+    const digits = text.replace(/\D/g, '');
+    let bcid = 'code128';
+    let payload = text;
+    if (digits.length === 13) {
+      bcid = 'ean13';
+      payload = digits;
+    } else if (digits.length === 12) {
+      bcid = 'ean13';
+      payload = digits; // bwip computes check digit
+    } else if (digits.length === 8) {
+      bcid = 'ean8';
+      payload = digits;
+    }
+    const png = await bwipjs.toBuffer({
+      bcid,
+      text: payload,
+      scale: 3,
+      height: 12,
+      includetext: true,
+      textxalign: 'center',
+      textsize: 9,
+      paddingwidth: 4,
+      paddingheight: 2,
+      backgroundcolor: 'FFFFFF',
+    });
+    return `data:image/png;base64,${png.toString('base64')}`;
+  } catch {
+    return '';
+  }
+}
+
+function truncateLabel(s, max = 42) {
+  const t = String(s || '').trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1)}…`;
+}
+
+function formatMoneyLabel(value, currency = 'SAR') {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '';
+  try {
+    return new Intl.NumberFormat('en-SA', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 2,
+    }).format(n);
+  } catch {
+    return `${n.toFixed(2)} ${currency}`;
+  }
+}
+
 /** GS1 DataMatrix PNG data URL — falls back to QR when encoder unavailable. */
 async function gs1MatrixDataUrl(text) {
   const payload = String(text || '');
@@ -398,24 +474,39 @@ async function productLabelsHtml(tenantId, { productIds, copies = 1, lang, prese
   const tenant = await loadTenant(tenantId);
   const tid = toObjectId(tenantId);
   const q = { tenantId: tid };
-  if (productIds?.length) q._id = { $in: productIds };
+  if (productIds?.length) q._id = { $in: productIds.map((id) => toObjectId(id)).filter(Boolean) };
   const products = await Product.find(q).limit(100).lean();
-  const size = preset === '100x50' ? 'width:100mm;height:50mm' : preset === '40x30' ? 'width:40mm;height:30mm' : 'width:50mm;height:25mm';
+  const currency = tenant?.currency || tenant?.settings?.currency || 'SAR';
+  const size = preset === '100x50'
+    ? 'width:100mm;height:50mm'
+    : preset === '40x30'
+      ? 'width:40mm;height:30mm'
+      : 'width:50mm;height:25mm';
+  const nameMax = preset === '100x50' ? 64 : preset === '40x30' ? 36 : 42;
   const pages = [];
   for (const p of products) {
-    const qr = await qrDataUrl(p.barcode || p.sku || String(p._id));
+    const displayName = lang === 'ar' && p.nameAr ? p.nameAr : (p.nameEn || p.name || p.sku || '');
+    const code = p.barcode || p.sku || p.productId || String(p._id);
+    const barcodeImg = await linearBarcodeDataUrl(code);
+    const price = formatMoneyLabel(p.sellingPrice ?? p.salePrice, currency);
     for (let i = 0; i < Math.max(1, Number(copies) || 1); i += 1) {
-      pages.push(`<div class="label-page" style="${size};page-break-after:always;padding:3mm">
-        <div style="font-weight:700;font-size:12px">${esc(lang === 'ar' && p.nameAr ? p.nameAr : p.nameEn)}</div>
-        <div style="font-size:10px;color:#475569">${esc(lang === 'ar' ? p.nameEn : p.nameAr || '')}</div>
-        <div>SKU: ${esc(p.sku)}</div>
-        <div class="barcode">${esc(p.barcode || p.sku)}</div>
-        <div>${esc(p.sellingPrice ?? p.salePrice ?? '')} SAR</div>
-        ${qr ? `<img src="${qr}" width="64" height="64" alt="qr"/>` : ''}
+      pages.push(`<div class="label-page product-label" style="${size};page-break-after:always;padding:2.5mm">
+        <div>
+          <div class="pl-name">${esc(truncateLabel(displayName, nameMax))}</div>
+          <div class="pl-meta">
+            <span class="pl-sku">SKU ${esc(p.sku || '—')}</span>
+            <span class="pl-price">${esc(price)}</span>
+          </div>
+        </div>
+        <div class="pl-barcode">
+          ${barcodeImg
+    ? `<img src="${barcodeImg}" alt="barcode"/>`
+    : `<div class="pl-fallback">${esc(code)}</div>`}
+        </div>
       </div>`);
     }
   }
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${baseCss()}</style></head><body>${pages.join('')}</body></html>`;
+  return `<!DOCTYPE html><html lang="${lang || 'en'}" dir="${lang === 'ar' ? 'rtl' : 'ltr'}"><head><meta charset="utf-8"/><style>${baseCss()}</style></head><body>${pages.join('')}</body></html>`;
 }
 
 async function lotLabelsHtml(tenantId, { lotIds, lang }) {

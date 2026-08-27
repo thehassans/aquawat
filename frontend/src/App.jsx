@@ -125,7 +125,8 @@ const ProductPackagingPage = lazy(() => import('./pages/inventory/ExtraPages').t
 const ReturnsPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ReturnsPage })))
 const ReferencesPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ReferencesPage })))
 const DeliveryMethodsPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.DeliveryMethodsPage })))
-const AttributesPage = lazy(() => import('./pages/inventory/VariantPages').then((m) => ({ default: m.AttributesPage })))
+const AttributesPage = lazy(() => import('./pages/inventory/attributes/AttributesList'))
+const AttributeForm = lazy(() => import('./pages/inventory/attributes/AttributeForm'))
 const VariantsPage = lazy(() => import('./pages/inventory/VariantPages').then((m) => ({ default: m.VariantsPage })))
 const BatchTransfersPage = lazy(() => import('./pages/inventory/BatchPages').then((m) => ({ default: m.BatchTransfersPage })))
 const BatchTransferDetailPage = lazy(() => import('./pages/inventory/BatchPages').then((m) => ({ default: m.BatchTransferDetailPage })))
@@ -907,6 +908,8 @@ function App() {
           <Route path="product-categories/new" element={<ProductCategoryForm />} />
           <Route path="product-categories/:id/edit" element={<ProductCategoryForm />} />
           <Route path="attributes" element={<AttributesPage />} />
+          <Route path="attributes/new" element={<AttributeForm />} />
+          <Route path="attributes/:id" element={<AttributeForm />} />
           <Route path="uom" element={<InventoryUomPage />} />
           <Route path="delivery-methods" element={<DeliveryMethodsPage />} />
           <Route path="shipping-connectors" element={<Navigate to="/app/dashboard/inventory/delivery-methods" replace />} />

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useForm } from 'react-hook-form'
@@ -23,6 +23,7 @@ import ProductRelationsEditor from '../../components/inventory/ProductRelationsE
 import AttributeExclusionsEditor from '../../components/inventory/AttributeExclusionsEditor'
 import TemplatePriceExtrasEditor from '../../components/inventory/TemplatePriceExtrasEditor'
 import ProductVariantsGrid from '../../components/inventory/ProductVariantsGrid'
+import ProductActionsMenu from '../../components/inventory/ProductActionsMenu'
 import { formatInvError } from '../../lib/invError'
 
 function AttributeValuesMulti({ attributeId, valueIds, onChange, language }) {
@@ -58,6 +59,7 @@ function AttributeValuesMulti({ attributeId, valueIds, onChange, language }) {
 export default function ProductForm() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
   const { tenant } = useSelector((state) => state.auth)
@@ -274,6 +276,50 @@ export default function ProductForm() {
       )
     }
   }, [isEdit, rawProductData, reset])
+
+  // Prefill create form from Duplicate action
+  useEffect(() => {
+    if (isEdit) return
+    const draft = location.state?.duplicateFrom
+    if (!draft) return
+    const normalized = {
+      ...draft,
+      nameEn: draft.nameEn || draft.name || '',
+      nameAr: draft.nameAr || '',
+      descriptionEn: draft.descriptionEn || draft.description || '',
+      descriptionAr: draft.descriptionAr || '',
+      costPrice: draft.costPrice ?? draft.cost ?? 0,
+      sellingPrice: draft.sellingPrice ?? draft.price ?? 0,
+      taxRate: draft.taxRate ?? defaultTaxRate,
+      unitOfMeasure: draft.unitOfMeasure || getDefaultUom(tenant),
+      productType: normalizeProductType(draft.productType),
+      sku: draft.sku || '',
+      barcode: '',
+    }
+    setProduct(normalized)
+    reset(normalized)
+    setIsManufactured(Boolean(normalized?.isManufactured))
+    setBomComponents(
+      (Array.isArray(normalized?.bomComponents) ? normalized.bomComponents : []).map((c) => ({
+        productId: String(c?.productId?._id || c?.productId || ''),
+        variantId: String(c?.variantId?._id || c?.variantId || '') || '',
+        quantity: c?.quantity ?? 0,
+        notes: c?.notes || '',
+      })),
+    )
+    setAttributeLines(
+      (Array.isArray(normalized?.attributeLines) ? normalized.attributeLines : []).map((l) => ({
+        attributeId: String(l.attributeId?._id || l.attributeId || ''),
+        valueIds: (l.valueIds || []).map((v) => String(v?._id || v)),
+        createVariantMode: l.createVariantMode || 'always',
+      })),
+    )
+    setTagInput((normalized?.tags || []).join(', '))
+    // Clear router state so refresh does not re-apply
+    navigate(location.pathname, { replace: true, state: {} })
+    toast.success(language === 'ar' ? 'تم تجهيز نسخة للتعديل' : 'Duplicate loaded — review and save')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, location.state?.duplicateFrom])
 
   const { data: productsList } = useQuery({
     queryKey: ['products-list-lookup'],
@@ -568,7 +614,7 @@ export default function ProductForm() {
         <button onClick={() => navigate(-1)} className="btn btn-ghost btn-icon"><ArrowLeft className="w-5 h-5" /></button>
         <div className="min-w-0 flex-1">
           <p className="text-xs text-slate-500">{language === 'ar' ? 'المنتجات' : 'Products'}{isEdit ? ` / ${product?.nameEn || product?.sku || ''}` : ''}</p>
-          <h1 className="flex flex-wrap items-baseline gap-3 text-2xl font-bold text-gray-900 dark:text-white">
+          <h1 className="flex flex-wrap items-baseline gap-3 text-2xl font-bold text-slate-900 dark:text-white">
             <span>
               {isEdit ? (language === 'ar' ? 'تعديل منتج' : 'Edit Product') : (language === 'ar' ? 'إضافة منتج' : 'Add Product')}
             </span>
@@ -582,6 +628,9 @@ export default function ProductForm() {
             )}
           </h1>
         </div>
+        {isEdit && product?._id ? (
+          <ProductActionsMenu product={product} language={language} />
+        ) : null}
       </div>
 
       {isEdit && engineOn && smartButtons && (
