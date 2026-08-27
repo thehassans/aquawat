@@ -14,7 +14,7 @@ const khayyatDeliverySchema = new mongoose.Schema({
 
   deliveryNumber: { type: String, required: true },
 
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', required: true },
   customerName: { type: String, required: true },
   customerPhone: { type: String, default: '' },
   customerAddress: { type: String },

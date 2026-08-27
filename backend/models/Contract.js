@@ -40,7 +40,7 @@ const contractSchema = new mongoose.Schema({
   description: { type: String },
 
   // Parties
-  customer: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+  customer: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner' },
   customerName: { type: String },
   project: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
 

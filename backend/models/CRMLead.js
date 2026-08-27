@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const crmLeadSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', default: null },
   name: { type: String, required: true, trim: true },
   email: { type: String, trim: true, default: '' },
   phone: { type: String, trim: true, default: '' },

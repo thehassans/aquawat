@@ -14,7 +14,7 @@ const deliveryNoteSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
   dnNumber: { type: String, required: true },
   
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', index: true },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', index: true },
   customerName: { type: String },
   purchaseOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'PurchaseOrder', index: true },
   quotationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Quotation', index: true },

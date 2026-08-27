@@ -5,7 +5,7 @@ const estimateSchema = new mongoose.Schema({
   estimateNumber: { type: String, required: true, unique: true },
 
   jobCardId: { type: mongoose.Schema.Types.ObjectId, ref: 'WorkshopJobCard', required: true },
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', required: true },
   vehicleId: { type: mongoose.Schema.Types.ObjectId, ref: 'WorkshopVehicle', required: true },
 
   // Line Items

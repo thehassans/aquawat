@@ -8,7 +8,7 @@ const timesheetEntrySchema = new mongoose.Schema({
   assignmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'ManpowerAssignment' },
   projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
   projectName: { type: String },
-  clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+  clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner' },
   clientName: { type: String },
 
   date: { type: Date, required: true },

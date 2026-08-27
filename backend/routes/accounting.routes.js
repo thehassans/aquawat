@@ -334,10 +334,10 @@ router.get('/reports/general-ledger/:accountId', checkPermission('finance', 'rea
 
 router.get('/parties/customers', checkPermission('finance', 'read'), async (req, res) => {
   try {
-    const filter = { tenantId: tenantIdOf(req) };
+    const filter = { tenantId: tenantIdOf(req), isCustomer: true };
     if (req.query.q) {
       const q = String(req.query.q).trim();
-      filter.$or = [{ name: new RegExp(q, 'i') }, { nameAr: new RegExp(q, 'i') }, { phone: new RegExp(q, 'i') }, { mobile: new RegExp(q, 'i') }];
+      filter.$or = [{ name: new RegExp(q, 'i') }, { nameAr: new RegExp(q, 'i') }, { nameEn: new RegExp(q, 'i') }, { phone: new RegExp(q, 'i') }, { mobile: new RegExp(q, 'i') }];
     }
     const rows = await Customer.find(filter)
       .select('name nameAr phone mobile')
@@ -352,17 +352,27 @@ router.get('/parties/customers', checkPermission('finance', 'read'), async (req,
 
 router.get('/parties/suppliers', checkPermission('finance', 'read'), async (req, res) => {
   try {
-    const filter = { tenantId: tenantIdOf(req) };
+    const filter = { tenantId: tenantIdOf(req), isVendor: true };
     if (req.query.q) {
       const q = String(req.query.q).trim();
-      filter.$or = [{ nameEn: new RegExp(q, 'i') }, { nameAr: new RegExp(q, 'i') }, { code: new RegExp(q, 'i') }, { phone: new RegExp(q, 'i') }];
+      filter.$or = [
+        { nameEn: new RegExp(q, 'i') },
+        { name: new RegExp(q, 'i') },
+        { nameAr: new RegExp(q, 'i') },
+        { supplierCode: new RegExp(q, 'i') },
+        { phone: new RegExp(q, 'i') },
+      ];
     }
     const rows = await Supplier.find(filter)
-      .select('nameEn nameAr code phone')
+      .select('name nameEn nameAr supplierCode phone')
       .sort({ nameEn: 1 })
       .limit(500)
       .lean();
-    res.json(rows);
+    res.json(rows.map((r) => ({
+      ...r,
+      nameEn: r.nameEn || r.name,
+      code: r.supplierCode || r.code,
+    })));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

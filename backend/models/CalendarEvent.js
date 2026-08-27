@@ -87,7 +87,7 @@ const calendarEventSchema = new mongoose.Schema(
     },
     relatedCustomer: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Customer',
+      ref: 'Partner',
     },
     notes: {
       type: String,

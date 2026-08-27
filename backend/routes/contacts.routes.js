@@ -1,11 +1,9 @@
 import express from 'express';
-import Customer from '../models/Customer.js';
-import Supplier from '../models/Supplier.js';
+import Partner from '../models/Partner.js';
 import Employee from '../models/Employee.js';
 import { WhatsAppContact } from '../models/WhatsApp.js';
 import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import { cacheAside } from '../lib/redis.js';
-import { backfillDualRoleMirrors } from '../services/partnerDualRole.js';
 
 const router = express.Router();
 
@@ -32,6 +30,51 @@ const getAccess = (user) => {
     customers: isAdmin || user?.hasPermission?.('invoicing', 'read'),
     suppliers: isAdmin || user?.hasPermission?.('supply_chain', 'read'),
     employees: isAdmin || user?.hasPermission?.('hr', 'read')
+  };
+};
+
+const partnerSearchOr = (q) => [
+  { name: { $regex: q, $options: 'i' } },
+  { nameAr: { $regex: q, $options: 'i' } },
+  { nameEn: { $regex: q, $options: 'i' } },
+  { email: { $regex: q, $options: 'i' } },
+  { phone: { $regex: q, $options: 'i' } },
+  { mobile: { $regex: q, $options: 'i' } },
+  { vatNumber: { $regex: q, $options: 'i' } },
+  { customerCode: { $regex: q, $options: 'i' } },
+  { supplierCode: { $regex: q, $options: 'i' } }
+];
+
+const mapPartner = (doc, { wantCustomers, wantSuppliers }) => {
+  const isCustomer = Boolean(doc.isCustomer);
+  const isVendor = Boolean(doc.isVendor);
+
+  let entityType;
+  if (wantCustomers && !wantSuppliers) {
+    entityType = 'customer';
+  } else if (wantSuppliers && !wantCustomers) {
+    entityType = 'supplier';
+  } else {
+    // Hub: both types requested — one row; dual-role keeps both badges
+    entityType = isCustomer ? 'customer' : 'supplier';
+  }
+
+  return {
+    entityType,
+    entityId: String(doc._id),
+    displayName: doc.name || doc.nameEn,
+    displayNameAr: doc.nameAr,
+    email: doc.email,
+    phone: doc.phone || doc.mobile,
+    vatNumber: doc.vatNumber,
+    code: doc.supplierCode || doc.customerCode || null,
+    isCustomer,
+    isVendor,
+    linkedSupplierId: null,
+    linkedCustomerId: null,
+    isActive: doc.isActive !== false,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt
   };
 };
 
@@ -65,37 +108,27 @@ router.get('/', async (req, res) => {
     const activeMatch = getIsActiveMatch(isActive);
     const q = (search || '').trim();
 
-    const customerMatch = {
+    const partnerMatch = {
       ...req.tenantFilter,
       ...activeMatch
     };
 
-    if (q) {
-      customerMatch.$or = [
-        { name: { $regex: q, $options: 'i' } },
-        { nameAr: { $regex: q, $options: 'i' } },
-        { email: { $regex: q, $options: 'i' } },
-        { phone: { $regex: q, $options: 'i' } },
-        { mobile: { $regex: q, $options: 'i' } },
-        { vatNumber: { $regex: q, $options: 'i' } }
-      ];
+    if (wantCustomers && wantSuppliers) {
+      partnerMatch.$or = [{ isCustomer: true }, { isVendor: true }];
+    } else if (wantCustomers) {
+      partnerMatch.isCustomer = true;
+    } else if (wantSuppliers) {
+      partnerMatch.isVendor = true;
     }
 
-    const supplierMatch = {
-      ...req.tenantFilter,
-      ...activeMatch
-    };
-
-    if (q) {
-      supplierMatch.$or = [
-        { code: { $regex: q, $options: 'i' } },
-        { nameEn: { $regex: q, $options: 'i' } },
-        { nameAr: { $regex: q, $options: 'i' } },
-        { vatNumber: { $regex: q, $options: 'i' } },
-        { phone: { $regex: q, $options: 'i' } },
-        { email: { $regex: q, $options: 'i' } },
-        { contactPerson: { $regex: q, $options: 'i' } }
-      ];
+    if (q && (wantCustomers || wantSuppliers)) {
+      const searchOr = partnerSearchOr(q);
+      if (partnerMatch.$or) {
+        partnerMatch.$and = [{ $or: partnerMatch.$or }, { $or: searchOr }];
+        delete partnerMatch.$or;
+      } else {
+        partnerMatch.$or = searchOr;
+      }
     }
 
     const employeeMatch = {
@@ -117,40 +150,6 @@ router.get('/', async (req, res) => {
 
     const sortDirection = (String(sortDir || 'asc').toLowerCase() === 'desc') ? -1 : 1;
 
-    const mapCustomer = (doc) => ({
-      entityType: 'customer',
-      entityId: String(doc._id),
-      displayName: doc.name,
-      displayNameAr: doc.nameAr,
-      email: doc.email,
-      phone: doc.phone || doc.mobile,
-      vatNumber: doc.vatNumber,
-      code: null,
-      isCustomer: doc.isCustomer !== false,
-      isVendor: Boolean(doc.isVendor),
-      linkedSupplierId: doc.linkedSupplierId ? String(doc.linkedSupplierId) : null,
-      isActive: doc.isActive !== false,
-      createdAt: doc.createdAt,
-      updatedAt: doc.updatedAt
-    });
-
-    const mapSupplier = (doc) => ({
-      entityType: 'supplier',
-      entityId: String(doc._id),
-      displayName: doc.nameEn,
-      displayNameAr: doc.nameAr,
-      email: doc.email,
-      phone: doc.phone,
-      vatNumber: doc.vatNumber,
-      code: doc.code,
-      isCustomer: Boolean(doc.isCustomer),
-      isVendor: doc.isVendor !== false,
-      linkedCustomerId: doc.linkedCustomerId ? String(doc.linkedCustomerId) : null,
-      isActive: doc.isActive !== false,
-      createdAt: doc.createdAt,
-      updatedAt: doc.updatedAt
-    });
-
     const mapEmployee = (doc) => ({
       entityType: 'employee',
       entityId: String(doc._id),
@@ -170,30 +169,31 @@ router.get('/', async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
     const fetchCap = Math.min(500, skip + limitNum + 100);
 
-    const cacheKey = `contacts:v3:${req.user.tenantId}:${pageNum}:${limitNum}:${q}:${types || ''}:${isActive || ''}:${sortBy || ''}:${sortDir || ''}`;
+    const cacheKey = `contacts:v4:${req.user.tenantId}:${pageNum}:${limitNum}:${q}:${types || ''}:${isActive || ''}:${sortBy || ''}:${sortDir || ''}`;
 
     const payload = await cacheAside(cacheKey, 45, async () => {
-    const [customerDocs, supplierDocs, employeeDocs, customerTotal, supplierTotal, employeeTotal] = await Promise.all([
-      wantCustomers
-        ? Customer.find(customerMatch).select('name nameAr email phone mobile vatNumber isActive isCustomer isVendor linkedSupplierId createdAt updatedAt').sort({ name: 1 }).limit(fetchCap).lean()
-        : [],
-      wantSuppliers
-        ? Supplier.find(supplierMatch).select('code nameEn nameAr email phone vatNumber isActive isCustomer isVendor linkedCustomerId createdAt updatedAt').sort({ nameEn: 1 }).limit(fetchCap).lean()
+    const wantPartners = wantCustomers || wantSuppliers;
+
+    const [partnerDocs, employeeDocs, partnerTotal, employeeTotal] = await Promise.all([
+      wantPartners
+        ? Partner.find(partnerMatch)
+          .select('name nameEn nameAr email phone mobile vatNumber customerCode supplierCode isActive isCustomer isVendor createdAt updatedAt')
+          .sort({ name: 1 })
+          .limit(fetchCap)
+          .lean()
         : [],
       wantEmployees
         ? Employee.find(employeeMatch).select('employeeId firstNameEn lastNameEn firstNameAr lastNameAr email phone alternatePhone isActive createdAt updatedAt').sort({ firstNameEn: 1 }).limit(fetchCap).lean()
         : [],
-      wantCustomers ? Customer.countDocuments(customerMatch) : 0,
-      wantSuppliers ? Supplier.countDocuments(supplierMatch) : 0,
+      wantPartners ? Partner.countDocuments(partnerMatch) : 0,
       wantEmployees ? Employee.countDocuments(employeeMatch) : 0,
     ]);
 
     let contacts = [
-      ...customerDocs.map(mapCustomer),
-      ...supplierDocs.map(mapSupplier),
+      ...partnerDocs.map((doc) => mapPartner(doc, { wantCustomers, wantSuppliers })),
       ...employeeDocs.map(mapEmployee)
     ];
-    let total = (customerTotal || 0) + (supplierTotal || 0) + (employeeTotal || 0);
+    let total = (partnerTotal || 0) + (employeeTotal || 0);
 
     if (wantWhatsApp) {
       const waQuery = { ...req.tenantFilter };
@@ -268,20 +268,31 @@ router.get('/stats', async (req, res) => {
     }
 
     const activeMatch = getIsActiveMatch(isActive);
+    const base = { ...req.tenantFilter, ...activeMatch };
 
-    const [customers, suppliers, employees, waContacts, waGroups] = await Promise.all([
-      access.customers ? Customer.countDocuments({ ...req.tenantFilter, ...activeMatch }) : 0,
-      access.suppliers ? Supplier.countDocuments({ ...req.tenantFilter, ...activeMatch }) : 0,
+    const [customers, suppliers, partners, employees, waContacts, waGroups] = await Promise.all([
+      access.customers ? Partner.countDocuments({ ...base, isCustomer: true }) : 0,
+      access.suppliers ? Partner.countDocuments({ ...base, isVendor: true }) : 0,
+      (access.customers || access.suppliers)
+        ? Partner.countDocuments({
+            ...base,
+            $or: [
+              ...(access.customers ? [{ isCustomer: true }] : []),
+              ...(access.suppliers ? [{ isVendor: true }] : []),
+            ],
+          })
+        : 0,
       access.employees ? Employee.countDocuments({ ...req.tenantFilter, ...activeMatch }) : 0,
       WhatsAppContact.countDocuments({ ...req.tenantFilter, isGroup: false }),
       WhatsAppContact.countDocuments({ ...req.tenantFilter, isGroup: true })
     ]);
 
     res.json({
-      total: customers + suppliers + employees + waContacts + waGroups,
+      total: partners + employees + waContacts + waGroups,
       byType: {
         customers,
         suppliers,
+        partners,
         employees,
         whatsapp: waContacts,
         whatsappGroups: waGroups
@@ -292,7 +303,7 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-/** Admin: create missing Customer↔Supplier mirrors for existing dual-role flags. */
+/** No-op: partners are already merged on a single collection. */
 router.post('/backfill-dual-role', async (req, res) => {
   try {
     const access = getAccess(req.user);
@@ -303,8 +314,7 @@ router.post('/backfill-dual-role', async (req, res) => {
     if (!tenantId) {
       return res.status(400).json({ error: 'tenantId required' });
     }
-    const result = await backfillDualRoleMirrors(tenantId);
-    res.json(result);
+    res.json({ alreadyMerged: true, customersSynced: 0, suppliersSynced: 0 });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

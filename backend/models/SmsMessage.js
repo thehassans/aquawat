@@ -18,7 +18,7 @@ const smsMessageSchema = new mongoose.Schema({
   },
   relatedInvoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', index: true },
   relatedQuotationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Quotation', index: true },
-  relatedCustomerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', index: true },
+  relatedCustomerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', index: true },
   provider: { type: String, default: '' },
   providerMessageId: { type: String, default: '' },
   error: { type: String, default: '' },

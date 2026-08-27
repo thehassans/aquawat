@@ -107,10 +107,12 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
     if (search) {
       const matchingSuppliers = await Supplier.find({
         ...req.tenantFilter,
+        isVendor: true,
         $or: [
           { nameEn: { $regex: search, $options: 'i' } },
+          { name: { $regex: search, $options: 'i' } },
           { nameAr: { $regex: search, $options: 'i' } },
-          { code: { $regex: search, $options: 'i' } },
+          { supplierCode: { $regex: search, $options: 'i' } },
         ],
       }).select('_id');
       query.$or = [
@@ -120,7 +122,7 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
     }
 
     const purchaseOrders = await PurchaseOrder.find(query)
-      .populate('supplierId', 'code nameEn nameAr')
+      .populate('supplierId', 'supplierCode name nameEn nameAr')
       .populate('warehouseId', 'code nameEn nameAr')
       .sort({ orderDate: -1, createdAt: -1 })
       .skip((page - 1) * limit)
@@ -211,7 +213,7 @@ router.get('/reports', checkPermission('supply_chain', 'read'), async (req, res)
 
     const [pos, summaryAgg, monthlyAgg, statusAgg] = await Promise.all([
       PurchaseOrder.find(matchQuery)
-        .populate('supplierId', 'code nameEn nameAr phone email')
+        .populate('supplierId', 'supplierCode name nameEn nameAr phone email')
         .populate('warehouseId', 'code nameEn nameAr')
         .sort({ orderDate: -1 })
         .lean(),
@@ -355,7 +357,7 @@ router.get('/reports', checkPermission('supply_chain', 'read'), async (req, res)
 router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
     const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter })
-      .populate('supplierId', 'code nameEn nameAr phone email vatNumber crNumber address contactPerson')
+      .populate('supplierId', 'supplierCode name nameEn nameAr phone email vatNumber crNumber address contactPerson')
       .populate('warehouseId', 'code nameEn nameAr')
       .populate('lineItems.productId', 'sku nameEn nameAr barcode unitOfMeasure productType')
       .populate('receiving.warehouseId', 'code nameEn nameAr')

@@ -39,8 +39,8 @@ const purchaseOrderSchema = new mongoose.Schema({
 
   poNumber: { type: String, required: true },
   flow: { type: String, enum: ['sell', 'purchase'], default: 'purchase', index: true },
-  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', index: true },
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', index: true },
+  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', index: true },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', index: true },
 
   warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', index: true },
 

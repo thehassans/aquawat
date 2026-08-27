@@ -12,7 +12,7 @@ router.use(requireTenantFilter);
 router.get('/', async (req, res) => {
   try {
     const fabrics = await KhayyatFabric.find({ tenantId: req.user.tenantId })
-      .populate('supplierId', 'nameEn nameAr code')
+      .populate('supplierId', 'name nameEn nameAr supplierCode')
       .sort({ createdAt: -1 });
     res.json({ fabrics });
   } catch (error) {

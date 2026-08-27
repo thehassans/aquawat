@@ -33,7 +33,7 @@ const khayyatFabricSchema = new mongoose.Schema({
   },
   supplierId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Supplier',
+    ref: 'Partner',
     default: null
   },
   createdAt: {

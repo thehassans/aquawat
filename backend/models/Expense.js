@@ -21,9 +21,9 @@ const expenseSchema = new mongoose.Schema({
   description: { type: String },
   descriptionAr: { type: String },
 
-  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
+  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner' },
   employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner' },
   /** Optional inventory product (canBeExpensed) — drives expense GL account */
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', default: null },
   payeeName: { type: String },

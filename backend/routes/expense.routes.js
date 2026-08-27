@@ -112,7 +112,7 @@ router.get('/', checkPermission('finance', 'read'), async (req, res) => {
     const [expenses, total] = await Promise.all([
       Expense.find(query)
         .populate('projectId', 'code nameEn nameAr')
-        .populate('supplierId', 'code nameEn nameAr phone email')
+        .populate('supplierId', 'supplierCode name nameEn nameAr phone email')
         .populate('employeeId', 'employeeId firstNameEn lastNameEn firstNameAr lastNameAr')
         .populate('customerId', 'name nameAr email phone')
         .sort({ expenseDate: -1, createdAt: -1 })
@@ -228,7 +228,7 @@ router.get('/:id', checkPermission('finance', 'read'), async (req, res) => {
   try {
     const expense = await Expense.findOne({ _id: req.params.id, ...req.tenantFilter })
       .populate('projectId', 'code nameEn nameAr')
-      .populate('supplierId', 'code nameEn nameAr phone email')
+      .populate('supplierId', 'supplierCode name nameEn nameAr phone email')
       .populate('employeeId', 'employeeId firstNameEn lastNameEn firstNameAr lastNameAr')
       .populate('customerId', 'name nameAr email phone');
 

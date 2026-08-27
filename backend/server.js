@@ -11,6 +11,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+// Ensure Partner (+ Customer/Supplier populate aliases) register before route models load
+import './models/Partner.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 

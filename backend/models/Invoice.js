@@ -202,7 +202,7 @@ const invoiceSchema = new mongoose.Schema({
   flow: { type: String, enum: ['sell', 'purchase'], default: 'sell', index: true },
   businessContext: { type: String, enum: ['trading', 'construction', 'travel_agency', 'restaurant', 'manpower', 'bakala', 'boutique', 'bookstore', 'furniture'], default: 'trading', index: true },
   warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', index: true, set: cleanObjectId },
-  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', index: true, set: cleanObjectId },
+  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', index: true, set: cleanObjectId },
   
   // Invoice Identification
   invoiceNumber: { type: String, required: true },
@@ -229,7 +229,7 @@ const invoiceSchema = new mongoose.Schema({
   seller: partySchema,
   buyer: partySchema,
 
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', index: true, set: cleanObjectId },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', index: true, set: cleanObjectId },
   
   // Line Items
   lineItems: [invoiceLineSchema],

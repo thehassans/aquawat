@@ -40,7 +40,7 @@ const crmContactSchema = new mongoose.Schema({
   },
   customerId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Customer'
+    ref: 'Partner'
   },
   assignedTo: {
     type: mongoose.Schema.Types.ObjectId,

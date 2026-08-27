@@ -25,7 +25,7 @@ const workshopInventorySchema = new mongoose.Schema({
   sellingPrice: { type: Number, default: 0 },
   markupPercent: { type: Number, default: 20 },
 
-  primarySupplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
+  primarySupplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner' },
   supplierPartNumber: { type: String },
   leadTimeDays: { type: Number, default: 1 },
 

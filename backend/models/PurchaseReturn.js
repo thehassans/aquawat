@@ -15,7 +15,7 @@ const purchaseReturnLineSchema = new mongoose.Schema({
 
 const purchaseReturnSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
-  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', required: true },
+  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', required: true },
   warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', index: true },
   purchaseOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'PurchaseOrder', index: true },
   grnId: { type: mongoose.Schema.Types.ObjectId, ref: 'GRN', index: true },

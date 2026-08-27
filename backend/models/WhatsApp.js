@@ -69,7 +69,7 @@ const whatsappContactSchema = new mongoose.Schema({
   avatarUrl: { type: String },
   
   // Link to existing records
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner' },
   employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
   
   labels: [{ type: String }],

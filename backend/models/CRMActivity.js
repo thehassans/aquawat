@@ -12,7 +12,7 @@ const crmActivitySchema = new mongoose.Schema({
   // Polymorphic linkage
   leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'CRMLead', default: null },
   dealId: { type: mongoose.Schema.Types.ObjectId, ref: 'CRMDeal', default: null },
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', default: null },
   dueDate: { type: Date, default: null },
   completedAt: { type: Date, default: null },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

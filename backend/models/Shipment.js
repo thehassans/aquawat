@@ -32,7 +32,7 @@ const shipmentSchema = new mongoose.Schema({
   type: { type: String, enum: ['inbound', 'outbound'], default: 'inbound' },
   status: { type: String, enum: ['draft', 'in_transit', 'delivered', 'cancelled'], default: 'draft' },
 
-  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
+  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner' },
   purchaseOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'PurchaseOrder' },
   deliveryNoteIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'DeliveryNote' }],
   warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' },

@@ -36,7 +36,7 @@ const manpowerWorkerSchema = new mongoose.Schema({
   },
   
   currentAssignment: { type: mongoose.Schema.Types.ObjectId, ref: 'ManpowerAssignment' },
-  clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' }, // If assigned to a client
+  clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner' }, // If assigned to a client
   
   notes: { type: String },
   isActive: { type: Boolean, default: true },

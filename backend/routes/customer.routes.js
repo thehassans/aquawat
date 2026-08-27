@@ -3,7 +3,12 @@ import mongoose from 'mongoose';
 import Customer from '../models/Customer.js';
 import { protect, tenantFilter, checkPermission, authorize, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
-import { syncCustomerVendorMirror } from '../services/partnerDualRole.js';
+import {
+  asCustomerQuery,
+  fromCustomerBody,
+  toCustomerDto,
+  nextCustomerCode,
+} from '../services/partnerService.js';
 
 const router = express.Router();
 
@@ -277,7 +282,7 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
     const { search, type, isActive, page = 1, limit = 20 } = req.query;
     
-    const query = { ...req.tenantFilter };
+    const query = asCustomerQuery({ ...req.tenantFilter });
     
     if (search) {
       const cleanSearch = String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -285,6 +290,7 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
         { customerCode: { $regex: cleanSearch, $options: 'i' } },
         { name: { $regex: cleanSearch, $options: 'i' } },
         { nameAr: { $regex: cleanSearch, $options: 'i' } },
+        { nameEn: { $regex: cleanSearch, $options: 'i' } },
         { email: { $regex: cleanSearch, $options: 'i' } },
         { phone: { $regex: cleanSearch, $options: 'i' } },
         { mobile: { $regex: cleanSearch, $options: 'i' } },
@@ -331,16 +337,17 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
     });
     
     const customers = customersData.map(c => {
+      const base = toCustomerDto(c);
       const s = statsMap[c._id.toString()];
       if (s) {
         return {
-          ...c,
+          ...base,
           totalThawb: s.totalThawb,
           khayyatPaidAmount: s.totalPaid,
           khayyatPendingAmount: Math.max(0, s.totalPrice - s.totalPaid)
         };
       }
-      return c;
+      return base;
     });
     
     res.json({
@@ -368,22 +375,24 @@ router.get('/search', checkPermission('invoicing', 'read'), async (req, res) => 
     }
     
     const cleanQ = String(q).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const customers = await Customer.find({
+    const customers = await Customer.find(asCustomerQuery({
       ...req.tenantFilter,
       isActive: true,
       $or: [
         { customerCode: { $regex: cleanQ, $options: 'i' } },
         { name: { $regex: cleanQ, $options: 'i' } },
         { nameAr: { $regex: cleanQ, $options: 'i' } },
+        { nameEn: { $regex: cleanQ, $options: 'i' } },
         { vatNumber: { $regex: cleanQ, $options: 'i' } },
         { phone: { $regex: cleanQ, $options: 'i' } },
         { mobile: { $regex: cleanQ, $options: 'i' } }
       ]
-    })
-      .select('customerCode name nameAr email phone vatNumber taxNumber type address')
-      .limit(10);
+    }))
+      .select('customerCode name nameAr nameEn email phone vatNumber taxNumber type address isCustomer isVendor')
+      .limit(10)
+      .lean();
     
-    res.json(customers);
+    res.json(customers.map(toCustomerDto));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -393,7 +402,7 @@ router.get('/search', checkPermission('invoicing', 'read'), async (req, res) => 
 // @desc    Get customer statistics
 router.get('/stats', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const match = {};
+    const match = asCustomerQuery({});
     if (req.user?.role !== 'super_admin' && req.user?.tenantId) {
       match.tenantId = new mongoose.Types.ObjectId(String(req.user.tenantId));
     }
@@ -434,16 +443,16 @@ router.get('/stats', checkPermission('invoicing', 'read'), async (req, res) => {
 // @desc    Get single customer
 router.get('/:id', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const customer = await Customer.findOne({
+    const customer = await Customer.findOne(asCustomerQuery({
       _id: req.params.id,
       ...req.tenantFilter
-    });
+    }));
     
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
     
-    res.json(customer);
+    res.json(toCustomerDto(customer));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -458,17 +467,18 @@ router.post('/', checkTrialLimits('customers'), checkPermission('invoicing', 'cr
       return res.status(400).json({ error: 'No tenant associated with user' });
     }
 
-    const customerData = {
+    const customerData = fromCustomerBody({
       ...req.body,
-      tenantId: req.user.tenantId
-    };
+      tenantId: req.user.tenantId,
+      isCustomer: true,
+    });
     
     // Check for duplicate VAT number if provided
     if (customerData.vatNumber) {
-      const existing = await Customer.findOne({
+      const existing = await Customer.findOne(asCustomerQuery({
         tenantId: req.user.tenantId,
         vatNumber: customerData.vatNumber
-      });
+      }));
       
       if (existing) {
         return res.status(400).json({ error: 'Customer with this VAT number already exists' });
@@ -476,16 +486,18 @@ router.post('/', checkTrialLimits('customers'), checkPermission('invoicing', 'cr
     }
     
     if (!customerData.customerCode) {
-      // Auto-generate a 4 digit customer code
-      const count = await Customer.countDocuments({ tenantId: req.user.tenantId });
-      customerData.customerCode = (1000 + count).toString();
+      customerData.customerCode = await nextCustomerCode(req.user.tenantId);
+    }
+
+    if (customerData.isVendor && !customerData.supplierCode) {
+      const { nextSupplierCode } = await import('../services/partnerService.js');
+      customerData.supplierCode = await nextSupplierCode(req.user.tenantId);
     }
 
     const customer = new Customer(customerData);
     await customer.save();
-    await syncCustomerVendorMirror(customer);
     
-    res.status(201).json(customer);
+    res.status(201).json(toCustomerDto(customer));
   } catch (error) {
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(e => e.message);
@@ -499,39 +511,45 @@ router.post('/', checkTrialLimits('customers'), checkPermission('invoicing', 'cr
 // @desc    Update customer
 router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
   try {
-    const customer = await Customer.findOneAndUpdate(
-      { _id: req.params.id, ...req.tenantFilter },
-      req.body,
-      { new: true }
-    );
-    
-    if (!customer) {
+    const existingDoc = await Customer.findOne(asCustomerQuery({
+      _id: req.params.id,
+      ...req.tenantFilter,
+    }));
+
+    if (!existingDoc) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const tenantId = req.user?.role === 'super_admin' ? customer.tenantId : req.user?.tenantId
+    const tenantId = req.user?.role === 'super_admin' ? existingDoc.tenantId : req.user?.tenantId;
     if (!tenantId) {
       return res.status(400).json({ error: 'No tenant associated with user' });
     }
-    
-    // Check for duplicate VAT number if changed
-    if (req.body.vatNumber && req.body.vatNumber !== customer.vatNumber) {
-      const existing = await Customer.findOne({
+
+    const patch = fromCustomerBody(req.body);
+    delete patch.tenantId;
+
+    if (patch.vatNumber && patch.vatNumber !== existingDoc.vatNumber) {
+      const existing = await Customer.findOne(asCustomerQuery({
         tenantId,
-        vatNumber: req.body.vatNumber,
-        _id: { $ne: req.params.id }
-      });
-      
+        vatNumber: patch.vatNumber,
+        _id: { $ne: req.params.id },
+      }));
+
       if (existing) {
         return res.status(400).json({ error: 'Customer with this VAT number already exists' });
       }
     }
-    
-    Object.assign(customer, req.body);
-    await customer.save();
-    await syncCustomerVendorMirror(customer);
-    
-    res.json(customer);
+
+    if (patch.isVendor && !existingDoc.supplierCode && !patch.supplierCode) {
+      const { nextSupplierCode } = await import('../services/partnerService.js');
+      patch.supplierCode = await nextSupplierCode(tenantId);
+    }
+
+    Object.assign(existingDoc, patch);
+    existingDoc.isCustomer = true;
+    await existingDoc.save();
+
+    res.json(toCustomerDto(existingDoc));
   } catch (error) {
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(e => e.message);
@@ -545,10 +563,10 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
 // @desc    Delete customer (soft delete)
 router.delete('/:id', checkPermission('invoicing', 'delete'), async (req, res) => {
   try {
-    const customer = await Customer.findOne({
+    const customer = await Customer.findOne(asCustomerQuery({
       _id: req.params.id,
       ...req.tenantFilter
-    });
+    }));
     
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });

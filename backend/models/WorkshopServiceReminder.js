@@ -5,7 +5,7 @@ const serviceReminderSchema = new mongoose.Schema({
 
   vehicleId: { type: mongoose.Schema.Types.ObjectId, ref: 'WorkshopVehicle', required: true },
   vehicleDisplay: { type: String }, // "Toyota Camry 2018 - 1234 ABC"
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner' },
   customerName: { type: String },
   customerPhone: { type: String },
 

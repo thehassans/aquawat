@@ -194,7 +194,7 @@ async function loadExportRows(tenantId, model, filters = {}) {
         .populate('categoryId', 'name completePath propertyCostMethod propertyValuation')
         .populate('uomId', 'name')
         .populate('purchaseUomId', 'name')
-        .populate('suppliers.supplierId', 'name code')
+        .populate('suppliers.supplierId', 'name nameEn supplierCode')
         .limit(limit)
         .lean();
       const productIds = rows.map((p) => p._id);
@@ -525,7 +525,7 @@ async function loadExportRows(tenantId, model, filters = {}) {
     }
     case 'vendors_pricelist': {
       const products = await Product.find({ tenantId: tid })
-        .populate('suppliers.supplierId', 'name code')
+        .populate('suppliers.supplierId', 'name nameEn supplierCode')
         .select('sku nameEn suppliers currency')
         .limit(Math.min(limit, 5000))
         .lean();

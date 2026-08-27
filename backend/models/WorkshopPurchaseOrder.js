@@ -4,7 +4,7 @@ const workshopPOSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
   poNumber: { type: String, required: true, unique: true },
 
-  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', required: true },
+  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', required: true },
   jobCardId: { type: mongoose.Schema.Types.ObjectId, ref: 'WorkshopJobCard' },
 
   items: [{

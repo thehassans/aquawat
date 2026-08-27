@@ -1,4 +1,4 @@
-import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { useSelector } from 'react-redux'
@@ -219,22 +219,12 @@ export default function SupplierForm() {
                   </span>
                   <span className="block text-xs text-slate-500">
                     {language === 'ar'
-                      ? 'يُنشئ سجل عميل مرتبط تلقائياً لاستخدامه في المبيعات والتسليمات'
-                      : 'Auto-creates a linked customer record for sales and deliveries'}
+                      ? 'يظهر أيضاً في المبيعات والتسليمات بنفس السجل'
+                      : 'Same record also appears in sales and deliveries'}
                   </span>
                 </span>
               </label>
             </div>
-            {(supplierData?.linkedCustomerId || watch('linkedCustomerId')) ? (
-              <div className="md:col-span-2 lg:col-span-3">
-                <Link
-                  to={`/app/dashboard/customers/${supplierData?.linkedCustomerId?._id || supplierData?.linkedCustomerId || watch('linkedCustomerId')}`}
-                  className="text-xs font-semibold text-sky-700 hover:underline"
-                >
-                  {language === 'ar' ? 'فتح سجل العميل المرتبط →' : 'Open linked customer record →'}
-                </Link>
-              </div>
-            ) : null}
 
             {showArabicFields ? (
               <div className="md:col-span-2 lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4" dir="ltr">

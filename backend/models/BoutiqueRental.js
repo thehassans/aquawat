@@ -56,7 +56,7 @@ const boutiqueRentalSchema = new mongoose.Schema({
   rentalNumber: { type: String, required: true, index: true },
 
   // --- Customer ---
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner' },
   customerName: { type: String, required: true },
   customerNameAr: { type: String },
   customerPhone: { type: String, required: true },

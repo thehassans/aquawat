@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const crmDealSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
   leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'CRMLead', default: null },
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', default: null },
   title: { type: String, required: true, trim: true },
   description: { type: String, default: '' },
   stage: {

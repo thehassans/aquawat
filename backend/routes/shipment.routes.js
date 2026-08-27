@@ -144,7 +144,7 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
     }
 
     const shipments = await Shipment.find(query)
-      .populate('supplierId', 'code nameEn nameAr')
+      .populate('supplierId', 'supplierCode name nameEn nameAr')
       .populate('purchaseOrderId', 'poNumber')
       .populate('warehouseId', 'code nameEn nameAr')
       .sort({ shippedAt: -1, createdAt: -1 })
@@ -194,7 +194,7 @@ router.get('/stats', checkPermission('supply_chain', 'read'), async (req, res) =
 router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
     const shipment = await Shipment.findOne({ _id: req.params.id, ...req.tenantFilter, isActive: true })
-      .populate('supplierId', 'code nameEn nameAr phone email')
+      .populate('supplierId', 'supplierCode name nameEn nameAr phone email')
       .populate('purchaseOrderId', 'poNumber status')
       .populate('warehouseId', 'code nameEn nameAr')
       .populate('lineItems.productId', 'sku nameEn nameAr barcode');

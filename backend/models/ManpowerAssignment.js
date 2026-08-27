@@ -17,7 +17,7 @@ const manpowerAssignmentSchema = new mongoose.Schema({
   
   assignmentNumber: { type: String, required: true },
   
-  clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true },
+  clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', required: true },
   clientName: { type: String },
   projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
   

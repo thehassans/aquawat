@@ -12,7 +12,7 @@ const schema = new mongoose.Schema({
   qtyMultiple: { ...decimalField, default: '1' },
   trigger: { type: String, enum: ['auto', 'manual'], default: 'auto' },
   routeId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvRoute', default: null },
-  preferredVendorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', default: null },
+  preferredVendorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', default: null },
   leadDays: { type: Number, default: 0 },
   snoozedUntil: { type: Date, default: null },
   active: { type: Boolean, default: true },

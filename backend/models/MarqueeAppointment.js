@@ -57,7 +57,7 @@ const marqueeAppointmentSchema = new mongoose.Schema({
   },
   customerId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Customer',
+    ref: 'Partner',
   },
   clientName: {
     type: String,

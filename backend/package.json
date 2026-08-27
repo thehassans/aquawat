@@ -15,6 +15,8 @@
     "seed": "node seeders/seed.js",
     "seed:inventory-perf": "node scripts/seedInventoryPerf.js",
     "seed:inventory-audit": "node scripts/seedInventoryAuditTenant.js",
+    "migrate:partners": "node scripts/migratePartners.js",
+    "migrate:partners:dry": "node scripts/migratePartners.js --dry-run",
     "sample:inventory-pdfs": "node scripts/sampleInventoryPdfs.js",
     "bench:inventory-perf": "node scripts/benchInventoryPerf.js",
     "cleanup:ecommerce": "node scripts/removeEcommerceTenantData.mjs",

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { motion } from 'framer-motion'
 import { 
@@ -277,22 +277,12 @@ export default function CustomerForm() {
                 </span>
                 <span className="block text-xs text-slate-500">
                   {language === 'ar'
-                    ? 'يُنشئ سجل مورد مرتبط تلقائياً لاستخدامه في المشتريات والاستلام'
-                    : 'Auto-creates a linked supplier record for purchases and receipts'}
+                    ? 'يظهر أيضاً في المشتريات والاستلام بنفس السجل'
+                    : 'Same record also appears in purchases and receipts'}
                 </span>
               </span>
             </label>
           </div>
-          {(customer?.linkedSupplierId || watch('linkedSupplierId')) ? (
-            <p className="mt-3 text-xs text-amber-800">
-              <Link
-                to={`/app/dashboard/suppliers/${customer?.linkedSupplierId?._id || customer?.linkedSupplierId || watch('linkedSupplierId')}`}
-                className="font-semibold underline-offset-2 hover:underline"
-              >
-                {language === 'ar' ? 'فتح سجل المورد المرتبط →' : 'Open linked supplier record →'}
-              </Link>
-            </p>
-          ) : null}
         </motion.div>
 
         {/* Basic Information */}

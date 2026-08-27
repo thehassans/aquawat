@@ -173,7 +173,7 @@ const productSchema = new mongoose.Schema({
   
   // Supplier Info
   suppliers: [{
-    supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
+    supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner' },
     supplierSku: { type: String },
     cost: { type: Number },
     leadTimeDays: { type: Number },

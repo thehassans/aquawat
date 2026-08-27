@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const workshopVehicleSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true, index: true },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', required: true, index: true },
 
   // Saudi Registration (Istimara)
   plateNumber: { type: String, required: true, index: true },

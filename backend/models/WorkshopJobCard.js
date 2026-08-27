@@ -4,7 +4,7 @@ const jobCardSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
   jobCardNumber: { type: String, required: true, unique: true },
 
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', required: true },
   vehicleId: { type: mongoose.Schema.Types.ObjectId, ref: 'WorkshopVehicle', required: true },
 
   // Reception & Check-In

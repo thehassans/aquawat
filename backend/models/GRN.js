@@ -21,7 +21,7 @@ const grnLineSchema = new mongoose.Schema({
 const grnSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
   purchaseOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'PurchaseOrder', index: true },
-  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', required: true },
+  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', required: true },
   warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', index: true },
   grnNumber: { type: String, required: true },
   referenceNumber: { type: String },

@@ -6,7 +6,12 @@ import PurchaseReturn from '../models/PurchaseReturn.js';
 import GRN from '../models/GRN.js';
 import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
-import { syncSupplierCustomerMirror } from '../services/partnerDualRole.js';
+import {
+  asVendorQuery,
+  fromSupplierBody,
+  toSupplierDto,
+  nextSupplierCode,
+} from '../services/partnerService.js';
 
 const router = express.Router();
 
@@ -19,7 +24,7 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
     const { page = 1, limit = 50, search, isActive, isAddition } = req.query;
 
-    const query = { ...req.tenantFilter };
+    const query = asVendorQuery({ ...req.tenantFilter });
 
     if (isActive === 'false') {
       query.isActive = false;
@@ -38,7 +43,8 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
     if (search) {
       const cleanSearch = String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       query.$or = [
-        { code: { $regex: cleanSearch, $options: 'i' } },
+        { supplierCode: { $regex: cleanSearch, $options: 'i' } },
+        { name: { $regex: cleanSearch, $options: 'i' } },
         { nameEn: { $regex: cleanSearch, $options: 'i' } },
         { nameAr: { $regex: cleanSearch, $options: 'i' } },
         { vatNumber: { $regex: cleanSearch, $options: 'i' } },
@@ -48,7 +54,7 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
       ];
     }
 
-    const [suppliers, total] = await Promise.all([
+    const [supplierDocs, total] = await Promise.all([
       Supplier.find(query)
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
@@ -56,6 +62,8 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
         .lean(),
       Supplier.countDocuments(query),
     ]);
+
+    const suppliers = supplierDocs.map(toSupplierDto);
 
     res.json({
       suppliers,
@@ -75,7 +83,7 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
 router.get('/stats', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
     const stats = await Supplier.aggregate([
-      { $match: { ...req.tenantFilter } },
+      { $match: asVendorQuery({ ...req.tenantFilter }) },
       {
         $facet: {
           totals: [{ $group: { _id: null, total: { $sum: 1 }, active: { $sum: { $cond: ['$isActive', 1, 0] } }, additions: { $sum: { $cond: ['$isAddition', 1, 0] } } } }],
@@ -94,7 +102,7 @@ router.get('/stats', checkPermission('supply_chain', 'read'), async (req, res) =
 // @route   GET /api/suppliers/financials
 router.get('/financials', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
-    const suppliers = await Supplier.find({ ...req.tenantFilter, isActive: true }).lean();
+    const suppliers = await Supplier.find(asVendorQuery({ ...req.tenantFilter, isActive: true })).lean();
     const supplierIds = suppliers.map(s => s._id);
 
     const orders = await PurchaseOrder.find({
@@ -132,8 +140,8 @@ router.get('/performance', checkPermission('supply_chain', 'read'), async (req, 
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - parseInt(months));
 
-    const suppliers = await Supplier.find({ ...req.tenantFilter, isActive: true })
-      .select('code nameEn nameAr vatNumber phone email')
+    const suppliers = await Supplier.find(asVendorQuery({ ...req.tenantFilter, isActive: true }))
+      .select('supplierCode name nameEn nameAr vatNumber phone email')
       .lean();
 
     const supplierIds = suppliers.map(s => s._id);
@@ -195,8 +203,8 @@ router.get('/performance', checkPermission('supply_chain', 'read'), async (req, 
 
       return {
         _id: supplier._id,
-        code: supplier.code,
-        nameEn: supplier.nameEn,
+        code: supplier.supplierCode || supplier.code,
+        nameEn: supplier.nameEn || supplier.name,
         nameAr: supplier.nameAr,
         vatNumber: supplier.vatNumber,
         phone: supplier.phone,
@@ -250,7 +258,7 @@ router.get('/:id/dashboard', checkPermission('supply_chain', 'read'), async (req
       return res.status(404).json({ error: 'Supplier not found' });
     }
 
-    const supplier = await Supplier.findOne({ _id: req.params.id, ...req.tenantFilter }).lean();
+    const supplier = await Supplier.findOne(asVendorQuery({ _id: req.params.id, ...req.tenantFilter })).lean();
     if (!supplier) {
       return res.status(404).json({ error: 'Supplier not found' });
     }
@@ -335,7 +343,7 @@ router.get('/:id/dashboard', checkPermission('supply_chain', 'read'), async (req
     };
 
     res.json({
-      supplier,
+      supplier: toSupplierDto(supplier),
       orders: orders.slice(0, 50),
       returns: returns.slice(0, 50),
       grns: grns.slice(0, 50),
@@ -364,7 +372,7 @@ router.get('/:id/performance-detail', checkPermission('supply_chain', 'read'), a
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - parseInt(months));
 
-    const supplier = await Supplier.findOne({ _id: req.params.id, ...req.tenantFilter }).lean();
+    const supplier = await Supplier.findOne(asVendorQuery({ _id: req.params.id, ...req.tenantFilter })).lean();
     if (!supplier) {
       return res.status(404).json({ error: 'Supplier not found' });
     }
@@ -435,7 +443,7 @@ router.get('/:id/performance-detail', checkPermission('supply_chain', 'read'), a
     });
 
     res.json({
-      supplier,
+      supplier: toSupplierDto(supplier),
       orders: orders.slice(0, 20),
       returns: returns.slice(0, 20),
       monthlyTrend,
@@ -462,13 +470,13 @@ router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => 
       return res.status(404).json({ error: 'Supplier not found' });
     }
 
-    const supplier = await Supplier.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const supplier = await Supplier.findOne(asVendorQuery({ _id: req.params.id, ...req.tenantFilter }));
 
     if (!supplier) {
       return res.status(404).json({ error: 'Supplier not found' });
     }
 
-    res.json(supplier);
+    res.json(toSupplierDto(supplier));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -477,15 +485,23 @@ router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => 
 // @route   POST /api/suppliers
 router.post('/', checkTrialLimits('suppliers'), checkPermission('supply_chain', 'create'), async (req, res) => {
   try {
-    const data = {
+    const data = fromSupplierBody({
       ...req.body,
       tenantId: req.user.tenantId,
-      createdBy: req.user._id
-    };
+      createdBy: req.user._id,
+      isVendor: true,
+    });
+
+    if (!data.supplierCode) {
+      data.supplierCode = await nextSupplierCode(req.user.tenantId);
+    }
+    if (data.isCustomer && !data.customerCode) {
+      const { nextCustomerCode } = await import('../services/partnerService.js');
+      data.customerCode = await nextCustomerCode(req.user.tenantId);
+    }
 
     const supplier = await Supplier.create(data);
-    await syncSupplierCustomerMirror(supplier);
-    res.status(201).json(supplier);
+    res.status(201).json(toSupplierDto(supplier));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -498,18 +514,24 @@ router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) =
       return res.status(404).json({ error: 'Supplier not found' });
     }
 
-    const supplier = await Supplier.findOneAndUpdate(
-      { _id: req.params.id, ...req.tenantFilter },
-      req.body,
-      { new: true, runValidators: true }
-    );
-
-    if (!supplier) {
+    const existing = await Supplier.findOne(asVendorQuery({ _id: req.params.id, ...req.tenantFilter }));
+    if (!existing) {
       return res.status(404).json({ error: 'Supplier not found' });
     }
 
-    await syncSupplierCustomerMirror(supplier);
-    res.json(supplier);
+    const patch = fromSupplierBody(req.body);
+    delete patch.tenantId;
+
+    if (patch.isCustomer && !existing.customerCode && !patch.customerCode) {
+      const { nextCustomerCode } = await import('../services/partnerService.js');
+      patch.customerCode = await nextCustomerCode(existing.tenantId);
+    }
+
+    Object.assign(existing, patch);
+    existing.isVendor = true;
+    await existing.save();
+
+    res.json(toSupplierDto(existing));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -523,7 +545,7 @@ router.delete('/:id', checkPermission('supply_chain', 'delete'), async (req, res
     }
 
     const supplier = await Supplier.findOneAndUpdate(
-      { _id: req.params.id, ...req.tenantFilter },
+      asVendorQuery({ _id: req.params.id, ...req.tenantFilter }),
       { isActive: false },
       { new: true }
     );
@@ -532,7 +554,7 @@ router.delete('/:id', checkPermission('supply_chain', 'delete'), async (req, res
       return res.status(404).json({ error: 'Supplier not found' });
     }
 
-    res.json({ message: 'Supplier deactivated', supplier });
+    res.json({ message: 'Supplier deactivated', supplier: toSupplierDto(supplier) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

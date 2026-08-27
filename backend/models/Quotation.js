@@ -97,7 +97,7 @@ const quotationSchema = new mongoose.Schema({
   validUntilHijri: { type: String },
   seller: partySchema,
   buyer: partySchema,
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', index: true },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', index: true },
   travelDetails: travelDetailsSchema,
   lineItems: [quotationLineSchema],
   subtotal: { type: Number, required: true, default: 0 },

@@ -1,11 +1,37 @@
-import Customer from '../../models/Customer.js';
-import Supplier from '../../models/Supplier.js';
+import Partner from '../../models/Partner.js';
 import { toObjectId } from '../../models/inventory/common.js';
 
 /**
- * Resolve transfer partner display fields.
- * Outgoing / PoS → Customer (name / nameAr)
- * Incoming → Supplier (nameEn / nameAr) then Customer fallback
+ * Shape Partner → transfer supplier DTO (toSupplierDto field mapping).
+ * code ← supplierCode; nameEn ← nameEn || name
+ */
+function asSupplierPartner(doc) {
+  const nameEn = doc.nameEn || doc.name;
+  return {
+    _id: doc._id,
+    name: nameEn,
+    nameEn,
+    nameAr: doc.nameAr,
+    code: doc.supplierCode || null,
+    kind: 'supplier',
+  };
+}
+
+function asCustomerPartner(doc) {
+  return {
+    _id: doc._id,
+    name: doc.name || doc.nameEn,
+    nameEn: doc.nameEn || doc.name,
+    nameAr: doc.nameAr,
+    stockWarn: doc.stockWarn,
+    stockWarnMsg: doc.stockWarnMsg,
+    kind: 'customer',
+  };
+}
+
+/**
+ * Resolve transfer partner display fields from unified Partner collection.
+ * Incoming / preferSupplier + isVendor → supplier; else isCustomer → customer; else vendor fallback.
  */
 export async function resolveTransferPartner(tenantId, partnerId, opCode = null) {
   if (!partnerId) return null;
@@ -13,70 +39,35 @@ export async function resolveTransferPartner(tenantId, partnerId, opCode = null)
   const id = toObjectId(partnerId);
   const preferSupplier = opCode === 'incoming';
 
-  if (preferSupplier) {
-    const supplier = await Supplier.findOne({ _id: id, tenantId: tid })
-      .select('nameEn nameAr code')
-      .lean();
-    if (supplier) {
-      return {
-        _id: supplier._id,
-        name: supplier.nameEn,
-        nameEn: supplier.nameEn,
-        nameAr: supplier.nameAr,
-        code: supplier.code,
-        kind: 'supplier',
-      };
-    }
-  }
-
-  const customer = await Customer.findOne({ _id: id, tenantId: tid })
-    .select('name nameAr stockWarn stockWarnMsg')
+  const partner = await Partner.findOne({ _id: id, tenantId: tid })
+    .select('name nameEn nameAr supplierCode isCustomer isVendor stockWarn stockWarnMsg')
     .lean();
-  if (customer) {
-    return {
-      ...customer,
-      nameEn: customer.name,
-      kind: 'customer',
-    };
-  }
+  if (!partner) return null;
 
-  if (!preferSupplier) {
-    const supplier = await Supplier.findOne({ _id: id, tenantId: tid })
-      .select('nameEn nameAr code')
-      .lean();
-    if (supplier) {
-      return {
-        _id: supplier._id,
-        name: supplier.nameEn,
-        nameEn: supplier.nameEn,
-        nameAr: supplier.nameAr,
-        code: supplier.code,
-        kind: 'supplier',
-      };
-    }
+  if (preferSupplier && partner.isVendor) {
+    return asSupplierPartner(partner);
   }
-
-  return null;
+  if (partner.isCustomer) {
+    return asCustomerPartner(partner);
+  }
+  return asSupplierPartner(partner);
 }
 
 /**
  * Batch-resolve partners for a list of transfers (already lean, with operationTypeId populated).
+ * Single Partner.find for all ids; map by role preference same as resolveTransferPartner.
  */
 export async function attachPartnersToTransfers(tenantId, transfers = []) {
   if (!transfers.length) return transfers;
   const tid = toObjectId(tenantId);
 
-  const byCode = { incoming: new Set(), other: new Set() };
+  const ids = new Set();
   for (const t of transfers) {
     if (!t.partnerId) continue;
-    const id = String(t.partnerId?._id || t.partnerId);
-    const code = t.operationTypeId?.code || null;
-    if (code === 'incoming') byCode.incoming.add(id);
-    else byCode.other.add(id);
+    ids.add(String(t.partnerId?._id || t.partnerId));
   }
 
-  const allIds = [...new Set([...byCode.incoming, ...byCode.other])];
-  if (!allIds.length) {
+  if (!ids.size) {
     return transfers.map((t) => ({
       ...t,
       partner: null,
@@ -84,58 +75,33 @@ export async function attachPartnersToTransfers(tenantId, transfers = []) {
     }));
   }
 
-  const [customers, suppliers] = await Promise.all([
-    Customer.find({
-      tenantId: tid,
-      _id: { $in: allIds.map((id) => toObjectId(id)) },
-    }).select('name nameAr stockWarn stockWarnMsg').lean(),
-    Supplier.find({
-      tenantId: tid,
-      _id: { $in: allIds.map((id) => toObjectId(id)) },
-    }).select('nameEn nameAr code').lean(),
-  ]);
+  const partners = await Partner.find({
+    tenantId: tid,
+    _id: { $in: [...ids].map((id) => toObjectId(id)) },
+  })
+    .select('name nameEn nameAr supplierCode isCustomer isVendor stockWarn stockWarnMsg')
+    .lean();
 
-  const customerMap = new Map(customers.map((c) => [String(c._id), c]));
-  const supplierMap = new Map(suppliers.map((s) => [String(s._id), s]));
+  const partnerMap = new Map(partners.map((p) => [String(p._id), p]));
 
   return transfers.map((t) => {
     const pid = t.partnerId?._id || t.partnerId;
     if (!pid) return { ...t, partner: null, partnerId: null };
-    const id = String(pid);
-    const code = t.operationTypeId?.code || null;
-    let partner = null;
-    if (code === 'incoming') {
-      const s = supplierMap.get(id);
-      if (s) {
-        partner = {
-          _id: s._id,
-          name: s.nameEn,
-          nameEn: s.nameEn,
-          nameAr: s.nameAr,
-          code: s.code,
-          kind: 'supplier',
-        };
-      } else {
-        const c = customerMap.get(id);
-        if (c) partner = { ...c, nameEn: c.name, kind: 'customer' };
-      }
-    } else {
-      const c = customerMap.get(id);
-      if (c) partner = { ...c, nameEn: c.name, kind: 'customer' };
-      else {
-        const s = supplierMap.get(id);
-        if (s) {
-          partner = {
-            _id: s._id,
-            name: s.nameEn,
-            nameEn: s.nameEn,
-            nameAr: s.nameAr,
-            code: s.code,
-            kind: 'supplier',
-          };
-        }
-      }
+    const doc = partnerMap.get(String(pid));
+    if (!doc) {
+      return { ...t, partner: null, partnerId: pid };
     }
+
+    const preferSupplier = (t.operationTypeId?.code || null) === 'incoming';
+    let partner = null;
+    if (preferSupplier && doc.isVendor) {
+      partner = asSupplierPartner(doc);
+    } else if (doc.isCustomer) {
+      partner = asCustomerPartner(doc);
+    } else {
+      partner = asSupplierPartner(doc);
+    }
+
     return {
       ...t,
       partner,

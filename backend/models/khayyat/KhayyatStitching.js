@@ -41,7 +41,7 @@ const khayyatStitchingSchema = new mongoose.Schema({
   },
   customerId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Customer',
+    ref: 'Partner',
     required: true
   },
   customerName: {
@@ -54,7 +54,7 @@ const khayyatStitchingSchema = new mongoose.Schema({
   },
   relationId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Customer',
+    ref: 'Partner',
     default: null
   },
   relationName: {
