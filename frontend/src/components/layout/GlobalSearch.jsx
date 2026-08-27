@@ -56,7 +56,7 @@ export default function GlobalSearch({ language }) {
         navigate(`/app/dashboard/customers/${result.id}`);
         break;
       case 'supplier':
-        navigate(`/app/dashboard/suppliers`);
+        navigate(`/app/dashboard/suppliers/${result.id}`);
         break;
       case 'purchase_order':
         navigate(`/app/dashboard/purchases/orders/${result.id}`);

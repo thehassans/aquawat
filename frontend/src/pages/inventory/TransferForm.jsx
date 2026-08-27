@@ -93,6 +93,7 @@ export default function TransferForm() {
     lines: [],
   })
   const [selectedPartner, setSelectedPartner] = useState(null)
+  const [selectedOwner, setSelectedOwner] = useState(null)
   const [tab, setTab] = useState('operations')
   const [logNote, setLogNote] = useState('')
   const [signedBy, setSignedBy] = useState('')
@@ -654,19 +655,32 @@ export default function TransferForm() {
               </div>
             )}
             {hints.ownerTracking && (
-              <label className="block text-sm">
+              <div className="block text-sm">
                 <span className="label">{ar ? 'مالك المخزون' : 'Stock owner'}</span>
-                <select
-                  className="select mt-1 w-full"
-                  value={ownerId}
-                  onChange={(e) => setOwnerId(e.target.value)}
-                >
-                  <option value="">{ar ? '— الشركة —' : '— Company —'}</option>
-                  {customers.map((c) => (
-                    <option key={c._id} value={c._id}>{ar && c.nameAr ? c.nameAr : c.name}</option>
-                  ))}
-                </select>
-              </label>
+                <div className="mt-1 space-y-1.5">
+                  <PartnerCombobox
+                    role="customer"
+                    value={ownerId}
+                    selectedOption={selectedOwner}
+                    ar={ar}
+                    language={language}
+                    placeholder={ar ? 'الشركة (افتراضي) أو اختر عميلاً…' : 'Company (default) or pick a customer…'}
+                    onChange={(id, opt) => {
+                      setOwnerId(id || '')
+                      setSelectedOwner(opt || null)
+                    }}
+                  />
+                  {ownerId ? (
+                    <button
+                      type="button"
+                      className="text-xs text-slate-500 hover:text-slate-800"
+                      onClick={() => { setOwnerId(''); setSelectedOwner(null) }}
+                    >
+                      {ar ? 'إعادة للشركة' : 'Reset to company'}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
             )}
             {hints.multiLocations && (
               <>
@@ -1100,13 +1114,20 @@ export default function TransferForm() {
                             : (ar ? 'الشركة' : 'Company')}
                         </div>
                       ) : (
-                        <div className="mt-1 flex flex-wrap gap-2">
-                          <select className="select select-sm" value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
-                            <option value="">{ar ? '— الشركة —' : '— Company —'}</option>
-                            {customers.map((c) => (
-                              <option key={c._id} value={c._id}>{ar && c.nameAr ? c.nameAr : c.name}</option>
-                            ))}
-                          </select>
+                        <div className="mt-1 flex flex-wrap items-end gap-2">
+                          <div className="min-w-[220px] flex-1">
+                            <PartnerCombobox
+                              role="customer"
+                              value={ownerId}
+                              selectedOption={selectedOwner || customers.find((c) => String(c._id) === String(ownerId)) || null}
+                              ar={ar}
+                              language={language}
+                              onChange={(id, opt) => {
+                                setOwnerId(id || '')
+                                setSelectedOwner(opt || null)
+                              }}
+                            />
+                          </div>
                           <button
                             type="button"
                             className="btn btn-secondary btn-sm"

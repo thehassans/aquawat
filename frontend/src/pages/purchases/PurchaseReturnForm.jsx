@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux'
 import { ArrowLeft, CheckCircle2, Loader2, Save, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import PartnerCombobox from '../../components/inventory/PartnerCombobox'
 import { normalizeGrnList } from '../../lib/grnApi'
 import {
   PURCHASES_PATH,
@@ -29,6 +30,7 @@ export default function PurchaseReturnForm() {
   const { language } = useSelector((state) => state.ui)
 
   const [supplierId, setSupplierId] = useState('')
+  const [selectedSupplier, setSelectedSupplier] = useState(null)
   const [grnId, setGrnId] = useState(grnParam)
   const [purchaseOrderId, setPurchaseOrderId] = useState('')
   const [warehouseId, setWarehouseId] = useState('')
@@ -70,6 +72,7 @@ export default function PurchaseReturnForm() {
       const { data } = await api.get(`/purchase-returns/from-grn/${nextId}`)
       setGrnId(nextId)
       setSupplierId(data.supplierId?._id || data.supplierId || '')
+      setSelectedSupplier(data.supplierId && typeof data.supplierId === 'object' ? data.supplierId : null)
       setWarehouseId(data.warehouseId?._id || data.warehouseId || '')
       setPurchaseOrderId(data.purchaseOrderId?._id || data.purchaseOrderId || '')
       setLines((data.lines || []).map((line) => ({
@@ -91,6 +94,7 @@ export default function PurchaseReturnForm() {
   useEffect(() => {
     if (!existing) return
     setSupplierId(existing.supplierId?._id || existing.supplierId || '')
+    setSelectedSupplier(existing.supplierId && typeof existing.supplierId === 'object' ? existing.supplierId : null)
     setGrnId(existing.grnId?._id || existing.grnId || '')
     setPurchaseOrderId(existing.purchaseOrderId?._id || existing.purchaseOrderId || '')
     setWarehouseId(existing.warehouseId?._id || existing.warehouseId || '')
@@ -229,15 +233,23 @@ export default function PurchaseReturnForm() {
               ))}
             </select>
           </label>
-          <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
             {language === 'ar' ? 'المورد' : 'Vendor'}
-            <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} disabled={locked} className={`mt-1.5 ${fieldControlClass}`}>
-              <option value="">{language === 'ar' ? 'اختر المورد' : 'Select vendor'}</option>
-              {(suppliers || []).map((s) => (
-                <option key={s._id} value={s._id}>{partyName(s, language)}</option>
-              ))}
-            </select>
-          </label>
+            <div className="mt-1.5">
+              <PartnerCombobox
+                role="vendor"
+                value={supplierId}
+                selectedOption={selectedSupplier}
+                ar={language === 'ar'}
+                language={language}
+                disabled={locked}
+                onChange={(id, opt) => {
+                  setSupplierId(id || '')
+                  setSelectedSupplier(opt || null)
+                }}
+              />
+            </div>
+          </div>
           <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
             {language === 'ar' ? 'المستودع' : 'Warehouse'}
             <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} disabled={locked} className={`mt-1.5 ${fieldControlClass}`}>

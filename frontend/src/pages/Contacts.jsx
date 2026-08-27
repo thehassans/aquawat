@@ -326,10 +326,22 @@ export default function Contacts() {
                     </div>
                   </td>
                   <td className="min-w-[120px] px-3 py-3.5">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${c.meta.tint}`}>
-                      <c.Icon className="h-3.5 w-3.5" />
-                      {isAr ? c.meta.ar : c.meta.en}
-                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${c.meta.tint}`}>
+                        <c.Icon className="h-3.5 w-3.5" />
+                        {isAr ? c.meta.ar : c.meta.en}
+                      </span>
+                      {c.entityType === 'customer' && c.isVendor ? (
+                        <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-800">
+                          {isAr ? 'مورد أيضاً' : 'Also vendor'}
+                        </span>
+                      ) : null}
+                      {c.entityType === 'supplier' && c.isCustomer ? (
+                        <span className="rounded-full bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-800">
+                          {isAr ? 'عميل أيضاً' : 'Also customer'}
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="min-w-[150px] px-3 py-3.5">
                     <div className="space-y-0.5">

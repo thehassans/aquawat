@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
@@ -9,6 +9,7 @@ import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
+import PartnerCombobox from '../components/inventory/PartnerCombobox'
 import { useLiveTranslation } from '../lib/liveTranslation'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
 import { showArabicFields as isArabicTenantMarket } from '../lib/saudiTenant'
@@ -66,6 +67,8 @@ export default function ExpenseForm() {
   const { t } = useTranslation(language)
   const showProjects = getTenantBusinessTypes(tenant).includes('construction')
   const showArabicFields = isArabicTenantMarket(tenant)
+  const [selectedSupplier, setSelectedSupplier] = useState(null)
+  const [selectedCustomer, setSelectedCustomer] = useState(null)
 
   const {
     register,
@@ -187,6 +190,8 @@ export default function ExpenseForm() {
         notes: data?.notes || '',
         productId: data?.productId?._id || data?.productId || '',
       })
+      setSelectedSupplier(data?.supplierId && typeof data.supplierId === 'object' ? data.supplierId : null)
+      setSelectedCustomer(data?.customerId && typeof data.customerId === 'object' ? data.customerId : null)
     },
   })
 
@@ -525,20 +530,27 @@ export default function ExpenseForm() {
             </div>
             {payeeType === 'supplier' && (
               <div className="md:col-span-2">
-                <label className="label">{language === 'ar' ? 'Ø§Ù„Ù…ÙˆØ±Ø¯' : 'Supplier'}</label>
-                <select {...register('supplierId')} className={`select ${fieldControlClass}`} disabled={isLocked}>
-                  <option value="">{language === 'ar' ? 'Ø§Ø®ØªØ± Ù…ÙˆØ±Ø¯' : 'Select supplier'}</option>
-                  {(suppliers || []).map((s) => (
-                    <option key={s._id} value={s._id}>{language === 'ar' ? s.nameAr || s.nameEn : s.nameEn}</option>
-                  ))}
-                </select>
+                <label className="label">{language === 'ar' ? 'المورد' : 'Supplier'}</label>
+                <PartnerCombobox
+                  role="vendor"
+                  value={watch('supplierId') || ''}
+                  selectedOption={selectedSupplier}
+                  ar={language === 'ar'}
+                  language={language}
+                  disabled={isLocked}
+                  onChange={(id, opt) => {
+                    setValue('supplierId', id || '', { shouldDirty: true })
+                    setSelectedSupplier(opt || null)
+                  }}
+                />
+                <input type="hidden" {...register('supplierId')} />
               </div>
             )}
             {payeeType === 'employee' && (
               <div className="md:col-span-2">
-                <label className="label">{language === 'ar' ? 'Ø§Ù„Ù…ÙˆØ¸Ù' : 'Employee'}</label>
+                <label className="label">{language === 'ar' ? 'الموظف' : 'Employee'}</label>
                 <select {...register('employeeId')} className={`select ${fieldControlClass}`} disabled={isLocked}>
-                  <option value="">{language === 'ar' ? 'Ø§Ø®ØªØ± Ù…ÙˆØ¸Ù' : 'Select employee'}</option>
+                  <option value="">{language === 'ar' ? 'اختر موظف' : 'Select employee'}</option>
                   {(employees || []).map((e) => {
                     const en = `${e.firstNameEn || ''} ${e.lastNameEn || ''}`.trim()
                     const ar = `${e.firstNameAr || ''} ${e.lastNameAr || ''}`.trim()
@@ -553,13 +565,20 @@ export default function ExpenseForm() {
             )}
             {payeeType === 'customer' && (
               <div className="md:col-span-2">
-                <label className="label">{language === 'ar' ? 'Ø§Ù„Ø¹Ù…ÙŠÙ„' : 'Customer'}</label>
-                <select {...register('customerId')} className={`select ${fieldControlClass}`} disabled={isLocked}>
-                  <option value="">{language === 'ar' ? 'Ø§Ø®ØªØ± Ø¹Ù…ÙŠÙ„' : 'Select customer'}</option>
-                  {(customers || []).map((c) => (
-                    <option key={c._id} value={c._id}>{language === 'ar' ? c.nameAr || c.name : c.name}</option>
-                  ))}
-                </select>
+                <label className="label">{language === 'ar' ? 'العميل' : 'Customer'}</label>
+                <PartnerCombobox
+                  role="customer"
+                  value={watch('customerId') || ''}
+                  selectedOption={selectedCustomer}
+                  ar={language === 'ar'}
+                  language={language}
+                  disabled={isLocked}
+                  onChange={(id, opt) => {
+                    setValue('customerId', id || '', { shouldDirty: true })
+                    setSelectedCustomer(opt || null)
+                  }}
+                />
+                <input type="hidden" {...register('customerId')} />
               </div>
             )}
             {payeeType === 'other' && (

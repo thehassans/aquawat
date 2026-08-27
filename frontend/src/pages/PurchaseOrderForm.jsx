@@ -55,6 +55,7 @@ import RecordPoPaymentModal from '../components/purchases/RecordPoPaymentModal'
 import PurchasePaymentsLedger from '../components/purchases/PurchasePaymentsLedger'
 import { showArabicFields as isArabicTenantMarket } from '../lib/saudiTenant'
 import VariantLineSelect from '../components/inventory/VariantLineSelect'
+import PartnerCombobox from '../components/inventory/PartnerCombobox'
 import { formatInvError, pickApiErrorPayload } from '../lib/invError'
 
 const STATUS_PILL = {
@@ -166,6 +167,7 @@ export default function PurchaseOrderForm() {
   const [lineRemainingActions, setLineRemainingActions] = useState({})
   const [manualModes, setManualModes] = useState([])
   const [showSupplierModal, setShowSupplierModal] = useState(false)
+  const [selectedSupplier, setSelectedSupplier] = useState(null)
   const [showWarehouseModal, setShowWarehouseModal] = useState(false)
   const [pendingBills, setPendingBills] = useState([])
   const [landedCostLines, setLandedCostLines] = useState([
@@ -339,10 +341,16 @@ export default function PurchaseOrderForm() {
   const supplierFinancials = Array.isArray(supplierFinancialsData) ? supplierFinancialsData : []
 
   useEffect(() => {
-    if (!isEdit && searchParams.get('supplierId')) {
-      setValue('supplierId', searchParams.get('supplierId'), { shouldValidate: true })
-    }
-  }, [isEdit, searchParams, setValue, suppliers])
+    if (isEdit) return
+    const fromParam = searchParams.get('partnerId') || searchParams.get('supplierId')
+    if (!fromParam) return
+    setValue('supplierId', fromParam, { shouldValidate: true })
+    let cancelled = false
+    api.get(`/suppliers/${fromParam}`).then((res) => {
+      if (!cancelled && res.data) setSelectedSupplier(res.data)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [isEdit, searchParams, setValue])
 
   const { data: productsData } = useQuery({
     queryKey: ['products-list'],
@@ -382,6 +390,7 @@ export default function PurchaseOrderForm() {
       queryClient.invalidateQueries(['suppliers'])
       setShowSupplierModal(false)
       setValue('supplierId', res.data._id, { shouldValidate: true })
+      setSelectedSupplier(res.data)
       setSupplierForm({ code: '', nameEn: '', nameAr: '', contactPerson: '', phone: '', email: '', type: 'company' })
     },
     onError: (err) => toast.error(formatInvError(err, language) || 'Error'),
@@ -580,6 +589,9 @@ export default function PurchaseOrderForm() {
   useEffect(() => {
     if (!order) return
     const items = Array.isArray(order.lineItems) ? order.lineItems : []
+    if (order.supplierId && typeof order.supplierId === 'object') {
+      setSelectedSupplier(order.supplierId)
+    }
     reset({
       poNumber: order.poNumber || '',
       supplierId: order.supplierId?._id || order.supplierId || '',
@@ -1779,26 +1791,19 @@ export default function PurchaseOrderForm() {
 
               <div>
                 <label className="label text-xs">{language === 'ar' ? 'المورد' : 'Supplier'} *</label>
-                <div className="flex gap-2">
-                  <select {...register('supplierId', { required: true })} className="select flex-1 !py-1.5 text-xs" disabled={isLocked}>
-                    <option value="">{language === 'ar' ? 'اختر مورد' : 'Select supplier'}</option>
-                    {(suppliers || []).map((s) => (
-                      <option key={s._id} value={s._id}>
-                        {(language === 'ar' ? s.nameAr || s.nameEn : s.nameEn) || s.code}
-                      </option>
-                    ))}
-                  </select>
-                  {!isLocked && (
-                    <button
-                      type="button"
-                      onClick={() => setShowSupplierModal(true)}
-                      className="inline-flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-xl border border-slate-200/80 text-slate-600 transition hover:border-slate-300 dark:border-white/10 dark:text-slate-300"
-                      title={language === 'ar' ? 'إضافة مورد جديد' : 'Add new supplier'}
-                    >
-                      <UserPlus className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
+                <PartnerCombobox
+                  role="vendor"
+                  value={watch('supplierId') || ''}
+                  selectedOption={selectedSupplier}
+                  ar={language === 'ar'}
+                  language={language}
+                  disabled={isLocked}
+                  onChange={(id, opt) => {
+                    setValue('supplierId', id || '', { shouldValidate: true, shouldDirty: true })
+                    setSelectedSupplier(opt || null)
+                  }}
+                />
+                <input type="hidden" {...register('supplierId', { required: true })} />
                 {errors.supplierId && (
                   <p className="mt-1 text-xs text-rose-600">{language === 'ar' ? 'المورد مطلوب' : 'Supplier is required'}</p>
                 )}

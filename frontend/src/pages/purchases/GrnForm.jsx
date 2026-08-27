@@ -6,6 +6,7 @@ import { ArrowLeft, CheckCircle2, Clock3, Loader2, Plus, Save, Trash2, XCircle }
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import ProductChooser, { loadInventoryProducts } from '../../components/inventory/ProductChooser'
+import PartnerCombobox from '../../components/inventory/PartnerCombobox'
 import ProductTypeToggle from '../../components/ui/ProductTypeToggle'
 import { isStockTrackedProductType, normalizeProductType } from '../../lib/productType'
 import Money from '../../components/ui/Money'
@@ -55,6 +56,7 @@ export default function GrnForm() {
   const { language } = useSelector((state) => state.ui)
 
   const [supplierId, setSupplierId] = useState('')
+  const [selectedSupplier, setSelectedSupplier] = useState(null)
   const [purchaseOrderId, setPurchaseOrderId] = useState(poIdParam)
   const [warehouseId, setWarehouseId] = useState('')
   const [referenceNumber, setReferenceNumber] = useState('')
@@ -100,6 +102,7 @@ export default function GrnForm() {
   useEffect(() => {
     if (!existing) return
     setSupplierId(existing.supplierId?._id || existing.supplierId || '')
+    setSelectedSupplier(existing.supplierId && typeof existing.supplierId === 'object' ? existing.supplierId : null)
     setPurchaseOrderId(existing.purchaseOrderId?._id || existing.purchaseOrderId || '')
     setWarehouseId(existing.warehouseId?._id || existing.warehouseId || '')
     setReferenceNumber(existing.referenceNumber || '')
@@ -118,7 +121,10 @@ export default function GrnForm() {
     if (!poId) return
     const applyFromPo = (data) => {
       setPurchaseOrderId(poId)
-      setSupplierId(data.supplierId?._id || data.supplierId || data.purchaseOrder?.supplierId?._id || data.purchaseOrder?.supplierId || '')
+      const sid = data.supplierId?._id || data.supplierId || data.purchaseOrder?.supplierId?._id || data.purchaseOrder?.supplierId || ''
+      setSupplierId(sid)
+      if (data.supplierId && typeof data.supplierId === 'object') setSelectedSupplier(data.supplierId)
+      else if (data.purchaseOrder?.supplierId && typeof data.purchaseOrder.supplierId === 'object') setSelectedSupplier(data.purchaseOrder.supplierId)
       setWarehouseId(data.warehouseId?._id || data.warehouseId || data.purchaseOrder?.warehouseId?._id || data.purchaseOrder?.warehouseId || '')
       setExpectedDate(toDateInput(data.expectedDate || data.purchaseOrder?.expectedDate))
       const nextLines = Array.isArray(data.lines) ? data.lines : []
@@ -382,15 +388,23 @@ export default function GrnForm() {
               ))}
             </select>
           </label>
-          <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
             {language === 'ar' ? 'المورد' : 'Vendor'}
-            <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} disabled={locked} className={`mt-1.5 ${fieldControlClass}`}>
-              <option value="">{language === 'ar' ? 'اختر المورد' : 'Select vendor'}</option>
-              {(suppliers || []).map((s) => (
-                <option key={s._id} value={s._id}>{partyName(s, language)}</option>
-              ))}
-            </select>
-          </label>
+            <div className="mt-1.5">
+              <PartnerCombobox
+                role="vendor"
+                value={supplierId}
+                selectedOption={selectedSupplier}
+                ar={language === 'ar'}
+                language={language}
+                disabled={locked}
+                onChange={(id, opt) => {
+                  setSupplierId(id || '')
+                  setSelectedSupplier(opt || null)
+                }}
+              />
+            </div>
+          </div>
           <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
             {language === 'ar' ? 'المستودع' : 'Warehouse'}
             <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} disabled={locked && Boolean(existing?.purchaseOrderId)} className={`mt-1.5 ${fieldControlClass}`}>
