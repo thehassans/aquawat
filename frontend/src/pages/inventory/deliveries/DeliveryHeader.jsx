@@ -13,6 +13,7 @@ const STEPS = [
  * Delivery-specific action bar.
  * Waiting/Confirmed → Check Availability (no Validate yet).
  * Ready → Validate + Unreserve.
+ * Done → Return + Print Delivery Slip.
  */
 export function DeliveryActionBar({
   ar,
@@ -31,7 +32,6 @@ export function DeliveryActionBar({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {onPrint}
       {uiState === 'draft' && (
         <>
           {onSaveDraft && (
@@ -71,9 +71,12 @@ export function DeliveryActionBar({
         </>
       )}
       {uiState === 'done' && (
-        <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={onReturn}>
-          {ar ? 'مرتجع' : 'Return'}
-        </button>
+        <>
+          {onPrint}
+          <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={onReturn}>
+            {ar ? 'مرتجع' : 'Return'}
+          </button>
+        </>
       )}
     </div>
   )

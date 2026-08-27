@@ -65,6 +65,57 @@ export function filterReceiptLocations(locations, { includeIds = [] } = {}) {
   })
 }
 
+/**
+ * Strict internal physical locations only — for Internal Transfers.
+ * Excludes Vendors, Customers, and all Virtual usages.
+ */
+export function filterInternalLocations(locations, { includeIds = [] } = {}) {
+  const keep = new Set((includeIds || []).filter(Boolean).map(String))
+  return (Array.isArray(locations) ? locations : []).filter((loc) => {
+    if (keep.has(String(loc._id))) return true
+    if (!loc || loc.active === false) return false
+    if (loc.usage !== 'internal') return false
+    if (isVirtualLocation(loc)) return false
+    const path = String(loc.completePath || '').toLowerCase()
+    if (path.includes('vendor') || path.includes('customer')) return false
+    return true
+  })
+}
+
+/**
+ * Manufacturing: keep internal stock + virtual production/scrap/etc.
+ * Exclude partner locations (vendor/customer) only.
+ */
+export function filterManufacturingLocations(locations, { includeIds = [] } = {}) {
+  const keep = new Set((includeIds || []).filter(Boolean).map(String))
+  return (Array.isArray(locations) ? locations : []).filter((loc) => {
+    if (keep.has(String(loc._id))) return true
+    if (!loc || loc.active === false) return false
+    if (loc.usage === 'vendor' || loc.usage === 'customer') return false
+    return true
+  })
+}
+
+/** Find warehouse Stock location and Virtual Production location. */
+export function findManufacturingDefaultLocations(locations, warehouseId) {
+  const list = Array.isArray(locations) ? locations : []
+  const whId = warehouseId ? String(warehouseId) : ''
+  const stock = list.find((l) => {
+    if (l.usage !== 'internal') return false
+    if (whId && String(l.warehouseId?._id || l.warehouseId || '') !== whId) return false
+    const path = String(l.completePath || l.name || '').toLowerCase()
+    return path.endsWith('/stock') || path.endsWith('> stock') || /(^|\/)stock$/i.test(path) || l.name === 'Stock'
+  }) || list.find((l) => l.usage === 'internal' && (!whId || String(l.warehouseId?._id || l.warehouseId || '') === whId))
+
+  const production = list.find((l) => l.usage === 'production')
+    || list.find((l) => String(l.completePath || '').toLowerCase().includes('production'))
+
+  return {
+    sourceLocationId: stock?._id || '',
+    destLocationId: production?._id || '',
+  }
+}
+
 export function locationOptionLabel(loc, ar = false) {
   if (!loc) return '—'
   if (ar && loc.nameAr) {

@@ -12,6 +12,8 @@ import { TransferPrintButton } from './TransferPrint'
 import { TransferQualityPanel } from './QualityPages'
 import { formatInvError } from '../../lib/invError'
 import { useDirtyGuard } from '../../lib/useDirtyGuard'
+import ReverseTransferModal from './returns/ReverseTransferModal'
+import { inventoryPathForOpCode } from './returns/returnPaths'
 
 const CODE_FROM_PATH = () => {
   const parts = window.location.pathname.split('/')
@@ -112,6 +114,7 @@ export default function TransferForm() {
   const [ratePreview, setRatePreview] = useState(null)
   const [ownerId, setOwnerId] = useState('')
   const [doneEdits, setDoneEdits] = useState({})
+  const [returnOpen, setReturnOpen] = useState(false)
 
   const isNewDirty = useMemo(() => {
     if (!isNew) return false
@@ -586,19 +589,7 @@ export default function TransferForm() {
               <button
                 type="button"
                 className="btn btn-secondary text-sm"
-                onClick={async () => {
-                  try {
-                    const wiz = await api.get(`/stock/transfers/${id}/return-wizard`).then((r) => r.data)
-                    const lines = (wiz.lines || []).map((l) => ({ moveId: l.moveId, quantity: l.quantity }))
-                    const ret = await api.post(`/stock/transfers/${id}/return`, { lines }).then((r) => r.data)
-                    toast.success(ar ? 'تم إنشاء المرتجع' : 'Return created')
-                    const retCode = ret.operationTypeId?.code || CODE_FROM_PATH()
-                    const path = retCode === 'incoming' ? 'receipts' : retCode === 'outgoing' ? 'deliveries' : 'internal'
-                    navigate(`/app/dashboard/inventory/${path}/${ret._id}`)
-                  } catch (e) {
-                    toast.error(formatInvError(e, language))
-                  }
-                }}
+                onClick={() => setReturnOpen(true)}
               >
                 {ar ? 'مرتجع' : 'Return'}
               </button>
@@ -1296,6 +1287,19 @@ export default function TransferForm() {
           </aside>
         </div>
       )}
+
+      <ReverseTransferModal
+        open={returnOpen}
+        onClose={() => setReturnOpen(false)}
+        transferId={id}
+        transfer={transfer}
+        ar={ar}
+        language={language}
+        onCreated={(ret) => {
+          const path = inventoryPathForOpCode(ret.operationTypeId?.code || CODE_FROM_PATH())
+          navigate(`/app/dashboard/inventory/${path}/${ret._id}`)
+        }}
+      />
     </div>
   )
 }

@@ -16,6 +16,8 @@ export async function getReturnWizard(tenantId, transferId) {
   const tid = toObjectId(tenantId);
   const transfer = await InvTransfer.findOne({ _id: transferId, tenantId: tid })
     .populate('operationTypeId')
+    .populate('sourceLocationId', 'name nameAr completePath usage warehouseId')
+    .populate('destLocationId', 'name nameAr completePath usage warehouseId')
     .lean();
   if (!transfer) throw new InventoryValidationError('Transfer not found', 'NOT_FOUND');
   if (transfer.state !== 'done') {
@@ -28,6 +30,8 @@ export async function getReturnWizard(tenantId, transferId) {
     state: 'done',
   })
     .populate('productId', 'nameEn nameAr sku tracking')
+    .populate('variantId', 'name sku')
+    .populate('uomId', 'name nameAr')
     .lean();
 
   const lines = [];
@@ -41,6 +45,7 @@ export async function getReturnWizard(tenantId, transferId) {
     lines.push({
       moveId: m._id,
       productId: m.productId,
+      variantId: m.variantId || null,
       uomId: m.uomId,
       quantityDone: m.doneQty,
       quantity: m.doneQty,
@@ -59,8 +64,13 @@ export async function getReturnWizard(tenantId, transferId) {
 
 /**
  * Create return transfer with source/dest swapped, chained via originMoveIds.
+ * Optional destLocationId overrides where returned goods land (Stock / Returns).
  */
-export async function createReturnTransfer(tenantId, userId, transferId, { lines }) {
+export async function createReturnTransfer(tenantId, userId, transferId, {
+  lines,
+  destLocationId: destOverride,
+  sourceLocationId: sourceOverride,
+} = {}) {
   return runWithTransaction(async (session) => {
     const tid = toObjectId(tenantId);
     const original = await InvTransfer.findOne({ _id: transferId, tenantId: tid }).session(session);
@@ -92,14 +102,28 @@ export async function createReturnTransfer(tenantId, userId, transferId, { lines
       throw new InventoryValidationError('No return operation type configured', 'NO_RETURN_TYPE');
     }
 
+    const retSourceId = sourceOverride
+      ? toObjectId(sourceOverride)
+      : original.destLocationId;
+    const retDestId = destOverride
+      ? toObjectId(destOverride)
+      : original.sourceLocationId;
+
+    if (String(retSourceId) === String(retDestId)) {
+      throw new InventoryValidationError(
+        'Return source and destination must differ',
+        'SAME_LOCATION',
+      );
+    }
+
     const name = await nextSequenceName(tid, returnOpType.sequenceCode, session);
     const [retTransfer] = await InvTransfer.create([{
       tenantId: tid,
       name,
       operationTypeId: returnOpType._id,
       partnerId: original.partnerId,
-      sourceLocationId: original.destLocationId,
-      destLocationId: original.sourceLocationId,
+      sourceLocationId: retSourceId,
+      destLocationId: retDestId,
       scheduledDate: new Date(),
       origin: `Return of ${original.name}`,
       isReturn: true,
@@ -111,6 +135,7 @@ export async function createReturnTransfer(tenantId, userId, transferId, { lines
       createdBy: userId,
     }], { session });
 
+    let createdMoves = 0;
     for (const line of lines || []) {
       const qty = D(line.quantity);
       if (!decIsPositive(qty)) continue;
@@ -125,6 +150,13 @@ export async function createReturnTransfer(tenantId, userId, transferId, { lines
       const maxQty = D(origMove.doneQty || origMove.demandQty);
       const retQty = qty.gt(maxQty) ? maxQty : qty;
 
+      const moveSrc = line.sourceLocationId
+        ? toObjectId(line.sourceLocationId)
+        : origMove.destLocationId;
+      const moveDest = destOverride
+        ? toObjectId(destOverride)
+        : (line.destLocationId ? toObjectId(line.destLocationId) : origMove.sourceLocationId);
+
       const [retMove] = await InvMove.create([{
         tenantId: tid,
         reference: name,
@@ -133,8 +165,8 @@ export async function createReturnTransfer(tenantId, userId, transferId, { lines
         variantId: origMove.variantId,
         uomId: origMove.uomId,
         demandQty: decStr(retQty),
-        sourceLocationId: origMove.destLocationId,
-        destLocationId: origMove.sourceLocationId,
+        sourceLocationId: moveSrc,
+        destLocationId: moveDest,
         state: 'draft',
         transferId: retTransfer._id,
         originMoveIds: [origMove._id],
@@ -147,9 +179,16 @@ export async function createReturnTransfer(tenantId, userId, transferId, { lines
 
       origMove.destMoveIds = [...(origMove.destMoveIds || []), retMove._id];
       await origMove.save({ session });
+      createdMoves += 1;
+    }
+
+    if (!createdMoves) {
+      throw new InventoryValidationError('No return lines with quantity > 0', 'NO_LINES');
     }
 
     await recomputeTransferState(retTransfer._id, tid, session);
-    return InvTransfer.findById(retTransfer._id).session(session);
+    return InvTransfer.findById(retTransfer._id)
+      .populate('operationTypeId', 'code name nameAr')
+      .session(session);
   });
 }

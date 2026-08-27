@@ -16,6 +16,8 @@ import { toDeliveryUiState, enrichMovesWithReserved } from './deliveryState'
 import { DeliveryHeader, DeliveryActionBar } from './DeliveryHeader'
 import { DeliveryFormFields } from './DeliveryFormFields'
 import { DeliveryDraftLines, DeliveryLineItems } from './DeliveryLineItems'
+import ReverseTransferModal from '../returns/ReverseTransferModal'
+import { inventoryPathForOpCode } from '../returns/returnPaths'
 
 const LIST_PATH = '/app/dashboard/inventory/deliveries'
 
@@ -119,6 +121,7 @@ export default function DeliveryForm() {
   const formValues = watch()
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [doneEdits, setDoneEdits] = useState({})
+  const [returnOpen, setReturnOpen] = useState(false)
 
   useDirtyGuard(isNew && isDirty, ar ? 'لديك تغييرات غير محفوظة' : 'You have unsaved changes')
 
@@ -439,19 +442,7 @@ export default function DeliveryForm() {
     actionMut.mutate({ action: 'cancel', body: { reason: reason || undefined } })
   }
 
-  const onReturn = async () => {
-    try {
-      const wiz = await api.get(`/stock/transfers/${id}/return-wizard`).then((r) => r.data)
-      const retLines = (wiz.lines || []).map((l) => ({ moveId: l.moveId, quantity: l.quantity }))
-      const ret = await api.post(`/stock/transfers/${id}/return`, { lines: retLines }).then((r) => r.data)
-      toast.success(ar ? 'تم إنشاء المرتجع' : 'Return created')
-      const retCode = ret.operationTypeId?.code || 'incoming'
-      const path = retCode === 'incoming' ? 'receipts' : retCode === 'outgoing' ? 'deliveries' : 'internal'
-      navigate(`/app/dashboard/inventory/${path}/${ret._id}`)
-    } catch (e) {
-      toast.error(formatInvError(e, language))
-    }
-  }
+  const onReturn = () => setReturnOpen(true)
 
   const saveDraftMeta = () => {
     const values = getValues()
@@ -563,6 +554,8 @@ export default function DeliveryForm() {
                 transfer={transfer}
                 code="outgoing"
                 settingsHints={transfer?.settingsHints}
+                primary
+                buttonLabel={ar ? 'طباعة سند التسليم' : 'Print Delivery Slip'}
               />
             )}
           />
@@ -675,6 +668,19 @@ export default function DeliveryForm() {
           ) : null}
         </div>
       )}
+
+      <ReverseTransferModal
+        open={returnOpen}
+        onClose={() => setReturnOpen(false)}
+        transferId={id}
+        transfer={transfer}
+        ar={ar}
+        language={language}
+        onCreated={(ret) => {
+          const path = inventoryPathForOpCode(ret.operationTypeId?.code || 'incoming')
+          navigate(`/app/dashboard/inventory/${path}/${ret._id}`)
+        }}
+      />
     </div>
   )
 }

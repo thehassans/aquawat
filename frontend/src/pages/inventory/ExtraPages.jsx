@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Plus } from 'lucide-react'
 import api from '../../lib/api'
@@ -9,6 +9,8 @@ import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import { StatusChip } from './inventoryUi'
 import { formatInvError } from '../../lib/invError'
+import ReverseTransferModal from './returns/ReverseTransferModal'
+import { inventoryPathForOpCode } from './returns/returnPaths'
 
 export function PackagesPage() {
   const { language } = useSelector((s) => s.ui)
@@ -124,7 +126,8 @@ export function PackagesPage() {
 export function ReturnsPage() {
   const { language } = useSelector((s) => s.ui)
   const ar = language === 'ar'
-  const qc = useQueryClient()
+  const navigate = useNavigate()
+  const [returnTarget, setReturnTarget] = useState(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['returns-candidates'],
@@ -133,30 +136,14 @@ export function ReturnsPage() {
     }).then((r) => r.data),
   })
 
-  const returnMut = useMutation({
-    mutationFn: async (id) => {
-      const wiz = await api.get(`/stock/transfers/${id}/return-wizard`).then((r) => r.data)
-      const lines = (wiz.lines || []).map((l) => ({ moveId: l.moveId, quantity: l.quantity }))
-      return api.post(`/stock/transfers/${id}/return`, { lines }).then((r) => r.data)
-    },
-    onSuccess: (ret) => {
-      toast.success(ar ? 'تم إنشاء المرتجع' : 'Return created')
-      qc.invalidateQueries({ queryKey: ['returns-candidates'] })
-      const code = ret.operationTypeId?.code
-      const path = code === 'incoming' ? 'receipts' : code === 'outgoing' ? 'deliveries' : 'internal'
-      window.location.href = `/app/dashboard/inventory/${path}/${ret._id}`
-    },
-    onError: (e) => toast.error(formatInvError(e, language)),
-  })
-
-  const rows = data?.data || []
+  const rows = data?.data || data?.items || asInvList(data) || []
 
   return (
     <div className="space-y-4" dir={ar ? 'rtl' : 'ltr'}>
       <div>
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{ar ? 'المرتجعات' : 'Returns'}</h2>
         <p className="text-sm text-slate-500">
-          {ar ? 'إنشاء مرتجع من تحويل مكتمل — يعكس الحركة عبر المحرك' : 'Create a return from a done transfer — reverses via the engine'}
+          {ar ? 'إنشاء مرتجع جزئي أو كامل من تحويل مكتمل' : 'Create a partial or full return from a done transfer'}
         </p>
       </div>
       {isLoading ? <div className="text-sm text-slate-500">…</div> : !rows.length ? (
@@ -186,12 +173,7 @@ export function ReturnsPage() {
                     <button
                       type="button"
                       className="btn btn-secondary btn-sm"
-                      disabled={returnMut.isPending}
-                      onClick={() => {
-                        if (window.confirm(ar ? 'إنشاء مرتجع كامل؟' : 'Create a full return?')) {
-                          returnMut.mutate(t._id)
-                        }
-                      }}
+                      onClick={() => setReturnTarget(t)}
                     >
                       {ar ? 'مرتجع' : 'Return'}
                     </button>
@@ -202,6 +184,20 @@ export function ReturnsPage() {
           </table>
         </div>
       )}
+
+      <ReverseTransferModal
+        open={Boolean(returnTarget)}
+        onClose={() => setReturnTarget(null)}
+        transferId={returnTarget?._id}
+        transfer={returnTarget}
+        ar={ar}
+        language={language}
+        onCreated={(ret) => {
+          setReturnTarget(null)
+          const path = inventoryPathForOpCode(ret.operationTypeId?.code || 'internal')
+          navigate(`/app/dashboard/inventory/${path}/${ret._id}`)
+        }}
+      />
     </div>
   )
 }

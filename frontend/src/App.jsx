@@ -78,6 +78,8 @@ const TransferForm = lazy(() => import('./pages/inventory/TransferForm'))
 const ReceiptForm = lazy(() => import('./pages/inventory/receipts/ReceiptForm'))
 const DeliveryForm = lazy(() => import('./pages/inventory/deliveries/DeliveryForm'))
 const InternalForm = lazy(() => import('./pages/inventory/internal/InternalForm'))
+const ManufacturingForm = lazy(() => import('./pages/inventory/manufacturing/ManufacturingForm'))
+const PosForm = lazy(() => import('./pages/inventory/pos/PosForm'))
 const StockReport = lazy(() => import('./pages/inventory/StockReport'))
 const LocationsReportPage = lazy(() => import('./pages/inventory/ReportPages').then((m) => ({ default: m.LocationsReportPage })))
 const ReconcileReportPage = lazy(() => import('./pages/inventory/ReportPages').then((m) => ({ default: m.ReconcileReportPage })))
@@ -836,11 +838,11 @@ function App() {
           <Route path="internal" element={<TransfersList />} />
           <Route path="internal/:id" element={<InternalForm />} />
           <Route path="pos" element={<TransfersList />} />
-          <Route path="pos/:id" element={<TransferForm />} />
+          <Route path="pos/:id" element={<PosForm />} />
           <Route path="pos-orders" element={<Navigate to="/app/dashboard/inventory/pos" replace />} />
           <Route path="pos-orders/:id" element={<PurchasesIdRedirect to="/app/dashboard/inventory/pos" />} />
           <Route path="manufacturing" element={<TransfersList />} />
-          <Route path="manufacturing/:id" element={<TransferForm />} />
+          <Route path="manufacturing/:id" element={<ManufacturingForm />} />
           <Route path="stock" element={<StockReport />} />
           <Route path="reports/stock" element={<Navigate to="/app/dashboard/inventory/stock" replace />} />
           <Route path="physical" element={<PhysicalInventory />} />

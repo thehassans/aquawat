@@ -1699,7 +1699,11 @@ router.post('/transfers/:id/return', checkPermission('inventory', 'create'), asy
       req.user.tenantId,
       req.user._id,
       req.params.id,
-      { lines: req.body.lines },
+      {
+        lines: req.body.lines,
+        destLocationId: req.body.destLocationId,
+        sourceLocationId: req.body.sourceLocationId,
+      },
     );
     res.status(201).json(transfer);
   } catch (err) {

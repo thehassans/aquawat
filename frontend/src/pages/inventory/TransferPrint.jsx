@@ -10,19 +10,27 @@ function layoutForOpCode(code) {
   if (code === 'incoming') return 'goods_receipt'
   if (code === 'outgoing') return 'delivery_note'
   if (code === 'internal') return 'internal_transfer'
+  if (code === 'manufacturing') return 'picking_list'
+  if (code === 'pos') return 'delivery_note'
   return 'picking_list'
 }
 
 /**
  * Server PDF (primary) + ZATCA-aware browser print (secondary).
  */
-export function TransferPrintButton({ transfer, code, settingsHints }) {
+export function TransferPrintButton({ transfer, code, settingsHints, buttonLabel, primary }) {
   const { language } = useSelector((s) => s.ui)
   const { tenant } = useSelector((s) => s.auth)
   const ar = language === 'ar'
   const showLots = code !== 'outgoing'
     ? true
     : settingsHints?.showLotsOnDeliverySlips !== false
+  const label = buttonLabel
+    || (code === 'internal'
+      ? (ar ? 'طباعة سند التحويل' : 'Print Transfer Slip')
+      : code === 'outgoing'
+        ? (ar ? 'طباعة سند التسليم' : 'Print Delivery Slip')
+        : (ar ? 'PDF' : 'PDF'))
 
   const printServerPdf = async () => {
     if (!transfer?._id) {
@@ -231,13 +239,20 @@ export function TransferPrintButton({ transfer, code, settingsHints }) {
 
   return (
     <div className="inline-flex items-center gap-1">
-      <button type="button" className="btn btn-ghost btn-sm" onClick={printServerPdf} title={ar ? 'PDF من الخادم' : 'Server PDF'}>
+      <button
+        type="button"
+        className={primary ? 'btn btn-secondary text-sm' : 'btn btn-ghost btn-sm'}
+        onClick={printServerPdf}
+        title={ar ? 'PDF من الخادم' : 'Server PDF'}
+      >
         <Printer className="h-4 w-4" />
-        {ar ? 'PDF' : 'PDF'}
+        {label}
       </button>
-      <button type="button" className="btn btn-ghost btn-sm text-xs" onClick={print} title={ar ? 'طباعة متصفح + زاتكا' : 'Browser + ZATCA'}>
-        {ar ? 'زاتكا' : 'ZATCA'}
-      </button>
+      {code !== 'internal' && code !== 'incoming' && code !== 'manufacturing' && code !== 'pos' && (
+        <button type="button" className="btn btn-ghost btn-sm text-xs" onClick={print} title={ar ? 'طباعة متصفح + زاتكا' : 'Browser + ZATCA'}>
+          {ar ? 'زاتكا' : 'ZATCA'}
+        </button>
+      )}
     </div>
   )
 }

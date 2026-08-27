@@ -11,11 +11,14 @@ import { asInvList } from '../../../lib/invList'
 import { formatInvError } from '../../../lib/invError'
 import { useDirtyGuard } from '../../../lib/useDirtyGuard'
 import { TransferPrintButton } from '../TransferPrint'
-import { formatLocationLabel } from '../receipts/locationLabel'
+import { formatLocationLabel, filterInternalLocations } from '../receipts/locationLabel'
 import { toDeliveryUiState, enrichMovesWithReserved } from '../deliveries/deliveryState'
-import { DeliveryDraftLines, DeliveryLineItems } from '../deliveries/DeliveryLineItems'
+import { DeliveryLineItems } from '../deliveries/DeliveryLineItems'
 import { InternalHeader, InternalActionBar } from './InternalHeader'
-import { InternalFormFields } from './InternalFormFields'
+import { InternalFormFields, LOCATION_DIFF_MSG } from './InternalFormFields'
+import { InternalDraftLines } from './InternalDraftLines'
+import ReverseTransferModal from '../returns/ReverseTransferModal'
+import { inventoryPathForOpCode } from '../returns/returnPaths'
 
 const LIST_PATH = '/app/dashboard/inventory/internal'
 
@@ -46,7 +49,7 @@ const internalSchema = z.object({
     { message: 'Add at least one product' },
   ),
 }).refine((v) => String(v.sourceLocationId) !== String(v.destLocationId), {
-  message: 'Source and destination must differ',
+  message: LOCATION_DIFF_MSG,
   path: ['destLocationId'],
 })
 
@@ -88,8 +91,6 @@ export default function InternalForm() {
     staleTime: 10 * 60 * 1000,
   })
 
-  const multiLocations = settings?.groupStockMultiLocations !== false
-
   const { data: locations = [] } = useQuery({
     queryKey: ['inv-locations'],
     queryFn: () => api.get('/stock/locations').then((r) => asInvList(r.data)),
@@ -112,12 +113,18 @@ export default function InternalForm() {
   } = useForm({
     resolver: zodResolver(internalSchema),
     defaultValues: emptyDefaults,
-    mode: 'onSubmit',
+    mode: 'onChange',
   })
 
   const lines = watch('lines') || []
   const formValues = watch()
+  const watchSource = watch('sourceLocationId')
+  const watchDest = watch('destLocationId')
+  const sameLocation = Boolean(
+    watchSource && watchDest && String(watchSource) === String(watchDest),
+  )
   const [doneEdits, setDoneEdits] = useState({})
+  const [returnOpen, setReturnOpen] = useState(false)
 
   useDirtyGuard(isNew && isDirty, ar ? 'لديك تغييرات غير محفوظة' : 'You have unsaved changes')
 
@@ -133,11 +140,19 @@ export default function InternalForm() {
     const ot = otArg || opTypes.find((o) => String(o._id) === String(otId))
     if (!ot) return
     const whId = String(ot.warehouseId?._id || ot.warehouseId || '')
-    const stockLocs = locations.filter((l) => l.usage === 'internal' && String(l.warehouseId) === whId)
-    const src = ot.defaultSourceLocationId || stockLocs[0]?._id || ''
-    const dest = ot.defaultDestLocationId || stockLocs[1]?._id || stockLocs[0]?._id || ''
-    setValue('sourceLocationId', typeof src === 'object' ? src._id : (src || ''), { shouldDirty: true })
-    setValue('destLocationId', typeof dest === 'object' ? dest._id : (dest || ''), { shouldDirty: true })
+    const stockLocs = filterInternalLocations(locations).filter(
+      (l) => String(l.warehouseId?._id || l.warehouseId || '') === whId || !whId,
+    )
+    const srcRaw = ot.defaultSourceLocationId || stockLocs[0]?._id || ''
+    let destRaw = ot.defaultDestLocationId || stockLocs[1]?._id || ''
+    const srcId = typeof srcRaw === 'object' ? srcRaw._id : (srcRaw || '')
+    let destId = typeof destRaw === 'object' ? destRaw._id : (destRaw || '')
+    if (srcId && destId && String(srcId) === String(destId)) {
+      const other = stockLocs.find((l) => String(l._id) !== String(srcId))
+      destId = other?._id || ''
+    }
+    setValue('sourceLocationId', srcId || '', { shouldDirty: true, shouldValidate: true })
+    setValue('destLocationId', destId || '', { shouldDirty: true, shouldValidate: true })
   }
 
   useEffect(() => {
@@ -207,80 +222,26 @@ export default function InternalForm() {
     onError: (e) => toast.error(formatInvError(e, language)),
   })
 
-  const duplicateMut = useMutation({
-    mutationFn: () => api.post(`/stock/transfers/${id}/duplicate`).then((r) => r.data),
-    onSuccess: (doc) => {
-      toast.success(ar ? 'تم النسخ' : 'Duplicated')
-      navigate(`${LIST_PATH}/${doc._id}`)
-    },
-    onError: (e) => toast.error(formatInvError(e, language)),
-  })
-
   const setLines = (next) => setValue('lines', next, { shouldDirty: true, shouldValidate: false })
 
-  const buildLineFromProduct = async (product) => {
-    let variantId = null
-    let variantName = ''
-    let variants = []
-    let needsVariant = false
-    if (variantsEnabled) {
-      try {
-        const { items = [] } = await api.get('/stock/variants', {
-          params: { productId: product._id, limit: 50 },
-        }).then((r) => r.data)
-        variants = items
-        if (items.length === 1) {
-          variantId = items[0]._id
-          variantName = items[0].name
-        } else if (items.length > 1) needsVariant = true
-      } catch { /* optional */ }
-    }
-    return {
-      productId: product._id,
-      productName: ar && product.nameAr ? product.nameAr : (product.nameEn || product.name),
-      sku: product.sku || '',
-      demandQty: '1',
-      variantId,
-      variantName,
-      variants,
-      needsVariant,
-      uomId: product.uomId || undefined,
-      uomLabel: product.unitOfMeasure || '',
-    }
-  }
-
-  const pickProduct = async (product, targetIdx = null) => {
-    const nextLine = await buildLineFromProduct(product)
+  const onPickResolved = (idx, payload) => {
     const current = getValues('lines') || []
-    if (targetIdx != null && targetIdx >= 0) {
-      const linesNext = [...current]
-      const prev = linesNext[targetIdx] || {}
-      linesNext[targetIdx] = {
-        ...nextLine,
-        demandQty: prev.demandQty && Number(prev.demandQty) > 0 ? prev.demandQty : nextLine.demandQty,
-      }
-      setLines(linesNext)
-      return
+    const linesNext = [...current]
+    const prev = linesNext[idx] || {}
+    linesNext[idx] = {
+      ...prev,
+      productId: payload.productId,
+      productName: payload.productName || '',
+      sku: payload.sku || '',
+      variantId: payload.variantId || null,
+      variantName: payload.variantName || '',
+      variants: [],
+      needsVariant: false,
+      uomId: payload.uomId || prev.uomId,
+      uomLabel: payload.uomLabel || prev.uomLabel || '',
+      demandQty: prev.demandQty && Number(prev.demandQty) > 0 ? prev.demandQty : '1',
     }
-    const blankIdx = current.findIndex((l) => !l.productId)
-    if (blankIdx >= 0) {
-      const linesNext = [...current]
-      linesNext[blankIdx] = nextLine
-      setLines(linesNext)
-      return
-    }
-    const key = `${nextLine.productId}:${nextLine.variantId || ''}`
-    const existing = current.findIndex((l) => `${l.productId}:${l.variantId || ''}` === key && !nextLine.needsVariant)
-    if (existing >= 0 && !nextLine.needsVariant) {
-      const linesNext = [...current]
-      linesNext[existing] = {
-        ...linesNext[existing],
-        demandQty: String(Number(linesNext[existing].demandQty || 0) + 1),
-      }
-      setLines(linesNext)
-      return
-    }
-    setLines([...current, nextLine])
+    setLines(linesNext)
   }
 
   const onAddOrIncrementCreate = (payload) => {
@@ -323,6 +284,10 @@ export default function InternalForm() {
   }
 
   const onCreate = handleSubmit((values) => {
+    if (String(values.sourceLocationId) === String(values.destLocationId)) {
+      toast.error(ar ? 'يجب أن يختلف موقع المصدر عن الوجهة.' : LOCATION_DIFF_MSG)
+      return
+    }
     const cleanLines = (values.lines || []).filter((l) => l.productId && Number(l.demandQty) > 0)
     if (!cleanLines.length) {
       toast.error(ar ? 'أضف منتجاً واحداً على الأقل' : 'Add at least one product')
@@ -358,6 +323,7 @@ export default function InternalForm() {
       quantity: doneEdits[m._id] != null ? doneEdits[m._id] : (m.demandQty || '0'),
     }))
     const totalDone = moveQuantities.reduce((sum, q) => sum + (Number(q.quantity) || 0), 0)
+    // Zero Done: block without backorder prompt (unlike partial qty).
     if (totalDone <= 0) {
       toast.error(ar ? 'لا يمكن الاعتماد وكميات التحويل = 0' : 'Cannot validate with all Done quantities at 0')
       return
@@ -399,6 +365,8 @@ export default function InternalForm() {
     actionMut.mutate({ action: 'cancel', body: { reason: reason || undefined } })
   }
 
+  const onReturn = () => setReturnOpen(true)
+
   const saveDraftMeta = () => {
     const values = getValues()
     if (!values.sourceLocationId || !values.destLocationId) {
@@ -406,7 +374,7 @@ export default function InternalForm() {
       return
     }
     if (String(values.sourceLocationId) === String(values.destLocationId)) {
-      toast.error(ar ? 'المصدر والوجهة يجب أن يختلفا' : 'Source and destination must differ')
+      toast.error(ar ? 'يجب أن يختلف موقع المصدر عن الوجهة.' : LOCATION_DIFF_MSG)
       return
     }
     patchMut.mutate({
@@ -423,7 +391,8 @@ export default function InternalForm() {
   const readOnly = ['done', 'cancelled'].includes(transfer?.state)
   const isDraft = transfer?.state === 'draft'
   const canEditDone = !readOnly && ['assigned', 'partiallyAvailable'].includes(transfer?.state)
-  const busy = actionMut.isPending || createMut.isPending || patchMut.isPending || duplicateMut.isPending
+  const busy = actionMut.isPending || createMut.isPending || patchMut.isPending
+  const saveDisabled = sameLocation || createMut.isPending || patchMut.isPending
 
   const metaReadonly = useMemo(() => {
     if (isNew || !transfer || isDraft) return null
@@ -459,6 +428,16 @@ export default function InternalForm() {
     return <div className="p-6 text-sm text-slate-400">{ar ? 'جاري التحميل…' : 'Loading…'}</div>
   }
 
+  const printBtn = (
+    <TransferPrintButton
+      transfer={transfer}
+      code="internal"
+      settingsHints={transfer?.settingsHints}
+      primary={uiState === 'done'}
+      buttonLabel={ar ? 'طباعة سند التحويل' : 'Print Transfer Slip'}
+    />
+  )
+
   return (
     <div className="mx-auto max-w-5xl space-y-5 px-1 pb-10">
       <InternalHeader
@@ -473,16 +452,15 @@ export default function InternalForm() {
             ar={ar}
             uiState={uiState}
             busy={busy}
+            saveDisabled={saveDisabled}
             onSaveDraft={isDraft ? saveDraftMeta : undefined}
             onConfirm={() => actionMut.mutate({ action: 'confirm' })}
             onCheckAvailability={() => actionMut.mutate({ action: 'check-availability' })}
             onUnreserve={() => actionMut.mutate({ action: 'unreserve' })}
             onValidate={onValidate}
             onCancel={onCancelTransfer}
-            onDuplicate={() => duplicateMut.mutate()}
-            onPrint={(
-              <TransferPrintButton transfer={transfer} code="internal" settingsHints={transfer?.settingsHints} />
-            )}
+            onReturn={onReturn}
+            onPrint={printBtn}
           />
         )}
       />
@@ -500,12 +478,14 @@ export default function InternalForm() {
             warehouses={warehouses}
             locations={locations}
             values={formValues}
+            watchSource={watchSource}
+            watchDest={watchDest}
             onOperationTypeChange={(otId) => {
               setValue('operationTypeId', otId, { shouldDirty: true })
               applyOpTypeDefaults(otId)
             }}
           />
-          <DeliveryDraftLines
+          <InternalDraftLines
             ar={ar}
             lines={lines}
             variantsEnabled={variantsEnabled}
@@ -519,11 +499,11 @@ export default function InternalForm() {
               copy[idx] = next
               setLines(copy)
             }}
-            onPickProduct={(p, idx) => pickProduct(p, idx)}
+            onPickResolved={onPickResolved}
             onAddOrIncrementCreate={onAddOrIncrementCreate}
           />
           <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4 dark:border-dark-600">
-            <button type="submit" className="btn btn-primary" disabled={createMut.isPending}>
+            <button type="submit" className="btn btn-primary" disabled={saveDisabled}>
               {ar ? 'حفظ المسودة' : 'Save Draft'}
             </button>
             <Link to={LIST_PATH} className="btn btn-secondary">{ar ? 'إلغاء' : 'Cancel'}</Link>
@@ -540,6 +520,8 @@ export default function InternalForm() {
               warehouses={warehouses}
               locations={locations}
               values={{ ...formValues, _lockOperationType: true }}
+              watchSource={watchSource}
+              watchDest={watchDest}
               onOperationTypeChange={(otId) => {
                 setValue('operationTypeId', otId, { shouldDirty: true })
                 applyOpTypeDefaults(otId)
@@ -563,6 +545,19 @@ export default function InternalForm() {
           </div>
         </div>
       )}
+
+      <ReverseTransferModal
+        open={returnOpen}
+        onClose={() => setReturnOpen(false)}
+        transferId={id}
+        transfer={transfer}
+        ar={ar}
+        language={language}
+        onCreated={(ret) => {
+          const path = inventoryPathForOpCode(ret.operationTypeId?.code || 'internal')
+          navigate(`/app/dashboard/inventory/${path}/${ret._id}`)
+        }}
+      />
     </div>
   )
 }

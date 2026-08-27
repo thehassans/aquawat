@@ -1,16 +1,14 @@
 import { Link } from 'react-router-dom'
 import { StatusChip } from '../inventoryUi'
-import { toDeliveryUiState } from '../deliveries/deliveryState'
+import { toManufacturingUiState } from './manufacturingState'
 
 const STEPS = [
   { id: 'draft', en: 'Draft', ar: 'مسودة' },
-  { id: 'waiting', en: 'Waiting', ar: 'انتظار' },
   { id: 'ready', en: 'Ready', ar: 'جاهز' },
   { id: 'done', en: 'Done', ar: 'منجز' },
 ]
 
-/** Internal transfers use the same reservation lifecycle as deliveries. */
-export function InternalActionBar({
+export function ManufacturingActionBar({
   ar,
   uiState,
   busy,
@@ -18,17 +16,17 @@ export function InternalActionBar({
   onSaveDraft,
   onConfirm,
   onCheckAvailability,
-  onUnreserve,
-  onValidate,
+  onProduce,
   onCancel,
   onReturn,
+  onScrap,
   onPrint,
 }) {
   if (uiState === 'cancelled') return null
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {uiState === 'done' && onPrint}
+      {onPrint}
       {uiState === 'draft' && (
         <>
           {onSaveDraft && (
@@ -41,18 +39,13 @@ export function InternalActionBar({
               {ar ? 'حفظ المسودة' : 'Save Draft'}
             </button>
           )}
-          <button type="button" className="btn btn-primary text-sm" disabled={busy || saveDisabled} onClick={onConfirm}>
-            {ar ? 'تعيين كمهمة' : 'Mark as Todo'}
-          </button>
-          <button type="button" className="btn btn-danger text-sm" disabled={busy} onClick={onCancel}>
-            {ar ? 'إلغاء' : 'Cancel'}
-          </button>
-        </>
-      )}
-      {uiState === 'waiting' && (
-        <>
-          <button type="button" className="btn btn-primary text-sm" disabled={busy} onClick={onCheckAvailability}>
-            {ar ? 'تحقق التوفر' : 'Check Availability'}
+          <button
+            type="button"
+            className="btn btn-primary text-sm"
+            disabled={busy || saveDisabled}
+            onClick={onConfirm}
+          >
+            {ar ? 'تأكيد' : 'Confirm'}
           </button>
           <button type="button" className="btn btn-danger text-sm" disabled={busy} onClick={onCancel}>
             {ar ? 'إلغاء' : 'Cancel'}
@@ -61,11 +54,11 @@ export function InternalActionBar({
       )}
       {uiState === 'ready' && (
         <>
-          <button type="button" className="btn btn-primary text-sm" disabled={busy} onClick={onValidate}>
-            {ar ? 'اعتماد التحويل' : 'Validate'}
+          <button type="button" className="btn btn-primary text-sm" disabled={busy} onClick={onProduce}>
+            {ar ? 'إنتاج (اعتماد)' : 'Produce'}
           </button>
-          <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={onUnreserve}>
-            {ar ? 'إلغاء الحجز' : 'Unreserve'}
+          <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={onCheckAvailability}>
+            {ar ? 'تحقق التوفر' : 'Check Availability'}
           </button>
           <button type="button" className="btn btn-danger text-sm" disabled={busy} onClick={onCancel}>
             {ar ? 'إلغاء' : 'Cancel'}
@@ -73,16 +66,20 @@ export function InternalActionBar({
         </>
       )}
       {uiState === 'done' && (
-        <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={onReturn}>
-          {ar ? 'مرتجع' : 'Return'}
-        </button>
+        <>
+          <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={onScrap}>
+            {ar ? 'خردة' : 'Scrap'}
+          </button>
+          <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={onReturn}>
+            {ar ? 'مرتجع' : 'Return'}
+          </button>
+        </>
       )}
-      {uiState !== 'done' && onPrint}
     </div>
   )
 }
 
-export function InternalHeader({
+export function ManufacturingHeader({
   ar,
   language,
   isNew,
@@ -91,7 +88,7 @@ export function InternalHeader({
   listPath,
   actionBar,
 }) {
-  const uiState = toDeliveryUiState(transferState)
+  const uiState = toManufacturingUiState(transferState)
 
   return (
     <div className="space-y-4">
@@ -103,7 +100,7 @@ export function InternalHeader({
             </Link>
             <span className="mx-1.5 text-slate-300">/</span>
             <Link to={listPath} className="hover:text-slate-800 dark:hover:text-slate-200">
-              {ar ? 'تحويلات داخلية' : 'Internal Transfers'}
+              {ar ? 'أوامر التصنيع' : 'Manufacturing'}
             </Link>
             {!isNew && title ? (
               <>
@@ -121,8 +118,8 @@ export function InternalHeader({
             </Link>
             <h1 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">
               {isNew
-                ? (ar ? 'تحويل داخلي جديد' : 'New Internal Transfer')
-                : (title || (ar ? 'تحويل داخلي' : 'Internal Transfer'))}
+                ? (ar ? 'أمر تصنيع جديد' : 'New Manufacturing Order')
+                : (title || (ar ? 'أمر تصنيع' : 'Manufacturing Order'))}
             </h1>
             {!isNew && transferState ? <StatusChip status={transferState} language={language} /> : null}
           </div>

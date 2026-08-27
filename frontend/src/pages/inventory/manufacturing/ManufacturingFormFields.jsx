@@ -1,15 +1,17 @@
+import AsyncCombobox from '../../../components/ui/AsyncCombobox'
 import { groupOperationTypesByWarehouse, operationTypeOptionLabel } from '../receipts/opTypeGroups'
-import { filterInternalLocations, locationOptionLabel } from '../receipts/locationLabel'
+import { filterManufacturingLocations, locationOptionLabel } from '../receipts/locationLabel'
 
-const LOCATION_DIFF_MSG = 'Source and Destination locations must be different.'
+export const LOCATION_DIFF_MSG = 'Source and Destination locations must be different.'
 
 /**
- * Metadata for internal transfers — internal physical locations only.
+ * Manufacturing metadata — partner hidden by default; locations include virtual Production.
  */
-export function InternalFormFields({
+export function ManufacturingFormFields({
   ar,
   register,
   errors,
+  setValue,
   opTypes,
   warehouses,
   locations,
@@ -18,9 +20,14 @@ export function InternalFormFields({
   values,
   watchSource,
   watchDest,
+  selectedPartner,
+  onPartnerChange,
+  fetchPartners,
+  showPartner,
+  onTogglePartner,
 }) {
   const groups = groupOperationTypesByWarehouse(opTypes, warehouses, ar)
-  const locationOptions = filterInternalLocations(locations, {
+  const locationOptions = filterManufacturingLocations(locations, {
     includeIds: [values?.sourceLocationId, values?.destLocationId],
   })
 
@@ -29,10 +36,9 @@ export function InternalFormFields({
   const sameLocation = Boolean(sourceId && destId && String(sourceId) === String(destId))
   const diffError = errors?.destLocationId?.message || (sameLocation ? LOCATION_DIFF_MSG : '')
 
-  const internalGroupLabel = (g) => {
-    // Prefer "WH-54897: Internal Transfers" over bare warehouse names
+  const groupLabel = (g) => {
     const code = String(g.warehouseLabel || '').split(':')[0].trim() || g.warehouseLabel
-    return ar ? `${code}: تحويلات داخلية` : `${code}: Internal Transfers`
+    return ar ? `${code}: تصنيع` : `${code}: Manufacturing`
   }
 
   return (
@@ -49,7 +55,7 @@ export function InternalFormFields({
         >
           <option value="">{ar ? '— اختر —' : '— Select —'}</option>
           {groups.map((g) => (
-            <optgroup key={g.warehouseId} label={internalGroupLabel(g)}>
+            <optgroup key={g.warehouseId} label={groupLabel(g)}>
               {g.options.map((o) => (
                 <option key={o._id} value={o._id}>
                   {operationTypeOptionLabel(o, ar)}
@@ -62,6 +68,56 @@ export function InternalFormFields({
           <p className="mt-1 text-xs text-rose-600">{errors.operationTypeId.message}</p>
         )}
       </label>
+
+      {!showPartner ? (
+        <div className="sm:col-span-2">
+          <button
+            type="button"
+            className="text-xs font-medium text-sky-700 hover:underline dark:text-sky-300"
+            onClick={onTogglePartner}
+            disabled={readOnly}
+          >
+            {ar ? '+ ربط شريك (اختياري)' : '+ Link partner (optional)'}
+          </button>
+        </div>
+      ) : (
+        <div className="block text-sm sm:col-span-2">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+              {ar ? 'الشريك (اختياري)' : 'Partner (optional)'}
+            </span>
+            <button
+              type="button"
+              className="text-[11px] text-slate-400 hover:text-slate-600"
+              onClick={() => {
+                setValue?.('partnerId', '', { shouldDirty: true })
+                onPartnerChange?.(null)
+                onTogglePartner?.()
+              }}
+              disabled={readOnly}
+            >
+              {ar ? 'إخفاء' : 'Hide'}
+            </button>
+          </div>
+          <AsyncCombobox
+            value={values?.partnerId || ''}
+            selectedOption={selectedPartner}
+            disabled={readOnly}
+            debounceMs={300}
+            minChars={2}
+            queryKeyPrefix="mfg-partner-search"
+            fetchOptions={fetchPartners}
+            placeholder={ar ? 'ابحث عن شريك…' : 'Search partner…'}
+            noResultsText={ar ? 'لا توجد نتائج' : 'No results found'}
+            getOptionLabel={(c) => (ar && c.nameAr ? c.nameAr : c.name) || c.customerCode || '—'}
+            getOptionSub={(c) => [c.customerCode, c.phone || c.mobile].filter(Boolean).join(' · ')}
+            onChange={(id, opt) => {
+              setValue?.('partnerId', id || '', { shouldDirty: true })
+              onPartnerChange?.(opt)
+            }}
+          />
+        </div>
+      )}
 
       <label className="block text-sm">
         <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
@@ -78,9 +134,6 @@ export function InternalFormFields({
             <option key={l._id} value={l._id}>{locationOptionLabel(l, ar)}</option>
           ))}
         </select>
-        {errors?.sourceLocationId && (
-          <p className="mt-1 text-xs text-rose-600">{errors.sourceLocationId.message}</p>
-        )}
       </label>
 
       <label className="block text-sm">
@@ -114,16 +167,6 @@ export function InternalFormFields({
 
       <label className="block text-sm">
         <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
-          {ar ? 'الأولوية' : 'Priority'}
-        </span>
-        <select className="select mt-0.5 w-full" disabled={readOnly} {...register('priority')}>
-          <option value="normal">{ar ? 'عادي' : 'Normal'}</option>
-          <option value="urgent">{ar ? 'عاجل' : 'Urgent'}</option>
-        </select>
-      </label>
-
-      <label className="block text-sm">
-        <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
           {ar ? 'المستند المصدر' : 'Source Document'}
         </span>
         <input className="input mt-0.5 w-full" disabled={readOnly} {...register('origin')} />
@@ -138,5 +181,3 @@ export function InternalFormFields({
     </div>
   )
 }
-
-export { LOCATION_DIFF_MSG }

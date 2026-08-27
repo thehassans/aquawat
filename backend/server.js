@@ -136,6 +136,7 @@ import furnitureRoutes from './routes/furniture.routes.js';
 import branchRoutes from './routes/branch.routes.js';
 import appStoreRoutes from './routes/appStore.routes.js';
 import manufacturingRoutes from './routes/manufacturing.routes.js';
+import bomRoutes from './routes/bom.routes.js';
 import gymRoutes from './routes/gym.routes.js';
 import calendarRoutes from './routes/calendar.routes.js';
 
@@ -901,6 +902,7 @@ app.use('/api/furniture', ensureDatabaseReady, furnitureRoutes);
 app.use('/api/branches', ensureDatabaseReady, branchRoutes);
 app.use('/api/app-store', ensureDatabaseReady, appStoreRoutes);
 app.use('/api/manufacturing', ensureDatabaseReady, manufacturingRoutes);
+app.use('/api/bom', ensureDatabaseReady, bomRoutes);
 app.use('/api/gym', ensureDatabaseReady, gymRoutes);
 
 // Serve static frontend files in production

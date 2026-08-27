@@ -11,6 +11,7 @@ const STEPS = [
 /**
  * State-driven action bar for incoming receipts.
  * No Check Availability / Unreserve / ZATCA (receipts-only).
+ * Print is intentionally omitted — ZATCA/print stay on invoicing.
  */
 export function ReceiptActionBar({
   ar,
@@ -23,13 +24,11 @@ export function ReceiptActionBar({
   onCancel,
   onReturn,
   onDuplicate,
-  onPrint,
 }) {
   if (uiState === 'cancelled') return null
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {onPrint}
       {uiState === 'draft' && (
         <>
           {onSaveDraft && (
@@ -39,6 +38,9 @@ export function ReceiptActionBar({
           )}
           <button type="button" className="btn btn-primary text-sm" disabled={busy} onClick={onConfirm}>
             {ar ? 'تأكيد (تعيين كمهمة)' : 'Confirm (Mark as Todo)'}
+          </button>
+          <button type="button" className="btn btn-danger text-sm" disabled={busy} onClick={onCancel}>
+            {ar ? 'إلغاء' : 'Cancel'}
           </button>
         </>
       )}
@@ -64,11 +66,6 @@ export function ReceiptActionBar({
             {ar ? 'نسخ' : 'Duplicate'}
           </button>
         </>
-      )}
-      {uiState === 'draft' && (
-        <button type="button" className="btn btn-danger text-sm" disabled={busy} onClick={onCancel}>
-          {ar ? 'إلغاء' : 'Cancel'}
-        </button>
       )}
     </div>
   )

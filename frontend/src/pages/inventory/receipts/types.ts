@@ -3,7 +3,7 @@
  * Maps Odoo-style incoming transfers (Draft → Ready → Done).
  */
 
-export type TransferState =
+export type BackendTransferState =
   | 'draft'
   | 'waiting'
   | 'confirmed'
@@ -12,8 +12,17 @@ export type TransferState =
   | 'done'
   | 'cancelled'
 
-/** UI-facing receipt state (collapsed from backend transfer states). */
-export type ReceiptUiState = 'draft' | 'ready' | 'done' | 'cancelled' | 'waiting'
+/**
+ * UI-facing transfer state machine for receipts (per product spec).
+ * Backend states collapse into these via toReceiptUiState().
+ */
+export type TransferState = 'draft' | 'ready' | 'done' | 'cancelled'
+
+/** @deprecated Prefer TransferState for UI; ReceiptUiState kept for compatibility. */
+export type ReceiptUiState = TransferState | 'waiting'
+
+/** Full backend transfer.document.state values. */
+export type TransferDocumentState = BackendTransferState
 
 export interface Location {
   _id: string
@@ -59,7 +68,7 @@ export interface TransferLineItem {
   uomId?: string | { _id: string; name?: string; nameAr?: string } | null
   demandQty: number | string
   doneQty?: number | string
-  state?: TransferState
+  state?: BackendTransferState
   sourceLocationId?: string | Location
   destLocationId?: string | Location
 }
@@ -76,7 +85,7 @@ export interface TransferPartner {
 export interface Transfer {
   _id: string
   name: string
-  state: TransferState
+  state: BackendTransferState
   operationTypeId?: OperationType | string
   partnerId?: string | null
   partner?: TransferPartner | null
