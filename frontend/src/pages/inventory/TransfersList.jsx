@@ -133,7 +133,13 @@ export default function TransfersList() {
           />
           <Link to={`${basePath}/new`} className="btn btn-primary text-sm">
             <Plus className="h-4 w-4" />
-            {ar ? 'جديد' : 'New'}
+            {code === 'incoming'
+              ? (ar ? 'استلام جديد' : 'New Receipt')
+              : code === 'outgoing'
+                ? (ar ? 'تسليم جديد' : 'New Delivery')
+                : code === 'internal'
+                  ? (ar ? 'تحويل جديد' : 'New Transfer')
+                  : (ar ? 'جديد' : 'New')}
           </Link>
         </div>
       )}
