@@ -145,21 +145,16 @@ export default function InventoryLayout() {
   }, [location.pathname, location.search])
 
   const runScheduler = async () => {
-    const ok = window.confirm(
-      language === 'ar'
-        ? 'تشغيل مجدول التوريد الآن؟'
-        : 'Run the procurement scheduler now?',
-    )
-    if (!ok) return
     try {
-      const res = await api.post('/stock/scheduler/run')
-      const run = res.data || {}
+      // Fire-and-forget style: async queue preferred; still OK if sync
+      api.post('/stock/scheduler/run', { async: true }).catch(() => {})
       toast.success(
         language === 'ar'
-          ? `تم — توريدات: ${run.procurementsCreated ?? 0}`
-          : `Done — procurements: ${run.procurementsCreated ?? 0}`,
+          ? 'المجدول يعمل في الخلفية'
+          : 'Scheduler is running in the background.',
       )
-      qc.invalidateQueries({ queryKey: ['replenishment'] })
+      qc.invalidateQueries({ queryKey: ['inv-jobs'] })
+      qc.invalidateQueries({ queryKey: ['inv-scheduler'] })
     } catch (e) {
       toast.error(formatInvError(e, language))
     }

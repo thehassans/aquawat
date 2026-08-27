@@ -205,12 +205,26 @@ export function ReturnsPage() {
 export function ReferencesPage() {
   const { language } = useSelector((s) => s.ui)
   const ar = language === 'ar'
+  const [selectedId, setSelectedId] = useState(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['procurement-groups'],
     queryFn: () => api.get('/stock/procurement-groups').then((r) => r.data),
   })
-  const items = data?.items || []
+  const items = data?.items || data?.data || []
+
+  const { data: detail, isLoading: loadingDetail } = useQuery({
+    queryKey: ['procurement-group', selectedId],
+    queryFn: () => api.get(`/stock/procurement-groups/${selectedId}`).then((r) => r.data),
+    enabled: Boolean(selectedId),
+  })
+
+  const statusTone = (status) => {
+    if (status === 'done') return 'bg-emerald-50 text-emerald-800'
+    if (status === 'in_progress') return 'bg-sky-50 text-sky-800'
+    if (status === 'open') return 'bg-amber-50 text-amber-800'
+    return 'bg-slate-100 text-slate-600'
+  }
 
   return (
     <div className="space-y-4" dir={ar ? 'rtl' : 'ltr'}>
@@ -219,33 +233,126 @@ export function ReferencesPage() {
           {ar ? 'المراجع / مجموعات التوريد' : 'References / Procurement groups'}
         </h2>
         <p className="text-sm text-slate-500">
-          {ar ? 'مجموعات الشراء الناتجة عن المجدول والقواعد' : 'Procurement groups created by the scheduler and rules'}
+          {ar ? 'انقر صفاً لعرض التحويلات المرتبطة' : 'Click a row to view linked transfers'}
         </p>
       </div>
       {isLoading ? <div className="text-sm text-slate-500">…</div> : !items.length ? (
         <EmptyState title={ar ? 'لا مجموعات بعد' : 'No procurement groups yet'} />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-          <table className="w-full min-w-[720px] text-sm">
+          <table className="w-full min-w-[800px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
-                <th className="min-w-[150px] px-3 py-2">{ar ? 'الاسم' : 'Name'}</th>
-                <th className="min-w-[150px] px-3 py-2">{ar ? 'النوع' : 'Move type'}</th>
-                <th className="min-w-[150px] px-3 py-2">{ar ? 'المصدر' : 'Origin'}</th>
+                <th className="min-w-[160px] px-3 py-2">{ar ? 'المرجع' : 'Group reference'}</th>
+                <th className="min-w-[160px] px-3 py-2">{ar ? 'المصدر' : 'Origin'}</th>
+                <th className="min-w-[140px] px-3 py-2">{ar ? 'تاريخ التسليم' : 'Delivery date'}</th>
+                <th className="min-w-[100px] px-3 py-2">{ar ? 'الحالة' : 'Status'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
               {items.map((g) => (
-                <tr key={g._id}>
-                  <td className="px-3 py-2.5 font-medium">{g.name}</td>
-                  <td className="px-3 py-2.5">{g.moveType}</td>
-                  <td className="px-3 py-2.5 text-xs text-slate-500">{g.originModel || '—'} {g.originDocId ? String(g.originDocId).slice(-6) : ''}</td>
+                <tr
+                  key={g._id}
+                  className="cursor-pointer hover:bg-slate-50 dark:hover:bg-dark-800/60"
+                  onClick={() => setSelectedId(g._id)}
+                >
+                  <td className="px-3 py-2.5 font-medium text-slate-900 dark:text-white">{g.name}</td>
+                  <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">
+                    {g.origin || [g.originModel, g.originDocId].filter(Boolean).join(' ') || '—'}
+                  </td>
+                  <td className="px-3 py-2.5 tabular-nums text-slate-500">
+                    {g.deliveryDate ? new Date(g.deliveryDate).toLocaleDateString() : '—'}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusTone(g.status)}`}>
+                      {g.status || 'draft'}
+                    </span>
+                    {g.transferCount != null ? (
+                      <span className="ms-2 text-[11px] text-slate-400">{g.transferCount} xfer</span>
+                    ) : null}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {selectedId ? (
+        <div className="fixed inset-0 z-40 flex justify-end bg-slate-950/40" onClick={() => setSelectedId(null)}>
+          <aside
+            className="flex h-full w-full max-w-md flex-col border-s border-slate-200 bg-white shadow-xl dark:border-dark-600 dark:bg-dark-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 dark:border-dark-600">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  {ar ? 'مجموعة التوريد' : 'Procurement group'}
+                </p>
+                <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+                  {detail?.name || '…'}
+                </h3>
+              </div>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSelectedId(null)}>
+                {ar ? 'إغلاق' : 'Close'}
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-4">
+              {loadingDetail ? (
+                <p className="text-sm text-slate-500">…</p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="text-xs text-slate-500">
+                    {ar ? 'المصدر' : 'Origin'}: {detail?.originModel || '—'}{' '}
+                    {detail?.originDocId ? String(detail.originDocId).slice(-8) : ''}
+                  </div>
+                  <div>
+                    <h4 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      {ar ? 'التحويلات المرتبطة' : 'Linked transfers'}
+                    </h4>
+                    {!detail?.transfers?.length ? (
+                      <p className="text-sm text-slate-400">{ar ? 'لا تحويلات' : 'No transfers'}</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {detail.transfers.map((t) => {
+                          const op = t.operationTypeId?.code || ''
+                          const href = op === 'incoming'
+                            ? `/app/dashboard/inventory/receipts/${t._id}`
+                            : op === 'outgoing'
+                              ? `/app/dashboard/inventory/deliveries/${t._id}`
+                              : `/app/dashboard/inventory/transfers/${t._id}`
+                          return (
+                            <li key={t._id} className="rounded-xl border border-slate-100 px-3 py-2 dark:border-dark-600">
+                              <Link to={href} className="text-sm font-medium text-sky-700 hover:underline">
+                                {t.name || t.reference || t._id}
+                              </Link>
+                              <div className="text-[11px] text-slate-400">
+                                {t.operationTypeId?.name || op || 'transfer'} · {t.state}
+                              </div>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                  {detail?.moves?.length ? (
+                    <div>
+                      <h4 className="mb-2 text-sm font-semibold text-slate-800">{ar ? 'الحركات' : 'Moves'}</h4>
+                      <ul className="space-y-1 text-xs text-slate-600">
+                        {detail.moves.slice(0, 20).map((m) => (
+                          <li key={m._id}>
+                            {m.productId?.nameEn || m.productId?.sku || '—'} · {m.state} · {m.productQty ?? m.quantity}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
+      ) : null}
     </div>
   )
 }

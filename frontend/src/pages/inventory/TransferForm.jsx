@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -6,7 +6,7 @@ import toast from 'react-hot-toast'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
-import ProductChooser from '../../components/inventory/ProductChooser'
+import AsyncCombobox from '../../components/ui/AsyncCombobox'
 import PartnerCombobox from '../../components/inventory/PartnerCombobox'
 import { StatusChip } from './inventoryUi'
 import { TransferPrintButton } from './TransferPrint'
@@ -15,6 +15,7 @@ import { formatInvError } from '../../lib/invError'
 import { useDirtyGuard } from '../../lib/useDirtyGuard'
 import ReverseTransferModal from './returns/ReverseTransferModal'
 import { inventoryPathForOpCode } from './returns/returnPaths'
+import { resolveOperationsLinePick, searchProductsAndVariants } from '../../lib/productVariantSearch'
 
 const CODE_FROM_PATH = () => {
   const parts = window.location.pathname.split('/')
@@ -263,8 +264,12 @@ export default function TransferForm() {
       return
     }
     for (const l of lines) {
-      if (l.needsVariant && !l.variantId) {
-        toast.error(ar ? 'اختر المتغير لكل منتج متعدد المتغيرات' : 'Select a variant for each multi-variant product')
+      if ((l.needsVariant || l.productHasVariants) && !l.variantId) {
+        toast.error(
+          ar
+            ? 'يجب اختيار متغير محدد لنقل المخزون'
+            : 'Must select a specific variant to move stock',
+        )
         return
       }
     }
@@ -293,6 +298,7 @@ export default function TransferForm() {
       lines: lines.map((l) => ({
         productId: l.productId,
         demandQty: l.demandQty,
+        // Always bind concrete variant id when present — never omit for multi-variant products
         variantId: l.variantId || undefined,
         uomId: l.uomId || undefined,
         productPackagingId: l.productPackagingId || undefined,
@@ -317,38 +323,22 @@ export default function TransferForm() {
     }
   }
 
-  const buildLineFromProduct = async (product) => {
-    let variantId = null
-    let variantName = ''
-    let variants = []
-    let needsVariant = false
-    if (hints.variantsEnabled || settings?.groupProductVariant) {
-      try {
-        const { items = [] } = await api.get('/stock/variants', {
-          params: { productId: product._id, limit: 50 },
-        }).then((r) => r.data)
-        variants = items
-        if (items.length === 1) {
-          variantId = items[0]._id
-          variantName = items[0].name
-        } else if (items.length > 1) {
-          needsVariant = true
-        }
-      } catch {
-        /* variants optional */
-      }
-    }
+  const variantsEnabled = !!(hints.variantsEnabled || settings?.groupProductVariant)
+
+  const buildLineFromProduct = async (productOrOpt) => {
+    const resolved = await resolveOperationsLinePick(productOrOpt, { variantsEnabled })
     return {
-      productId: product._id,
-      productName: ar && product.nameAr ? product.nameAr : (product.nameEn || product.name),
-      sku: product.sku,
+      productId: resolved.productId,
+      productName: ar && productOrOpt.nameAr ? productOrOpt.nameAr : resolved.productName,
+      sku: resolved.sku,
       demandQty: '1',
-      variantId,
-      variantName,
-      variants,
-      needsVariant,
-      uomId: product.uomId || undefined,
-      uomLabel: product.unitOfMeasure || '',
+      variantId: resolved.variantId,
+      variantName: resolved.variantName,
+      variants: resolved.variants,
+      needsVariant: resolved.needsVariant,
+      productHasVariants: resolved.productHasVariants,
+      uomId: resolved.uomId || productOrOpt.uomId || undefined,
+      uomLabel: resolved.uomLabel || productOrOpt.unitOfMeasure || '',
     }
   }
 
@@ -395,6 +385,7 @@ export default function TransferForm() {
         variantName: '',
         variants: [],
         needsVariant: false,
+        productHasVariants: false,
         uomId: undefined,
         uomLabel: '',
       }],
@@ -427,8 +418,11 @@ export default function TransferForm() {
                 productName: product.nameEn || product.name || hit.name,
                 sku: product.sku || hit.sku,
                 demandQty: '1',
-                variantId: hit._id,
+                variantId: String(hit._id),
                 variantName: hit.name,
+                variants: [],
+                needsVariant: false,
+                productHasVariants: true,
               }],
             }
           })
@@ -454,6 +448,11 @@ export default function TransferForm() {
     && !['done', 'cancelled'].includes(transfer?.state)
 
   const readOnly = ['done', 'cancelled'].includes(transfer?.state)
+
+  const draftLinesMissingVariant = useMemo(
+    () => (form.lines || []).filter((l) => l.productId && (l.needsVariant || l.productHasVariants) && !l.variantId),
+    [form.lines],
+  )
 
   if (!isNew && isLoading) {
     return <div className="text-sm text-slate-400">…</div>
@@ -512,6 +511,7 @@ export default function TransferForm() {
                 <button
                   type="button"
                   className="btn btn-primary text-sm"
+                  disabled={actionMut.isPending}
                   onClick={() => {
                     if (hints.signatureRequired && code === 'outgoing' && !transfer?.signature) {
                       toast.error(ar ? 'التوقيع مطلوب قبل الاعتماد' : 'Signature required before validate')
@@ -519,10 +519,28 @@ export default function TransferForm() {
                       return
                     }
                     const moves = transfer?.moves || []
+                    // Include variantId so payload matches the reserved quant dimension
                     const moveQuantities = moves.map((m) => ({
                       moveId: m._id,
                       quantity: doneEdits[m._id] != null ? doneEdits[m._id] : (m.demandQty || '0'),
+                      variantId: m.variantId?._id || m.variantId || undefined,
+                      productId: m.productId?._id || m.productId || undefined,
                     }))
+                    const missingVariant = variantsEnabled && moves.some((m) => {
+                      const vid = m.variantId?._id || m.variantId
+                      // Multi-variant products always populate variantId after createTransfer guard;
+                      // flag empty variantName with no id only when UI already showed a variant label path
+                      return Boolean(m.productId) && !vid && Array.isArray(m.productId?.attributeLines)
+                        && m.productId.attributeLines.length > 0
+                    })
+                    if (missingVariant) {
+                      toast.error(
+                        ar
+                          ? 'يجب اختيار متغير محدد لنقل المخزون'
+                          : 'Must select a specific variant to move stock',
+                      )
+                      return
+                    }
                     const diffs = moves.filter((m) => {
                       const demand = Number(m.demandQty || 0)
                       const done = Number(doneEdits[m._id] != null ? doneEdits[m._id] : m.demandQty || 0)
@@ -868,7 +886,11 @@ export default function TransferForm() {
             <textarea className="input mt-1 w-full" rows={2} value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} />
           </label>
 
-          <button type="submit" className="btn btn-primary" disabled={createMut.isPending}>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={createMut.isPending || draftLinesMissingVariant.length > 0}
+          >
             {ar ? 'حفظ' : 'Save'}
           </button>
         </form>
@@ -1311,6 +1333,11 @@ export default function TransferForm() {
 }
 
 function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onPickProduct, onChange, onRemove }) {
+  const fetchOptions = useCallback(
+    (q) => searchProductsAndVariants(q, { variantsEnabled }),
+    [variantsEnabled],
+  )
+
   const { data: packsPayload } = useQuery({
     queryKey: ['inv-product-packagings-line', line.productId],
     queryFn: () => api.get('/stock/product-packagings', {
@@ -1325,88 +1352,153 @@ function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onPick
   const packsCount = Number(line.packagingQty || line.demandQty || 0)
   const productQty = selected ? packsCount * packQty : line.demandQty
   const variants = line.variants || []
-  const valueSub = [
-    line.sku || '',
-    selected ? `→ ${productQty}` : '',
-    !selected && line.uomLabel ? line.uomLabel : '',
-  ].filter(Boolean).join(' · ')
+  const missingVariant = !!(line.productId && (line.needsVariant || line.productHasVariants) && !line.variantId)
+
+  const selectedOption = line.productId
+    ? {
+        _id: line.variantId ? `v:${line.variantId}` : `p:${line.productId}`,
+        name: [line.sku, line.variantName || line.productName].filter(Boolean).join(' — ')
+          || line.productName
+          || '—',
+        sku: line.sku,
+        productName: line.productName,
+        variantName: line.variantName,
+      }
+    : null
 
   return (
-    <div className="grid items-center gap-2 px-3.5 py-2.5 sm:grid-cols-[minmax(0,1.5fr)_minmax(6.5rem,10rem)_minmax(5.5rem,8rem)_4.75rem_2.25rem]">
-      <div className="min-w-0">
-        <ProductChooser
-          mode="inline"
-          remote
-          valueLabel={line.productName || ''}
-          valueSub={valueSub}
-          onPick={onPickProduct}
-          placeholder={ar ? '— اختر من البحث —' : '— Pick from search —'}
+    <div className="space-y-1 px-3.5 py-2.5">
+      <div className="grid items-center gap-2 sm:grid-cols-[minmax(0,1.5fr)_minmax(6.5rem,10rem)_minmax(5.5rem,8rem)_4.75rem_2.25rem]">
+        <div className="min-w-0">
+          <AsyncCombobox
+            value={selectedOption?._id || ''}
+            selectedOption={selectedOption}
+            debounceMs={300}
+            minChars={1}
+            queryKeyPrefix="ops-product-variant"
+            fetchOptions={fetchOptions}
+            placeholder={ar ? 'ابحث عن منتج أو متغير…' : 'Search product or variant…'}
+            noResultsText={ar ? 'لا توجد نتائج' : 'No results found'}
+            getOptionLabel={(o) => o.name || o.productName || '—'}
+            getOptionSub={(o) => {
+              if (o.kind === 'variant' || o.variantName) {
+                return [o.sku, o.productName].filter(Boolean).join(' · ')
+              }
+              return o.sku || ''
+            }}
+            onChange={async (_id, opt) => {
+              try {
+                if (!opt) {
+                  onChange({
+                    ...line,
+                    productId: '',
+                    productName: '',
+                    sku: '',
+                    variantId: null,
+                    variantName: '',
+                    variants: [],
+                    needsVariant: false,
+                    productHasVariants: false,
+                  })
+                  return
+                }
+                // Prefer parent pickProduct so merge/increment logic stays centralized
+                if (typeof onPickProduct === 'function') {
+                  await onPickProduct(opt)
+                  return
+                }
+                const resolved = await resolveOperationsLinePick(opt, { variantsEnabled })
+                onChange({
+                  ...line,
+                  ...resolved,
+                  demandQty: line.demandQty && Number(line.demandQty) > 0 ? line.demandQty : '1',
+                })
+              } catch {
+                /* ignore */
+              }
+            }}
+          />
+        </div>
+        {variantsEnabled && variants.length > 1 ? (
+          <select
+            className={`select select-sm border-slate-200/90 ${missingVariant ? 'border-rose-400' : ''}`}
+            value={line.variantId || ''}
+            onChange={(e) => {
+              const id = e.target.value
+              const v = variants.find((x) => String(x._id) === String(id))
+              onChange({
+                ...line,
+                variantId: id || null,
+                variantName: v?.name || '',
+                needsVariant: !id,
+                productHasVariants: true,
+              })
+            }}
+          >
+            <option value="">{ar ? '— متغير —' : '— Variant —'}</option>
+            {variants.map((v) => (
+              <option key={v._id} value={v._id}>{v.name}</option>
+            ))}
+          </select>
+        ) : (
+          <div className={`text-xs ${missingVariant ? 'font-medium text-rose-600' : 'text-slate-400'}`}>
+            {line.variantName || (missingVariant ? (ar ? 'مطلوب' : 'Required') : '—')}
+          </div>
+        )}
+        {packagingEnabled && packs.length > 0 ? (
+          <select
+            className="select select-sm border-slate-200/90"
+            value={line.productPackagingId || ''}
+            onChange={(e) => {
+              const id = e.target.value
+              onChange({
+                ...line,
+                productPackagingId: id || undefined,
+                packagingQty: id ? (line.packagingQty || line.demandQty || '1') : undefined,
+              })
+            }}
+          >
+            <option value="">{ar ? 'وحدة المنتج' : 'Product UoM'}</option>
+            {packs.map((p) => (
+              <option key={p._id} value={p._id}>{p.name} (×{p.qty})</option>
+            ))}
+          </select>
+        ) : (
+          <div className="text-xs text-slate-400">{line.uomLabel || (ar ? 'وحدة' : 'UoM')}</div>
+        )}
+        <input
+          className="input input-sm border-slate-200/90 text-end tabular-nums"
+          type="text"
+          inputMode="decimal"
+          title={selected ? (ar ? 'عدد العبوات' : 'Number of packs') : (ar ? 'الكمية' : 'Quantity')}
+          value={selected ? (line.packagingQty || line.demandQty) : line.demandQty}
+          onChange={(e) => {
+            const v = e.target.value
+            if (selected) onChange({ ...line, packagingQty: v, demandQty: v })
+            else onChange({ ...line, demandQty: v })
+          }}
         />
+        <button
+          type="button"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-rose-50 hover:text-rose-600"
+          onClick={onRemove}
+          aria-label="Remove"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
       </div>
-      {variantsEnabled && variants.length > 0 ? (
-        <select
-          className={`select select-sm border-slate-200/90 ${line.needsVariant && !line.variantId ? 'border-amber-400' : ''}`}
-          value={line.variantId || ''}
-          onChange={(e) => {
-            const id = e.target.value
-            const v = variants.find((x) => String(x._id) === String(id))
-            onChange({
-              ...line,
-              variantId: id || null,
-              variantName: v?.name || '',
-              needsVariant: variants.length > 1 && !id,
-            })
-          }}
-        >
-          <option value="">{ar ? '— متغير —' : '— Variant —'}</option>
-          {variants.map((v) => (
-            <option key={v._id} value={v._id}>{v.name}</option>
-          ))}
-        </select>
-      ) : (
-        <div className="text-xs text-slate-300">{line.variantName || '—'}</div>
-      )}
-      {packagingEnabled && packs.length > 0 ? (
-        <select
-          className="select select-sm border-slate-200/90"
-          value={line.productPackagingId || ''}
-          onChange={(e) => {
-            const id = e.target.value
-            onChange({
-              ...line,
-              productPackagingId: id || undefined,
-              packagingQty: id ? (line.packagingQty || line.demandQty || '1') : undefined,
-            })
-          }}
-        >
-          <option value="">{ar ? 'وحدة المنتج' : 'Product UoM'}</option>
-          {packs.map((p) => (
-            <option key={p._id} value={p._id}>{p.name} (×{p.qty})</option>
-          ))}
-        </select>
-      ) : (
-        <div className="text-xs text-slate-400">{line.uomLabel || (ar ? 'وحدة' : 'UoM')}</div>
-      )}
-      <input
-        className="input input-sm border-slate-200/90 text-end tabular-nums"
-        type="text"
-        inputMode="decimal"
-        title={selected ? (ar ? 'عدد العبوات' : 'Number of packs') : (ar ? 'الكمية' : 'Quantity')}
-        value={selected ? (line.packagingQty || line.demandQty) : line.demandQty}
-        onChange={(e) => {
-          const v = e.target.value
-          if (selected) onChange({ ...line, packagingQty: v, demandQty: v })
-          else onChange({ ...line, demandQty: v })
-        }}
-      />
-      <button
-        type="button"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-rose-50 hover:text-rose-600"
-        onClick={onRemove}
-        aria-label={ar ? 'حذف' : 'Remove'}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
+      {missingVariant ? (
+        <p className="text-[11px] font-medium text-rose-600">
+          {ar
+            ? 'يجب اختيار متغير محدد لنقل المخزون'
+            : 'Must select a specific variant to move stock'}
+        </p>
+      ) : null}
+      {selected && productQty != null ? (
+        <p className="text-[10px] text-slate-400">
+          {ar ? 'كمية المنتج' : 'Product qty'}: {productQty}
+        </p>
+      ) : null}
     </div>
   )
 }

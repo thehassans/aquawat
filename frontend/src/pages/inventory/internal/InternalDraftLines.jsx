@@ -1,85 +1,12 @@
 import { useCallback } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import AsyncCombobox from '../../../components/ui/AsyncCombobox'
-import api from '../../../lib/api'
 import { ReceiptQuickAdd } from '../receipts/ReceiptQuickAdd'
-
-/**
- * Search products AND variants in one step.
- * Returns selectable rows like "SKU — Variant Name" so the user picks the
- * concrete variant without a second dropdown.
- */
-async function searchProductsAndVariants(q, { variantsEnabled }) {
-  const needle = String(q || '').trim()
-  if (needle.length < 1) return []
-
-  const results = []
-  const seen = new Set()
-
-  if (variantsEnabled) {
-    try {
-      const data = await api.get('/stock/variants', {
-        params: { q: needle, limit: 20 },
-      }).then((r) => r.data)
-      const items = Array.isArray(data) ? data : (data?.items || data?.variants || [])
-      for (const v of items) {
-        const productId = typeof v.productId === 'object' ? v.productId?._id : v.productId
-        if (!productId || !v._id) continue
-        const key = `v:${v._id}`
-        if (seen.has(key)) continue
-        seen.add(key)
-        const productName = (typeof v.productId === 'object'
-          ? (v.productId.nameEn || v.productId.name)
-          : null) || ''
-        const sku = v.sku || (typeof v.productId === 'object' ? v.productId.sku : '') || ''
-        results.push({
-          _id: key,
-          kind: 'variant',
-          productId,
-          variantId: v._id,
-          variantName: v.name || '',
-          productName,
-          sku,
-          name: [sku, v.name || productName].filter(Boolean).join(' — ') || v.name,
-          barcode: v.barcode,
-        })
-      }
-    } catch { /* variants optional */ }
-  }
-
-  try {
-    const list = await api.get('/products', {
-      params: { search: needle, limit: 15, status: 'active' },
-    }).then((r) => r.data?.products || r.data || [])
-    for (const p of list) {
-      const key = `p:${p._id}`
-      if (seen.has(key)) continue
-      // Skip template products that already have a matching variant in results
-      const hasVariantHit = results.some((r) => String(r.productId) === String(p._id) && r.kind === 'variant')
-      if (hasVariantHit && variantsEnabled) continue
-      seen.add(key)
-      results.push({
-        _id: key,
-        kind: 'product',
-        productId: p._id,
-        variantId: null,
-        variantName: '',
-        productName: p.nameEn || p.name || '',
-        sku: p.sku || '',
-        name: [p.sku, p.nameEn || p.name].filter(Boolean).join(' — ') || p.nameEn || p.name,
-        barcode: p.barcode,
-        uomId: p.uomId,
-        unitOfMeasure: p.unitOfMeasure,
-        nameAr: p.nameAr,
-      })
-    }
-  } catch { /* ignore */ }
-
-  return results.slice(0, 25)
-}
+import { resolveOperationsLinePick, searchProductsAndVariants } from '../../../lib/productVariantSearch'
 
 /**
  * Internal transfer draft lines with one-step product/variant picker.
+ * Parent templates that have variants are never selectable — only concrete variants.
  */
 export function InternalDraftLines({
   ar,
@@ -143,6 +70,7 @@ export function InternalDraftLines({
           </div>
           <div className="divide-y divide-slate-100/90 dark:divide-dark-600">
             {lines.map((line, idx) => {
+              const missingVariant = !!(line.productId && (line.needsVariant || line.productHasVariants) && !line.variantId)
               const selectedOption = line.productId
                 ? {
                     _id: line.variantId ? `v:${line.variantId}` : `p:${line.productId}`,
@@ -178,65 +106,8 @@ export function InternalDraftLines({
                       }}
                       onChange={async (_id, opt) => {
                         try {
-                          if (!opt) {
-                            onChangeLine(idx, {
-                              ...line,
-                              productId: '',
-                              productName: '',
-                              sku: '',
-                              variantId: null,
-                              variantName: '',
-                              variants: [],
-                              needsVariant: false,
-                            })
-                            return
-                          }
-                          // Variant row already binds concrete productId + variantId
-                          if (opt.kind === 'variant' || opt.variantId) {
-                            onPickResolved?.(idx, {
-                              productId: opt.productId,
-                              productName: opt.productName || opt.name,
-                              sku: opt.sku || '',
-                              variantId: opt.variantId || null,
-                              variantName: opt.variantName || '',
-                              uomId: opt.uomId,
-                              uomLabel: opt.unitOfMeasure || '',
-                              needsVariant: false,
-                              variants: [],
-                            })
-                            return
-                          }
-                          // Product template — resolve specific variant when required
-                          let variantId = null
-                          let variantName = ''
-                          let variants = []
-                          let needsVariant = false
-                          if (variantsEnabled && opt.productId) {
-                            try {
-                              const data = await api.get('/stock/variants', {
-                                params: { productId: opt.productId, limit: 50 },
-                              }).then((r) => r.data)
-                              const items = Array.isArray(data) ? data : (data?.items || [])
-                              variants = items
-                              if (items.length === 1) {
-                                variantId = items[0]._id
-                                variantName = items[0].name || ''
-                              } else if (items.length > 1) {
-                                needsVariant = true
-                              }
-                            } catch { /* optional */ }
-                          }
-                          onPickResolved?.(idx, {
-                            productId: opt.productId,
-                            productName: opt.productName || opt.name,
-                            sku: opt.sku || '',
-                            variantId,
-                            variantName,
-                            uomId: opt.uomId,
-                            uomLabel: opt.unitOfMeasure || '',
-                            needsVariant,
-                            variants,
-                          })
+                          const resolved = await resolveOperationsLinePick(opt, { variantsEnabled })
+                          onPickResolved?.(idx, resolved)
                         } catch {
                           /* never leak unhandled axios/rejection to window */
                         }
@@ -245,7 +116,7 @@ export function InternalDraftLines({
                     {variantsEnabled && line.needsVariant && Array.isArray(line.variants) && line.variants.length > 0 && (
                       <div className="relative z-20 mt-1 overflow-visible">
                         <select
-                          className="select w-full text-xs"
+                          className={`select w-full text-xs ${missingVariant ? 'border-rose-400' : ''}`}
                           value={line.variantId || ''}
                           onChange={(e) => {
                             const variantId = e.target.value || null
@@ -256,6 +127,7 @@ export function InternalDraftLines({
                               variantId,
                               variantName: selected?.name || '',
                               needsVariant: !variantId,
+                              productHasVariants: true,
                             })
                           }}
                         >
@@ -266,6 +138,13 @@ export function InternalDraftLines({
                         </select>
                       </div>
                     )}
+                    {missingVariant ? (
+                      <p className="mt-1 text-[11px] font-medium text-rose-600">
+                        {ar
+                          ? 'يجب اختيار متغير محدد لنقل المخزون'
+                          : 'Must select a specific variant to move stock'}
+                      </p>
+                    ) : null}
                   </div>
                   <input
                     className="input input-sm w-full text-end tabular-nums"
@@ -279,7 +158,7 @@ export function InternalDraftLines({
                     onClick={() => onRemoveLine(idx)}
                     aria-label="Remove"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               )

@@ -663,7 +663,7 @@ router.get('/transfers/:id', checkPermission('inventory', 'read'), async (req, r
     if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
     await assertTransferWarehouseAccess(req, transfer);
     const moves = await InvMove.find({ tenantId: req.user.tenantId, transferId: transfer._id })
-      .populate('productId', 'nameEn nameAr sku barcode unitOfMeasure tracking uomId')
+      .populate('productId', 'nameEn nameAr sku barcode unitOfMeasure tracking uomId attributeLines')
       .populate('variantId', 'name nameAr sku barcode')
       .populate('uomId', 'name nameAr')
       .populate('sourceLocationId', 'name completePath')
@@ -2455,11 +2455,87 @@ router.post('/warehouses/:id/recompute-routes', checkPermission('inventory', 'up
 
 router.get('/procurement-groups', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const items = await InvProcurementGroup.find({ tenantId: req.user.tenantId })
+    const { default: InvTransfer } = await import('../models/inventory/InvTransfer.js');
+    const groups = await InvProcurementGroup.find({ tenantId: req.user.tenantId })
       .sort({ createdAt: -1 })
       .limit(100)
       .lean();
+
+    const ids = groups.map((g) => g._id);
+    const transfers = ids.length
+      ? await InvTransfer.find({ tenantId: req.user.tenantId, procurementGroupId: { $in: ids } })
+        .select('procurementGroupId state scheduledDate deadlineDate name reference')
+        .lean()
+      : [];
+
+    const byGroup = new Map();
+    for (const t of transfers) {
+      const key = String(t.procurementGroupId);
+      if (!byGroup.has(key)) byGroup.set(key, []);
+      byGroup.get(key).push(t);
+    }
+
+    const items = groups.map((g) => {
+      const list = byGroup.get(String(g._id)) || [];
+      const status = list.some((t) => t.state === 'done')
+        ? 'done'
+        : list.some((t) => ['assigned', 'confirmed', 'waiting', 'partiallyAvailable'].includes(t.state))
+          ? 'in_progress'
+          : list.length ? 'open' : 'draft';
+      const deliveryDate = list
+        .map((t) => t.scheduledDate || t.deadlineDate)
+        .filter(Boolean)
+        .sort((a, b) => new Date(a) - new Date(b))[0] || null;
+      return {
+        ...g,
+        status,
+        deliveryDate,
+        transferCount: list.length,
+        origin: [g.originModel, g.originDocId].filter(Boolean).join(' ') || g.name,
+      };
+    });
+
     return sendList(res, items);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/procurement-groups/:id', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const group = await InvProcurementGroup.findOne({
+      _id: req.params.id,
+      tenantId: req.user.tenantId,
+    }).lean();
+    if (!group) return res.status(404).json({ error: 'Procurement group not found' });
+
+    const { default: InvTransfer } = await import('../models/inventory/InvTransfer.js');
+    const { default: InvMove } = await import('../models/inventory/InvMove.js');
+    const [transfers, moves] = await Promise.all([
+      InvTransfer.find({ tenantId: req.user.tenantId, procurementGroupId: group._id })
+        .sort({ createdAt: -1 })
+        .limit(100)
+        .populate('operationTypeId', 'name code')
+        .lean(),
+      InvMove.find({ tenantId: req.user.tenantId, procurementGroupId: group._id })
+        .sort({ createdAt: -1 })
+        .limit(100)
+        .populate('productId', 'nameEn sku')
+        .lean(),
+    ]);
+
+    res.json({
+      ...group,
+      transfers,
+      moves,
+      status: transfers.some((t) => t.state === 'done')
+        ? 'done'
+        : transfers.some((t) => ['assigned', 'confirmed', 'waiting'].includes(t.state))
+          ? 'in_progress'
+          : 'draft',
+      deliveryDate: transfers.map((t) => t.scheduledDate || t.deadlineDate).filter(Boolean).sort()[0]
+        || group.createdAt,
+    });
   } catch (err) {
     handleInventoryError(res, err);
   }

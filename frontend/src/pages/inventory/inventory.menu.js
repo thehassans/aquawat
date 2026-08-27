@@ -154,13 +154,6 @@ export const INVENTORY_MENU_TREE = [
         permission: { module: 'inventory', action: 'read' },
       },
       {
-        id: 'partners',
-        label: 'Contacts (Partners)',
-        labelAr: 'جهات الاتصال',
-        href: '/app/dashboard/contacts?types=customer,supplier',
-        permission: { module: 'inventory', action: 'read' },
-      },
-      {
         id: 'run-scheduler',
         label: 'Procurement: Run Scheduler',
         labelAr: 'تشغيل المجدول',

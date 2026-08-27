@@ -12,6 +12,8 @@ export const validateTransferBody = z.object({
   moveQuantities: z.array(z.object({
     moveId: objectId,
     quantity: z.union([z.number(), z.string()]),
+    variantId: objectId.optional().nullable(),
+    productId: objectId.optional().nullable(),
   })).optional(),
 }).passthrough();
 

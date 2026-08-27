@@ -93,7 +93,7 @@ export async function listJobRuns(tenantId, {
   const items = await InvJobRun.find(filter)
     .sort({ startedAt: -1 })
     .limit(Math.min(100, Number(limit) || 40))
-    .select('jobType trigger status startedAt finishedAt durationMs counts errors result createdBy')
+    .select('jobType trigger status startedAt finishedAt durationMs counts errors result createdBy createdAt')
     .lean();
   return { items, total: items.length };
 }

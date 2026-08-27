@@ -120,6 +120,12 @@ async function applyMoveQuantities(session, tid, transfer, moveQuantities, userI
     }).session(session);
     if (!move) continue;
 
+    // Prefer explicit variant from validate payload when move lacked one (legacy drafts)
+    if (row.variantId && !move.variantId) {
+      move.variantId = toObjectId(row.variantId);
+      await move.save({ session });
+    }
+
     if (D(qty).gt(D(move.demandQty))) {
       throw new InventoryValidationError(
         `Done qty exceeds demand for ${move.reference || move._id}`,
@@ -157,6 +163,9 @@ async function applyMoveQuantities(session, tid, transfer, moveQuantities, userI
     const [primary, ...rest] = openLines;
     primary.quantity = qty;
     primary.quantityInProductUom = qty;
+    if (move.variantId && !primary.variantId) {
+      primary.variantId = move.variantId;
+    }
     if (userId) primary.updatedBy = userId;
     await primary.save({ session });
     for (const extra of rest) {

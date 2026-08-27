@@ -136,11 +136,43 @@ export async function reserveMove(move, session) {
     return move;
   }
 
-  const quants = await InvQuant.find({
+  // Strict variant binding: never reserve template-level stock for a specific variant
+  // (and never mix variants). If the product has variants but the move has none, require one.
+  const { default: InvProductVariant } = await import('../../models/inventory/InvProductVariant.js');
+  const activeVariants = await InvProductVariant.find({
+    tenantId: move.tenantId,
+    productId: move.productId,
+    active: true,
+  }).select('_id isDefault').limit(50).session(session).lean();
+
+  if (activeVariants.length > 0 && !move.variantId) {
+    if (activeVariants.length === 1) {
+      move.variantId = activeVariants[0]._id;
+    } else {
+      const def = activeVariants.find((v) => v.isDefault);
+      if (def) {
+        move.variantId = def._id;
+      } else {
+        throw new InventoryValidationError(
+          'Must select a specific variant to move stock',
+          'VARIANT_REQUIRED',
+        );
+      }
+    }
+  }
+
+  const quantFilter = {
     tenantId: move.tenantId,
     productId: move.productId,
     locationId: { $in: locationIds },
-  }).session(session);
+  };
+  if (move.variantId) {
+    quantFilter.variantId = toObjectId(move.variantId);
+  } else {
+    quantFilter.$or = [{ variantId: null }, { variantId: { $exists: false } }];
+  }
+
+  const quants = await InvQuant.find(quantFilter).session(session);
 
   const quantsWithLoc = await Promise.all(quants.map(async (q) => {
     const loc = await InvLocation.findById(q.locationId).session(session);
@@ -177,8 +209,10 @@ export async function reserveMove(move, session) {
         const available = D(live.quantity).minus(D(live.reservedQuantity));
         if (available.lte(0)) break;
 
+        // Reservation dims must match the quant we reserved (same variantId as the move filter)
+        const reservedVariantId = live.variantId || move.variantId || null;
         const dims = {
-          variantId: live.variantId,
+          variantId: reservedVariantId,
           lotId: live.lotId,
           packageId: live.packageId,
           ownerId: live.ownerId,
@@ -195,7 +229,7 @@ export async function reserveMove(move, session) {
             moveId: move._id,
             transferId: move.transferId,
             productId: move.productId,
-            variantId: move.variantId || null,
+            variantId: reservedVariantId,
             uomId: move.uomId,
             quantity: '1',
             quantityInProductUom: '1',
@@ -234,7 +268,7 @@ export async function reserveMove(move, session) {
           moveId: move._id,
           transferId: move.transferId,
           productId: move.productId,
-          variantId: move.variantId || null,
+          variantId: reservedVariantId,
           uomId: move.uomId,
           quantity: takeStr,
           quantityInProductUom: takeStr,

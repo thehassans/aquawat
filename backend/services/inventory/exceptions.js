@@ -29,6 +29,8 @@ export async function listInventoryExceptions(tenantId, { limit = 100 } = {}) {
     .sort({ deadlineDate: 1 })
     .limit(cap)
     .populate('productId', 'nameEn sku')
+    .populate('locationId', 'completePath name')
+    .populate('locationDestId', 'completePath name')
     .lean();
 
   for (const m of lateMoves) {
@@ -40,6 +42,8 @@ export async function listInventoryExceptions(tenantId, { limit = 100 } = {}) {
       messageAr: `حركة متأخرة عن الموعد`,
       productId: m.productId?._id || m.productId,
       productName: m.productId?.nameEn || m.productId?.sku,
+      locationName: m.locationDestId?.completePath || m.locationDestId?.name
+        || m.locationId?.completePath || m.locationId?.name,
       ref: { moveId: m._id, transferId: m.transferId },
     });
   }
@@ -123,6 +127,39 @@ export async function listInventoryExceptions(tenantId, { limit = 100 } = {}) {
       productName: p?.nameEn,
       qty: decStr(qty),
       ref: { lotId: lot._id, lotName: lot.name },
+    });
+  }
+
+  // 4b) Reorder rules missing preferred vendor (and product has no suppliers)
+  const vendorlessRules = await InvReorderRule.find({
+    tenantId: tid,
+    active: true,
+    $or: [{ preferredVendorId: null }, { preferredVendorId: { $exists: false } }],
+  })
+    .limit(60)
+    .populate('productId', 'nameEn sku suppliers')
+    .populate('locationId', 'completePath name')
+    .lean();
+
+  for (const op of vendorlessRules) {
+    const product = op.productId;
+    const hasVendors = Array.isArray(product?.suppliers) && product.suppliers.some((s) => s.supplierId);
+    if (hasVendors) continue;
+    items.push({
+      type: 'no_vendor',
+      severity: 'error',
+      at: op.updatedAt || op.createdAt || now,
+      message: 'No Vendor defined on product',
+      messageAr: 'لا يوجد مورد معرّف على المنتج',
+      productId: product?._id || op.productId,
+      productName: product?.nameEn || product?.sku,
+      locationName: op.locationId?.completePath || op.locationId?.name,
+      ref: {
+        reorderRuleId: op._id,
+        productId: product?._id || op.productId,
+        locationId: op.locationId?._id || op.locationId,
+        warehouseId: op.warehouseId,
+      },
     });
   }
 

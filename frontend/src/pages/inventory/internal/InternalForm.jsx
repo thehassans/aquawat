@@ -237,6 +237,7 @@ export default function InternalForm() {
       variantName: payload.variantName || '',
       variants: payload.variants || [],
       needsVariant: !!payload.needsVariant,
+      productHasVariants: !!payload.productHasVariants,
       uomId: payload.uomId || prev.uomId,
       uomLabel: payload.uomLabel || prev.uomLabel || '',
       demandQty: prev.demandQty && Number(prev.demandQty) > 0 ? prev.demandQty : '1',
@@ -294,8 +295,12 @@ export default function InternalForm() {
       return
     }
     for (const l of cleanLines) {
-      if (l.needsVariant && !l.variantId) {
-        toast.error(ar ? 'اختر المتغير' : 'Select a variant')
+      if ((l.needsVariant || l.productHasVariants) && !l.variantId) {
+        toast.error(
+          ar
+            ? 'يجب اختيار متغير محدد لنقل المخزون'
+            : 'Must select a specific variant to move stock',
+        )
         return
       }
     }
