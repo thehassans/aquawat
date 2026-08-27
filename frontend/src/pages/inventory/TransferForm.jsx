@@ -1015,7 +1015,7 @@ export default function TransferForm() {
             )}
 
             {tab === 'detailed' && (
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[720px] text-sm">
                 <thead className="text-xs uppercase text-slate-500">
                   <tr>
                     <th className="py-2 text-start">{ar ? 'المنتج' : 'Product'}</th>

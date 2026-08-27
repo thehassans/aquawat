@@ -131,14 +131,14 @@ export function MovesAnalysisPage() {
             </div>
           )}
           <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-            <table className="min-w-full text-sm">
+            <table className="w-full min-w-[720px] text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-dark-800">
                 <tr>
-                  <th className="px-3 py-2 text-start">{ar ? 'المجموعة' : 'Group'}</th>
-                  <th className="px-3 py-2 text-right">{ar ? 'وارد' : 'In'}</th>
-                  <th className="px-3 py-2 text-right">{ar ? 'صادر' : 'Out'}</th>
-                  <th className="px-3 py-2 text-right">{ar ? 'صافي' : 'Net'}</th>
-                  <th className="px-3 py-2 text-right">{ar ? 'أسطر' : 'Lines'}</th>
+                  <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'المجموعة' : 'Group'}</th>
+                  <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'وارد' : 'In'}</th>
+                  <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'صادر' : 'Out'}</th>
+                  <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'صافي' : 'Net'}</th>
+                  <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'أسطر' : 'Lines'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -290,17 +290,17 @@ export function ExpiryAtRiskPage() {
             <EmptyState title={ar ? 'لا دفعات منتهية قريباً' : 'No lots expiring soon'} />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-              <table className="min-w-full text-sm">
+              <table className="w-full min-w-[720px] text-sm">
                 <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-dark-800">
                   <tr>
-                    <th className="px-3 py-2 text-start">{ar ? 'الدفعة' : 'Lot'}</th>
-                    <th className="px-3 py-2 text-start">{ar ? 'المنتج' : 'Product'}</th>
-                    <th className="px-3 py-2 text-right">{ar ? 'الكمية' : 'Qty'}</th>
-                    <th className="px-3 py-2 text-start">{ar ? 'انتهاء' : 'Expiry'}</th>
-                    <th className="px-3 py-2 text-right">{ar ? 'أيام' : 'Days'}</th>
-                    <th className="px-3 py-2 text-right">{ar ? 'قيمة' : 'Value'}</th>
-                    <th className="px-3 py-2 text-start">{ar ? 'الحالة' : 'Status'}</th>
-                    <th className="px-3 py-2 text-end">{ar ? 'إجراء' : 'Action'}</th>
+                    <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'الدفعة' : 'Lot'}</th>
+                    <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'المنتج' : 'Product'}</th>
+                    <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'الكمية' : 'Qty'}</th>
+                    <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'انتهاء' : 'Expiry'}</th>
+                    <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'أيام' : 'Days'}</th>
+                    <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'قيمة' : 'Value'}</th>
+                    <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'الحالة' : 'Status'}</th>
+                    <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'إجراء' : 'Action'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -397,14 +397,14 @@ export function ReceptionReportPage() {
             <EmptyState title={ar ? 'لا استلامات في الفترة' : 'No receipts in period'} />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-              <table className="min-w-full text-sm">
+              <table className="w-full min-w-[720px] text-sm">
                 <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-dark-800">
                   <tr>
-                    <th className="px-3 py-2 text-start">{ar ? 'الإيصال' : 'Receipt'}</th>
-                    <th className="px-3 py-2 text-start">{ar ? 'التاريخ' : 'Done'}</th>
-                    <th className="px-3 py-2 text-start">{ar ? 'الشريك' : 'Partner'}</th>
-                    <th className="px-3 py-2 text-start">{ar ? 'المنتج' : 'Product'}</th>
-                    <th className="px-3 py-2 text-right">{ar ? 'الكمية' : 'Qty'}</th>
+                    <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'الإيصال' : 'Receipt'}</th>
+                    <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'التاريخ' : 'Done'}</th>
+                    <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'الشريك' : 'Partner'}</th>
+                    <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'المنتج' : 'Product'}</th>
+                    <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'الكمية' : 'Qty'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -458,14 +458,14 @@ export function ForecastPage() {
         <EmptyState title={language === 'ar' ? 'لا بيانات' : 'No forecast rows'} />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
-                <th className="px-3 py-2 text-start">{language === 'ar' ? 'المنتج' : 'Product'}</th>
-                <th className="px-3 py-2 text-right">{language === 'ar' ? 'متاح' : 'On hand'}</th>
-                <th className="px-3 py-2 text-right">{language === 'ar' ? 'وارد' : 'In'}</th>
-                <th className="px-3 py-2 text-right">{language === 'ar' ? 'صادر' : 'Out'}</th>
-                <th className="px-3 py-2 text-right">{language === 'ar' ? 'متوقع' : 'Forecast'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-start">{language === 'ar' ? 'المنتج' : 'Product'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-right">{language === 'ar' ? 'متاح' : 'On hand'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-right">{language === 'ar' ? 'وارد' : 'In'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-right">{language === 'ar' ? 'صادر' : 'Out'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-right">{language === 'ar' ? 'متوقع' : 'Forecast'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">

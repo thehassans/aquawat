@@ -111,11 +111,11 @@ export function AttributesPage() {
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-            <table className="min-w-full text-sm">
+            <table className="w-full min-w-[720px] text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
                 <tr>
-                  <th className="px-3 py-2">{ar ? 'السمة' : 'Attribute'}</th>
-                  <th className="px-3 py-2">{ar ? 'الوضع' : 'Mode'}</th>
+                  <th className="min-w-[150px] px-3 py-2">{ar ? 'السمة' : 'Attribute'}</th>
+                  <th className="min-w-[150px] px-3 py-2">{ar ? 'الوضع' : 'Mode'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -358,16 +358,16 @@ export function VariantsPage() {
           <table className="min-w-[960px] w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
-                <th className="px-3 py-2">{ar ? 'معرّف المنتج' : 'Product ID'}</th>
-                <th className="px-3 py-2">{ar ? 'المتغير' : 'Variant'}</th>
-                <th className="px-3 py-2">{ar ? 'القيم' : 'Attribute values'}</th>
-                <th className="px-3 py-2">SKU</th>
-                <th className="px-3 py-2">{ar ? 'باركود' : 'Barcode'}</th>
-                <th className="px-3 py-2">{ar ? 'المتاح' : 'On hand'}</th>
-                <th className="px-3 py-2">{ar ? 'متوقع' : 'Forecasted'}</th>
-                <th className="px-3 py-2">{ar ? 'تكلفة' : 'Cost'}</th>
-                <th className="px-3 py-2">{ar ? 'سعر' : 'Price'}</th>
-                <th className="px-3 py-2">{ar ? 'نشط' : 'Active'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'معرّف المنتج' : 'Product ID'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'المتغير' : 'Variant'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'القيم' : 'Attribute values'}</th>
+                <th className="min-w-[150px] px-3 py-2">SKU</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'باركود' : 'Barcode'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'المتاح' : 'On hand'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'متوقع' : 'Forecasted'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'تكلفة' : 'Cost'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'سعر' : 'Price'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'نشط' : 'Active'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">

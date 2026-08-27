@@ -126,20 +126,20 @@ export default function Warehouses() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="border-b border-slate-100 bg-slate-50/80 text-start text-xs uppercase tracking-wide text-slate-500 dark:border-dark-600 dark:bg-dark-900/50">
               <tr>
-                <th className="px-3 py-3">
+                <th className="min-w-[150px] px-3 py-3">
                   <input type="checkbox" checked={selected.size === rows.length && rows.length > 0} onChange={toggleAll} />
                 </th>
-                <th className="px-3 py-3 font-medium">{ar ? 'المستودع' : 'Warehouse'}</th>
-                <th className="px-3 py-3 font-medium">{ar ? 'الرمز' : 'Short Name'}</th>
-                <th className="px-3 py-3 font-medium">{ar ? 'موقع المخزون' : 'Location Stock'}</th>
-                <th className="px-3 py-3 font-medium">{ar ? 'العنوان' : 'Address'}</th>
-                <th className="px-3 py-3 font-medium">{ar ? 'الاستلام' : 'Reception'}</th>
-                <th className="px-3 py-3 font-medium">{ar ? 'التسليم' : 'Delivery'}</th>
-                <th className="px-3 py-3 font-medium">{ar ? 'القيمة' : 'On-hand Value'}</th>
-                <th className="px-3 py-3 font-medium">{ar ? 'الحالة' : 'Active'}</th>
+                <th className="min-w-[150px] px-3 py-3 font-medium">{ar ? 'المستودع' : 'Warehouse'}</th>
+                <th className="min-w-[150px] px-3 py-3 font-medium">{ar ? 'الرمز' : 'Short Name'}</th>
+                <th className="min-w-[150px] px-3 py-3 font-medium">{ar ? 'موقع المخزون' : 'Location Stock'}</th>
+                <th className="min-w-[150px] px-3 py-3 font-medium">{ar ? 'العنوان' : 'Address'}</th>
+                <th className="min-w-[150px] px-3 py-3 font-medium">{ar ? 'الاستلام' : 'Reception'}</th>
+                <th className="min-w-[150px] px-3 py-3 font-medium">{ar ? 'التسليم' : 'Delivery'}</th>
+                <th className="min-w-[150px] px-3 py-3 font-medium">{ar ? 'القيمة' : 'On-hand Value'}</th>
+                <th className="min-w-[150px] px-3 py-3 font-medium">{ar ? 'الحالة' : 'Active'}</th>
               </tr>
             </thead>
             <tbody>

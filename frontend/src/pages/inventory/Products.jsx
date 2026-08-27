@@ -392,16 +392,16 @@ export default function Products() {
               <table className="w-full min-w-[880px] text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 text-start text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                    <th className="px-5 py-3 font-semibold">{t('productName')}</th>
-                    <th className="px-3 py-3 font-semibold">{isAr ? 'المعرّف' : 'ID'}</th>
-                    <th className="px-3 py-3 font-semibold">{t('sku')}</th>
-                    <th className="px-3 py-3 font-semibold">{isAr ? 'النوع' : 'Type'}</th>
-                    <th className="px-3 py-3 font-semibold">{isAr ? 'الوحدة' : 'UOM'}</th>
-                    <th className="px-3 py-3 font-semibold">{isAr ? 'المتاح' : 'Available'}</th>
-                    <th className="px-3 py-3 font-semibold">{isAr ? 'حد الطلب' : 'Reorder'}</th>
-                    <th className="px-3 py-3 font-semibold">{t('sellingPrice')}</th>
-                    <th className="px-3 py-3 font-semibold">{isAr ? 'المخزون' : 'Stock'}</th>
-                    <th className="px-5 py-3 font-semibold" />
+                    <th className="min-w-[150px] px-5 py-3 font-semibold">{t('productName')}</th>
+                    <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'المعرّف' : 'ID'}</th>
+                    <th className="min-w-[150px] px-3 py-3 font-semibold">{t('sku')}</th>
+                    <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'النوع' : 'Type'}</th>
+                    <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'الوحدة' : 'UOM'}</th>
+                    <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'المتاح' : 'Available'}</th>
+                    <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'حد الطلب' : 'Reorder'}</th>
+                    <th className="min-w-[150px] px-3 py-3 font-semibold">{t('sellingPrice')}</th>
+                    <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'المخزون' : 'Stock'}</th>
+                    <th className="min-w-[150px] px-5 py-3 font-semibold" />
                   </tr>
                 </thead>
                 <tbody>

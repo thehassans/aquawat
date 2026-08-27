@@ -972,14 +972,14 @@ export default function ProductForm() {
                     <p className="text-xs text-slate-400">{language === 'ar' ? 'لا موردين' : 'No vendors linked'}</p>
                   ) : (
                     <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-dark-600">
-                      <table className="min-w-full text-sm">
+                      <table className="w-full min-w-[720px] text-sm">
                         <thead className="bg-slate-50 text-xs uppercase dark:bg-dark-800">
                           <tr>
-                            <th className="px-2 py-2 text-start">{language === 'ar' ? 'المورد' : 'Supplier'}</th>
-                            <th className="px-2 py-2">{language === 'ar' ? 'SKU المورد' : 'Vendor SKU'}</th>
-                            <th className="px-2 py-2">{language === 'ar' ? 'التكلفة' : 'Cost'}</th>
-                            <th className="px-2 py-2">{language === 'ar' ? 'Lead time' : 'Lead (d)'}</th>
-                            <th className="px-2 py-2">{language === 'ar' ? 'مفضل' : 'Pref.'}</th>
+                            <th className="min-w-[150px] px-2 py-2 text-start">{language === 'ar' ? 'المورد' : 'Supplier'}</th>
+                            <th className="min-w-[150px] px-2 py-2">{language === 'ar' ? 'SKU المورد' : 'Vendor SKU'}</th>
+                            <th className="min-w-[150px] px-2 py-2">{language === 'ar' ? 'التكلفة' : 'Cost'}</th>
+                            <th className="min-w-[150px] px-2 py-2">{language === 'ar' ? 'Lead time' : 'Lead (d)'}</th>
+                            <th className="min-w-[150px] px-2 py-2">{language === 'ar' ? 'مفضل' : 'Pref.'}</th>
                             <th />
                           </tr>
                         </thead>

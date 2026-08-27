@@ -90,13 +90,13 @@ export function QualityPointsPage() {
         />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
-                <th className="px-3 py-2">{ar ? 'الاسم' : 'Name'}</th>
-                <th className="px-3 py-2">{ar ? 'العملية' : 'Operation'}</th>
-                <th className="px-3 py-2">{ar ? 'النوع' : 'Type'}</th>
-                <th className="px-3 py-2">{ar ? 'نشط' : 'Active'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'الاسم' : 'Name'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'العملية' : 'Operation'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'النوع' : 'Type'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'نشط' : 'Active'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">

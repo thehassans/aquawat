@@ -254,18 +254,32 @@ export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, bus
         },
         { path: '/app/dashboard/letterhead', icon: FileText, label: language === 'ar' ? 'منشئ الخطابات' : 'Letterhead', perm: { module: 'invoicing', action: 'read' } },
         {
+          path: '/app/dashboard/contacts',
+          icon: Users,
+          label: language === 'ar' ? 'جهات الاتصال' : 'Contacts',
+          perm: { module: 'invoicing', action: 'read' },
+          excludeBusinessTypes: ['bakala'],
+          children: [
+            { path: '/app/dashboard/contacts?types=customer,supplier', label: language === 'ar' ? 'الشركاء' : 'Partners' },
+            { path: '/app/dashboard/customers', label: language === 'ar' ? 'العملاء' : 'Customers', perm: { module: 'sales', action: 'read' } },
+            { path: '/app/dashboard/customers/statement', label: language === 'ar' ? 'كشوف الحساب' : 'Statements', perm: { module: 'sales', action: 'read' } },
+            { path: '/app/dashboard/suppliers', label: language === 'ar' ? 'الموردون' : 'Suppliers', perm: { module: 'supply_chain', action: 'read' }, businessTypes: ['trading', 'bakala', 'pharmacy', 'furniture_shop'] },
+          ],
+        },
+        // Bakala keeps a direct Customers entry (Contacts hub is excluded for bakala)
+        {
           path: '/app/dashboard/customers',
           icon: Users,
           label: language === 'ar' ? 'العملاء' : 'Customers',
           perm: { module: 'sales', action: 'read' },
+          businessTypes: ['bakala'],
           children: [
             { path: '/app/dashboard/customers', label: language === 'ar' ? 'قائمة العملاء' : 'Customer list' },
             { path: '/app/dashboard/customers/statement', label: language === 'ar' ? 'كشوف الحساب' : 'Statements' },
           ],
         },
-        { path: '/app/dashboard/suppliers', icon: Building, label: language === 'ar' ? 'الموردين' : 'Suppliers', perm: { module: 'supply_chain', action: 'read' }, businessTypes: ['trading', 'bakala', 'pharmacy', 'furniture_shop'] },
+        { path: '/app/dashboard/suppliers', icon: Building, label: language === 'ar' ? 'الموردين' : 'Suppliers', perm: { module: 'supply_chain', action: 'read' }, businessTypes: ['bakala'] },
         { path: '/app/dashboard/delivery-notes', icon: FileText, label: language === 'ar' ? 'سندات التسليم' : 'Delivery Notes', perm: { module: 'supply_chain', action: 'read' }, businessTypes: ['trading', 'furniture_shop'] },
-        { path: '/app/dashboard/contacts', icon: Users, label: language === 'ar' ? 'جهات الاتصال' : 'Contacts', perm: { module: 'invoicing', action: 'read' }, excludeBusinessTypes: ['bakala'] },
         { path: '/app/dashboard/calendar', icon: Calendar, label: language === 'ar' ? 'التقويم والمواعيد' : 'Calendar', perm: { module: 'invoicing', action: 'read' }, excludeBusinessTypes: ['bakala'] },
         {
           path: '/app/dashboard/purchases',

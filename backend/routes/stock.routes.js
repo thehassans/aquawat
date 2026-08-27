@@ -325,7 +325,48 @@ router.get('/uoms', checkPermission('inventory', 'read'), async (req, res) => {
     const filter = { ...req.tenantFilter };
     if (req.query.categoryId) filter.categoryId = req.query.categoryId;
     if (req.query.active !== 'false') filter.active = true;
-    return sendList(res, await InvUom.find(filter).populate('categoryId', 'name nameAr').sort({ name: 1 }));
+    const rows = await InvUom.find(filter).populate('categoryId', 'name nameAr').sort({ name: 1 }).lean();
+
+    // Annotate UoMs that have products with on-hand stock (for Factor/Rounding UI lock)
+    if (req.query.stockGuard === '1' && rows.length) {
+      const Product = (await import('../models/Product.js')).default;
+      const uomIds = rows.map((u) => u._id);
+      const products = await Product.find({
+        ...req.tenantFilter,
+        $or: [{ uomId: { $in: uomIds } }, { purchaseUomId: { $in: uomIds } }],
+      }).select('_id uomId purchaseUomId').lean();
+      const productIds = products.map((p) => p._id);
+      const activeProductIds = new Set();
+      if (productIds.length) {
+        const quants = await InvQuant.aggregate([
+          {
+            $match: {
+              ...req.tenantFilter,
+              productId: { $in: productIds },
+            },
+          },
+          {
+            $group: {
+              _id: '$productId',
+              qty: { $sum: { $toDouble: { $ifNull: ['$quantity', '0'] } } },
+            },
+          },
+          { $match: { qty: { $gt: 0 } } },
+        ]);
+        for (const q of quants) activeProductIds.add(String(q._id));
+      }
+      const lockedUomIds = new Set();
+      for (const p of products) {
+        if (!activeProductIds.has(String(p._id))) continue;
+        if (p.uomId) lockedUomIds.add(String(p.uomId));
+        if (p.purchaseUomId) lockedUomIds.add(String(p.purchaseUomId));
+      }
+      for (const u of rows) {
+        u.hasActiveStock = lockedUomIds.has(String(u._id));
+      }
+    }
+
+    return sendList(res, rows);
   } catch (err) {
     handleInventoryError(res, err);
   }

@@ -49,14 +49,14 @@ export function LocationsReportPage() {
         <EmptyState title={ar ? 'لا بيانات' : 'No location stock'} />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
-                <th className="px-3 py-2">{ar ? 'المسار' : 'Path'}</th>
-                <th className="px-3 py-2">{ar ? 'النوع' : 'Usage'}</th>
-                <th className="px-3 py-2 text-right">{ar ? 'بالمخزن' : 'On hand'}</th>
-                <th className="px-3 py-2 text-right">{ar ? 'محجوز' : 'Reserved'}</th>
-                <th className="px-3 py-2 text-right">{ar ? 'منتجات' : 'Products'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'المسار' : 'Path'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'النوع' : 'Usage'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'بالمخزن' : 'On hand'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'محجوز' : 'Reserved'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'منتجات' : 'Products'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -159,14 +159,14 @@ export function ReconcileReportPage() {
         />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
-                <th className="px-3 py-2">{ar ? 'المنتج' : 'Product'}</th>
-                <th className="px-3 py-2">{ar ? 'الطريقة' : 'Method'}</th>
-                <th className="px-3 py-2 text-right">{ar ? 'دفتر' : 'Ledger qty'}</th>
-                <th className="px-3 py-2 text-right">{ar ? 'قيمة' : 'Value'}</th>
-                <th className="px-3 py-2">{ar ? 'المشاكل' : 'Issues'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'المنتج' : 'Product'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'الطريقة' : 'Method'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'دفتر' : 'Ledger qty'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'قيمة' : 'Value'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'المشاكل' : 'Issues'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">

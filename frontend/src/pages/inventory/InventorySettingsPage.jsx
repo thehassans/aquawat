@@ -31,9 +31,9 @@ function PrintJobsPanel({ ar }) {
       <table className="min-w-full text-xs">
         <thead className="bg-slate-50 text-left uppercase text-slate-500 dark:bg-dark-800">
           <tr>
-            <th className="px-2 py-1.5">{ar ? 'التخطيط' : 'Layout'}</th>
-            <th className="px-2 py-1.5">{ar ? 'الحالة' : 'Status'}</th>
-            <th className="px-2 py-1.5">{ar ? 'التاريخ' : 'Date'}</th>
+            <th className="min-w-[150px] px-2 py-1.5">{ar ? 'التخطيط' : 'Layout'}</th>
+            <th className="min-w-[150px] px-2 py-1.5">{ar ? 'الحالة' : 'Status'}</th>
+            <th className="min-w-[150px] px-2 py-1.5">{ar ? 'التاريخ' : 'Date'}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-dark-700">

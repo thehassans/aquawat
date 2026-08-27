@@ -142,12 +142,12 @@ export function LocationsPage() {
       }
     >
       <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-        <table className="min-w-full text-sm">
+        <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
             <tr>
-              <th className="px-3 py-2">{language === 'ar' ? 'المسار' : 'Path'}</th>
-              <th className="px-3 py-2">{language === 'ar' ? 'الاستخدام' : 'Usage'}</th>
-              <th className="px-3 py-2">{language === 'ar' ? 'نشط' : 'Active'}</th>
+              <th className="min-w-[150px] px-3 py-2">{language === 'ar' ? 'المسار' : 'Path'}</th>
+              <th className="min-w-[150px] px-3 py-2">{language === 'ar' ? 'الاستخدام' : 'Usage'}</th>
+              <th className="min-w-[150px] px-3 py-2">{language === 'ar' ? 'نشط' : 'Active'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -405,13 +405,13 @@ export function OperationTypesPage() {
       empty={!rows.length ? <EmptyState title={language === 'ar' ? 'لا أنواع' : 'No operation types'} /> : null}
     >
       <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-        <table className="min-w-full text-sm">
+        <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
             <tr>
-              <th className="px-3 py-2">{language === 'ar' ? 'الاسم' : 'Name'}</th>
-              <th className="px-3 py-2">{language === 'ar' ? 'الرمز' : 'Code'}</th>
-              <th className="px-3 py-2">{language === 'ar' ? 'التسلسل' : 'Sequence'}</th>
-              <th className="px-3 py-2">{language === 'ar' ? 'نشط' : 'Active'}</th>
+              <th className="min-w-[150px] px-3 py-2">{language === 'ar' ? 'الاسم' : 'Name'}</th>
+              <th className="min-w-[150px] px-3 py-2">{language === 'ar' ? 'الرمز' : 'Code'}</th>
+              <th className="min-w-[150px] px-3 py-2">{language === 'ar' ? 'التسلسل' : 'Sequence'}</th>
+              <th className="min-w-[150px] px-3 py-2">{language === 'ar' ? 'نشط' : 'Active'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -786,7 +786,7 @@ export function ProductCategoriesPage() {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-        <table className="min-w-full text-sm">
+        <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
             <tr>
               <th className="w-10 px-3 py-2">
@@ -796,7 +796,7 @@ export function ProductCategoriesPage() {
                   onChange={toggleAll}
                 />
               </th>
-              <th className="px-3 py-2">{ar ? 'فئة المنتج' : 'Product Category'}</th>
+              <th className="min-w-[150px] px-3 py-2">{ar ? 'فئة المنتج' : 'Product Category'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -1326,13 +1326,13 @@ export function ReorderingRulesPage() {
       </div>
       {items.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
-                <th className="px-3 py-2">{language === 'ar' ? 'المنتج' : 'Product'}</th>
-                <th className="px-3 py-2">{language === 'ar' ? 'الموقع' : 'Location'}</th>
-                <th className="px-3 py-2 text-right">Min</th>
-                <th className="px-3 py-2 text-right">Max</th>
+                <th className="min-w-[150px] px-3 py-2">{language === 'ar' ? 'المنتج' : 'Product'}</th>
+                <th className="min-w-[150px] px-3 py-2">{language === 'ar' ? 'الموقع' : 'Location'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-right">Min</th>
+                <th className="min-w-[150px] px-3 py-2 text-right">Max</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -1373,8 +1373,8 @@ export function InventoryUomPage() {
     queryFn: () => api.get('/stock/uom-categories').then((r) => asInvList(r.data)),
   })
   const { data: uoms, isLoading } = useQuery({
-    queryKey: ['inv-uoms'],
-    queryFn: () => api.get('/stock/uoms', { params: { active: 'false' } }).then((r) => asInvList(r.data)),
+    queryKey: ['inv-uoms', 'stockGuard'],
+    queryFn: () => api.get('/stock/uoms', { params: { active: 'false', stockGuard: '1' } }).then((r) => asInvList(r.data)),
   })
   const rows = uoms || []
   const categories = cats || []
@@ -1445,21 +1445,27 @@ export function InventoryUomPage() {
   })
 
   const startEdit = (u) => {
+    if (u.hasActiveStock) {
+      setUomWarning(
+        ar
+          ? 'لا يمكن تعديل العامل أو التقريب لهذه الوحدة لوجود مخزون نشط. تعديلها يعيد حساب التقييمات التاريخية.'
+          : 'Factor and Rounding are locked while this UoM has active stock on hand. Changing them would recalculate historical valuations.',
+      )
+      return
+    }
     setEditingId(u._id)
     setEditDraft({ factor: String(u.factor ?? '1'), rounding: String(u.rounding ?? '0.01') })
     setUomWarning('')
   }
 
   const saveEdit = (u) => {
-    const factorChanged = String(editDraft.factor) !== String(u.factor)
-    const roundingChanged = String(editDraft.rounding) !== String(u.rounding)
-    if (factorChanged || roundingChanged) {
-      const ok = window.confirm(
+    if (u.hasActiveStock) {
+      setUomWarning(
         ar
-          ? 'تحذير: تعديل العامل أو التقريب لوحدة لها مخزون نشط يعيد حساب التقييمات التاريخية وقد يُرفض. هل تريد المتابعة؟'
-          : 'Warning: Changing Factor or Rounding on a UoM with active stock recalculates historical valuations and may be blocked. Continue?',
+          ? 'التعديل محظور — توجد كميات مخزون مرتبطة بهذه الوحدة.'
+          : 'Edit blocked — this UoM has active stock on hand.',
       )
-      if (!ok) return
+      return
     }
     patchMut.mutate({
       id: u._id,
@@ -1552,15 +1558,24 @@ export function InventoryUomPage() {
                 <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
                   {group.items.map((u) => {
                     const isEditing = editingId === u._id
+                    const locked = Boolean(u.hasActiveStock)
                     return (
-                      <tr key={u._id}>
-                        <td className="min-w-[150px] px-3 py-2.5 font-medium text-slate-800 dark:text-slate-100">{u.name}</td>
+                      <tr key={u._id} className={locked ? 'bg-amber-50/40 dark:bg-amber-950/10' : ''}>
+                        <td className="min-w-[150px] px-3 py-2.5 font-medium text-slate-800 dark:text-slate-100">
+                          {u.name}
+                          {locked ? (
+                            <span className="ms-2 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                              {ar ? 'مخزون نشط' : 'Active stock'}
+                            </span>
+                          ) : null}
+                        </td>
                         <td className="min-w-[100px] px-3 py-2.5 text-slate-500">{u.uomType}</td>
                         <td className="min-w-[100px] px-3 py-2.5 text-right tabular-nums">
                           {isEditing ? (
                             <input
                               className="input input-sm ms-auto w-24 text-end"
                               value={editDraft.factor}
+                              disabled={locked}
                               onChange={(e) => setEditDraft((d) => ({ ...d, factor: e.target.value }))}
                             />
                           ) : u.factor}
@@ -1570,6 +1585,7 @@ export function InventoryUomPage() {
                             <input
                               className="input input-sm ms-auto w-24 text-end"
                               value={editDraft.rounding}
+                              disabled={locked}
                               onChange={(e) => setEditDraft((d) => ({ ...d, rounding: e.target.value }))}
                             />
                           ) : u.rounding}
@@ -1580,7 +1596,7 @@ export function InventoryUomPage() {
                               <button
                                 type="button"
                                 className="btn btn-primary btn-xs"
-                                disabled={patchMut.isPending}
+                                disabled={patchMut.isPending || locked}
                                 onClick={() => saveEdit(u)}
                               >
                                 {ar ? 'حفظ' : 'Save'}
@@ -1594,8 +1610,15 @@ export function InventoryUomPage() {
                               </button>
                             </div>
                           ) : (
-                            <button type="button" className="btn btn-secondary btn-xs" onClick={() => startEdit(u)}>
-                              {ar ? 'تعديل' : 'Edit'}
+                            <button
+                              type="button"
+                              className={`btn btn-xs ${locked ? 'btn-secondary opacity-70' : 'btn-secondary'}`}
+                              title={locked
+                                ? (ar ? 'محظور لوجود مخزون نشط' : 'Locked — active stock on hand')
+                                : undefined}
+                              onClick={() => startEdit(u)}
+                            >
+                              {locked ? (ar ? 'مقفل' : 'Locked') : (ar ? 'تعديل' : 'Edit')}
                             </button>
                           )}
                         </td>

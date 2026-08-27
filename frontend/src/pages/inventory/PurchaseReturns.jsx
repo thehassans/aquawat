@@ -140,10 +140,10 @@ export default function PurchaseReturns() {
             <table className="w-full text-left">
               <thead className="bg-slate-50/80 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
                 <tr>
-                  <th className="px-6 py-3.5">Product</th>
-                  <th className="px-6 py-3.5 w-32">Qty returned</th>
-                  <th className="px-6 py-3.5 w-48">Reason</th>
-                  <th className="px-6 py-3.5 w-16"></th>
+                  <th className="min-w-[150px] px-6 py-3.5">Product</th>
+                  <th className="min-w-[150px] px-6 py-3.5 w-32">Qty returned</th>
+                  <th className="min-w-[150px] px-6 py-3.5 w-48">Reason</th>
+                  <th className="min-w-[150px] px-6 py-3.5 w-16"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -215,12 +215,12 @@ export default function PurchaseReturns() {
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50/80 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
               <tr>
-                <th className="px-6 py-3.5">Return number</th>
-                <th className="px-6 py-3.5">Date</th>
-                <th className="px-6 py-3.5">Supplier</th>
-                <th className="px-6 py-3.5">Ref #</th>
-                <th className="px-6 py-3.5">Items</th>
-                <th className="px-6 py-3.5">Status</th>
+                <th className="min-w-[150px] px-6 py-3.5">Return number</th>
+                <th className="min-w-[150px] px-6 py-3.5">Date</th>
+                <th className="min-w-[150px] px-6 py-3.5">Supplier</th>
+                <th className="min-w-[150px] px-6 py-3.5">Ref #</th>
+                <th className="min-w-[150px] px-6 py-3.5">Items</th>
+                <th className="min-w-[150px] px-6 py-3.5">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

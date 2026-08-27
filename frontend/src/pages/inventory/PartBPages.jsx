@@ -66,7 +66,7 @@ export function CountPlansPage() {
       {isLoading ? <div className="text-slate-400">…</div> : !plans.length ? (
         <EmptyState title={ar ? 'لا خطط' : 'No plans'} />
       ) : (
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[720px] text-sm">
           <thead><tr className="text-xs uppercase text-slate-500">
             <th className="py-2 text-start">{ar ? 'الاسم' : 'Name'}</th>
             <th>{ar ? 'التكرار' : 'Frequency'}</th>
@@ -186,7 +186,7 @@ export function DemandSuggestionsPage() {
           groups.map((g) => (
             <div key={g.vendorId || g.vendorName} className="rounded-xl border border-slate-200 p-3 dark:border-dark-600">
               <h3 className="mb-2 font-medium">{g.vendorName}</h3>
-              <table className="min-w-full text-sm">
+              <table className="w-full min-w-[720px] text-sm">
                 <thead className="text-xs uppercase text-slate-500">
                   <tr>
                     <th className="py-1 text-start">{ar ? 'المنتج' : 'Product'}</th>
@@ -211,13 +211,13 @@ export function DemandSuggestionsPage() {
         <EmptyState title={ar ? 'لا قواعد' : 'No reorder rules'} description={ar ? 'أضف قواعد إعادة الطلب أولاً' : 'Add reorder rules first'} />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-dark-600">
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-xs uppercase dark:bg-dark-800">
               <tr>
-                <th className="px-3 py-2 text-start">{ar ? 'المنتج' : 'Product'}</th>
-                <th className="px-3 py-2 text-end">{ar ? 'الحالي min/max' : 'Current min/max'}</th>
-                <th className="px-3 py-2 text-end">{ar ? 'مقترح min/max' : 'Suggested min/max'}</th>
-                <th className="px-3 py-2 text-start">{ar ? 'الأساس' : 'Basis'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'المنتج' : 'Product'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'الحالي min/max' : 'Current min/max'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'مقترح min/max' : 'Suggested min/max'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'الأساس' : 'Basis'}</th>
                 <th />
               </tr>
             </thead>
@@ -258,7 +258,7 @@ function GenericReportTable({ activeId, title, subtitle, queryKey, endpoint, col
             CSV
           </button>
           <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-dark-600">
-            <table className="min-w-full text-sm">
+            <table className="w-full min-w-[720px] text-sm">
               <thead className="bg-slate-50 text-xs uppercase dark:bg-dark-800">
                 <tr>{columns.map((c) => <th key={c.key} className="px-3 py-2 text-start">{c.label}</th>)}</tr>
               </thead>
@@ -374,15 +374,15 @@ export function InventoryTurnsPage() {
                 { key: 'dsi', label: 'DSI', get: (r) => r.dsiDays },
               ])}>CSV</button>
               <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-dark-600">
-                <table className="min-w-full text-sm">
+                <table className="w-full min-w-[720px] text-sm">
                   <thead className="bg-slate-50 text-xs uppercase dark:bg-dark-800">
                     <tr>
-                      <th className="px-3 py-2 text-start">{ar ? 'المنتج' : 'Product'}</th>
-                      <th className="px-3 py-2 text-end">{ar ? 'صرف' : 'Units out'}</th>
-                      <th className="px-3 py-2 text-end">COGS</th>
-                      <th className="px-3 py-2 text-end">{ar ? 'قيمة المخزون' : 'Inv. value'}</th>
-                      <th className="px-3 py-2 text-end">{ar ? 'الدوران' : 'Turns'}</th>
-                      <th className="px-3 py-2 text-end">DSI</th>
+                      <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'المنتج' : 'Product'}</th>
+                      <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'صرف' : 'Units out'}</th>
+                      <th className="min-w-[150px] px-3 py-2 text-end">COGS</th>
+                      <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'قيمة المخزون' : 'Inv. value'}</th>
+                      <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'الدوران' : 'Turns'}</th>
+                      <th className="min-w-[150px] px-3 py-2 text-end">DSI</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -423,7 +423,7 @@ export function MockRecallPage() {
         <button type="button" className="btn btn-primary btn-sm" disabled={!lotId || isFetching} onClick={() => refetch()}>{ar ? 'بحث' : 'Trace'}</button>
       </div>
       {data?.deliveries?.length ? (
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[720px] text-sm">
           <thead><tr className="text-xs uppercase text-slate-500">
             <th className="py-2 text-start">{ar ? 'التسليم' : 'Delivery'}</th>
             <th>{ar ? 'الكمية' : 'Qty'}</th>

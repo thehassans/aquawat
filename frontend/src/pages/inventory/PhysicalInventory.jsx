@@ -582,7 +582,7 @@ export default function PhysicalInventory() {
         <table className="w-full min-w-[1100px] text-sm">
           <thead className="border-b border-slate-100 bg-slate-50/80 text-xs uppercase text-slate-500 dark:border-dark-600 dark:bg-dark-900/50">
             <tr>
-              <th className="px-3 py-3 w-10" />
+              <th className="min-w-[150px] px-3 py-3 w-10" />
               <th className="min-w-[150px] px-3 py-3 text-start">{ar ? 'الموقع' : 'Location'}</th>
               <th className="min-w-[180px] px-3 py-3 text-start">{ar ? 'المنتج' : 'Product'}</th>
               {visibleCols.lot && <th className="min-w-[120px] px-3 py-3 text-start">{ar ? 'دفعة' : 'Lot/Serial'}</th>}

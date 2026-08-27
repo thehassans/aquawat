@@ -138,14 +138,14 @@ export default function InventoryJobsPage() {
         />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
-                <th className="px-3 py-2">{ar ? 'النوع' : 'Type'}</th>
-                <th className="px-3 py-2">{ar ? 'الحالة' : 'Status'}</th>
-                <th className="px-3 py-2">{ar ? 'البداية' : 'Started'}</th>
-                <th className="px-3 py-2">{ar ? 'المدة' : 'Duration'}</th>
-                <th className="px-3 py-2">{ar ? 'ملخص' : 'Summary'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'النوع' : 'Type'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'الحالة' : 'Status'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'البداية' : 'Started'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'المدة' : 'Duration'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'ملخص' : 'Summary'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">

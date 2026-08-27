@@ -84,13 +84,13 @@ export function BatchTransfersPage() {
         />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
-                <th className="px-3 py-2">{ar ? 'الاسم' : 'Name'}</th>
-                <th className="px-3 py-2">{ar ? 'النوع' : 'Type'}</th>
-                <th className="px-3 py-2">{ar ? 'الحالة' : 'State'}</th>
-                <th className="px-3 py-2">{ar ? 'التحويلات' : 'Pickings'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'الاسم' : 'Name'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'النوع' : 'Type'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'الحالة' : 'State'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'التحويلات' : 'Pickings'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -231,7 +231,7 @@ export function BatchTransferDetailPage() {
         {!(pickList?.lines || []).length ? (
           <p className="text-sm text-slate-500">{ar ? 'أضف تحويلات لعرض القائمة' : 'Add pickings to see merged list'}</p>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="text-xs uppercase text-slate-500">
               <tr>
                 <th className="py-1 text-start">{ar ? 'الموقع' : 'Location'}</th>
@@ -257,7 +257,7 @@ export function BatchTransferDetailPage() {
         {!(batch.pickings || []).length ? (
           <p className="text-sm text-slate-500">{ar ? 'فارغة — أضف تحويلات أدناه' : 'Empty — add pickings below'}</p>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="text-xs uppercase text-slate-500">
               <tr>
                 <th className="py-2 text-start">{ar ? 'المرجع' : 'Reference'}</th>

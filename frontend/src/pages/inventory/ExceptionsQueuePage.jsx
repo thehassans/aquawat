@@ -79,13 +79,13 @@ export default function ExceptionsQueuePage() {
         <EmptyState title={ar ? 'لا استثناءات' : 'No exceptions'} />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
-                <th className="px-3 py-2">{ar ? 'النوع' : 'Type'}</th>
-                <th className="px-3 py-2">{ar ? 'الرسالة' : 'Message'}</th>
-                <th className="px-3 py-2">{ar ? 'المنتج' : 'Product'}</th>
-                <th className="px-3 py-2">{ar ? 'الوقت' : 'When'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'النوع' : 'Type'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'الرسالة' : 'Message'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'المنتج' : 'Product'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'الوقت' : 'When'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">

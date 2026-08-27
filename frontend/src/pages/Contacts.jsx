@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Search, Users, Building2, Briefcase, Phone, Mail, Hash, MessageCircle, MessageSquare, ArrowUpRight, UserRound } from 'lucide-react'
+import { Search, Users, Building2, Briefcase, Phone, Mail, Hash, MessageCircle, MessageSquare, ArrowUpRight, UserRound, Plus, ChevronDown } from 'lucide-react'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import ExportMenu from '../components/ui/ExportMenu'
+import QuickCreateContactModal from '../components/inventory/QuickCreateContactModal'
 
 const typeMeta = {
   customer: { en: 'Customer', ar: 'عميل', icon: Building2, tint: 'bg-sky-50 text-sky-700', ring: 'ring-sky-100' },
@@ -17,9 +18,9 @@ const typeMeta = {
 }
 
 const getEntityRoute = (contact) => {
-  if (contact?.entityType === 'customer') return `/customers/${contact.entityId}`
-  if (contact?.entityType === 'supplier') return `/suppliers/${contact.entityId}`
-  if (contact?.entityType === 'employee') return `/employees/${contact.entityId}`
+  if (contact?.entityType === 'customer') return `/app/dashboard/customers/${contact.entityId}`
+  if (contact?.entityType === 'supplier') return `/app/dashboard/suppliers/${contact.entityId}`
+  if (contact?.entityType === 'employee') return `/app/dashboard/employees/${contact.entityId}`
   return null
 }
 
@@ -36,18 +37,38 @@ export default function Contacts() {
   const { language } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
   const isAr = language === 'ar'
+  const qc = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const typesParam = searchParams.get('types') || ''
+  const initialType = typesParam.includes(',') ? '' : (typesParam || '')
 
   const [search, setSearch] = useState('')
-  const [type, setType] = useState('')
+  const [type, setType] = useState(initialType)
   const [isActive, setIsActive] = useState('all')
   const [page, setPage] = useState(1)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createRole, setCreateRole] = useState('customer')
+  const [createMenuOpen, setCreateMenuOpen] = useState(false)
+
+  useEffect(() => {
+    if (!typesParam) return
+    if (typesParam.includes(',')) {
+      setType('')
+    } else if (['customer', 'supplier', 'employee', 'whatsapp'].includes(typesParam)) {
+      setType(typesParam)
+    }
+  }, [typesParam])
+
+  const queryTypes = type || (typesParam.includes(',') ? typesParam : undefined)
+  const partnerHub = typesParam.includes('customer') && typesParam.includes('supplier')
 
   const { data, isLoading } = useQuery({
-    queryKey: ['contacts', { search, type, isActive, page }],
+    queryKey: ['contacts', { search, type: queryTypes, isActive, page }],
     queryFn: () =>
       api
         .get('/contacts', {
-          params: { search, types: type || undefined, isActive, page, limit: 25 },
+          params: { search, types: queryTypes || undefined, isActive, page, limit: 25 },
         })
         .then((res) => res.data),
   })
@@ -90,7 +111,7 @@ export default function Contacts() {
     let currentPage = 1
     let all = []
     while (true) {
-      const res = await api.get('/contacts', { params: { search, types: type || undefined, isActive, page: currentPage, limit } })
+      const res = await api.get('/contacts', { params: { search, types: queryTypes || undefined, isActive, page: currentPage, limit } })
       const batch = res.data?.contacts || []
       all = all.concat(batch.map((c) => {
         const meta = typeMeta[c.entityType] || { en: c.entityType, ar: c.entityType }
@@ -105,41 +126,115 @@ export default function Contacts() {
   const setTypeFilter = (next) => {
     setType((cur) => (cur === next ? '' : next))
     setPage(1)
+    const params = new URLSearchParams(searchParams)
+    if (next) params.set('types', next)
+    else if (partnerHub) params.set('types', 'customer,supplier')
+    else params.delete('types')
+    setSearchParams(params, { replace: true })
+  }
+
+  const openCreate = (role) => {
+    setCreateRole(role)
+    setCreateMenuOpen(false)
+    setCreateOpen(true)
   }
 
   const tiles = [
-    { key: '', label: isAr ? 'الكل' : 'All', value: totalContacts, icon: Users, active: type === '' },
+    { key: '', label: isAr ? 'الكل' : 'All', value: partnerHub ? (totals.customers || 0) + (totals.suppliers || 0) : totalContacts, icon: Users, active: type === '' },
     { key: 'customer', label: isAr ? 'العملاء' : 'Customers', value: totals.customers || 0, icon: Building2, active: type === 'customer' },
     { key: 'supplier', label: isAr ? 'الموردون' : 'Suppliers', value: totals.suppliers || 0, icon: Briefcase, active: type === 'supplier' },
-    { key: 'employee', label: isAr ? 'الموظفون' : 'Employees', value: totals.employees || 0, icon: Users, active: type === 'employee' },
-    { key: 'whatsapp', label: 'WhatsApp', value: (totals.whatsapp || 0) + (totals.whatsappGroups || 0), icon: MessageCircle, active: type === 'whatsapp' },
+    ...(!partnerHub ? [
+      { key: 'employee', label: isAr ? 'الموظفون' : 'Employees', value: totals.employees || 0, icon: Users, active: type === 'employee' },
+      { key: 'whatsapp', label: 'WhatsApp', value: (totals.whatsapp || 0) + (totals.whatsappGroups || 0), icon: MessageCircle, active: type === 'whatsapp' },
+    ] : []),
   ]
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-700">{isAr ? 'الدليل' : 'Directory'}</p>
-          <h1 className="mt-1 font-[Outfit,sans-serif] text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
-            {isAr ? 'جهات الاتصال' : 'Contacts'}
+          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">
+            {partnerHub ? (isAr ? 'الشركاء' : 'Partners') : (isAr ? 'الدليل' : 'Directory')}
+          </p>
+          <h1 className="mt-1 font-[Outfit,sans-serif] text-3xl font-semibold tracking-tight text-slate-800 dark:text-white">
+            {partnerHub
+              ? (isAr ? 'جهات الاتصال — عملاء وموردون' : 'Contacts — customers & suppliers')
+              : (isAr ? 'جهات الاتصال' : 'Contacts')}
           </h1>
           <p className="mt-1 max-w-xl text-sm text-slate-500">
-            {isAr ? 'دليل موحّد للعملاء والموردين والموظفين.' : 'One book for customers, suppliers, employees, and WhatsApp.'}
+            {partnerHub
+              ? (isAr
+                ? 'دليل موحّد للعملاء والموردين. يُضبط نوع المحاسبة تلقائياً حسب سياق الإنشاء.'
+                : 'Unified partner book. Accounting flags are set automatically from create context.')
+              : (isAr ? 'دليل موحّد للعملاء والموردين والموظفين.' : 'One book for customers, suppliers, employees, and WhatsApp.')}
           </p>
         </div>
-        <ExportMenu
-          language={language}
-          t={t}
-          rows={rows}
-          getRows={getExportRows}
-          columns={exportColumns}
-          fileBaseName={isAr ? 'جهات_الاتصال' : 'Contacts'}
-          title={isAr ? 'جهات الاتصال' : 'Contacts'}
-          disabled={isLoading || rows.length === 0}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <button
+              type="button"
+              className="btn btn-action-dark"
+              onClick={() => setCreateMenuOpen((v) => !v)}
+            >
+              <Plus className="h-4 w-4" />
+              {isAr ? 'إنشاء' : 'Create'}
+              <ChevronDown className={`h-4 w-4 transition ${createMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {createMenuOpen && (
+              <div className="absolute end-0 z-30 mt-1 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800">
+                <button
+                  type="button"
+                  className="flex w-full items-start gap-2 px-3 py-2.5 text-start hover:bg-slate-50 dark:hover:bg-dark-700"
+                  onClick={() => openCreate('customer')}
+                >
+                  <Building2 className="mt-0.5 h-4 w-4 text-sky-700" />
+                  <span>
+                    <span className="block text-sm font-semibold text-slate-800">{isAr ? 'عميل' : 'Customer'}</span>
+                    <span className="block text-xs text-slate-400">{isAr ? 'يُعلَّم كعميل تلقائياً' : 'Sets is_customer automatically'}</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-start gap-2 px-3 py-2.5 text-start hover:bg-slate-50 dark:hover:bg-dark-700"
+                  onClick={() => openCreate('vendor')}
+                >
+                  <Briefcase className="mt-0.5 h-4 w-4 text-amber-700" />
+                  <span>
+                    <span className="block text-sm font-semibold text-slate-800">{isAr ? 'مورد' : 'Supplier'}</span>
+                    <span className="block text-xs text-slate-400">{isAr ? 'يُعلَّم كمورد تلقائياً' : 'Sets is_vendor automatically'}</span>
+                  </span>
+                </button>
+                <Link
+                  to="/app/dashboard/customers/new"
+                  className="block border-t border-slate-100 px-3 py-2 text-xs text-slate-500 hover:bg-slate-50 dark:border-dark-600"
+                  onClick={() => setCreateMenuOpen(false)}
+                >
+                  {isAr ? 'إنشاء عميل متقدم…' : 'Advanced customer form…'}
+                </Link>
+                <Link
+                  to="/app/dashboard/suppliers/new"
+                  className="block px-3 py-2 text-xs text-slate-500 hover:bg-slate-50"
+                  onClick={() => setCreateMenuOpen(false)}
+                >
+                  {isAr ? 'إنشاء مورد متقدم…' : 'Advanced supplier form…'}
+                </Link>
+              </div>
+            )}
+          </div>
+          <ExportMenu
+            language={language}
+            t={t}
+            rows={rows}
+            getRows={getExportRows}
+            columns={exportColumns}
+            fileBaseName={isAr ? 'جهات_الاتصال' : 'Contacts'}
+            title={isAr ? 'جهات الاتصال' : 'Contacts'}
+            disabled={isLoading || rows.length === 0}
+          />
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className={`grid grid-cols-2 gap-3 ${partnerHub ? 'lg:grid-cols-3' : 'lg:grid-cols-5'}`}>
         {tiles.map((tile) => {
           const Icon = tile.icon
           return (
@@ -149,15 +244,15 @@ export default function Contacts() {
               onClick={() => setTypeFilter(tile.key)}
               className={`rounded-2xl border p-4 text-start transition ${
                 tile.active
-                  ? 'border-emerald-200 bg-white shadow-[0_16px_40px_-24px_rgba(16,185,129,.45)] ring-1 ring-emerald-100'
-                  : 'border-slate-100 bg-white/70 hover:border-slate-200 hover:bg-white'
+                  ? 'border-slate-200 bg-white shadow-sm ring-1 ring-slate-100'
+                  : 'border-slate-100 bg-slate-50/70 hover:border-slate-200 hover:bg-white'
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
                   <Icon className="h-4 w-4" />
                 </span>
-                <span className="font-[Outfit,sans-serif] text-2xl font-semibold tabular-nums text-slate-900">{Number(tile.value).toLocaleString()}</span>
+                <span className="font-[Outfit,sans-serif] text-2xl font-semibold tabular-nums text-slate-800">{Number(tile.value).toLocaleString()}</span>
               </div>
               <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{tile.label}</p>
             </button>
@@ -174,7 +269,7 @@ export default function Contacts() {
               placeholder={isAr ? 'بحث بالاسم أو الهاتف أو الرقم الضريبي' : 'Search name, phone, email, or VAT'}
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-2.5 ps-10 pe-3 text-sm outline-none transition focus:border-emerald-600/40 focus:bg-white focus:ring-2 focus:ring-emerald-700/10"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-2.5 ps-10 pe-3 text-sm outline-none transition focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-700/10"
             />
           </div>
           <select
@@ -189,94 +284,92 @@ export default function Contacts() {
         </div>
       </div>
 
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-[0_24px_60px_-32px_rgba(15,23,42,.18)]">
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="overflow-x-auto rounded-[28px] border border-slate-100 bg-white">
         {isLoading ? (
           <div className="flex justify-center p-16">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-600 border-t-transparent" />
           </div>
         ) : rows.length === 0 ? (
           <div className="px-6 py-16 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
               <UserRound className="h-6 w-6" />
             </div>
-            <p className="mt-4 font-[Outfit,sans-serif] text-lg font-semibold text-slate-900">{isAr ? 'لا توجد جهات في هذا العرض' : 'No contacts in this view'}</p>
+            <p className="mt-4 font-[Outfit,sans-serif] text-lg font-semibold text-slate-800">{isAr ? 'لا توجد جهات في هذا العرض' : 'No contacts in this view'}</p>
             <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
-              {isAr ? 'جرّب تغيير الفلتر أو أضف عميلاً أو مورداً.' : 'Try another filter, or add a customer or supplier from their modules.'}
+              {isAr ? 'أنشئ عميلاً أو مورداً من زر الإنشاء أعلاه.' : 'Create a customer or supplier with the Create button above.'}
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 text-start text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  <th className="px-5 py-3 font-semibold">{isAr ? 'الاسم' : 'Name'}</th>
-                  <th className="px-3 py-3 font-semibold">{isAr ? 'النوع' : 'Type'}</th>
-                  <th className="px-3 py-3 font-semibold">{isAr ? 'التواصل' : 'Reach'}</th>
-                  <th className="px-3 py-3 font-semibold">{isAr ? 'الرمز / الضريبة' : 'Code / VAT'}</th>
-                  <th className="px-3 py-3 font-semibold">{t('status')}</th>
-                  <th className="px-5 py-3 font-semibold" />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((c) => (
-                  <tr key={`${c.entityType}-${c.entityId}`} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/70">
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xs font-bold ${c.meta.tint}`}>
-                          {initials(c.name)}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold text-slate-900">{c.name || '—'}</p>
-                          {c.displayNameAr && !isAr && <p className="truncate text-xs text-slate-400" dir="rtl">{c.displayNameAr}</p>}
-                        </div>
+          <table className="w-full min-w-[720px] text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 text-start text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                <th className="min-w-[150px] px-5 py-3 font-semibold">{isAr ? 'الاسم' : 'Name'}</th>
+                <th className="min-w-[120px] px-3 py-3 font-semibold">{isAr ? 'النوع' : 'Type'}</th>
+                <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'التواصل' : 'Reach'}</th>
+                <th className="min-w-[140px] px-3 py-3 font-semibold">{isAr ? 'الرمز / الضريبة' : 'Code / VAT'}</th>
+                <th className="min-w-[100px] px-3 py-3 font-semibold">{t('status')}</th>
+                <th className="min-w-[80px] px-5 py-3 font-semibold" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((c) => (
+                <tr key={`${c.entityType}-${c.entityId}`} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/70">
+                  <td className="min-w-[150px] px-5 py-3.5">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xs font-bold ${c.meta.tint}`}>
+                        {initials(c.name)}
                       </div>
-                    </td>
-                    <td className="px-3 py-3.5">
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${c.meta.tint}`}>
-                        <c.Icon className="h-3.5 w-3.5" />
-                        {isAr ? c.meta.ar : c.meta.en}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3.5">
-                      <div className="space-y-0.5">
-                        {c.phone ? (
-                          <a href={`tel:${c.phone}`} className="flex items-center gap-1.5 text-slate-700 hover:text-emerald-700">
-                            <Phone className="h-3.5 w-3.5 text-slate-400" />{c.phone}
-                          </a>
-                        ) : null}
-                        {c.email ? (
-                          <a href={`mailto:${c.email}`} className="flex items-center gap-1.5 text-slate-500 hover:text-emerald-700">
-                            <Mail className="h-3.5 w-3.5 text-slate-400" />{c.email}
-                          </a>
-                        ) : null}
-                        {!c.phone && !c.email && <span className="text-slate-300">—</span>}
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-slate-800">{c.name || '—'}</p>
+                        {c.displayNameAr && !isAr && <p className="truncate text-xs text-slate-400" dir="rtl">{c.displayNameAr}</p>}
                       </div>
-                    </td>
-                    <td className="px-3 py-3.5 font-mono text-xs text-slate-500">
-                      <div className="flex items-center gap-1">{c.code ? <><Hash className="h-3 w-3" />{c.code}</> : '—'}</div>
-                      <div>{c.vatNumber || ''}</div>
-                    </td>
-                    <td className="px-3 py-3.5">
-                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${c.isActive ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
-                        {c.isActive ? (isAr ? 'نشط' : 'Active') : (isAr ? 'غير نشط' : 'Inactive')}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-end">
-                      {c.route ? (
-                        <Link to={c.route} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-emerald-50 hover:text-emerald-700">
-                          <ArrowUpRight className="h-4 w-4" />
-                        </Link>
-                      ) : c.entityType?.startsWith('whatsapp') ? (
-                        <Link to={`/whatsapp?contact=${c.entityId}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-green-600 hover:bg-green-50">
-                          <MessageCircle className="h-4 w-4" />
-                        </Link>
+                    </div>
+                  </td>
+                  <td className="min-w-[120px] px-3 py-3.5">
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${c.meta.tint}`}>
+                      <c.Icon className="h-3.5 w-3.5" />
+                      {isAr ? c.meta.ar : c.meta.en}
+                    </span>
+                  </td>
+                  <td className="min-w-[150px] px-3 py-3.5">
+                    <div className="space-y-0.5">
+                      {c.phone ? (
+                        <a href={`tel:${c.phone}`} className="flex items-center gap-1.5 text-slate-700 hover:text-slate-900">
+                          <Phone className="h-3.5 w-3.5 text-slate-400" />{c.phone}
+                        </a>
                       ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      {c.email ? (
+                        <a href={`mailto:${c.email}`} className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800">
+                          <Mail className="h-3.5 w-3.5 text-slate-400" />{c.email}
+                        </a>
+                      ) : null}
+                      {!c.phone && !c.email && <span className="text-slate-300">—</span>}
+                    </div>
+                  </td>
+                  <td className="min-w-[140px] px-3 py-3.5 font-mono text-xs text-slate-500">
+                    <div className="flex items-center gap-1">{c.code ? <><Hash className="h-3 w-3" />{c.code}</> : '—'}</div>
+                    <div>{c.vatNumber || ''}</div>
+                  </td>
+                  <td className="min-w-[100px] px-3 py-3.5">
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${c.isActive ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
+                      {c.isActive ? (isAr ? 'نشط' : 'Active') : (isAr ? 'غير نشط' : 'Inactive')}
+                    </span>
+                  </td>
+                  <td className="min-w-[80px] px-5 py-3.5 text-end">
+                    {c.route ? (
+                      <Link to={c.route} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-800">
+                        <ArrowUpRight className="h-4 w-4" />
+                      </Link>
+                    ) : c.entityType?.startsWith('whatsapp') ? (
+                      <Link to={`/app/dashboard/whatsapp?contact=${c.entityId}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-green-600 hover:bg-green-50">
+                        <MessageCircle className="h-4 w-4" />
+                      </Link>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </motion.div>
 
@@ -291,6 +384,18 @@ export default function Contacts() {
           </button>
         </div>
       )}
+
+      <QuickCreateContactModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        role={createRole}
+        ar={isAr}
+        language={language}
+        onCreated={() => {
+          qc.invalidateQueries({ queryKey: ['contacts'] })
+          qc.invalidateQueries({ queryKey: ['contacts-stats'] })
+        }}
+      />
     </div>
   )
 }

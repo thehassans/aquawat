@@ -97,12 +97,12 @@ export function PackagesPage() {
         <EmptyState title={ar ? 'لا طرود' : 'No packages'} />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
-                <th className="px-3 py-2">{ar ? 'الاسم' : 'Name'}</th>
-                <th className="px-3 py-2">{ar ? 'النوع' : 'Type'}</th>
-                <th className="px-3 py-2">{ar ? 'التاريخ' : 'Packed'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'الاسم' : 'Name'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'النوع' : 'Type'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'التاريخ' : 'Packed'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -150,13 +150,13 @@ export function ReturnsPage() {
         <EmptyState title={ar ? 'لا تحويلات مكتملة' : 'No done transfers'} />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
-                <th className="px-3 py-2">{ar ? 'المرجع' : 'Reference'}</th>
-                <th className="px-3 py-2">{ar ? 'الأصل' : 'Origin'}</th>
-                <th className="px-3 py-2">{ar ? 'الحالة' : 'State'}</th>
-                <th className="px-3 py-2" />
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'المرجع' : 'Reference'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'الأصل' : 'Origin'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'الحالة' : 'State'}</th>
+                <th className="min-w-[150px] px-3 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -226,12 +226,12 @@ export function ReferencesPage() {
         <EmptyState title={ar ? 'لا مجموعات بعد' : 'No procurement groups yet'} />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
-                <th className="px-3 py-2">{ar ? 'الاسم' : 'Name'}</th>
-                <th className="px-3 py-2">{ar ? 'النوع' : 'Move type'}</th>
-                <th className="px-3 py-2">{ar ? 'المصدر' : 'Origin'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'الاسم' : 'Name'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'النوع' : 'Move type'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'المصدر' : 'Origin'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -342,14 +342,14 @@ export function DeliveryMethodsPage() {
         <EmptyState title={ar ? 'لا طرق بعد' : 'No delivery methods'} />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
-                <th className="px-3 py-2">{ar ? 'الاسم' : 'Name'}</th>
-                <th className="px-3 py-2">{ar ? 'السعر' : 'Fixed'}</th>
-                <th className="px-3 py-2">{ar ? 'مجاني فوق' : 'Free above'}</th>
-                <th className="px-3 py-2">{ar ? 'موصل' : 'Provider'}</th>
-                <th className="px-3 py-2" />
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'الاسم' : 'Name'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'السعر' : 'Fixed'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'مجاني فوق' : 'Free above'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'موصل' : 'Provider'}</th>
+                <th className="min-w-[150px] px-3 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -525,14 +525,14 @@ export function ProductPackagingPage() {
         <EmptyState title={ar ? 'لا تعبئة' : 'No packagings'} />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
-                <th className="px-3 py-2">{ar ? 'المنتج' : 'Product'}</th>
-                <th className="px-3 py-2">{ar ? 'التعبئة' : 'Packaging'}</th>
-                <th className="px-3 py-2">{ar ? 'الكمية' : 'Qty'}</th>
-                <th className="px-3 py-2">{ar ? 'باركود' : 'Barcode'}</th>
-                <th className="px-3 py-2">{ar ? 'الحالة' : 'Active'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'المنتج' : 'Product'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'التعبئة' : 'Packaging'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'الكمية' : 'Qty'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'باركود' : 'Barcode'}</th>
+                <th className="min-w-[150px] px-3 py-2">{ar ? 'الحالة' : 'Active'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
