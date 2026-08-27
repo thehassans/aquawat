@@ -6,9 +6,23 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
-import { ReportShell, useReportFilters, exportCsv } from './ReportShell'
+import { ReportShell, ReportTableFrame, REPORT_THEAD, useReportFilters, exportCsv } from './ReportShell'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import { formatInvError } from '../../lib/invError'
+import {
+  formatReportLocation,
+  formatReportProduct,
+  formatReportQty,
+} from '../../lib/reportFormat'
+
+function moveProductLabel(line, ar) {
+  return formatReportProduct({
+    product: line.productId,
+    variant: line.variantId,
+    productId: line.productId?._id || line.productId,
+    variantId: line.variantId?._id || line.variantId,
+  }, { ar })
+}
 
 export default function MovesHistory() {
   const { language } = useSelector((s) => s.ui)
@@ -28,6 +42,17 @@ export default function MovesHistory() {
   const items = asInvList(data)
   const view = filters.view || 'list'
 
+  const csvCols = [
+    { label: 'Date', get: (r) => (r.updatedAt ? new Date(r.updatedAt).toISOString() : '') },
+    { label: 'Reference', get: (r) => r.transferId?.name || r.reference || '' },
+    { label: 'Product', get: (r) => moveProductLabel(r, ar) },
+    { label: 'SKU', get: (r) => r.variantId?.sku || r.productId?.sku || '' },
+    { label: 'Lot', get: (r) => r.lotId?.name || '' },
+    { label: 'From', get: (r) => formatReportLocation(r.sourceLocationId) },
+    { label: 'To', get: (r) => formatReportLocation(r.destLocationId) },
+    { label: 'Qty', get: (r) => formatReportQty(r.quantityInProductUom || r.quantity) },
+  ]
+
   const exportFull = async () => {
     setExporting(true)
     try {
@@ -35,16 +60,7 @@ export default function MovesHistory() {
         params: { ...queryParams, direction: direction || undefined, limit: 10000, page: 1 },
       })
       const rows = res.data?.items || []
-      exportCsv('moves-history.csv', rows, [
-        { label: 'Date', get: (r) => (r.updatedAt ? new Date(r.updatedAt).toISOString() : '') },
-        { label: 'Reference', get: (r) => r.transferId?.name || r.reference || '' },
-        { label: 'Product', get: (r) => r.productId?.nameEn || '' },
-        { label: 'SKU', get: (r) => r.productId?.sku || '' },
-        { label: 'Lot', get: (r) => r.lotId?.name || '' },
-        { label: 'From', get: (r) => r.sourceLocationId?.completePath || r.sourceLocationId?.name || '' },
-        { label: 'To', get: (r) => r.destLocationId?.completePath || r.destLocationId?.name || '' },
-        { label: 'Qty', get: (r) => r.quantityInProductUom || r.quantity || '' },
-      ])
+      exportCsv('moves-history.csv', rows, csvCols)
       toast.success(ar ? `تم تصدير ${rows.length} سطر` : `Exported ${rows.length} rows`)
     } catch (e) {
       toast.error(formatInvError(e, language))
@@ -92,14 +108,14 @@ export default function MovesHistory() {
       )}
     >
       {view === 'graph' && items.length > 0 && (
-        <div className="rounded-xl border border-slate-200/80 p-4 text-sm text-slate-500 dark:border-dark-600">
+        <div className="mb-2 shrink-0 rounded-xl border border-slate-200/80 p-4 text-sm text-slate-500 dark:border-dark-600">
           {ar ? 'استخدم تحليل الحركات للرسوم المحورية.' : 'Use Moves Analysis for pivot charts.'}
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+      <ReportTableFrame>
         <table className="w-full min-w-[900px] text-sm">
-          <thead className="border-b border-slate-100 bg-slate-50/80 text-xs uppercase text-slate-500 dark:border-dark-600">
+          <thead className={REPORT_THEAD}>
             <tr>
               <th className="min-w-[140px] px-4 py-3 text-start">{ar ? 'التاريخ' : 'Date'}</th>
               <th className="min-w-[140px] px-4 py-3 text-start">{ar ? 'المرجع' : 'Reference'}</th>
@@ -129,15 +145,15 @@ export default function MovesHistory() {
                     line.reference || '—'
                   )}
                 </td>
-                <td className="px-4 py-3">{ar && line.productId?.nameAr ? line.productId.nameAr : line.productId?.nameEn}</td>
+                <td className="px-4 py-3">{moveProductLabel(line, ar)}</td>
                 <td className="px-4 py-3">
                   {line.lotId?._id ? (
                     <Link className="hover:underline" to={`/app/dashboard/inventory/lots/${line.lotId._id}`}>{line.lotId.name}</Link>
                   ) : '—'}
                 </td>
-                <td className="px-4 py-3 text-xs text-slate-500">{line.sourceLocationId?.completePath || line.sourceLocationId?.name}</td>
-                <td className="px-4 py-3 text-xs text-slate-500">{line.destLocationId?.completePath || line.destLocationId?.name}</td>
-                <td className="px-4 py-3 tabular-nums font-medium">{line.quantityInProductUom || line.quantity}</td>
+                <td className="px-4 py-3 text-xs text-slate-500">{formatReportLocation(line.sourceLocationId)}</td>
+                <td className="px-4 py-3 text-xs text-slate-500">{formatReportLocation(line.destLocationId)}</td>
+                <td className="px-4 py-3 tabular-nums font-medium">{formatReportQty(line.quantityInProductUom || line.quantity)}</td>
               </tr>
             ))}
           </tbody>
@@ -147,7 +163,7 @@ export default function MovesHistory() {
             1–{items.length} / {data.total}
           </div>
         )}
-      </div>
+      </ReportTableFrame>
     </ReportShell>
   )
 }

@@ -5,9 +5,10 @@ import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
-import { ReportShell, REPORT_TABS, useReportFilters, exportCsv } from './ReportShell'
+import { ReportShell, ReportTableFrame, REPORT_THEAD, REPORT_TABS, useReportFilters, exportCsv } from './ReportShell'
 import ImportExportDialog from '../../components/inventory/ImportExportDialog'
 import { formatInvError } from '../../lib/invError'
+import { formatReportQty } from '../../lib/reportFormat'
 
 const QUANT_STATUSES = ['available', 'quarantine', 'damaged', 'on_hold', 'expired']
 
@@ -94,9 +95,9 @@ export function MovesAnalysisPage() {
           disabled={!items.length}
           onClick={() => exportCsv('moves-analysis.csv', items, [
             { label: 'Group', get: (r) => r.label },
-            { label: 'Incoming', get: (r) => r.incomingQty },
-            { label: 'Outgoing', get: (r) => r.outgoingQty },
-            { label: 'Net', get: (r) => r.netQty },
+            { label: 'Incoming', get: (r) => formatReportQty(r.incomingQty) },
+            { label: 'Outgoing', get: (r) => formatReportQty(r.outgoingQty) },
+            { label: 'Net', get: (r) => formatReportQty(r.netQty) },
             { label: 'Lines', get: (r) => r.lines },
           ])}
         >
@@ -109,9 +110,9 @@ export function MovesAnalysisPage() {
       ) : !items.length ? (
         <EmptyState title={ar ? 'لا بيانات' : 'No moves yet'} />
       ) : (
-        <>
+        <ReportTableFrame>
           {view === 'graph' && (
-            <div className="rounded-xl border border-slate-200/80 p-4 dark:border-dark-600">
+            <div className="border-b border-slate-100 p-4 dark:border-dark-600">
               <p className="mb-3 text-xs font-medium uppercase text-slate-500">{ar ? 'صافي الكمية' : 'Net qty'}</p>
               <div className="flex h-40 items-end gap-1">
                 {items.slice(0, 32).map((r) => {
@@ -130,40 +131,38 @@ export function MovesAnalysisPage() {
               </div>
             </div>
           )}
-          <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-dark-800">
-                <tr>
-                  <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'المجموعة' : 'Group'}</th>
-                  <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'وارد' : 'In'}</th>
-                  <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'صادر' : 'Out'}</th>
-                  <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'صافي' : 'Net'}</th>
-                  <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'أسطر' : 'Lines'}</th>
+          <table className="w-full min-w-[720px] text-sm">
+            <thead className={REPORT_THEAD}>
+              <tr>
+                <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'المجموعة' : 'Group'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'وارد' : 'In'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'صادر' : 'Out'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'صافي' : 'Net'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'أسطر' : 'Lines'}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
+              {items.map((row) => (
+                <tr key={row.key}>
+                  <td className="px-3 py-2.5 font-medium text-slate-900 dark:text-white">{row.label}</td>
+                  <td className="px-3 py-2.5 text-end tabular-nums">{formatReportQty(row.incomingQty)}</td>
+                  <td className="px-3 py-2.5 text-end tabular-nums">{formatReportQty(row.outgoingQty)}</td>
+                  <td className="px-3 py-2.5 text-end tabular-nums">{formatReportQty(row.netQty)}</td>
+                  <td className="px-3 py-2.5 text-end tabular-nums text-slate-500">{row.lines}</td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
-                {items.map((row) => (
-                  <tr key={row.key}>
-                    <td className="px-3 py-2.5 font-medium text-slate-900 dark:text-white">{row.label}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{row.incomingQty}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{row.outgoingQty}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{row.netQty}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{row.lines}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot className="border-t border-slate-200 bg-slate-50/80 text-sm font-semibold dark:border-dark-600 dark:bg-dark-900/40">
-                <tr>
-                  <td className="px-3 py-2.5">{ar ? 'الإجمالي' : 'Total'}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{totals.incomingQty}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{totals.outgoingQty}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{totals.netQty}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{totals.lines}</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </>
+              ))}
+            </tbody>
+            <tfoot className="border-t border-slate-200 bg-slate-50/80 text-sm font-semibold dark:border-dark-600 dark:bg-dark-900/40">
+              <tr>
+                <td className="px-3 py-2.5">{ar ? 'الإجمالي' : 'Total'}</td>
+                <td className="px-3 py-2.5 text-end tabular-nums">{formatReportQty(totals.incomingQty)}</td>
+                <td className="px-3 py-2.5 text-end tabular-nums">{formatReportQty(totals.outgoingQty)}</td>
+                <td className="px-3 py-2.5 text-end tabular-nums">{formatReportQty(totals.netQty)}</td>
+                <td className="px-3 py-2.5 text-end tabular-nums">{totals.lines}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </ReportTableFrame>
       )}
     </ReportShell>
   )

@@ -1,12 +1,14 @@
 import mongoose from 'mongoose';
 import { D, decStr, decIsZero } from '../../utils/decimal.js';
 import InvQuant from '../../models/inventory/InvQuant.js';
+import InvLocation from '../../models/inventory/InvLocation.js';
 import { setDecimalPair, toObjectId } from '../../models/inventory/common.js';
 import { InventoryValidationError, InventoryConflictError } from './errors.js';
 
 /**
  * Apply quantity / reserved deltas to a quant dimension key.
  * Uses optimistic version + Decimal128-aware sets.
+ * Blocks any stock.quant write against View locations (virtual folders only).
  */
 export async function applyQuantDelta(
   session,
@@ -19,10 +21,26 @@ export async function applyQuantDelta(
   dims = {},
 ) {
   const tid = toObjectId(tenantId);
+  const locId = toObjectId(locationId);
+
+  // View locations are hierarchical folders — never hold stock.quants
+  if (!decIsZero(qtyDelta) || !decIsZero(reservedDelta || '0')) {
+    let locQ = InvLocation.findById(locId).select('usage name completePath').lean();
+    if (session) locQ = locQ.session(session);
+    const loc = await locQ;
+    if (loc?.usage === 'view') {
+      throw new InventoryValidationError(
+        `Cannot post inventory to View location "${loc.completePath || loc.name}". Use a child Internal location.`,
+        'LOC_VIEW_STOCK',
+        { details: { locationId: String(locId), usage: 'view' } },
+      );
+    }
+  }
+
   const filter = {
     tenantId: tid,
     productId: toObjectId(productId),
-    locationId: toObjectId(locationId),
+    locationId: locId,
     variantId: dims.variantId || null,
     lotId: dims.lotId || null,
     packageId: dims.packageId || null,

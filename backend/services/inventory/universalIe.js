@@ -15,6 +15,7 @@ import {
   InvValuationLayer,
   InvProductVariant,
   InvQuant,
+  InvAttributeValue,
 } from '../../models/inventory/index.js';
 import InvProductAttribute from '../../models/inventory/InvProductAttribute.js';
 import InvIeTemplate from '../../models/inventory/InvIeTemplate.js';
@@ -226,7 +227,11 @@ async function loadExportRows(tenantId, model, filters = {}) {
       }));
     }
     case 'locations': {
-      const rows = await InvLocation.find({ tenantId: tid })
+      const q = { tenantId: tid };
+      if (Array.isArray(filters.ids) && filters.ids.length) {
+        q._id = { $in: filters.ids.map((id) => toObjectId(id)).filter(Boolean) };
+      }
+      const rows = await InvLocation.find(q)
         .populate('warehouseId', 'code nameEn')
         .sort({ completePath: 1 })
         .limit(limit)
@@ -522,6 +527,30 @@ async function loadExportRows(tenantId, model, filters = {}) {
         }
         return base;
       });
+    }
+    case 'product_attributes': {
+      const q = { tenantId: tid };
+      if (Array.isArray(filters.ids) && filters.ids.length) {
+        q._id = { $in: filters.ids.map((id) => toObjectId(id)).filter(Boolean) };
+      }
+      const rows = await InvProductAttribute.find(q).sort({ sequence: 1, name: 1 }).limit(limit).lean();
+      const counts = rows.length
+        ? await InvAttributeValue.aggregate([
+          { $match: { tenantId: tid, attributeId: { $in: rows.map((a) => a._id) } } },
+          { $group: { _id: '$attributeId', total: { $sum: 1 } } },
+        ])
+        : [];
+      const byId = new Map(counts.map((c) => [String(c._id), c.total]));
+      return rows.map((a) => ({
+        id: String(a._id),
+        name: a.name || '',
+        nameAr: a.nameAr || '',
+        createVariantMode: a.createVariantMode || (a.createVariant === false ? 'never' : 'always'),
+        displayType: a.displayType || 'select',
+        sequence: a.sequence ?? 10,
+        active: a.active !== false,
+        valueCount: byId.get(String(a._id)) || 0,
+      }));
     }
     case 'vendors_pricelist': {
       const products = await Product.find({ tenantId: tid })
@@ -1031,6 +1060,57 @@ async function importOneMaster(tid, userId, model, row, dryRun) {
       tenantId: tid,
       name,
       completePath: name,
+      createdBy: userId,
+    });
+    return { action: 'create', id: String(doc._id) };
+  }
+
+  if (model === 'product_attributes') {
+    const name = String(row.name || '').trim();
+    if (!name) {
+      const e = new Error('name required');
+      e.field = 'name';
+      throw e;
+    }
+    const id = String(row.id || '').trim();
+    let doc = id && /^[a-f0-9]{24}$/i.test(id)
+      ? await InvProductAttribute.findOne({ _id: id, tenantId: tid })
+      : await InvProductAttribute.findOne({ tenantId: tid, name });
+    const modeRaw = String(row.createVariantMode || '').trim().toLowerCase();
+    const mode = ['always', 'dynamic', 'never'].includes(modeRaw) ? modeRaw : null;
+    const displayRaw = String(row.displayType || '').trim().toLowerCase();
+    const displayType = ['radio', 'select', 'color', 'pill', 'image'].includes(displayRaw)
+      ? displayRaw
+      : null;
+    if (dryRun) return { action: doc ? 'update' : 'create', name };
+    if (doc) {
+      doc.name = name;
+      if (row.nameAr != null) doc.nameAr = String(row.nameAr).trim() || undefined;
+      if (mode) {
+        doc.createVariantMode = mode;
+        doc.createVariant = mode !== 'never';
+      }
+      if (displayType) doc.displayType = displayType;
+      if (row.sequence != null && row.sequence !== '') doc.sequence = Number(row.sequence) || 10;
+      if (row.active != null && row.active !== '') {
+        doc.active = String(row.active).toLowerCase() !== 'false' && row.active !== false && row.active !== 0;
+      }
+      doc.updatedBy = userId;
+      await doc.save();
+      return { action: 'update', id: String(doc._id) };
+    }
+    const createMode = mode || 'always';
+    doc = await InvProductAttribute.create({
+      tenantId: tid,
+      name,
+      nameAr: row.nameAr ? String(row.nameAr).trim() : undefined,
+      createVariantMode: createMode,
+      createVariant: createMode !== 'never',
+      displayType: displayType || 'select',
+      sequence: row.sequence != null && row.sequence !== '' ? Number(row.sequence) || 10 : 10,
+      active: row.active == null || row.active === ''
+        ? true
+        : (String(row.active).toLowerCase() !== 'false' && row.active !== false && row.active !== 0),
       createdBy: userId,
     });
     return { action: 'create', id: String(doc._id) };

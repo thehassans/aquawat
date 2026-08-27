@@ -321,7 +321,7 @@ export const INVENTORY_MENU_TREE = [
         id: 'rules',
         label: 'Rules',
         labelAr: 'القواعد',
-        href: '/app/dashboard/inventory/rules',
+        href: '/app/dashboard/inventory/routes',
         flag: 'multiStepRoutes',
         permission: { module: 'inventory', action: 'read' },
       },

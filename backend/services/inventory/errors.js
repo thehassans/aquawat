@@ -44,6 +44,11 @@ export const INV_ERROR_CODES = Object.freeze({
     message: 'This location still has stock. Move or scrap quantities before deactivating or deleting it.',
     messageAr: 'لا يزال لهذا الموقع مخزون. انقل أو أتلف الكميات قبل إلغاء تفعيله أو حذفه.',
   },
+  LOC_VIEW_STOCK: {
+    status: 422,
+    message: 'Cannot post inventory to a View location. View locations are virtual folders — use a child Internal location instead.',
+    messageAr: 'لا يمكن ترحيل مخزون إلى موقع من نوع عرض. مواقع العرض مجلدات افتراضية — استخدم موقعاً داخلياً فرعياً.',
+  },
   TYPE_LOCKED_BY_HISTORY: {
     status: 409,
     message: 'This operation type has history and cannot change its code or warehouse. Create a new type instead.',

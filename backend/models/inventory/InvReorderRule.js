@@ -4,7 +4,7 @@ import { tenantFields, decimalField } from './common.js';
 const schema = new mongoose.Schema({
   ...tenantFields,
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-  variantId: { type: mongoose.Schema.Types.ObjectId, default: null },
+  variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant', default: null },
   locationId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvLocation', required: true },
   warehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', required: true },
   minQty: { ...decimalField, default: '0' },
@@ -19,7 +19,7 @@ const schema = new mongoose.Schema({
   version: { type: Number, default: 0 },
 }, { timestamps: true });
 
-schema.index({ tenantId: 1, productId: 1, locationId: 1 }, { unique: true });
+schema.index({ tenantId: 1, productId: 1, locationId: 1, variantId: 1 }, { unique: true });
 schema.index({ tenantId: 1, warehouseId: 1, trigger: 1, active: 1 });
 
 export default mongoose.models.InvReorderRule || mongoose.model('InvReorderRule', schema);

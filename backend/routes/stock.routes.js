@@ -296,9 +296,125 @@ router.patch('/locations/:id', checkPermission('inventory', 'update'), async (re
   }
 });
 
+/**
+ * UI "Ratio" = how many reference units equal 1 of this UoM
+ * (e.g. kg ref → g=0.001, t=1000). Storage still uses Odoo factor:
+ * qty_ref = qty / factor, so factor = 1 / ratio.
+ */
+function ratioFromFactor(factor) {
+  try {
+    const f = D(factor == null || factor === '' ? '1' : factor);
+    if (f.lte(0)) return '1';
+    return decStr(D(1).div(f));
+  } catch {
+    return '1';
+  }
+}
+
+function factorFromRatio(ratio) {
+  const r = D(ratio == null || ratio === '' ? '1' : ratio);
+  if (r.lte(0)) {
+    const err = new Error('Ratio must be positive');
+    err.code = 'UOM_RATIO';
+    throw err;
+  }
+  return decStr(D(1).div(r));
+}
+
+function deriveUomTypeFromRatio(ratio) {
+  const r = D(ratio == null || ratio === '' ? '1' : ratio);
+  if (r.eq(1)) return 'reference';
+  if (r.gt(1)) return 'bigger';
+  return 'smaller';
+}
+
+function annotateUomRatio(row) {
+  if (!row) return row;
+  const ratio = ratioFromFactor(row.factor);
+  return { ...row, ratio, isReference: row.uomType === 'reference' || String(ratio) === '1' };
+}
+
+async function demoteOtherReferences(tenantId, categoryId, keepId) {
+  const others = await InvUom.find({
+    tenantId,
+    categoryId,
+    uomType: 'reference',
+    ...(keepId ? { _id: { $ne: keepId } } : {}),
+  }).select('_id factor').lean();
+  for (const u of others) {
+    const nextType = deriveUomTypeFromRatio(ratioFromFactor(u.factor));
+    await InvUom.updateOne(
+      { _id: u._id },
+      { $set: { uomType: nextType === 'reference' ? 'bigger' : nextType } },
+    );
+  }
+}
+
+async function uomHasActiveInventory(tenantFilter, uomId) {
+  const Product = (await import('../models/Product.js')).default;
+  const productIds = await Product.find({
+    ...tenantFilter,
+    $or: [{ uomId }, { purchaseUomId: uomId }],
+  }).distinct('_id');
+  if (!productIds.length) return false;
+  const activeStock = await InvQuant.findOne({
+    ...tenantFilter,
+    productId: { $in: productIds },
+    $expr: { $gt: [{ $toDouble: { $ifNull: ['$quantity', '0'] } }, 0] },
+  }).select('_id').lean();
+  return Boolean(activeStock);
+}
+
 router.get('/uom-categories', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    return sendList(res, await InvUomCategory.find({ ...req.tenantFilter }).sort({ name: 1 }));
+    const cats = await InvUomCategory.find({ ...req.tenantFilter }).sort({ name: 1 }).lean();
+    if (!cats.length) return sendList(res, []);
+    const catIds = cats.map((c) => c._id);
+    const [counts, refs] = await Promise.all([
+      InvUom.aggregate([
+        { $match: { ...req.tenantFilter, categoryId: { $in: catIds } } },
+        { $group: { _id: '$categoryId', total: { $sum: 1 } } },
+      ]),
+      InvUom.find({
+        ...req.tenantFilter,
+        categoryId: { $in: catIds },
+        uomType: 'reference',
+      }).select('name nameAr categoryId factor').lean(),
+    ]);
+    const countBy = new Map(counts.map((c) => [String(c._id), c.total]));
+    const refBy = new Map(refs.map((r) => [String(r.categoryId), r]));
+    return sendList(res, cats.map((c) => {
+      const ref = refBy.get(String(c._id));
+      return {
+        ...c,
+        uomCount: countBy.get(String(c._id)) || 0,
+        referenceUom: ref
+          ? { _id: ref._id, name: ref.name, nameAr: ref.nameAr, ratio: ratioFromFactor(ref.factor) }
+          : null,
+      };
+    }));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/uom-categories/:id', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const cat = await InvUomCategory.findOne({ _id: req.params.id, ...req.tenantFilter }).lean();
+    if (!cat) return res.status(404).json({ error: 'Category not found', code: 'UOM_CAT_NOT_FOUND' });
+    const ref = await InvUom.findOne({
+      ...req.tenantFilter,
+      categoryId: cat._id,
+      uomType: 'reference',
+    }).select('name nameAr factor').lean();
+    const uomCount = await InvUom.countDocuments({ ...req.tenantFilter, categoryId: cat._id });
+    res.json({
+      ...cat,
+      uomCount,
+      referenceUom: ref
+        ? { _id: ref._id, name: ref.name, nameAr: ref.nameAr, ratio: ratioFromFactor(ref.factor) }
+        : null,
+    });
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -308,11 +424,16 @@ router.post('/uom-categories', checkPermission('inventory', 'create'), async (re
   try {
     const name = String(req.body.name || '').trim();
     if (!name) return res.status(400).json({ error: 'Name required', code: 'UOM_CAT_NAME' });
+    const measureType = [
+      'unit', 'weight', 'volume', 'length', 'time', 'workingTime',
+    ].includes(req.body.measureType)
+      ? req.body.measureType
+      : 'unit';
     const cat = await InvUomCategory.create({
       tenantId: req.user.tenantId,
       name,
       nameAr: req.body.nameAr,
-      measureType: req.body.measureType || 'unit',
+      measureType,
       createdBy: req.user._id,
     });
     res.status(201).json(cat);
@@ -328,7 +449,7 @@ router.get('/uoms', checkPermission('inventory', 'read'), async (req, res) => {
     if (req.query.active !== 'false') filter.active = true;
     const rows = await InvUom.find(filter).populate('categoryId', 'name nameAr').sort({ name: 1 }).lean();
 
-    // Annotate UoMs that have products with on-hand stock (for Factor/Rounding UI lock)
+    // Annotate UoMs that have products with on-hand stock (for Ratio/Rounding UI lock)
     if (req.query.stockGuard === '1' && rows.length) {
       const Product = (await import('../models/Product.js')).default;
       const uomIds = rows.map((u) => u._id);
@@ -367,7 +488,7 @@ router.get('/uoms', checkPermission('inventory', 'read'), async (req, res) => {
       }
     }
 
-    return sendList(res, rows);
+    return sendList(res, rows.map(annotateUomRatio));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -375,19 +496,81 @@ router.get('/uoms', checkPermission('inventory', 'read'), async (req, res) => {
 
 router.post('/uoms', checkPermission('inventory', 'create'), async (req, res) => {
   try {
+    const { InventoryValidationError } = await import('../services/inventory/errors.js');
+    const name = String(req.body.name || '').trim();
+    const categoryId = req.body.categoryId;
+    if (!name) throw new InventoryValidationError('UoM name required', 'UOM_NAME');
+    if (!categoryId) throw new InventoryValidationError('Category required', 'UOM_CATEGORY_REQ');
+
+    const cat = await InvUomCategory.findOne({ _id: categoryId, ...req.tenantFilter }).lean();
+    if (!cat) throw new InventoryValidationError('Category not found', 'UOM_CAT_NOT_FOUND');
+
+    let ratio = req.body.ratio != null && req.body.ratio !== ''
+      ? String(req.body.ratio)
+      : null;
+    let factor = req.body.factor != null && req.body.factor !== ''
+      ? String(req.body.factor)
+      : null;
+
+    try {
+      if (ratio != null) {
+        factor = factorFromRatio(ratio);
+      } else if (factor != null) {
+        ratio = ratioFromFactor(factor);
+      } else {
+        ratio = '1';
+        factor = '1';
+      }
+    } catch (e) {
+      if (e.code === 'UOM_RATIO') {
+        throw new InventoryValidationError(e.message, 'UOM_RATIO');
+      }
+      throw e;
+    }
+
+    let wantReference = req.body.isReference === true
+      || req.body.uomType === 'reference'
+      || D(ratio).eq(1);
+
+    const existingRef = await InvUom.findOne({
+      ...req.tenantFilter,
+      categoryId,
+      uomType: 'reference',
+    }).select('_id name').lean();
+
+    if (!wantReference && !existingRef) {
+      // First unit in a category becomes the reference anchor
+      wantReference = true;
+      ratio = '1';
+      factor = '1';
+    }
+
+    if (wantReference) {
+      ratio = '1';
+      factor = '1';
+    }
+
+    const uomType = wantReference || D(ratio).eq(1)
+      ? 'reference'
+      : deriveUomTypeFromRatio(ratio);
+
+    if (uomType === 'reference') {
+      await demoteOtherReferences(req.user.tenantId, categoryId, null);
+    }
+
     const uom = await InvUom.create({
       tenantId: req.user.tenantId,
-      name: req.body.name,
+      name,
       nameAr: req.body.nameAr,
-      categoryId: req.body.categoryId,
-      uomType: req.body.uomType || 'bigger',
-      factor: req.body.factor != null ? String(req.body.factor) : '1',
+      categoryId,
+      uomType,
+      factor,
       rounding: req.body.rounding != null ? String(req.body.rounding) : '0.01',
       externalCode: req.body.externalCode,
       active: req.body.active !== false,
       createdBy: req.user._id,
     });
-    res.status(201).json(uom);
+    res.status(201).json(annotateUomRatio(uom.toObject ? uom.toObject() : uom));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -395,44 +578,69 @@ router.post('/uoms', checkPermission('inventory', 'create'), async (req, res) =>
 
 router.patch('/uoms/:id', checkPermission('inventory', 'update'), async (req, res) => {
   try {
+    const { InventoryValidationError } = await import('../services/inventory/errors.js');
     const existing = await InvUom.findOne({ _id: req.params.id, ...req.tenantFilter }).lean();
     if (!existing) return res.status(404).json({ error: 'UoM not found' });
 
-    const factorChanged = req.body.factor !== undefined && String(req.body.factor) !== String(existing.factor);
-    const roundingChanged = req.body.rounding !== undefined && String(req.body.rounding) !== String(existing.rounding);
-    if (factorChanged || roundingChanged) {
-      const Product = (await import('../models/Product.js')).default;
-      const productIds = await Product.find({
-        ...req.tenantFilter,
-        $or: [{ uomId: existing._id }, { purchaseUomId: existing._id }],
-      }).distinct('_id');
-      if (productIds.length) {
-        const activeStock = await InvQuant.findOne({
-          ...req.tenantFilter,
-          productId: { $in: productIds },
-          $expr: { $gt: [{ $toDouble: { $ifNull: ['$quantity', '0'] } }, 0] },
-        }).select('_id').lean();
-        if (activeStock) {
-          return res.status(409).json({
-            error: 'Cannot change Factor or Rounding while this UoM has active stock on hand. Doing so would recalculate historical valuations.',
-            code: 'UOM_ACTIVE_STOCK',
-          });
+    const $set = { updatedBy: req.user._id };
+
+    try {
+      if (req.body.ratio !== undefined) {
+        const ratio = String(req.body.ratio);
+        $set.factor = factorFromRatio(ratio);
+        $set.uomType = deriveUomTypeFromRatio(ratio);
+      } else if (req.body.factor !== undefined) {
+        $set.factor = String(req.body.factor);
+        if (req.body.uomType === undefined) {
+          $set.uomType = deriveUomTypeFromRatio(ratioFromFactor($set.factor));
         }
+      }
+    } catch (e) {
+      if (e.code === 'UOM_RATIO') {
+        throw new InventoryValidationError(e.message, 'UOM_RATIO');
+      }
+      throw e;
+    }
+
+    if (req.body.isReference === true || req.body.uomType === 'reference') {
+      $set.factor = '1';
+      $set.uomType = 'reference';
+    } else if (req.body.uomType !== undefined && req.body.ratio === undefined && req.body.factor === undefined) {
+      $set.uomType = req.body.uomType;
+      if (req.body.uomType === 'reference') {
+        $set.factor = '1';
       }
     }
 
-    const allowed = ['name', 'nameAr', 'factor', 'rounding', 'externalCode', 'active', 'uomType'];
-    const $set = { updatedBy: req.user._id };
-    for (const k of allowed) {
-      if (req.body[k] !== undefined) $set[k] = k === 'factor' || k === 'rounding' ? String(req.body[k]) : req.body[k];
+    if (req.body.rounding !== undefined) $set.rounding = String(req.body.rounding);
+    if (req.body.name !== undefined) $set.name = req.body.name;
+    if (req.body.nameAr !== undefined) $set.nameAr = req.body.nameAr;
+    if (req.body.externalCode !== undefined) $set.externalCode = req.body.externalCode;
+    if (req.body.active !== undefined) $set.active = req.body.active;
+
+    const factorChanged = $set.factor !== undefined && String($set.factor) !== String(existing.factor);
+    const roundingChanged = $set.rounding !== undefined && String($set.rounding) !== String(existing.rounding);
+    if (factorChanged || roundingChanged) {
+      if (await uomHasActiveInventory(req.tenantFilter, existing._id)) {
+        return res.status(409).json({
+          error: 'Cannot modify a UOM that has active inventory, as this will corrupt historical valuations.',
+          code: 'UOM_ACTIVE_STOCK',
+          messageAr: 'لا يمكن تعديل وحدة قياس لها مخزون نشط، لأن ذلك يفسد التقييمات التاريخية.',
+        });
+      }
     }
+
+    if ($set.uomType === 'reference') {
+      await demoteOtherReferences(req.user.tenantId, existing.categoryId, existing._id);
+    }
+
     const uom = await InvUom.findOneAndUpdate(
       { _id: req.params.id, ...req.tenantFilter },
       { $set },
       { new: true },
-    );
+    ).lean();
     if (!uom) return res.status(404).json({ error: 'UoM not found' });
-    res.json(uom);
+    res.json(annotateUomRatio(uom));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -1170,6 +1378,15 @@ router.patch('/attributes/:id', checkPermission('inventory', 'update'), async (r
   try {
     const { updateAttribute } = await import('../services/inventory/variants.js');
     res.json(await updateAttribute(req.user.tenantId, req.params.id, req.user._id, req.body));
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.delete('/attributes/:id', checkPermission('inventory', 'delete'), async (req, res) => {
+  try {
+    const { deleteAttribute } = await import('../services/inventory/variants.js');
+    res.json(await deleteAttribute(req.user.tenantId, req.params.id));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2103,10 +2320,23 @@ router.post('/three-way-match', checkPermission('inventory', 'read'), async (req
 
 router.get('/routes', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const items = await InvRoute.find({ tenantId: req.user.tenantId })
+    const filter = { tenantId: req.user.tenantId };
+    if (req.query.active === 'true') filter.active = true;
+    if (req.query.active === 'false') filter.active = false;
+    const items = await InvRoute.find(filter)
       .sort({ sequence: 1, name: 1 })
       .lean();
     return sendList(res, items);
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/routes/:id', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const route = await InvRoute.findOne({ _id: req.params.id, tenantId: req.user.tenantId }).lean();
+    if (!route) return res.status(404).json({ error: 'Route not found', code: 'ROUTE_NOT_FOUND' });
+    res.json(route);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2123,6 +2353,8 @@ router.post('/routes', checkPermission('inventory', 'create'), async (req, res) 
       productSelectable: req.body.productSelectable !== false,
       categorySelectable: req.body.categorySelectable !== false,
       warehouseSelectable: req.body.warehouseSelectable !== false,
+      packagingSelectable: !!req.body.packagingSelectable,
+      saleOrderSelectable: !!req.body.saleOrderSelectable,
       warehouseIds: req.body.warehouseIds || [],
       suppliedWarehouseId: req.body.suppliedWarehouseId || null,
       supplierWarehouseId: req.body.supplierWarehouseId || null,
@@ -2136,20 +2368,19 @@ router.post('/routes', checkPermission('inventory', 'create'), async (req, res) 
 
 router.patch('/routes/:id', checkPermission('inventory', 'update'), async (req, res) => {
   try {
+    const $set = { updatedBy: req.user._id };
+    const fields = [
+      'name', 'nameAr', 'sequence', 'active',
+      'productSelectable', 'categorySelectable', 'warehouseSelectable',
+      'packagingSelectable', 'saleOrderSelectable',
+      'warehouseIds', 'suppliedWarehouseId', 'supplierWarehouseId',
+    ];
+    for (const k of fields) {
+      if (req.body[k] !== undefined) $set[k] = req.body[k];
+    }
     const route = await InvRoute.findOneAndUpdate(
       { _id: req.params.id, tenantId: req.user.tenantId },
-      {
-        $set: {
-          ...(req.body.name != null && { name: req.body.name }),
-          ...(req.body.nameAr != null && { nameAr: req.body.nameAr }),
-          ...(req.body.sequence != null && { sequence: req.body.sequence }),
-          ...(req.body.active != null && { active: req.body.active }),
-          ...(req.body.warehouseIds != null && { warehouseIds: req.body.warehouseIds }),
-          ...(req.body.suppliedWarehouseId !== undefined && { suppliedWarehouseId: req.body.suppliedWarehouseId }),
-          ...(req.body.supplierWarehouseId !== undefined && { supplierWarehouseId: req.body.supplierWarehouseId }),
-          updatedBy: req.user._id,
-        },
-      },
+      { $set },
       { new: true },
     );
     if (!route) return res.status(404).json({ error: 'Route not found' });
@@ -2165,9 +2396,9 @@ router.get('/rules', checkPermission('inventory', 'read'), async (req, res) => {
     if (req.query.routeId) filter.routeId = req.query.routeId;
     const items = await InvRule.find(filter)
       .populate('routeId', 'name')
-      .populate('operationTypeId', 'name code')
-      .populate('sourceLocationId', 'completePath')
-      .populate('destLocationId', 'completePath')
+      .populate('operationTypeId', 'name code warehouseId')
+      .populate('sourceLocationId', 'completePath name warehouseId')
+      .populate('destLocationId', 'completePath name warehouseId')
       .sort({ sequence: 1 })
       .lean();
     return sendList(res, items);
@@ -2178,22 +2409,35 @@ router.get('/rules', checkPermission('inventory', 'read'), async (req, res) => {
 
 router.post('/rules', checkPermission('inventory', 'create'), async (req, res) => {
   try {
+    const name = String(req.body.name || '').trim()
+      || `${req.body.action || 'pull'} rule`;
+    if (!req.body.routeId) {
+      return res.status(400).json({ error: 'routeId required', code: 'RULE_ROUTE' });
+    }
+    if (!req.body.destLocationId && req.body.action !== 'buy' && req.body.action !== 'manufacture') {
+      return res.status(400).json({ error: 'Destination location required', code: 'RULE_DEST' });
+    }
     const rule = await InvRule.create({
       tenantId: req.user.tenantId,
-      name: req.body.name,
+      name,
       routeId: req.body.routeId,
       sequence: req.body.sequence ?? 20,
       action: req.body.action || 'pull',
       operationTypeId: req.body.operationTypeId || null,
       sourceLocationId: req.body.sourceLocationId || null,
-      destLocationId: req.body.destLocationId,
+      destLocationId: req.body.destLocationId || req.body.sourceLocationId || null,
       procureMethod: req.body.procureMethod || 'makeToStock',
       groupPropagation: req.body.groupPropagation || 'propagate',
       leadDays: req.body.leadDays || 0,
       active: req.body.active !== false,
       createdBy: req.user._id,
     });
-    res.status(201).json(rule);
+    const populated = await InvRule.findById(rule._id)
+      .populate('operationTypeId', 'name code warehouseId')
+      .populate('sourceLocationId', 'completePath name warehouseId')
+      .populate('destLocationId', 'completePath name warehouseId')
+      .lean();
+    res.status(201).json(populated);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2213,7 +2457,10 @@ router.patch('/rules/:id', checkPermission('inventory', 'update'), async (req, r
       { _id: req.params.id, tenantId: req.user.tenantId },
       { $set },
       { new: true },
-    );
+    )
+      .populate('operationTypeId', 'name code warehouseId')
+      .populate('sourceLocationId', 'completePath name warehouseId')
+      .populate('destLocationId', 'completePath name warehouseId');
     if (!rule) return res.status(404).json({ error: 'Rule not found' });
     res.json(rule);
   } catch (err) {
@@ -2239,10 +2486,18 @@ router.get('/reorder-rules', checkPermission('inventory', 'read'), async (req, r
   try {
     const filter = { tenantId: req.user.tenantId };
     if (req.query.warehouseId) filter.warehouseId = req.query.warehouseId;
+    if (req.query.active === 'false') {
+      /* include inactive */
+    } else if (req.query.active !== 'all') {
+      filter.active = { $ne: false };
+    }
     const items = await InvReorderRule.find(filter)
       .populate('productId', 'nameEn nameAr sku')
-      .populate('locationId', 'completePath')
-      .populate('warehouseId', 'name code')
+      .populate('variantId', 'name sku barcode')
+      .populate('locationId', 'completePath name warehouseId')
+      .populate('warehouseId', 'name nameEn code')
+      .populate('routeId', 'name nameAr active')
+      .sort({ createdAt: -1 })
       .lean();
     return sendList(res, items);
   } catch (err) {
@@ -2253,7 +2508,14 @@ router.get('/reorder-rules', checkPermission('inventory', 'read'), async (req, r
 router.post('/reorder-rules', checkPermission('inventory', 'create'), async (req, res) => {
   try {
     const rule = await upsertReorderRule(req.user.tenantId, req.user._id, req.body);
-    res.status(201).json(rule);
+    const populated = await InvReorderRule.findById(rule._id)
+      .populate('productId', 'nameEn nameAr sku')
+      .populate('variantId', 'name sku barcode')
+      .populate('locationId', 'completePath name warehouseId')
+      .populate('warehouseId', 'name nameEn code')
+      .populate('routeId', 'name nameAr active')
+      .lean();
+    res.status(201).json(populated);
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2263,19 +2525,31 @@ router.patch('/reorder-rules/:id', checkPermission('inventory', 'update'), async
   try {
     const existing = await InvReorderRule.findOne({ _id: req.params.id, tenantId: req.user.tenantId });
     if (!existing) return res.status(404).json({ error: 'Reorder rule not found' });
-    const rule = await upsertReorderRule(req.user.tenantId, req.user._id, {
-      productId: req.body.productId || existing.productId,
-      locationId: req.body.locationId || existing.locationId,
-      warehouseId: req.body.warehouseId || existing.warehouseId,
-      minQty: req.body.minQty,
-      maxQty: req.body.maxQty,
-      qtyMultiple: req.body.qtyMultiple,
-      trigger: req.body.trigger,
-      routeId: req.body.routeId,
-      preferredVendorId: req.body.preferredVendorId,
-      leadDays: req.body.leadDays,
-      active: req.body.active,
-    });
+
+    // Direct patch by id (supports inline grid edits without upsert key collision)
+    const $set = { updatedBy: req.user._id };
+    for (const k of [
+      'productId', 'variantId', 'locationId', 'warehouseId',
+      'minQty', 'maxQty', 'qtyMultiple', 'trigger', 'routeId',
+      'preferredVendorId', 'leadDays', 'active',
+    ]) {
+      if (req.body[k] !== undefined) {
+        $set[k] = (k === 'minQty' || k === 'maxQty' || k === 'qtyMultiple')
+          ? String(req.body[k])
+          : (req.body[k] === '' ? null : req.body[k]);
+      }
+    }
+    const rule = await InvReorderRule.findOneAndUpdate(
+      { _id: req.params.id, tenantId: req.user.tenantId },
+      { $set, $inc: { version: 1 } },
+      { new: true },
+    )
+      .populate('productId', 'nameEn nameAr sku')
+      .populate('variantId', 'name sku barcode')
+      .populate('locationId', 'completePath name warehouseId')
+      .populate('warehouseId', 'name nameEn code')
+      .populate('routeId', 'name nameAr active');
+    if (!rule) return res.status(404).json({ error: 'Reorder rule not found' });
     res.json(rule);
   } catch (err) {
     handleInventoryError(res, err);

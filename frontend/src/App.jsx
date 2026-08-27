@@ -90,7 +90,8 @@ const LotsList = lazy(() => import('./pages/inventory/LotsList'))
 const LotTraceability = lazy(() => import('./pages/inventory/LotsList').then((m) => ({ default: m.LotTraceability })))
 const MovesHistory = lazy(() => import('./pages/inventory/MovesHistory'))
 const ReplenishmentPage = lazy(() => import('./pages/inventory/AutomationPages'))
-const RoutesRulesPage = lazy(() => import('./pages/inventory/AutomationPages').then((m) => ({ default: m.RoutesRulesPage })))
+const RoutesListPage = lazy(() => import('./pages/inventory/routes/RoutesList'))
+const RouteDetailPage = lazy(() => import('./pages/inventory/routes/RouteDetail'))
 const SchedulerPage = lazy(() => import('./pages/inventory/AutomationPages').then((m) => ({ default: m.SchedulerPage })))
 const PutawayPage = lazy(() => import('./pages/inventory/AutomationPages').then((m) => ({ default: m.PutawayPage })))
 const ValuationReport = lazy(() => import('./pages/inventory/ValuationPages'))
@@ -121,7 +122,7 @@ const BarcodeNomenclaturePage = lazy(() => import('./pages/inventory/Phase6Pages
 const ExceptionsQueuePage = lazy(() => import('./pages/inventory/ExceptionsQueuePage'))
 const InventoryJobsPage = lazy(() => import('./pages/inventory/InventoryJobsPage'))
 const PackagesPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.PackagesPage })))
-const ProductPackagingPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ProductPackagingPage })))
+const ProductPackagingPage = lazy(() => import('./pages/inventory/uom/ProductPackagingPage'))
 const ReturnsPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ReturnsPage })))
 const ReferencesPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.ReferencesPage })))
 const DeliveryMethodsPage = lazy(() => import('./pages/inventory/ExtraPages').then((m) => ({ default: m.DeliveryMethodsPage })))
@@ -131,15 +132,16 @@ const VariantsPage = lazy(() => import('./pages/inventory/VariantPages').then((m
 const BatchTransfersPage = lazy(() => import('./pages/inventory/BatchPages').then((m) => ({ default: m.BatchTransfersPage })))
 const BatchTransferDetailPage = lazy(() => import('./pages/inventory/BatchPages').then((m) => ({ default: m.BatchTransferDetailPage })))
 const QualityPointsPage = lazy(() => import('./pages/inventory/QualityPages').then((m) => ({ default: m.QualityPointsPage })))
-const LocationsPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.LocationsPage })))
-const LocationForm = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.LocationForm })))
+const LocationsPage = lazy(() => import('./pages/inventory/locations/LocationsList'))
+const LocationForm = lazy(() => import('./pages/inventory/locations/LocationForm'))
 const OperationTypesPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.OperationTypesPage })))
 const OperationTypeForm = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.OperationTypeForm })))
 const ProductCategoriesPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.ProductCategoriesPage })))
 const ProductCategoryForm = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.ProductCategoryForm })))
 const StorageCategoriesPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.StorageCategoriesPage })))
-const ReorderingRulesPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.ReorderingRulesPage })))
-const InventoryUomPage = lazy(() => import('./pages/inventory/ConfigPages').then((m) => ({ default: m.InventoryUomPage })))
+const ReorderingRulesPage = lazy(() => import('./pages/inventory/reordering/ReorderingRulesPage'))
+const InventoryUomPage = lazy(() => import('./pages/inventory/uom/UomCategoriesList'))
+const UomCategoryDetailPage = lazy(() => import('./pages/inventory/uom/UomCategoryDetail'))
 const Products = lazy(() => import('./pages/inventory/Products'))
 const ProductForm = lazy(() => import('./pages/inventory/ProductForm'))
 const Warehouses = lazy(() => import('./pages/inventory/Warehouses'))
@@ -854,7 +856,8 @@ function App() {
           <Route path="moves" element={<MovesHistory />} />
           <Route path="reports/moves" element={<Navigate to="/app/dashboard/inventory/moves" replace />} />
           <Route path="replenishment" element={<ReplenishmentPage />} />
-          <Route path="routes" element={<RoutesRulesPage />} />
+          <Route path="routes" element={<RoutesListPage />} />
+          <Route path="routes/:routeId" element={<RouteDetailPage />} />
           <Route path="scheduler" element={<SchedulerPage />} />
           <Route path="putaway" element={<PutawayPage />} />
           <Route path="valuation" element={<ValuationReport />} />
@@ -900,7 +903,7 @@ function App() {
           <Route path="operation-types" element={<OperationTypesPage />} />
           <Route path="operation-types/new" element={<OperationTypeForm />} />
           <Route path="operation-types/:id/edit" element={<OperationTypeForm />} />
-          <Route path="rules" element={<RoutesRulesPage />} />
+          <Route path="rules" element={<Navigate to="/app/dashboard/inventory/routes" replace />} />
           <Route path="storage-categories" element={<StorageCategoriesPage />} />
           <Route path="reordering-rules" element={<ReorderingRulesPage />} />
           <Route path="reordering" element={<Navigate to="/app/dashboard/inventory/reordering-rules" replace />} />
@@ -911,6 +914,7 @@ function App() {
           <Route path="attributes/new" element={<AttributeForm />} />
           <Route path="attributes/:id" element={<AttributeForm />} />
           <Route path="uom" element={<InventoryUomPage />} />
+          <Route path="uom/:categoryId" element={<UomCategoryDetailPage />} />
           <Route path="delivery-methods" element={<DeliveryMethodsPage />} />
           <Route path="shipping-connectors" element={<Navigate to="/app/dashboard/inventory/delivery-methods" replace />} />
         </Route>

@@ -430,6 +430,20 @@ export async function validateTransfer(tenantId, transferId, {
           const srcLoc = await InvLocation.findById(line.sourceLocationId).session(session);
           let destLoc = await InvLocation.findById(line.destLocationId).session(session);
 
+          // View locations are virtual folders — never accept stock.quant posts
+          if (destLoc?.usage === 'view') {
+            throw new InventoryValidationError(
+              `Cannot post inventory to View location "${destLoc.completePath || destLoc.name}". Use a child Internal location.`,
+              'LOC_VIEW_STOCK',
+            );
+          }
+          if (srcLoc?.usage === 'view' && qty.gt(0)) {
+            throw new InventoryValidationError(
+              `Cannot pull inventory from View location "${srcLoc.completePath || srcLoc.name}".`,
+              'LOC_VIEW_STOCK',
+            );
+          }
+
           // Putaway: prefer a storage bin when receiving into an internal location
           if (destLoc?.usage === 'internal') {
             try {

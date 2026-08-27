@@ -40,8 +40,9 @@ export async function movesHistory(tenantId, {
   }
 
   let q = InvMoveLine.find(filter)
-    .select('productId lotId sourceLocationId destLocationId transferId quantity quantityInProductUom updatedAt reference state')
+    .select('productId variantId lotId sourceLocationId destLocationId transferId quantity quantityInProductUom updatedAt reference state')
     .populate('productId', 'nameEn nameAr sku')
+    .populate('variantId', 'name sku')
     .populate('lotId', 'name expirationDate')
     .populate('sourceLocationId', 'name completePath usage')
     .populate('destLocationId', 'name completePath usage')

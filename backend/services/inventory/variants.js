@@ -205,6 +205,76 @@ export async function deleteAttributeValue(tenantId, id) {
   return { deleted: true, id: String(id) };
 }
 
+/**
+ * Delete a product attribute only when it is not part of any product variant matrix.
+ * Blocks if the attribute is on a product's attributeLines or any of its values
+ * appear on InvProductVariant / template attribute extras.
+ */
+export async function deleteAttribute(tenantId, id) {
+  await assertVariantsEnabled(tenantId);
+  const tid = toObjectId(tenantId);
+  const doc = await InvProductAttribute.findOne({ _id: id, tenantId: tid });
+  if (!doc) throw new InventoryValidationError('Attribute not found', 'ATTR_NOT_FOUND');
+
+  const attrName = doc.name || 'Attribute';
+  const inUseMessage = `Cannot delete attribute '${attrName}' because it is linked to active product variants.`;
+  const inUseMessageAr = `لا يمكن حذف السمة '${attrName}' لأنها مرتبطة بمتغيرات منتجات نشطة.`;
+
+  const valueIds = await InvAttributeValue.find({
+    tenantId: tid,
+    attributeId: doc._id,
+  }).distinct('_id');
+
+  const onProductLine = await Product.exists({
+    tenantId: tid,
+    'attributeLines.attributeId': doc._id,
+  });
+  if (onProductLine) {
+    throw new InventoryValidationError(inUseMessage, 'ATTR_IN_USE', {
+      messageAr: inUseMessageAr,
+      details: { name: attrName, attributeId: String(doc._id) },
+    });
+  }
+
+  if (valueIds.length) {
+    const onVariant = await InvProductVariant.exists({
+      tenantId: tid,
+      attributeValueIds: { $in: valueIds },
+    });
+    if (onVariant) {
+      throw new InventoryValidationError(inUseMessage, 'ATTR_IN_USE', {
+        messageAr: inUseMessageAr,
+        details: { name: attrName, attributeId: String(doc._id) },
+      });
+    }
+  }
+
+  const onTemplateExtra = await InvTemplateAttributeValue.exists({
+    tenantId: tid,
+    attributeId: doc._id,
+  });
+  if (onTemplateExtra) {
+    throw new InventoryValidationError(inUseMessage, 'ATTR_IN_USE', {
+      messageAr: inUseMessageAr,
+      details: { name: attrName, attributeId: String(doc._id) },
+    });
+  }
+
+  if (valueIds.length) {
+    await InvAttributeExclusion.deleteMany({
+      tenantId: tid,
+      $or: [
+        { attributeValueId: { $in: valueIds } },
+        { excludedValueIds: { $in: valueIds } },
+      ],
+    });
+    await InvAttributeValue.deleteMany({ tenantId: tid, attributeId: doc._id });
+  }
+
+  await InvProductAttribute.deleteOne({ _id: doc._id, tenantId: tid });
+  return { deleted: true, id: String(doc._id), name: attrName };
+}
+
 export async function listVariants(tenantId, {
   productId,
   q,

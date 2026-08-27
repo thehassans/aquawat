@@ -93,21 +93,30 @@ export async function upsertReorderRule(tenantId, userId, body) {
     throw new InventoryValidationError('productId, locationId, warehouseId required', 'MISSING_FIELDS');
   }
 
-  const existing = await InvReorderRule.findOne({
+  const variantId = body.variantId ? toObjectId(body.variantId) : null;
+  const existingQuery = {
     tenantId: tid,
     productId: body.productId,
     locationId: body.locationId,
-  });
+  };
+  if (variantId) {
+    existingQuery.variantId = variantId;
+  } else {
+    existingQuery.$or = [{ variantId: null }, { variantId: { $exists: false } }];
+  }
+
+  const existing = await InvReorderRule.findOne(existingQuery);
 
   if (existing) {
     existing.minQty = String(body.minQty ?? existing.minQty);
     existing.maxQty = String(body.maxQty ?? existing.maxQty);
     existing.qtyMultiple = String(body.qtyMultiple ?? existing.qtyMultiple);
     existing.trigger = body.trigger || existing.trigger;
-    existing.routeId = body.routeId ?? existing.routeId;
+    existing.routeId = body.routeId !== undefined ? (body.routeId || null) : existing.routeId;
     existing.preferredVendorId = body.preferredVendorId ?? existing.preferredVendorId;
     existing.leadDays = body.leadDays ?? existing.leadDays;
     existing.warehouseId = body.warehouseId;
+    existing.variantId = variantId;
     existing.active = body.active !== false;
     if (userId) existing.updatedBy = userId;
     await existing.save();
@@ -117,6 +126,7 @@ export async function upsertReorderRule(tenantId, userId, body) {
   return InvReorderRule.create({
     tenantId: tid,
     productId: body.productId,
+    variantId,
     locationId: body.locationId,
     warehouseId: body.warehouseId,
     minQty: String(body.minQty ?? 0),

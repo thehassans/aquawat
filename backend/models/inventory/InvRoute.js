@@ -11,6 +11,8 @@ const schema = new mongoose.Schema({
   categorySelectable: { type: Boolean, default: true },
   warehouseSelectable: { type: Boolean, default: true },
   packagingSelectable: { type: Boolean, default: false },
+  /** When true, route can be chosen on sales order lines */
+  saleOrderSelectable: { type: Boolean, default: false },
   warehouseIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' }],
   suppliedWarehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', default: null },
   supplierWarehouseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', default: null },

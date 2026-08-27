@@ -578,6 +578,8 @@ export function InventoryIeButtons({
   ar = false,
   onImported,
   className = '',
+  exportDisabled = false,
+  importDisabled = false,
 }) {
   const [open, setOpen] = useState(null)
 
@@ -589,11 +591,17 @@ export function InventoryIeButtons({
           className="btn btn-secondary text-sm"
           title={!importable && importable !== undefined ? (ar ? 'تصدير فقط' : 'Export only') : undefined}
           onClick={() => setOpen('import')}
-          disabled={importable === false}
+          disabled={importable === false || importDisabled}
         >
           {ar ? 'استيراد' : 'Import'}
         </button>
-        <button type="button" className="btn btn-secondary text-sm" onClick={() => setOpen('export')}>
+        <button
+          type="button"
+          className="btn btn-secondary text-sm"
+          onClick={() => setOpen('export')}
+          disabled={exportDisabled}
+          title={exportDisabled ? (ar ? 'حدد صفوفاً للتصدير' : 'Select rows to export') : undefined}
+        >
           {ar ? 'تصدير' : 'Export'}
         </button>
       </div>

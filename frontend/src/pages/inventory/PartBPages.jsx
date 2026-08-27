@@ -6,8 +6,17 @@ import { Plus } from 'lucide-react'
 import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
-import { ReportShell, useReportFilters, exportCsv } from './ReportShell'
+import { ReportShell, ReportTableFrame, REPORT_THEAD, useReportFilters, exportCsv } from './ReportShell'
 import { formatInvError } from '../../lib/invError'
+import {
+  formatDsi,
+  formatReportLocation,
+  formatReportMoney,
+  formatReportMoneyCsv,
+  formatReportProduct,
+  formatReportQty,
+  formatTurns,
+} from '../../lib/reportFormat'
 
 export function CountPlansPage() {
   const { language } = useSelector((s) => s.ui)
@@ -248,32 +257,43 @@ function GenericReportTable({ activeId, title, subtitle, queryKey, endpoint, col
     queryFn: () => api.get(endpoint, { params: queryParams }).then((r) => r.data),
   })
   const lines = data?.lines || data?.locations || data?.deliveries || []
+  const csvColumns = columns.map((c) => ({
+    label: c.label,
+    get: c.csvGet || c.get || ((row) => row[c.key]),
+  }))
   return (
     <ReportShell activeId={activeId} title={title} subtitle={subtitle}>
       {isLoading ? <div>…</div> : !lines.length ? (
         <EmptyState title={ar ? 'لا بيانات' : 'No data'} />
       ) : (
-        <>
-          <button type="button" className="btn btn-secondary btn-sm mb-3" onClick={() => exportCsv(lines, `${activeId}.csv`, columns)}>
-            CSV
-          </button>
-          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-dark-600">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead className="bg-slate-50 text-xs uppercase dark:bg-dark-800">
-                <tr>{columns.map((c) => <th key={c.key} className="px-3 py-2 text-start">{c.label}</th>)}</tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {lines.map((row, i) => (
-                  <tr key={row._id || i}>
-                    {columns.map((c) => (
-                      <td key={c.key} className="px-3 py-2">{c.get ? c.get(row) : row[c.key]}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+        <ReportTableFrame
+          toolbar={(
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => exportCsv(`${activeId}.csv`, lines, csvColumns)}
+            >
+              CSV
+            </button>
+          )}
+        >
+          <table className="w-full min-w-[720px] text-sm">
+            <thead className={REPORT_THEAD}>
+              <tr>{columns.map((c) => <th key={c.key} className="px-3 py-2 text-start">{c.label}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
+              {lines.map((row, i) => (
+                <tr key={row._id || `${row.productId || ''}|${row.variantId || ''}|${i}`}>
+                  {columns.map((c) => (
+                    <td key={c.key} className={`px-3 py-2 ${c.align === 'end' ? 'text-end tabular-nums' : ''}`}>
+                      {c.get ? c.get(row) : row[c.key]}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ReportTableFrame>
       )}
     </ReportShell>
   )
@@ -286,16 +306,24 @@ export function StockAgeingPage() {
     <GenericReportTable
       activeId="stock-ageing"
       title={ar ? 'تقادم المخزون' : 'Stock ageing'}
-      subtitle={ar ? '0–30 / 31–60 / 61–90 / 90+ يوم' : 'Buckets by days in stock'}
+      subtitle={ar ? 'صف واحد لكل متغير · كميات حسب الفئة' : 'One row per variant · qty by age bucket'}
       queryKey="stock-ageing"
       endpoint="/stock/report/stock-ageing"
       ar={ar}
       columns={[
-        { key: 'product', label: ar ? 'المنتج' : 'Product', get: (r) => r.productName || r.sku },
-        { key: 'qty', label: ar ? 'الكمية' : 'Qty', get: (r) => r.qty },
-        { key: 'age', label: ar ? 'العمر' : 'Age days', get: (r) => r.ageDays },
-        { key: 'bucket', label: ar ? 'الفئة' : 'Bucket', get: (r) => r.bucket },
-        { key: 'value', label: ar ? 'القيمة' : 'Value', get: (r) => r.value },
+        { key: 'product', label: ar ? 'المنتج' : 'Product', get: (r) => formatReportProduct(r, { ar }) },
+        { key: 'qty0', label: '0–30', align: 'end', get: (r) => formatReportQty(r.qty0_30 ?? 0) },
+        { key: 'qty31', label: '31–60', align: 'end', get: (r) => formatReportQty(r.qty31_60 ?? 0) },
+        { key: 'qty61', label: '61–90', align: 'end', get: (r) => formatReportQty(r.qty61_90 ?? 0) },
+        { key: 'qty90', label: '90+', align: 'end', get: (r) => formatReportQty(r.qty90plus ?? 0) },
+        { key: 'qty', label: ar ? 'الإجمالي' : 'Total qty', align: 'end', get: (r) => formatReportQty(r.qty) },
+        {
+          key: 'value',
+          label: ar ? 'القيمة' : 'Value',
+          align: 'end',
+          get: (r) => formatReportMoney(r.value),
+          csvGet: (r) => formatReportMoneyCsv(r.value),
+        },
       ]}
     />
   )
@@ -313,9 +341,29 @@ export function DeadStockPage() {
       endpoint="/stock/report/dead-stock"
       ar={ar}
       columns={[
-        { key: 'product', label: ar ? 'المنتج' : 'Product', get: (r) => r.productName || r.sku },
-        { key: 'qty', label: ar ? 'الكمية' : 'Qty', get: (r) => r.qty },
-        { key: 'value', label: ar ? 'القيمة' : 'Value SAR', get: (r) => r.value },
+        { key: 'product', label: ar ? 'المنتج' : 'Product', get: (r) => formatReportProduct(r, { ar }) },
+        { key: 'qty', label: ar ? 'الكمية' : 'Qty', align: 'end', get: (r) => formatReportQty(r.qty) },
+        {
+          key: 'value',
+          label: ar ? 'القيمة' : 'Value',
+          align: 'end',
+          get: (r) => formatReportMoney(r.value),
+          csvGet: (r) => formatReportMoneyCsv(r.value),
+        },
+        {
+          key: 'lastMoved',
+          label: ar ? 'آخر حركة' : 'Last Moved Date',
+          get: (r) => {
+            const d = r.lastMovedDate || r.lastMovedAt
+            return d ? new Date(d).toLocaleDateString() : '—'
+          },
+        },
+        {
+          key: 'days',
+          label: ar ? 'أيام راكدة' : 'Days idle',
+          align: 'end',
+          get: (r) => (r.daysSinceMove != null ? String(r.daysSinceMove) : '—'),
+        },
       ]}
     />
   )
@@ -333,9 +381,9 @@ export function CountAccuracyPage() {
       endpoint="/stock/report/count-accuracy"
       ar={ar}
       columns={[
-        { key: 'loc', label: ar ? 'الموقع' : 'Location', get: (r) => r.locationName },
-        { key: 'lines', label: ar ? 'أسطر' : 'Lines', get: (r) => r.lines },
-        { key: 'acc', label: ar ? 'الدقة %' : 'Accuracy %', get: (r) => r.accuracyPct },
+        { key: 'loc', label: ar ? 'الموقع' : 'Location', get: (r) => formatReportLocation(r.locationName || r.location) },
+        { key: 'lines', label: ar ? 'أسطر' : 'Lines', align: 'end', get: (r) => r.lines },
+        { key: 'acc', label: ar ? 'الدقة %' : 'Accuracy %', align: 'end', get: (r) => formatTurns(r.accuracyPct) },
       ]}
     />
   )
@@ -351,6 +399,16 @@ export function InventoryTurnsPage() {
   })
   const lines = data?.lines || []
   const totals = data?.totals || {}
+
+  const csvCols = [
+    { label: 'Product', get: (r) => formatReportProduct(r, { ar }) },
+    { label: 'Units out', get: (r) => formatReportQty(r.unitsOut) },
+    { label: 'COGS', get: (r) => formatReportMoneyCsv(r.cogs) },
+    { label: 'Inv. value', get: (r) => formatReportMoneyCsv(r.avgInventoryValue) },
+    { label: 'Turns', get: (r) => formatTurns(r.turns) },
+    { label: 'DSI', get: (r) => formatDsi(r.dsiDays) },
+  ]
+
   return (
     <ReportShell
       activeId="inventory-turns"
@@ -359,47 +417,50 @@ export function InventoryTurnsPage() {
     >
       {isLoading ? <div>…</div> : (
         <>
-          <p className="mb-3 text-sm text-slate-600">
-            {ar ? 'إجمالي الدوران' : 'Portfolio turns'}: <strong>{totals.turns ?? '—'}</strong>
+          <p className="mb-2 shrink-0 text-sm text-slate-600">
+            {ar ? 'إجمالي الدوران' : 'Portfolio turns'}: <strong>{formatTurns(totals.turns)}</strong>
             {' · '}
-            DSI: <strong>{totals.dsiDays ?? '—'}</strong> {ar ? 'يوم' : 'days'}
+            DSI: <strong>{formatDsi(totals.dsiDays)}</strong> {ar ? 'يوم' : 'days'}
           </p>
           {!lines.length ? (
             <EmptyState title={ar ? 'لا بيانات' : 'No data'} />
           ) : (
-            <>
-              <button type="button" className="btn btn-secondary btn-sm mb-3" onClick={() => exportCsv(lines, 'inventory-turns.csv', [
-                { key: 'product', label: 'Product', get: (r) => r.productName },
-                { key: 'turns', label: 'Turns', get: (r) => r.turns },
-                { key: 'dsi', label: 'DSI', get: (r) => r.dsiDays },
-              ])}>CSV</button>
-              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-dark-600">
-                <table className="w-full min-w-[720px] text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase dark:bg-dark-800">
-                    <tr>
-                      <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'المنتج' : 'Product'}</th>
-                      <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'صرف' : 'Units out'}</th>
-                      <th className="min-w-[150px] px-3 py-2 text-end">COGS</th>
-                      <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'قيمة المخزون' : 'Inv. value'}</th>
-                      <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'الدوران' : 'Turns'}</th>
-                      <th className="min-w-[150px] px-3 py-2 text-end">DSI</th>
+            <ReportTableFrame
+              toolbar={(
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => exportCsv('inventory-turns.csv', lines, csvCols)}
+                >
+                  CSV
+                </button>
+              )}
+            >
+              <table className="w-full min-w-[720px] text-sm">
+                <thead className={REPORT_THEAD}>
+                  <tr>
+                    <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'المنتج' : 'Product'}</th>
+                    <th className="min-w-[100px] px-3 py-2 text-end">{ar ? 'صرف' : 'Units out'}</th>
+                    <th className="min-w-[100px] px-3 py-2 text-end">COGS</th>
+                    <th className="min-w-[100px] px-3 py-2 text-end">{ar ? 'قيمة المخزون' : 'Inv. value'}</th>
+                    <th className="min-w-[100px] px-3 py-2 text-end">{ar ? 'الدوران' : 'Turns'}</th>
+                    <th className="min-w-[100px] px-3 py-2 text-end">DSI</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
+                  {lines.map((row) => (
+                    <tr key={`${row.productId}|${row.variantId || ''}`}>
+                      <td className="px-3 py-2">{formatReportProduct(row, { ar })}</td>
+                      <td className="px-3 py-2 text-end tabular-nums">{formatReportQty(row.unitsOut)}</td>
+                      <td className="px-3 py-2 text-end tabular-nums">{formatReportMoney(row.cogs)}</td>
+                      <td className="px-3 py-2 text-end tabular-nums">{formatReportMoney(row.avgInventoryValue)}</td>
+                      <td className="px-3 py-2 text-end tabular-nums">{formatTurns(row.turns)}</td>
+                      <td className="px-3 py-2 text-end tabular-nums">{formatDsi(row.dsiDays)}</td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {lines.map((row) => (
-                      <tr key={row.productId}>
-                        <td className="px-3 py-2">{row.productName || row.sku}</td>
-                        <td className="px-3 py-2 text-end tabular-nums">{row.unitsOut}</td>
-                        <td className="px-3 py-2 text-end tabular-nums">{row.cogs}</td>
-                        <td className="px-3 py-2 text-end tabular-nums">{row.avgInventoryValue}</td>
-                        <td className="px-3 py-2 text-end tabular-nums">{row.turns}</td>
-                        <td className="px-3 py-2 text-end tabular-nums">{row.dsiDays ?? '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
+                  ))}
+                </tbody>
+              </table>
+            </ReportTableFrame>
           )}
         </>
       )}

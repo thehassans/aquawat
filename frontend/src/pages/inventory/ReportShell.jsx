@@ -140,8 +140,8 @@ export function ReportShell({ activeId, title, subtitle, children, extraFilters,
   )
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="flex h-[calc(100dvh-6.5rem)] min-h-[28rem] flex-col gap-3 overflow-hidden">
+      <div className="flex shrink-0 flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h2>
           {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
@@ -154,15 +154,15 @@ export function ReportShell({ activeId, title, subtitle, children, extraFilters,
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1 border-b border-slate-200/80 pb-2 dark:border-dark-600">
+      <div className="flex shrink-0 flex-wrap gap-1 border-b border-slate-200/80 dark:border-dark-600">
         {tabs.map((t) => (
           <Link
             key={t.id}
             to={`${t.path}${qs}`}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
+            className={`relative rounded-t-lg px-3 py-2 text-xs font-semibold transition ${
               activeId === t.id
-                ? 'bg-primary-50 text-primary-700 dark:bg-primary-950/40 dark:text-primary-300'
-                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                ? 'bg-white text-slate-900 shadow-sm dark:bg-dark-800 dark:text-white after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-emerald-600'
+                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:hover:bg-dark-800/60 dark:hover:text-slate-200'
             }`}
           >
             {ar ? t.ar : t.en}
@@ -170,7 +170,7 @@ export function ReportShell({ activeId, title, subtitle, children, extraFilters,
         ))}
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 dark:border-dark-600 dark:bg-dark-800/40">
+      <div className="flex shrink-0 flex-wrap items-end gap-3 rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 dark:border-dark-600 dark:bg-dark-800/40">
         <div>
           <label className="label text-[11px]">{ar ? 'المستودع' : 'Warehouse'}</label>
           <select
@@ -255,14 +255,40 @@ export function ReportShell({ activeId, title, subtitle, children, extraFilters,
         )}
       </div>
 
-      {children}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {children}
+      </div>
     </div>
   )
 }
 
+/** Scrollable report table shell — sticky header, flex-1 overflow. */
+export function ReportTableFrame({ children, toolbar, className = '' }) {
+  return (
+    <div className={`flex min-h-0 flex-1 flex-col gap-2 overflow-hidden ${className}`}>
+      {toolbar ? <div className="shrink-0">{toolbar}</div> : null}
+      <div className="min-h-0 flex-1 overflow-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+export const REPORT_THEAD =
+  'sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 text-xs uppercase tracking-wide text-slate-500 backdrop-blur dark:border-dark-600 dark:bg-dark-900/95'
+
 export function exportCsv(filename, rows, columns) {
-  const header = columns.map((c) => c.label).join(',')
-  const body = rows.map((row) => columns.map((c) => {
+  // Guard against reversed args from older call sites: exportCsv(rows, filename, columns)
+  let file = filename
+  let data = rows
+  let cols = columns
+  if (Array.isArray(filename) && typeof rows === 'string') {
+    data = filename
+    file = rows
+    cols = columns
+  }
+  const header = cols.map((c) => c.label).join(',')
+  const body = data.map((row) => cols.map((c) => {
     const v = c.get(row)
     const s = v == null ? '' : String(v)
     return `"${s.replace(/"/g, '""')}"`
@@ -271,7 +297,7 @@ export function exportCsv(filename, rows, columns) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = filename
+  a.download = file
   a.click()
   URL.revokeObjectURL(url)
 }

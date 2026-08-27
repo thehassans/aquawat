@@ -5,9 +5,15 @@ import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
-import { ReportShell, useReportFilters, exportCsv } from './ReportShell'
+import { ReportShell, ReportTableFrame, REPORT_THEAD, useReportFilters, exportCsv } from './ReportShell'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import { formatInvError } from '../../lib/invError'
+import {
+  formatReportMoney,
+  formatReportMoneyCsv,
+  formatReportProduct,
+  formatReportQty,
+} from '../../lib/reportFormat'
 
 export default function ValuationReport() {
   const { language } = useSelector((s) => s.ui)
@@ -38,11 +44,11 @@ export default function ValuationReport() {
             disabled={!items.length}
             onClick={() => exportCsv('valuation.csv', items, [
               { label: 'SKU', get: (r) => r.sku },
-              { label: 'Name', get: (r) => r.name },
+              { label: 'Name', get: (r) => formatReportProduct({ ...r, productName: r.name || r.productName }, { ar }) },
               { label: 'Method', get: (r) => r.costMethod },
-              { label: 'Qty', get: (r) => r.qty },
-              { label: 'UnitCost', get: (r) => r.unitCost },
-              { label: 'Value', get: (r) => r.value },
+              { label: 'Qty', get: (r) => formatReportQty(r.qty) },
+              { label: 'UnitCost', get: (r) => formatReportMoneyCsv(r.unitCost) },
+              { label: 'Value', get: (r) => formatReportMoneyCsv(r.value) },
             ])}
           >
             CSV
@@ -50,7 +56,7 @@ export default function ValuationReport() {
         </div>
       )}
     >
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="mb-2 flex shrink-0 flex-wrap items-end justify-between gap-3">
         <Link to="/app/dashboard/inventory/report/reconcile" className="text-xs font-medium text-primary-600 hover:underline">
           {language === 'ar' ? 'تشغيل المطابقة' : 'Run reconcile'}
         </Link>
@@ -59,7 +65,7 @@ export default function ValuationReport() {
             {language === 'ar' ? 'الإجمالي' : 'Total'}
           </div>
           <div className="text-lg font-semibold tabular-nums text-slate-900 dark:text-white">
-            {total.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            {formatReportMoney(total)}
           </div>
         </div>
       </div>
@@ -74,36 +80,38 @@ export default function ValuationReport() {
             : 'Validate receipts/deliveries after enabling the engine'}
         />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+        <ReportTableFrame>
           <table className="w-full min-w-[720px] text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-dark-800">
+            <thead className={REPORT_THEAD}>
               <tr>
-                <th className="min-w-[150px] px-3 py-2">{language === 'ar' ? 'المنتج' : 'Product'}</th>
-                <th className="min-w-[150px] px-3 py-2">{language === 'ar' ? 'الطريقة' : 'Method'}</th>
-                <th className="min-w-[150px] px-3 py-2 text-right">{language === 'ar' ? 'الكمية' : 'Qty'}</th>
-                <th className="min-w-[150px] px-3 py-2 text-right">{language === 'ar' ? 'تكلفة الوحدة' : 'Unit cost'}</th>
-                <th className="min-w-[150px] px-3 py-2 text-right">{language === 'ar' ? 'القيمة' : 'Value'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-start">{language === 'ar' ? 'المنتج' : 'Product'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-start">{language === 'ar' ? 'الطريقة' : 'Method'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-end">{language === 'ar' ? 'الكمية' : 'Qty'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-end">{language === 'ar' ? 'تكلفة الوحدة' : 'Unit cost'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-end">{language === 'ar' ? 'القيمة' : 'Value'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
               {items.map((row) => (
-                <tr key={row.productId}>
+                <tr key={`${row.productId}|${row.variantId || ''}`}>
                   <td className="px-3 py-2.5">
-                    <div className="font-medium text-slate-900 dark:text-white">{row.name}</div>
+                    <div className="font-medium text-slate-900 dark:text-white">
+                      {formatReportProduct({ ...row, productName: row.name || row.productName }, { ar })}
+                    </div>
                     <div className="text-xs text-slate-400">{row.sku}</div>
                   </td>
                   <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">{row.costMethod}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{row.qty}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{row.unitCost}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums font-medium">{row.value}</td>
+                  <td className="px-3 py-2.5 text-end tabular-nums">{formatReportQty(row.qty)}</td>
+                  <td className="px-3 py-2.5 text-end tabular-nums">{formatReportMoney(row.unitCost)}</td>
+                  <td className="px-3 py-2.5 text-end tabular-nums font-medium">{formatReportMoney(row.value)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </ReportTableFrame>
       )}
 
-      <p className="text-xs text-slate-500">
+      <p className="mt-2 shrink-0 text-xs text-slate-500">
         <Link to="/app/dashboard/inventory/landed-costs" className="text-primary-600 hover:underline">
           {language === 'ar' ? 'التكاليف المرسية' : 'Landed costs'}
         </Link>

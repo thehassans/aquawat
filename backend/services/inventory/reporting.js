@@ -5,11 +5,29 @@ import InvTransfer from '../../models/inventory/InvTransfer.js';
 import InvLocation from '../../models/inventory/InvLocation.js';
 import InvLot from '../../models/inventory/InvLot.js';
 import InvQuant from '../../models/inventory/InvQuant.js';
+import InvProductVariant from '../../models/inventory/InvProductVariant.js';
 import Product from '../../models/Product.js';
 import { toObjectId } from '../../models/inventory/common.js';
 import { computeForecast } from './forecast.js';
 import { productInventoryValue } from './valuation.js';
 import { InventoryValidationError } from './errors.js';
+
+/** Financial string rounded to 2 decimal places. */
+function money2(v) {
+  return decStr(D(v || 0).toDecimalPlaces(2));
+}
+
+function variantKey(productId, variantId) {
+  return `${String(productId || '')}|${variantId ? String(variantId) : ''}`;
+}
+
+function buildReportProductName(product, variant) {
+  const base = product?.nameEn || product?.nameAr || product?.sku || null;
+  if (variant?.name) {
+    return base ? `${base} - ${variant.name}` : variant.name;
+  }
+  return base || variant?.sku || null;
+}
 
 /**
  * Aggregate done moves by product / day / direction.
@@ -39,6 +57,7 @@ export async function movesAnalysis(tenantId, {
 
   const lines = await InvMoveLine.find(filter)
     .populate('productId', 'nameEn sku category')
+    .populate('variantId', 'name sku')
     .populate('sourceLocationId', 'usage warehouseId')
     .populate('destLocationId', 'usage warehouseId')
     .populate('transferId', 'partnerId name')
@@ -62,19 +81,24 @@ export async function movesAnalysis(tenantId, {
 
     const qty = D(line.quantityInProductUom || line.quantity || 0);
     let key;
+    let label;
     if (groupBy === 'day') {
       key = new Date(line.updatedAt).toISOString().slice(0, 10);
+      label = key;
     } else if (groupBy === 'partner') {
       key = String(line.transferId?.partnerId || 'none');
+      label = key;
     } else {
-      key = String(line.productId?._id || line.productId);
+      const pid = line.productId?._id || line.productId;
+      const vid = line.variantId?._id || line.variantId || null;
+      key = variantKey(pid, vid);
+      label = buildReportProductName(line.productId, line.variantId)
+        || (pid ? `[Unknown/Deleted Product: ID ${pid}]` : '[Unknown/Deleted Product]');
     }
 
     const prev = buckets.get(key) || {
       key,
-      label: groupBy === 'product'
-        ? (line.productId?.nameEn || line.productId?.sku || key)
-        : key,
+      label,
       incomingQty: D(0),
       outgoingQty: D(0),
       internalQty: D(0),
@@ -355,7 +379,7 @@ export async function inventoryAtDate(tenantId, { asOf, warehouseId } = {}) {
   const locIds = locs.map((l) => l._id);
   const locSet = new Set(locIds.map(String));
   if (!locIds.length) {
-    return { asOf: at.toISOString(), data: [], total: 0, valueTotal: '0' };
+    return { asOf: at.toISOString(), data: [], total: 0, valueTotal: '0.00' };
   }
 
   const lines = await InvMoveLine.find({
@@ -367,17 +391,24 @@ export async function inventoryAtDate(tenantId, { asOf, warehouseId } = {}) {
       { destLocationId: { $in: locIds } },
     ],
   })
-    .select('productId quantityInProductUom quantity sourceLocationId destLocationId')
+    .select('productId variantId quantityInProductUom quantity sourceLocationId destLocationId')
     .lean();
 
-  const qtyByProduct = new Map();
+  const qtyByKey = new Map();
+  const metaByKey = new Map();
   for (const line of lines) {
-    const pid = String(line.productId);
+    const key = variantKey(line.productId, line.variantId);
     const qty = D(line.quantityInProductUom || line.quantity || 0);
-    let net = qtyByProduct.get(pid) || D(0);
+    let net = qtyByKey.get(key) || D(0);
     if (locSet.has(String(line.destLocationId))) net = net.plus(qty);
     if (locSet.has(String(line.sourceLocationId))) net = net.minus(qty);
-    qtyByProduct.set(pid, net);
+    qtyByKey.set(key, net);
+    if (!metaByKey.has(key)) {
+      metaByKey.set(key, {
+        productId: line.productId,
+        variantId: line.variantId || null,
+      });
+    }
   }
 
   const InvValuationLayer = (await import('../../models/inventory/InvValuationLayer.js')).default;
@@ -399,33 +430,76 @@ export async function inventoryAtDate(tenantId, { asOf, warehouseId } = {}) {
     valueAgg.map((r) => [String(r._id), D(r.valueNum?.toString?.() || '0')]),
   );
 
-  const productIds = [...new Set([...qtyByProduct.keys(), ...valueByProduct.keys()])]
-    .filter((id) => {
-      const q = qtyByProduct.get(id) || D(0);
-      return !q.eq(0) || !(valueByProduct.get(id) || D(0)).eq(0);
-    });
+  const onHandByProduct = new Map();
+  for (const [key, qty] of qtyByKey) {
+    const meta = metaByKey.get(key);
+    const pid = String(meta.productId);
+    onHandByProduct.set(pid, (onHandByProduct.get(pid) || D(0)).plus(qty));
+  }
 
-  const products = await Product.find({
-    tenantId: tid,
-    _id: { $in: productIds },
-  }).select('nameEn nameAr sku barcode costPrice unitOfMeasure').lean();
+  const keys = [...qtyByKey.keys()].filter((key) => {
+    const q = qtyByKey.get(key) || D(0);
+    const pid = String(metaByKey.get(key).productId);
+    const v = valueByProduct.get(pid) || D(0);
+    return !q.eq(0) || !v.eq(0);
+  });
+
+  const productIds = [...new Set(keys.map((k) => String(metaByKey.get(k).productId)))];
+  const variantIds = [...new Set(
+    keys.map((k) => metaByKey.get(k).variantId).filter(Boolean).map(String),
+  )];
+  const [products, variants] = await Promise.all([
+    Product.find({ tenantId: tid, _id: { $in: productIds } })
+      .select('nameEn nameAr sku barcode costPrice unitOfMeasure')
+      .lean(),
+    variantIds.length
+      ? InvProductVariant.find({ tenantId: tid, _id: { $in: variantIds } })
+        .select('name sku productId standardPrice')
+        .lean()
+      : Promise.resolve([]),
+  ]);
   const byId = new Map(products.map((p) => [String(p._id), p]));
+  const variantById = new Map(variants.map((v) => [String(v._id), v]));
 
   const rows = [];
   let valueTotal = D(0);
-  for (const pid of productIds) {
-    const p = byId.get(pid);
-    if (!p) continue;
-    const onHand = decStr(qtyByProduct.get(pid) || D(0));
-    const valueD = valueByProduct.get(pid) || D(0);
-    const value = decStr(valueD);
+  for (const key of keys) {
+    const meta = metaByKey.get(key);
+    const p = byId.get(String(meta.productId));
+    const v = meta.variantId ? variantById.get(String(meta.variantId)) : null;
+    const onHandD = qtyByKey.get(key) || D(0);
+    if (onHandD.eq(0) && !(valueByProduct.get(String(meta.productId)) || D(0)).eq(0)) {
+      // Skip zero-qty variants that only exist due to product-level valuation residual.
+      continue;
+    }
+    const onHand = decStr(onHandD);
+    const productOnHand = onHandByProduct.get(String(meta.productId)) || D(0);
+    const layerValue = valueByProduct.get(String(meta.productId)) || D(0);
+    const costBase = v?.standardPrice != null && v.standardPrice !== ''
+      ? v.standardPrice
+      : (p?.costPrice || 0);
+    let valueD;
+    if (!layerValue.eq(0) && productOnHand.gt(0)) {
+      valueD = layerValue.mul(onHandD).div(productOnHand);
+    } else {
+      valueD = onHandD.mul(D(costBase || 0));
+    }
     valueTotal = valueTotal.plus(valueD);
-    const unitCost = D(onHand).eq(0)
-      ? (p.costPrice || '0')
-      : decStr(valueD.div(D(onHand)));
+    const unitCost = onHandD.eq(0)
+      ? money2(costBase || 0)
+      : money2(valueD.div(onHandD));
+    const productName = buildReportProductName(p, v)
+      || (meta.productId
+        ? `[Unknown/Deleted Product: ID ${meta.productId}]`
+        : '[Unknown/Deleted Product]');
+
     rows.push({
-      productId: p._id,
-      product: p,
+      productId: meta.productId,
+      variantId: meta.variantId,
+      product: p || null,
+      variant: v || null,
+      productName,
+      sku: v?.sku || p?.sku || '',
       onHand,
       reserved: '0',
       freeToUse: onHand,
@@ -433,22 +507,23 @@ export async function inventoryAtDate(tenantId, { asOf, warehouseId } = {}) {
       outgoing: '0',
       forecast: onHand,
       unitCost,
-      value,
+      value: money2(valueD),
       asOf: true,
     });
   }
 
-  rows.sort((a, b) => String(a.product?.sku || '').localeCompare(String(b.product?.sku || '')));
+  rows.sort((a, b) => String(a.productName).localeCompare(String(b.productName)));
   return {
     asOf: at.toISOString(),
     data: rows,
     total: rows.length,
-    valueTotal: decStr(valueTotal),
+    valueTotal: money2(valueTotal),
   };
 }
 
 /**
  * Live stock report in a bounded number of queries (no per-product N+1).
+ * Groups by productId + variantId so templates with variants are not aggregated.
  */
 export async function stockReportLive(tenantId, { warehouseId, locIds } = {}) {
   const tid = toObjectId(tenantId);
@@ -463,7 +538,7 @@ export async function stockReportLive(tenantId, { warehouseId, locIds } = {}) {
     locations = locs.map((l) => l._id);
   }
   if (!locations.length) {
-    return { data: [], total: 0, valueTotal: '0' };
+    return { data: [], total: 0, valueTotal: '0.00' };
   }
 
   const internalIds = new Set(locations.map(String));
@@ -473,7 +548,10 @@ export async function stockReportLive(tenantId, { warehouseId, locIds } = {}) {
       { $match: { tenantId: tid, locationId: { $in: locations } } },
       {
         $group: {
-          _id: '$productId',
+          _id: {
+            productId: '$productId',
+            variantId: { $ifNull: ['$variantId', null] },
+          },
           onHandNum: { $sum: '$quantityNum' },
           reservedNum: { $sum: '$reservedQuantityNum' },
         },
@@ -486,7 +564,7 @@ export async function stockReportLive(tenantId, { warehouseId, locIds } = {}) {
         { sourceLocationId: { $in: locations } },
         { destLocationId: { $in: locations } },
       ],
-    }).select('productId sourceLocationId destLocationId demandQty doneQty').lean(),
+    }).select('productId variantId sourceLocationId destLocationId demandQty doneQty').lean(),
     InvValuationLayer.aggregate([
       { $match: { tenantId: tid } },
       {
@@ -499,60 +577,96 @@ export async function stockReportLive(tenantId, { warehouseId, locIds } = {}) {
     ]),
   ]);
 
-  const productIds = quants.map((q) => q._id);
-  const products = await Product.find({
-    tenantId: tid,
-    _id: { $in: productIds },
-  }).select('nameEn nameAr sku barcode costPrice unitOfMeasure uomId sellingPrice').lean();
-  const byId = new Map(products.map((p) => [String(p._id), p]));
+  const productIds = [...new Set(quants.map((q) => String(q._id.productId)))];
+  const variantIds = [...new Set(
+    quants.map((q) => q._id.variantId).filter(Boolean).map(String),
+  )];
 
-  const ioByProduct = new Map();
+  const [products, variants] = await Promise.all([
+    Product.find({ tenantId: tid, _id: { $in: productIds } })
+      .select('nameEn nameAr sku barcode costPrice unitOfMeasure uomId sellingPrice')
+      .lean(),
+    variantIds.length
+      ? InvProductVariant.find({ tenantId: tid, _id: { $in: variantIds } })
+        .select('name sku barcode productId standardPrice extraPrice')
+        .lean()
+      : Promise.resolve([]),
+  ]);
+  const byId = new Map(products.map((p) => [String(p._id), p]));
+  const variantById = new Map(variants.map((v) => [String(v._id), v]));
+
+  const ioByKey = new Map();
   for (const m of pendingMoves) {
-    const pid = String(m.productId);
+    const key = variantKey(m.productId, m.variantId);
     const qty = D(m.demandQty).minus(D(m.doneQty || 0));
     if (qty.lte(0)) continue;
     const srcInternal = internalIds.has(String(m.sourceLocationId));
     const destInternal = internalIds.has(String(m.destLocationId));
-    const prev = ioByProduct.get(pid) || { incoming: D(0), outgoing: D(0) };
+    const prev = ioByKey.get(key) || { incoming: D(0), outgoing: D(0) };
     if (destInternal && !srcInternal) prev.incoming = prev.incoming.plus(qty);
     if (srcInternal && !destInternal) prev.outgoing = prev.outgoing.plus(qty);
-    ioByProduct.set(pid, prev);
+    ioByKey.set(key, prev);
   }
 
   const valueByProduct = new Map(
     valueAgg.map((r) => {
       const rem = D(r.remainingValueNum?.toString?.() || '0');
-      // Prefer FIFO remaining; fall back to signed journal sum when remaining is zero
       const fallback = D(r.valueNum?.toString?.() || '0');
       return [String(r._id), rem.eq(0) ? fallback : rem];
     }),
   );
 
+  const onHandByProduct = new Map();
+  for (const q of quants) {
+    const pid = String(q._id.productId);
+    onHandByProduct.set(
+      pid,
+      (onHandByProduct.get(pid) || D(0)).plus(D(q.onHandNum?.toString?.() || '0')),
+    );
+  }
+
   const rows = [];
   let valueTotal = D(0);
   for (const q of quants) {
-    const p = byId.get(String(q._id));
-    if (!p) continue;
+    const productId = q._id.productId;
+    const variantId = q._id.variantId || null;
+    const p = byId.get(String(productId));
+    const v = variantId ? variantById.get(String(variantId)) : null;
+    const key = variantKey(productId, variantId);
     const onHand = decStr(q.onHandNum?.toString?.() || '0');
     const reserved = decStr(q.reservedNum?.toString?.() || '0');
-    const io = ioByProduct.get(String(q._id)) || { incoming: D(0), outgoing: D(0) };
+    const io = ioByKey.get(key) || { incoming: D(0), outgoing: D(0) };
     const incoming = decStr(io.incoming);
     const outgoing = decStr(io.outgoing);
     const forecast = decStr(D(onHand).plus(io.incoming).minus(io.outgoing));
 
-    let valueD = valueByProduct.get(String(q._id));
-    if (valueD == null || valueD.eq(0)) {
-      valueD = D(onHand).mul(D(p.costPrice || 0));
+    const costBase = v?.standardPrice != null && v.standardPrice !== ''
+      ? v.standardPrice
+      : (p?.costPrice || 0);
+
+    const productOnHand = onHandByProduct.get(String(productId)) || D(0);
+    const layerValue = valueByProduct.get(String(productId));
+    let valueD;
+    if (layerValue != null && !layerValue.eq(0) && productOnHand.gt(0)) {
+      valueD = layerValue.mul(D(onHand)).div(productOnHand);
+    } else {
+      valueD = D(onHand).mul(D(costBase || 0));
     }
-    const value = decStr(valueD);
     valueTotal = valueTotal.plus(valueD);
     const unitCost = D(onHand).eq(0)
-      ? (p.costPrice || '0')
-      : decStr(valueD.div(D(onHand)));
+      ? money2(costBase || 0)
+      : money2(valueD.div(D(onHand)));
+
+    const productName = buildReportProductName(p, v)
+      || (productId ? `[Unknown/Deleted Product: ID ${productId}]` : '[Unknown/Deleted Product]');
 
     rows.push({
-      productId: q._id,
-      product: p,
+      productId,
+      variantId,
+      product: p || null,
+      variant: v || null,
+      productName,
+      sku: v?.sku || p?.sku || '',
       onHand,
       reserved,
       freeToUse: decStr(D(onHand).minus(D(reserved))),
@@ -560,11 +674,12 @@ export async function stockReportLive(tenantId, { warehouseId, locIds } = {}) {
       outgoing,
       forecast,
       unitCost,
-      value,
+      value: money2(valueD),
     });
   }
 
-  return { data: rows, total: rows.length, valueTotal: decStr(valueTotal) };
+  rows.sort((a, b) => String(a.productName).localeCompare(String(b.productName)));
+  return { data: rows, total: rows.length, valueTotal: money2(valueTotal) };
 }
 
 /**
@@ -680,99 +795,200 @@ export async function stockAgeingReport(tenantId, { warehouseId } = {}) {
     quantity: { $ne: '0' },
   }).lean();
   const productIds = [...new Set(quants.map((q) => String(q.productId)))];
-  const products = await Product.find({ _id: { $in: productIds } }).select('nameEn sku costPrice').lean();
+  const variantIds = [...new Set(quants.map((q) => q.variantId).filter(Boolean).map(String))];
+  const [products, variants] = await Promise.all([
+    Product.find({ _id: { $in: productIds } }).select('nameEn nameAr sku costPrice').lean(),
+    variantIds.length
+      ? InvProductVariant.find({ tenantId: tid, _id: { $in: variantIds } })
+        .select('name sku productId standardPrice')
+        .lean()
+      : Promise.resolve([]),
+  ]);
   const productMap = new Map(products.map((p) => [String(p._id), p]));
+  const variantMap = new Map(variants.map((v) => [String(v._id), v]));
   const buckets = { '0-30': D(0), '31-60': D(0), '61-90': D(0), '90+': D(0) };
   const bucketValue = { '0-30': D(0), '31-60': D(0), '61-90': D(0), '90+': D(0) };
   const now = Date.now();
-  const lines = [];
+  const byKey = new Map();
+
   for (const q of quants) {
     const qty = D(q.quantity || 0);
     if (qty.lte(0)) continue;
     const ageDays = q.inDate ? Math.floor((now - new Date(q.inDate)) / 86400000) : 0;
     const bucket = ageDays <= 30 ? '0-30' : ageDays <= 60 ? '31-60' : ageDays <= 90 ? '61-90' : '90+';
     const product = productMap.get(String(q.productId));
-    const cost = D(product?.costPrice || 0);
+    const variant = q.variantId ? variantMap.get(String(q.variantId)) : null;
+    const cost = D(
+      variant?.standardPrice != null && variant.standardPrice !== ''
+        ? variant.standardPrice
+        : (product?.costPrice || 0),
+    );
     const value = qty.mul(cost);
     buckets[bucket] = buckets[bucket].plus(qty);
     bucketValue[bucket] = bucketValue[bucket].plus(value);
-    lines.push({
-      productId: q.productId,
-      productName: product?.nameEn || product?.sku,
-      sku: product?.sku,
-      qty: decStr(qty),
-      ageDays,
-      bucket,
-      value: decStr(value),
-      inDate: q.inDate,
-    });
+
+    const key = variantKey(q.productId, q.variantId);
+    let row = byKey.get(key);
+    if (!row) {
+      row = {
+        productId: q.productId,
+        variantId: q.variantId || null,
+        productName: buildReportProductName(product, variant)
+          || (q.productId ? `[Unknown/Deleted Product: ID ${q.productId}]` : '[Unknown/Deleted Product]'),
+        sku: variant?.sku || product?.sku || '',
+        qty: D(0),
+        value: D(0),
+        maxAgeDays: 0,
+        bucketQty: { '0-30': D(0), '31-60': D(0), '61-90': D(0), '90+': D(0) },
+        bucketValue: { '0-30': D(0), '31-60': D(0), '61-90': D(0), '90+': D(0) },
+      };
+      byKey.set(key, row);
+    }
+    row.qty = row.qty.plus(qty);
+    row.value = row.value.plus(value);
+    row.maxAgeDays = Math.max(row.maxAgeDays, ageDays);
+    row.bucketQty[bucket] = row.bucketQty[bucket].plus(qty);
+    row.bucketValue[bucket] = row.bucketValue[bucket].plus(value);
   }
+
+  const lines = [...byKey.values()].map((row) => ({
+    productId: row.productId,
+    variantId: row.variantId,
+    productName: row.productName,
+    sku: row.sku,
+    qty: decStr(row.qty),
+    value: money2(row.value),
+    ageDays: row.maxAgeDays,
+    bucket: row.maxAgeDays <= 30 ? '0-30' : row.maxAgeDays <= 60 ? '31-60' : row.maxAgeDays <= 90 ? '61-90' : '90+',
+    qty0_30: decStr(row.bucketQty['0-30']),
+    qty31_60: decStr(row.bucketQty['31-60']),
+    qty61_90: decStr(row.bucketQty['61-90']),
+    qty90plus: decStr(row.bucketQty['90+']),
+    value0_30: money2(row.bucketValue['0-30']),
+    value31_60: money2(row.bucketValue['31-60']),
+    value61_90: money2(row.bucketValue['61-90']),
+    value90plus: money2(row.bucketValue['90+']),
+  })).sort((a, b) => b.ageDays - a.ageDays);
+
   return {
     buckets: Object.keys(buckets).map((k) => ({
       bucket: k,
       qty: decStr(buckets[k]),
-      value: decStr(bucketValue[k]),
+      value: money2(bucketValue[k]),
     })),
-    lines: lines.sort((a, b) => b.ageDays - a.ageDays),
+    lines,
   };
 }
 
 /** B.10 — dead / slow stock (no outbound in N days) */
 export async function deadStockReport(tenantId, { warehouseId, inactiveDays = 90 } = {}) {
   const tid = toObjectId(tenantId);
+  const days = Number(inactiveDays) || 90;
   const since = new Date();
-  since.setDate(since.getDate() - (Number(inactiveDays) || 90));
+  since.setDate(since.getDate() - days);
   let locFilter = { tenantId: tid, usage: 'internal', active: true };
   if (warehouseId) locFilter.warehouseId = warehouseId;
   const locs = await InvLocation.find(locFilter).select('_id').lean();
   const locIds = locs.map((l) => l._id);
 
-  const activeProducts = new Set();
-  const outLines = await InvMoveLine.find({
-    tenantId: tid,
-    state: 'done',
-    updatedAt: { $gte: since },
-    sourceLocationId: { $in: locIds },
-  }).select('productId').lean();
-  for (const l of outLines) activeProducts.add(String(l.productId));
+  const [lastMovedAgg, quants] = await Promise.all([
+    InvMoveLine.aggregate([
+      {
+        $match: {
+          tenantId: tid,
+          state: 'done',
+          sourceLocationId: { $in: locIds },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            productId: '$productId',
+            variantId: { $ifNull: ['$variantId', null] },
+          },
+          lastMovedAt: { $max: '$updatedAt' },
+        },
+      },
+    ]),
+    InvQuant.find({
+      tenantId: tid,
+      locationId: { $in: locIds },
+      quantity: { $ne: '0' },
+    }).lean(),
+  ]);
 
-  const quants = await InvQuant.find({
-    tenantId: tid,
-    locationId: { $in: locIds },
-    quantity: { $ne: '0' },
-  }).lean();
+  const lastMovedByKey = new Map(
+    lastMovedAgg.map((r) => [variantKey(r._id.productId, r._id.variantId), r.lastMovedAt]),
+  );
+
   const productIds = [...new Set(quants.map((q) => String(q.productId)))];
-  const products = await Product.find({ _id: { $in: productIds } }).select('nameEn sku costPrice').lean();
+  const variantIds = [...new Set(quants.map((q) => q.variantId).filter(Boolean).map(String))];
+  const [products, variants] = await Promise.all([
+    Product.find({ _id: { $in: productIds } }).select('nameEn nameAr sku costPrice').lean(),
+    variantIds.length
+      ? InvProductVariant.find({ tenantId: tid, _id: { $in: variantIds } })
+        .select('name sku productId standardPrice')
+        .lean()
+      : Promise.resolve([]),
+  ]);
   const productMap = new Map(products.map((p) => [String(p._id), p]));
+  const variantMap = new Map(variants.map((v) => [String(v._id), v]));
 
-  const byProduct = new Map();
+  const byKey = new Map();
   for (const q of quants) {
-    const pid = String(q.productId);
     const qty = D(q.quantity || 0);
     if (qty.lte(0)) continue;
-    const prev = byProduct.get(pid) || { qty: D(0), productId: q.productId };
+    const key = variantKey(q.productId, q.variantId);
+    const prev = byKey.get(key) || {
+      productId: q.productId,
+      variantId: q.variantId || null,
+      qty: D(0),
+      oldestInDate: q.inDate || null,
+    };
     prev.qty = prev.qty.plus(qty);
-    byProduct.set(pid, prev);
+    if (q.inDate && (!prev.oldestInDate || new Date(q.inDate) < new Date(prev.oldestInDate))) {
+      prev.oldestInDate = q.inDate;
+    }
+    byKey.set(key, prev);
   }
 
+  const now = Date.now();
   const lines = [];
   let totalValue = D(0);
-  for (const [pid, row] of byProduct) {
-    if (activeProducts.has(pid)) continue;
-    const product = productMap.get(pid);
-    const value = row.qty.mul(D(product?.costPrice || 0));
+  for (const [key, row] of byKey) {
+    const lastMovedAt = lastMovedByKey.get(key) || null;
+    const activityAt = lastMovedAt || row.oldestInDate || null;
+    if (activityAt && new Date(activityAt) >= since) continue;
+
+    const product = productMap.get(String(row.productId));
+    const variant = row.variantId ? variantMap.get(String(row.variantId)) : null;
+    const cost = D(
+      variant?.standardPrice != null && variant.standardPrice !== ''
+        ? variant.standardPrice
+        : (product?.costPrice || 0),
+    );
+    const value = row.qty.mul(cost);
     totalValue = totalValue.plus(value);
+    const daysSinceMove = activityAt
+      ? Math.floor((now - new Date(activityAt).getTime()) / 86400000)
+      : null;
+
     lines.push({
       productId: row.productId,
-      productName: product?.nameEn || product?.sku,
-      sku: product?.sku,
+      variantId: row.variantId,
+      productName: buildReportProductName(product, variant)
+        || (row.productId ? `[Unknown/Deleted Product: ID ${row.productId}]` : '[Unknown/Deleted Product]'),
+      sku: variant?.sku || product?.sku || '',
       qty: decStr(row.qty),
-      value: decStr(value),
-      inactiveDays: Number(inactiveDays) || 90,
+      value: money2(value),
+      lastMovedAt: lastMovedAt || null,
+      lastMovedDate: lastMovedAt || row.oldestInDate || null,
+      daysSinceMove,
+      inactiveDays: days,
     });
   }
   lines.sort((a, b) => Number(b.value) - Number(a.value));
-  return { lines, totals: { value: decStr(totalValue), count: lines.length }, inactiveDays };
+  return { lines, totals: { value: money2(totalValue), count: lines.length }, inactiveDays: days };
 }
 
 /** B.10 — mock recall: trace lot to customers/deliveries */
@@ -863,44 +1079,69 @@ export async function inventoryTurnsReport(tenantId, { warehouseId, windowDays =
     state: 'done',
     updatedAt: { $gte: since },
     sourceLocationId: { $in: locIds },
-  }).select('productId quantityInProductUom quantity').lean();
+  }).select('productId variantId quantityInProductUom quantity').lean();
 
-  const cogsByProduct = new Map();
+  const cogsByKey = new Map();
   for (const line of outbound) {
-    const pid = String(line.productId);
+    const key = variantKey(line.productId, line.variantId);
     const qty = D(line.quantityInProductUom || line.quantity || 0);
-    cogsByProduct.set(pid, (cogsByProduct.get(pid) || D(0)).plus(qty));
+    cogsByKey.set(key, (cogsByKey.get(key) || D(0)).plus(qty));
   }
 
   const quants = await InvQuant.find({
     tenantId: tid,
     locationId: { $in: locIds },
     quantity: { $ne: '0' },
-  }).select('productId quantity').lean();
+  }).select('productId variantId quantity').lean();
 
-  const onHandByProduct = new Map();
+  const onHandByKey = new Map();
+  const metaByKey = new Map();
   for (const q of quants) {
-    const pid = String(q.productId);
-    onHandByProduct.set(pid, (onHandByProduct.get(pid) || D(0)).plus(D(q.quantity || 0)));
+    const key = variantKey(q.productId, q.variantId);
+    onHandByKey.set(key, (onHandByKey.get(key) || D(0)).plus(D(q.quantity || 0)));
+    if (!metaByKey.has(key)) {
+      metaByKey.set(key, { productId: q.productId, variantId: q.variantId || null });
+    }
+  }
+  for (const line of outbound) {
+    const key = variantKey(line.productId, line.variantId);
+    if (!metaByKey.has(key)) {
+      metaByKey.set(key, { productId: line.productId, variantId: line.variantId || null });
+    }
   }
 
-  const allIds = [...new Set([...cogsByProduct.keys(), ...onHandByProduct.keys()])];
-  const products = await Product.find({ _id: { $in: allIds }, tenantId: tid })
-    .select('nameEn sku costPrice')
-    .lean();
+  const productIds = [...new Set([...metaByKey.values()].map((m) => String(m.productId)))];
+  const variantIds = [...new Set(
+    [...metaByKey.values()].map((m) => m.variantId).filter(Boolean).map(String),
+  )];
+  const [products, variants] = await Promise.all([
+    Product.find({ _id: { $in: productIds }, tenantId: tid })
+      .select('nameEn nameAr sku costPrice')
+      .lean(),
+    variantIds.length
+      ? InvProductVariant.find({ tenantId: tid, _id: { $in: variantIds } })
+        .select('name sku productId standardPrice')
+        .lean()
+      : Promise.resolve([]),
+  ]);
   const productMap = new Map(products.map((p) => [String(p._id), p]));
+  const variantMap = new Map(variants.map((v) => [String(v._id), v]));
 
   const lines = [];
   let totalCogs = D(0);
   let totalAvgInv = D(0);
 
-  for (const pid of allIds) {
-    const product = productMap.get(pid);
-    if (!product) continue;
-    const cost = D(product.costPrice || 0);
-    const unitsOut = cogsByProduct.get(pid) || D(0);
+  for (const [key, meta] of metaByKey) {
+    const product = productMap.get(String(meta.productId));
+    const variant = meta.variantId ? variantMap.get(String(meta.variantId)) : null;
+    const cost = D(
+      variant?.standardPrice != null && variant.standardPrice !== ''
+        ? variant.standardPrice
+        : (product?.costPrice || 0),
+    );
+    const unitsOut = cogsByKey.get(key) || D(0);
     const cogs = unitsOut.mul(cost);
-    const onHand = onHandByProduct.get(pid) || D(0);
+    const onHand = onHandByKey.get(key) || D(0);
     const avgInvValue = onHand.mul(cost);
     const turns = avgInvValue.gt(0) ? cogs.div(avgInvValue) : D(0);
     const dsi = turns.gt(0) ? D(days).div(turns) : null;
@@ -909,16 +1150,22 @@ export async function inventoryTurnsReport(tenantId, { warehouseId, windowDays =
     totalAvgInv = totalAvgInv.plus(avgInvValue);
 
     if (cogs.lte(0) && onHand.lte(0)) continue;
+    const productName = buildReportProductName(product, variant)
+      || (meta.productId
+        ? `[Unknown/Deleted Product: ID ${meta.productId}]`
+        : '[Unknown/Deleted Product]');
+
     lines.push({
-      productId: pid,
-      productName: product.nameEn || product.sku,
-      sku: product.sku,
+      productId: meta.productId,
+      variantId: meta.variantId,
+      productName,
+      sku: variant?.sku || product?.sku || '',
       unitsOut: decStr(unitsOut),
-      cogs: decStr(cogs),
+      cogs: money2(cogs),
       onHand: decStr(onHand),
-      avgInventoryValue: decStr(avgInvValue),
-      turns: decStr(turns),
-      dsiDays: dsi != null ? decStr(dsi) : null,
+      avgInventoryValue: money2(avgInvValue),
+      turns: money2(turns),
+      dsiDays: dsi != null ? String(Math.round(Number(decStr(dsi)))) : null,
     });
   }
 
@@ -929,10 +1176,10 @@ export async function inventoryTurnsReport(tenantId, { warehouseId, windowDays =
   return {
     windowDays: days,
     totals: {
-      cogs: decStr(totalCogs),
-      avgInventoryValue: decStr(totalAvgInv),
-      turns: decStr(portfolioTurns),
-      dsiDays: portfolioDsi != null ? decStr(portfolioDsi) : null,
+      cogs: money2(totalCogs),
+      avgInventoryValue: money2(totalAvgInv),
+      turns: money2(portfolioTurns),
+      dsiDays: portfolioDsi != null ? String(Math.round(Number(decStr(portfolioDsi)))) : null,
     },
     lines,
   };

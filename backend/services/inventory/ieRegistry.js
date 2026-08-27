@@ -426,6 +426,21 @@ export const IE_MODELS = {
       { key: 'active', label: 'Active', group: 'Identity', importable: true, type: 'boolean' },
     ],
   },
+  product_attributes: {
+    label: 'Product Attributes',
+    importable: true,
+    defaultExport: ['name', 'nameAr', 'createVariantMode', 'displayType', 'sequence', 'active', 'valueCount'],
+    fields: [
+      { key: 'id', label: 'id', group: 'Identity', importable: true },
+      { key: 'name', label: 'Name', group: 'General', importable: true, required: true },
+      { key: 'nameAr', label: 'Name (AR)', group: 'General', importable: true },
+      { key: 'createVariantMode', label: 'Variant Creation Mode', group: 'Variants', importable: true },
+      { key: 'displayType', label: 'Display Type', group: 'Variants', importable: true },
+      { key: 'sequence', label: 'Sequence', group: 'General', importable: true, type: 'number' },
+      { key: 'active', label: 'Active', group: 'Identity', importable: true, type: 'boolean' },
+      { key: 'valueCount', label: 'Total Values', group: 'Computed', importable: false },
+    ],
+  },
   vendors_pricelist: {
     label: 'Vendors Pricelist',
     importable: true,

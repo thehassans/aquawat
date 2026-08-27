@@ -116,6 +116,22 @@ export async function updateLocation(tenantId, userId, id, body) {
     }
   }
 
+  // Changing usage to view while stock exists is forbidden
+  if (body.usage === 'view' && loc.usage !== 'view') {
+    const quants = await InvQuant.find({ tenantId: tid, locationId: loc._id })
+      .select('quantity reservedQuantity')
+      .lean();
+    const hasStock = quants.some(
+      (q) => Number(q.quantity) !== 0 || Number(q.reservedQuantity) !== 0,
+    );
+    if (hasStock) {
+      throw new InventoryValidationError(
+        'Cannot change a stocked location to View — move or clear inventory first.',
+        'LOC_VIEW_STOCK',
+      );
+    }
+  }
+
   const oldPath = loc.completePath;
   const name = body.name != null ? String(body.name).trim() : loc.name;
   const parentId = body.parentId !== undefined ? (body.parentId || null) : loc.parentId;

@@ -13,7 +13,7 @@ const schema = new mongoose.Schema({
   },
   operationTypeId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvOperationType', default: null },
   sourceLocationId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvLocation', default: null },
-  destLocationId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvLocation', required: true },
+  destLocationId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvLocation', default: null },
   procureMethod: {
     type: String,
     enum: ['makeToStock', 'makeToOrder', 'mtsElseMto'],

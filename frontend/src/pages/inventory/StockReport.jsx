@@ -5,9 +5,15 @@ import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
-import { ReportShell, useReportFilters, exportCsv } from './ReportShell'
+import { ReportShell, ReportTableFrame, REPORT_THEAD, useReportFilters, exportCsv } from './ReportShell'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import { formatInvError } from '../../lib/invError'
+import {
+  formatReportMoney,
+  formatReportMoneyCsv,
+  formatReportProduct,
+  formatReportQty,
+} from '../../lib/reportFormat'
 
 function toDatetimeLocalValue(isoOrEmpty) {
   if (!isoOrEmpty) return ''
@@ -15,6 +21,10 @@ function toDatetimeLocalValue(isoOrEmpty) {
   if (Number.isNaN(d.getTime())) return ''
   const pad = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function rowKey(row) {
+  return `${row.productId || ''}|${row.variantId || ''}`
 }
 
 export default function StockReport() {
@@ -64,6 +74,16 @@ export default function StockReport() {
   const whList = Array.isArray(warehouses) ? warehouses : []
   const view = filters.view || 'list'
 
+  const csvCols = [
+    { label: 'SKU', get: (r) => r.sku || r.variant?.sku || r.product?.sku || '' },
+    { label: 'Name', get: (r) => formatReportProduct(r, { ar }) },
+    { label: 'OnHand', get: (r) => formatReportQty(r.onHand) },
+    { label: 'Free', get: (r) => formatReportQty(r.freeToUse) },
+    { label: 'Forecast', get: (r) => formatReportQty(r.forecast) },
+    { label: 'UnitCost', get: (r) => formatReportMoneyCsv(r.unitCost) },
+    { label: 'Value', get: (r) => formatReportMoneyCsv(r.value) },
+  ]
+
   return (
     <ReportShell
       activeId="stock"
@@ -88,69 +108,63 @@ export default function StockReport() {
         </div>
       )}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-sm text-slate-600 dark:text-slate-300">
-          {data?.valueTotal != null && (
-            <p>
-              {ar ? 'إجمالي القيمة' : 'Total value'}:{' '}
-              <span className="font-semibold tabular-nums">{data.valueTotal}</span>
-              {asOfMode && data?.asOf && (
-                <span className="ms-2 text-xs text-slate-400">
-                  @ {new Date(data.asOf).toLocaleString()}
-                </span>
+      <ReportTableFrame
+        toolbar={(
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm text-slate-600 dark:text-slate-300">
+              {data?.valueTotal != null && (
+                <p>
+                  {ar ? 'إجمالي القيمة' : 'Total value'}:{' '}
+                  <span className="font-semibold tabular-nums">{formatReportMoney(data.valueTotal)}</span>
+                  {asOfMode && data?.asOf && (
+                    <span className="ms-2 text-xs text-slate-400">
+                      @ {new Date(data.asOf).toLocaleString()}
+                    </span>
+                  )}
+                </p>
               )}
-            </p>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <InventoryIeButtons
-            model="stock"
-            importable={false}
-            ar={ar}
-            filters={{ warehouseId: filters.warehouseId || undefined, asOf: filters.asOf || undefined }}
-          />
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={!rows.length}
-            onClick={() => exportCsv('stock-report.csv', rows, [
-              { label: 'SKU', get: (r) => r.product?.sku },
-              { label: 'Name', get: (r) => r.product?.nameEn },
-              { label: 'OnHand', get: (r) => r.onHand },
-              { label: 'Free', get: (r) => r.freeToUse },
-              { label: 'Forecast', get: (r) => r.forecast },
-              { label: 'UnitCost', get: (r) => r.unitCost },
-              { label: 'Value', get: (r) => r.value },
-            ])}
-          >
-            CSV
-          </button>
-        </div>
-      </div>
-
-      {view === 'graph' && rows.length > 0 && (
-        <div className="rounded-xl border border-slate-200/80 p-4 dark:border-dark-600">
-          <p className="mb-3 text-xs font-medium uppercase text-slate-500">{ar ? 'قيمة حسب المنتج' : 'Value by product'}</p>
-          <div className="flex h-40 items-end gap-1">
-            {[...rows].sort((a, b) => Number(b.value || 0) - Number(a.value || 0)).slice(0, 24).map((r) => {
-              const max = Math.max(...rows.map((x) => Number(x.value || 0)), 1)
-              const h = Math.max(4, (Number(r.value || 0) / max) * 100)
-              return (
-                <div
-                  key={r.productId}
-                  className="flex-1 rounded-t bg-emerald-600/80"
-                  style={{ height: `${h}%` }}
-                  title={`${r.product?.sku || ''}: ${r.value}`}
-                />
-              )
-            })}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <InventoryIeButtons
+                model="stock"
+                importable={false}
+                ar={ar}
+                filters={{ warehouseId: filters.warehouseId || undefined, asOf: filters.asOf || undefined }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={!rows.length}
+                onClick={() => exportCsv('stock-report.csv', rows, csvCols)}
+              >
+                CSV
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      >
+        {view === 'graph' && rows.length > 0 && (
+          <div className="border-b border-slate-100 p-4 dark:border-dark-600">
+            <p className="mb-3 text-xs font-medium uppercase text-slate-500">{ar ? 'قيمة حسب المنتج' : 'Value by product'}</p>
+            <div className="flex h-40 items-end gap-1">
+              {[...rows].sort((a, b) => Number(b.value || 0) - Number(a.value || 0)).slice(0, 24).map((r) => {
+                const max = Math.max(...rows.map((x) => Number(x.value || 0)), 1)
+                const h = Math.max(4, (Number(r.value || 0) / max) * 100)
+                return (
+                  <div
+                    key={rowKey(r)}
+                    className="flex-1 rounded-t bg-emerald-600/80"
+                    style={{ height: `${h}%` }}
+                    title={`${formatReportProduct(r, { ar })}: ${formatReportMoney(r.value)}`}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        )}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
         <table className="w-full min-w-[980px] text-sm">
-          <thead className="border-b border-slate-100 bg-slate-50/80 text-xs uppercase text-slate-500 dark:border-dark-600 dark:bg-dark-900/50">
+          <thead className={REPORT_THEAD}>
             <tr>
               <th className="min-w-[150px] px-4 py-3 text-start">{ar ? 'المنتج' : 'Product'}</th>
               <th className="min-w-[100px] px-4 py-3 text-start">{ar ? 'التكلفة' : 'Unit cost'}</th>
@@ -178,19 +192,19 @@ export default function StockReport() {
               </tr>
             )}
             {rows.map((row) => (
-              <tr key={row.productId} className="border-b border-slate-50 dark:border-dark-700">
+              <tr key={rowKey(row)} className="border-b border-slate-50 dark:border-dark-700">
                 <td className="px-4 py-3">
                   <div className="font-medium text-slate-900 dark:text-white">
-                    {ar && row.product?.nameAr ? row.product.nameAr : row.product?.nameEn}
+                    {formatReportProduct(row, { ar })}
                   </div>
-                  <div className="text-xs text-slate-400">{row.product?.sku}</div>
+                  <div className="text-xs text-slate-400">{row.sku || row.product?.sku || ''}</div>
                 </td>
-                <td className="px-4 py-3 tabular-nums">{row.unitCost ?? '—'}</td>
-                <td className="px-4 py-3 tabular-nums">{row.value ?? '—'}</td>
+                <td className="px-4 py-3 tabular-nums">{formatReportMoney(row.unitCost)}</td>
+                <td className="px-4 py-3 tabular-nums">{formatReportMoney(row.value)}</td>
                 <td className="px-4 py-3">
                   {asOfMode ? (
-                    <span className="tabular-nums font-medium">{row.onHand}</span>
-                  ) : editing === row.productId ? (
+                    <span className="tabular-nums font-medium">{formatReportQty(row.onHand)}</span>
+                  ) : editing === rowKey(row) ? (
                     <form
                       className="flex gap-1"
                       onSubmit={(e) => {
@@ -217,18 +231,18 @@ export default function StockReport() {
                       className="tabular-nums font-medium text-primary-700 hover:underline dark:text-primary-300"
                       onClick={() => {
                         if (!filters.warehouseId) setFilter('warehouseId', whList[0]?._id || '')
-                        setEditing(row.productId)
+                        setEditing(rowKey(row))
                         setEditValue(row.onHand)
                       }}
                     >
-                      {row.onHand}
+                      {formatReportQty(row.onHand)}
                     </button>
                   )}
                 </td>
-                <td className="px-4 py-3 tabular-nums">{row.freeToUse}</td>
-                <td className="px-4 py-3 tabular-nums text-emerald-600">{row.incoming}</td>
-                <td className="px-4 py-3 tabular-nums text-rose-600">{row.outgoing}</td>
-                <td className="px-4 py-3 tabular-nums font-medium">{row.forecast}</td>
+                <td className="px-4 py-3 tabular-nums">{formatReportQty(row.freeToUse)}</td>
+                <td className="px-4 py-3 tabular-nums text-emerald-600">{formatReportQty(row.incoming)}</td>
+                <td className="px-4 py-3 tabular-nums text-rose-600">{formatReportQty(row.outgoing)}</td>
+                <td className="px-4 py-3 tabular-nums font-medium">{formatReportQty(row.forecast)}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-2 text-xs">
                     <Link
@@ -249,7 +263,7 @@ export default function StockReport() {
             ))}
           </tbody>
         </table>
-      </div>
+      </ReportTableFrame>
     </ReportShell>
   )
 }

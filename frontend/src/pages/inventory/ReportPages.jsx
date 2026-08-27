@@ -3,9 +3,15 @@ import { useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
-import { ReportShell, useReportFilters, exportCsv } from './ReportShell'
+import { ReportShell, ReportTableFrame, REPORT_THEAD, useReportFilters, exportCsv } from './ReportShell'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import { formatInvError } from '../../lib/invError'
+import {
+  formatReportLocation,
+  formatReportMoney,
+  formatReportProduct,
+  formatReportQty,
+} from '../../lib/reportFormat'
 
 export function LocationsReportPage() {
   const { language } = useSelector((s) => s.ui)
@@ -31,10 +37,10 @@ export function LocationsReportPage() {
             className="btn btn-secondary btn-sm"
             disabled={!items.length}
             onClick={() => exportCsv('locations-report.csv', items, [
-              { label: 'Path', get: (r) => r.completePath },
+              { label: 'Path', get: (r) => formatReportLocation(r.completePath || r) },
               { label: 'Usage', get: (r) => r.usage },
-              { label: 'OnHand', get: (r) => r.onHand },
-              { label: 'Reserved', get: (r) => r.reserved },
+              { label: 'OnHand', get: (r) => formatReportQty(r.onHand) },
+              { label: 'Reserved', get: (r) => formatReportQty(r.reserved) },
               { label: 'Products', get: (r) => r.productCount },
             ])}
           >
@@ -48,30 +54,32 @@ export function LocationsReportPage() {
       ) : !items.length ? (
         <EmptyState title={ar ? 'لا بيانات' : 'No location stock'} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+        <ReportTableFrame>
           <table className="w-full min-w-[720px] text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
+            <thead className={REPORT_THEAD}>
               <tr>
-                <th className="min-w-[150px] px-3 py-2">{ar ? 'المسار' : 'Path'}</th>
-                <th className="min-w-[150px] px-3 py-2">{ar ? 'النوع' : 'Usage'}</th>
-                <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'بالمخزن' : 'On hand'}</th>
-                <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'محجوز' : 'Reserved'}</th>
-                <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'منتجات' : 'Products'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'المسار' : 'Path'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'النوع' : 'Usage'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'بالمخزن' : 'On hand'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'محجوز' : 'Reserved'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'منتجات' : 'Products'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
               {items.map((row) => (
                 <tr key={row.locationId}>
-                  <td className="px-3 py-2.5 font-medium text-slate-900 dark:text-white">{row.completePath}</td>
+                  <td className="px-3 py-2.5 font-medium text-slate-900 dark:text-white">
+                    {formatReportLocation(row.completePath || row)}
+                  </td>
                   <td className="px-3 py-2.5 text-slate-500">{row.usage}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{row.onHand}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{row.reserved}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{row.productCount}</td>
+                  <td className="px-3 py-2.5 text-end tabular-nums">{formatReportQty(row.onHand)}</td>
+                  <td className="px-3 py-2.5 text-end tabular-nums">{formatReportQty(row.reserved)}</td>
+                  <td className="px-3 py-2.5 text-end tabular-nums">{row.productCount}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </ReportTableFrame>
       )}
     </ReportShell>
   )
@@ -137,15 +145,15 @@ export function ReconcileReportPage() {
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-xl border border-slate-200/80 p-3 dark:border-dark-600">
             <div className="text-xs text-slate-500">{ar ? 'قيمة المخزون' : 'Stock value total'}</div>
-            <div className="text-lg font-semibold tabular-nums">{data.stockValueTotal}</div>
+            <div className="text-lg font-semibold tabular-nums">{formatReportMoney(data.stockValueTotal)}</div>
           </div>
           <div className="rounded-xl border border-slate-200/80 p-3 dark:border-dark-600">
             <div className="text-xs text-slate-500">{ar ? 'قيمة التقييم' : 'Valuation total'}</div>
-            <div className="text-lg font-semibold tabular-nums">{data.valuationValueTotal}</div>
+            <div className="text-lg font-semibold tabular-nums">{formatReportMoney(data.valuationValueTotal)}</div>
           </div>
           <div className="rounded-xl border border-slate-200/80 p-3 dark:border-dark-600">
             <div className="text-xs text-slate-500">{ar ? 'الفرق' : 'Drift'}</div>
-            <div className="text-lg font-semibold tabular-nums">{data.valueDrift}</div>
+            <div className="text-lg font-semibold tabular-nums">{formatReportMoney(data.valueDrift)}</div>
           </div>
         </div>
       )}
@@ -158,27 +166,29 @@ export function ReconcileReportPage() {
           description={ar ? 'تقرير المخزون وطبقات التقييم متطابقان' : 'Stock report and valuation layers agree'}
         />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+        <ReportTableFrame>
           <table className="w-full min-w-[720px] text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
+            <thead className={REPORT_THEAD}>
               <tr>
-                <th className="min-w-[150px] px-3 py-2">{ar ? 'المنتج' : 'Product'}</th>
-                <th className="min-w-[150px] px-3 py-2">{ar ? 'الطريقة' : 'Method'}</th>
-                <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'دفتر' : 'Ledger qty'}</th>
-                <th className="min-w-[150px] px-3 py-2 text-right">{ar ? 'قيمة' : 'Value'}</th>
-                <th className="min-w-[150px] px-3 py-2">{ar ? 'المشاكل' : 'Issues'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'المنتج' : 'Product'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'الطريقة' : 'Method'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'دفتر' : 'Ledger qty'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-end">{ar ? 'قيمة' : 'Value'}</th>
+                <th className="min-w-[150px] px-3 py-2 text-start">{ar ? 'المشاكل' : 'Issues'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
               {data.mismatches.map((m) => (
                 <tr key={String(m.productId)}>
                   <td className="px-3 py-2.5">
-                    <div className="font-medium">{m.name}</div>
+                    <div className="font-medium">
+                      {formatReportProduct({ ...m, productName: m.name || m.productName }, { ar })}
+                    </div>
                     <div className="text-xs text-slate-400">{m.sku}</div>
                   </td>
                   <td className="px-3 py-2.5">{m.costMethod}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{m.ledgerQty}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{m.stockValue}</td>
+                  <td className="px-3 py-2.5 text-end tabular-nums">{formatReportQty(m.ledgerQty)}</td>
+                  <td className="px-3 py-2.5 text-end tabular-nums">{formatReportMoney(m.stockValue ?? m.value)}</td>
                   <td className="px-3 py-2.5 text-xs text-amber-700 dark:text-amber-300">
                     {(m.issues || []).map((i) => i.code).join(', ')}
                   </td>
@@ -186,7 +196,7 @@ export function ReconcileReportPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </ReportTableFrame>
       )}
     </ReportShell>
   )
