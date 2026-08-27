@@ -26,6 +26,7 @@ router.get('/:productId', checkPermission('inventory', 'read'), async (req, res)
       .sort({ updatedAt: -1 })
       .populate('finishedProductId', 'sku nameEn nameAr uom unitOfMeasure')
       .populate('components.productId', 'sku nameEn nameAr uom unitOfMeasure uomId costPrice')
+      .populate('components.variantId', 'name sku')
       .lean();
 
     if (!mfgBom) {
@@ -37,6 +38,7 @@ router.get('/:productId', checkPermission('inventory', 'read'), async (req, res)
         .sort({ updatedAt: -1 })
         .populate('finishedProductId', 'sku nameEn nameAr uom unitOfMeasure')
         .populate('components.productId', 'sku nameEn nameAr uom unitOfMeasure uomId costPrice')
+        .populate('components.variantId', 'name sku')
         .lean();
     }
 
@@ -45,8 +47,12 @@ router.get('/:productId', checkPermission('inventory', 'read'), async (req, res)
       const components = (mfgBom.components || []).map((c) => {
         const p = c.productId && typeof c.productId === 'object' ? c.productId : null;
         const pid = p?._id || c.productId;
+        const v = c.variantId && typeof c.variantId === 'object' ? c.variantId : null;
+        const vid = v?._id || c.variantId || null;
         return {
           productId: pid,
+          variantId: vid,
+          variantName: v?.name || '',
           sku: p?.sku || '',
           nameEn: p?.nameEn || '',
           nameAr: p?.nameAr || '',
@@ -72,6 +78,7 @@ router.get('/:productId', checkPermission('inventory', 'read'), async (req, res)
 
     const product = await Product.findOne({ _id: productId, tenantId })
       .populate('bomComponents.productId', 'sku nameEn nameAr uom unitOfMeasure uomId')
+      .populate('bomComponents.variantId', 'name sku')
       .select('sku nameEn nameAr bomComponents unitOfMeasure uom')
       .lean();
 
@@ -82,8 +89,12 @@ router.get('/:productId', checkPermission('inventory', 'read'), async (req, res)
     const components = (product.bomComponents || []).map((c) => {
       const p = c.productId && typeof c.productId === 'object' ? c.productId : null;
       const pid = p?._id || c.productId;
+      const v = c.variantId && typeof c.variantId === 'object' ? c.variantId : null;
+      const vid = v?._id || c.variantId || null;
       return {
         productId: pid,
+        variantId: vid,
+        variantName: v?.name || '',
         sku: p?.sku || '',
         nameEn: p?.nameEn || '',
         nameAr: p?.nameAr || '',

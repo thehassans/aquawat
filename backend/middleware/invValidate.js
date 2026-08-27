@@ -23,6 +23,7 @@ export const posConsumeBody = z.object({
   partnerId: objectId.optional().nullable(),
   lines: z.array(z.object({
     productId: objectId,
+    variantId: objectId.optional().nullable(),
     qty: z.union([z.number(), z.string()]).optional(),
     quantity: z.union([z.number(), z.string()]).optional(),
     demandQty: z.union([z.number(), z.string()]).optional(),

@@ -63,6 +63,7 @@ routingSchema.index({ tenantId: 1, code: 1 }, { unique: true });
 // ─── 3. Multi-Level BOM Schema ────────────────────────────────────
 const bomComponentSchema = new mongoose.Schema({
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+  variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant', default: null },
   componentType: {
     type: String,
     enum: ['raw_material', 'sub_assembly', 'phantom_item', 'consumable'],

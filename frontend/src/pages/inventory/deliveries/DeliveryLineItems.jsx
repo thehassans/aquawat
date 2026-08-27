@@ -102,6 +102,9 @@ export function DeliveryLineItems({
                     {m.productId?.sku ? (
                       <div className="font-mono text-[11px] text-slate-400">{m.productId.sku}</div>
                     ) : null}
+                    {m.variantId?.name ? (
+                      <div className="text-[11px] text-slate-500">{m.variantId.name}</div>
+                    ) : null}
                     {underReserved ? (
                       <div className="mt-0.5 text-[11px] font-medium text-orange-700 dark:text-orange-300">
                         {ar ? 'مخزون ناقص للحجز' : 'Insufficient reserved stock'}

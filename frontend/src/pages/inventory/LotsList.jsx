@@ -39,13 +39,13 @@ export default function LotsList() {
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="border-b border-slate-100 bg-slate-50/80 text-xs uppercase text-slate-500 dark:border-dark-600">
             <tr>
-              <th className="px-4 py-3 text-start">{language === 'ar' ? 'الاسم' : 'Name'}</th>
-              <th className="px-4 py-3 text-start">{language === 'ar' ? 'المنتج' : 'Product'}</th>
-              <th className="px-4 py-3 text-start">{language === 'ar' ? 'انتهاء' : 'Expiry'}</th>
-              <th className="px-4 py-3 text-start">{language === 'ar' ? 'إزالة' : 'Removal'}</th>
+              <th className="min-w-[150px] px-4 py-3 text-start">{language === 'ar' ? 'الاسم' : 'Name'}</th>
+              <th className="min-w-[150px] px-4 py-3 text-start">{language === 'ar' ? 'المنتج' : 'Product'}</th>
+              <th className="min-w-[120px] px-4 py-3 text-start">{language === 'ar' ? 'انتهاء' : 'Expiry'}</th>
+              <th className="min-w-[120px] px-4 py-3 text-start">{language === 'ar' ? 'إزالة' : 'Removal'}</th>
             </tr>
           </thead>
           <tbody>

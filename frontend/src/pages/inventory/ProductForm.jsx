@@ -120,6 +120,7 @@ export default function ProductForm() {
       .filter((c) => c?.productId)
       .map((c) => ({
         productId: c.productId,
+        variantId: c.variantId || undefined,
         quantity: Number.isFinite(Number(c.quantity)) ? Number(c.quantity) : 0,
         notes: c.notes || undefined,
       }))
@@ -236,6 +237,7 @@ export default function ProductForm() {
       setBomComponents(
         (Array.isArray(normalized?.bomComponents) ? normalized.bomComponents : []).map((c) => ({
           productId: String(c?.productId?._id || c?.productId || ''),
+          variantId: String(c?.variantId?._id || c?.variantId || '') || '',
           quantity: c?.quantity ?? 0,
           notes: c?.notes || ''
         }))

@@ -235,8 +235,8 @@ export default function InternalForm() {
       sku: payload.sku || '',
       variantId: payload.variantId || null,
       variantName: payload.variantName || '',
-      variants: [],
-      needsVariant: false,
+      variants: payload.variants || [],
+      needsVariant: !!payload.needsVariant,
       uomId: payload.uomId || prev.uomId,
       uomLabel: payload.uomLabel || prev.uomLabel || '',
       demandQty: prev.demandQty && Number(prev.demandQty) > 0 ? prev.demandQty : '1',
@@ -292,6 +292,12 @@ export default function InternalForm() {
     if (!cleanLines.length) {
       toast.error(ar ? 'أضف منتجاً واحداً على الأقل' : 'Add at least one product')
       return
+    }
+    for (const l of cleanLines) {
+      if (l.needsVariant && !l.variantId) {
+        toast.error(ar ? 'اختر المتغير' : 'Select a variant')
+        return
+      }
     }
     createMut.mutate({
       operationTypeId: values.operationTypeId,

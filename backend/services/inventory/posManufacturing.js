@@ -20,7 +20,7 @@ async function ensureWh(tenantId, userId, warehouseId) {
 
 /**
  * PoS consume: create + confirm + validate outgoing/pos picking in one transaction chain.
- * Body: { orderRef, warehouseId, lines: [{ productId, qty }], partnerId? }
+ * Body: { orderRef, warehouseId, lines: [{ productId, qty, variantId? }], partnerId? }
  */
 export async function posConsume(tenantId, userId, body) {
   const tid = toObjectId(tenantId);
@@ -41,6 +41,8 @@ export async function posConsume(tenantId, userId, body) {
   const lines = (body.lines || []).map((l) => ({
     productId: l.productId,
     demandQty: l.qty ?? l.quantity ?? l.demandQty,
+    variantId: l.variantId || undefined,
+    uomId: l.uomId || undefined,
   }));
   if (!lines.length) throw new InventoryValidationError('Lines required', 'LINES_REQUIRED');
 
@@ -113,6 +115,8 @@ export async function manufactureConsumeProduce(tenantId, userId, body) {
     lines: components.map((l) => ({
       productId: l.productId,
       demandQty: l.qty ?? l.quantity ?? l.demandQty,
+      variantId: l.variantId || undefined,
+      uomId: l.uomId || undefined,
     })),
   }, userId);
   await confirmTransfer(tid, consume._id, userId);
@@ -132,6 +136,7 @@ export async function manufactureConsumeProduce(tenantId, userId, body) {
     lines: [{
       productId: body.finishedProductId,
       demandQty: body.finishedQty,
+      variantId: body.finishedVariantId || undefined,
     }],
   }, userId);
   await confirmTransfer(tid, produce._id, userId);

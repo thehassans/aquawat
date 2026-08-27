@@ -5,7 +5,7 @@ const schema = new mongoose.Schema({
   ...tenantFields,
   name: { type: String, required: true },
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-  variantId: { type: mongoose.Schema.Types.ObjectId, default: null },
+  variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant', default: null },
   uomId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvUom', required: true },
   quantity: { ...decimalField, default: '0' },
   quantityNum: { ...decimal128Field },

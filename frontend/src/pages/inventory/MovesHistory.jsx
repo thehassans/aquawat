@@ -98,16 +98,16 @@ export default function MovesHistory() {
       )}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[900px] text-sm">
           <thead className="border-b border-slate-100 bg-slate-50/80 text-xs uppercase text-slate-500 dark:border-dark-600">
             <tr>
-              <th className="px-4 py-3 text-start">{ar ? 'التاريخ' : 'Date'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'المرجع' : 'Reference'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'المنتج' : 'Product'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'دفعة' : 'Lot'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'من' : 'From'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'إلى' : 'To'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'الكمية' : 'Qty'}</th>
+              <th className="min-w-[140px] px-4 py-3 text-start">{ar ? 'التاريخ' : 'Date'}</th>
+              <th className="min-w-[140px] px-4 py-3 text-start">{ar ? 'المرجع' : 'Reference'}</th>
+              <th className="min-w-[150px] px-4 py-3 text-start">{ar ? 'المنتج' : 'Product'}</th>
+              <th className="min-w-[120px] px-4 py-3 text-start">{ar ? 'دفعة' : 'Lot'}</th>
+              <th className="min-w-[140px] px-4 py-3 text-start">{ar ? 'من' : 'From'}</th>
+              <th className="min-w-[140px] px-4 py-3 text-start">{ar ? 'إلى' : 'To'}</th>
+              <th className="min-w-[100px] px-4 py-3 text-start">{ar ? 'الكمية' : 'Qty'}</th>
             </tr>
           </thead>
           <tbody>

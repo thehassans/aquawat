@@ -252,15 +252,34 @@ export default function PosForm() {
   }
 
   const pickProduct = async (product, targetIdx = null) => {
+    let variantId = null
+    let variantName = ''
+    let variants = []
+    let needsVariant = false
+    if (variantsEnabled) {
+      try {
+        const data = await api.get('/stock/variants', {
+          params: { productId: product._id, limit: 50 },
+        }).then((r) => r.data)
+        const items = Array.isArray(data) ? data : (data?.items || [])
+        variants = items
+        if (items.length === 1) {
+          variantId = items[0]._id
+          variantName = items[0].name
+        } else if (items.length > 1) {
+          needsVariant = true
+        }
+      } catch { /* optional */ }
+    }
     const nextLine = {
       productId: product._id,
       productName: ar && product.nameAr ? product.nameAr : (product.nameEn || product.name),
       sku: product.sku || '',
       demandQty: '1',
-      variantId: null,
-      variantName: '',
-      variants: [],
-      needsVariant: false,
+      variantId,
+      variantName,
+      variants,
+      needsVariant,
       uomId: product.uomId || undefined,
       uomLabel: product.unitOfMeasure || '',
     }
@@ -294,6 +313,12 @@ export default function PosForm() {
       toast.error(ar ? 'أضف منتجاً واحداً على الأقل' : 'Add at least one product')
       return
     }
+    for (const l of cleanLines) {
+      if (l.needsVariant && !l.variantId) {
+        toast.error(ar ? 'اختر المتغير' : 'Select a variant')
+        return
+      }
+    }
     setBusyFast(true)
     try {
       const ot = opTypes.find((o) => String(o._id) === String(values.operationTypeId))
@@ -308,6 +333,7 @@ export default function PosForm() {
           lines: cleanLines.map((l) => ({
             productId: l.productId,
             qty: l.demandQty,
+            variantId: l.variantId || undefined,
           })),
         }).then((r) => r.data)
         toast.success(ar ? 'تم الحفظ والاعتماد' : 'Saved & validated')

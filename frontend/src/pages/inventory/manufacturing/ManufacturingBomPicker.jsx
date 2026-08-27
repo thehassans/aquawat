@@ -74,6 +74,7 @@ export function ManufacturingBomPicker({
           uomLabel: c.uom || '',
           // Prefer explicit variant from BOM when present
           presetVariantId: c.variantId?._id || c.variantId || null,
+          presetVariantName: c.variantName || '',
         }))
         .filter((l) => l.productId && Number(l.demandQty) > 0)
 
@@ -86,10 +87,11 @@ export function ManufacturingBomPicker({
           const match = (resolved.variants || []).find((v) => String(v._id) === String(l.presetVariantId))
           if (match) {
             variantId = String(match._id)
-            variantName = match.name || ''
+            variantName = match.name || l.presetVariantName || ''
             needsVariant = false
           } else {
             variantId = String(l.presetVariantId)
+            variantName = l.presetVariantName || ''
             needsVariant = false
           }
         }

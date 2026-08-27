@@ -313,6 +313,7 @@ export async function listScraps(tenantId, { state, page = 1, limit = 40 } = {})
   const [items, total] = await Promise.all([
     InvScrap.find(filter)
       .populate('productId', 'nameEn nameAr sku unitOfMeasure')
+      .populate('variantId', 'name sku')
       .populate('uomId', 'name nameAr')
       .populate('sourceLocationId', 'name completePath')
       .populate('scrapLocationId', 'name completePath')

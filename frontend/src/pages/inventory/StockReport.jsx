@@ -149,18 +149,18 @@ export default function StockReport() {
       )}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[980px] text-sm">
           <thead className="border-b border-slate-100 bg-slate-50/80 text-xs uppercase text-slate-500 dark:border-dark-600 dark:bg-dark-900/50">
             <tr>
-              <th className="px-4 py-3 text-start">{ar ? 'المنتج' : 'Product'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'التكلفة' : 'Unit cost'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'القيمة' : 'Value'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'المتاح' : 'On hand'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'حر' : 'Free'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'وارد' : 'In'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'صادر' : 'Out'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'متوقع' : 'Forecast'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'إجراءات' : 'Actions'}</th>
+              <th className="min-w-[150px] px-4 py-3 text-start">{ar ? 'المنتج' : 'Product'}</th>
+              <th className="min-w-[100px] px-4 py-3 text-start">{ar ? 'التكلفة' : 'Unit cost'}</th>
+              <th className="min-w-[100px] px-4 py-3 text-start">{ar ? 'القيمة' : 'Value'}</th>
+              <th className="min-w-[100px] px-4 py-3 text-start">{ar ? 'المتاح' : 'On hand'}</th>
+              <th className="min-w-[100px] px-4 py-3 text-start">{ar ? 'حر' : 'Free'}</th>
+              <th className="min-w-[100px] px-4 py-3 text-start">{ar ? 'وارد' : 'In'}</th>
+              <th className="min-w-[100px] px-4 py-3 text-start">{ar ? 'صادر' : 'Out'}</th>
+              <th className="min-w-[100px] px-4 py-3 text-start">{ar ? 'متوقع' : 'Forecast'}</th>
+              <th className="min-w-[120px] px-4 py-3 text-start">{ar ? 'إجراءات' : 'Actions'}</th>
             </tr>
           </thead>
           <tbody className={isFetching && !isLoading ? 'opacity-60 transition-opacity' : ''}>

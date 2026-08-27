@@ -32,6 +32,7 @@ const landedCostSchema = new mongoose.Schema({
 
 const bomComponentSchema = new mongoose.Schema({
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+  variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant', default: null },
   quantity: { type: Number, required: true, min: 0 },
   notes: { type: String }
 }, { _id: false });

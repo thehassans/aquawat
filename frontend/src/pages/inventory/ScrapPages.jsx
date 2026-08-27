@@ -25,13 +25,14 @@ export function ScrapList() {
     if (!q.trim()) return allItems
     const needle = q.toLowerCase()
     return allItems.filter((s) => {
-      const pname = [s.productId?.nameEn, s.productId?.nameAr, s.productId?.sku]
+      const pname = [s.productId?.nameEn, s.productId?.nameAr, s.productId?.sku, s.variantId?.name, s.sourceDocument]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
       return (
         s.name?.toLowerCase().includes(needle) ||
         s.reasonTag?.toLowerCase().includes(needle) ||
+        s.sourceDocument?.toLowerCase().includes(needle) ||
         pname.includes(needle) ||
         s.sourceLocationId?.completePath?.toLowerCase().includes(needle)
       )
@@ -98,13 +99,15 @@ export function ScrapList() {
         />
       </div>
       <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-        <table className="w-full min-w-[900px] text-sm">
+        <table className="w-full min-w-[980px] text-sm">
           <thead className="border-b border-slate-100 bg-slate-50/80 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:border-dark-600">
             <tr>
               <th className="min-w-[150px] px-4 py-3 text-start">{ar ? 'المرجع' : 'Reference'}</th>
               <th className="min-w-[150px] px-4 py-3 text-start">{ar ? 'المنتج' : 'Product'}</th>
+              <th className="min-w-[120px] px-4 py-3 text-start">{ar ? 'المتغير' : 'Variant'}</th>
               <th className="min-w-[100px] px-4 py-3 text-start">{ar ? 'الكمية' : 'Qty'}</th>
               <th className="min-w-[100px] px-4 py-3 text-start">{ar ? 'الوحدة' : 'UoM'}</th>
+              <th className="min-w-[140px] px-4 py-3 text-start">{ar ? 'المستند المصدر' : 'Source doc'}</th>
               <th className="min-w-[150px] px-4 py-3 text-start">{ar ? 'المصدر' : 'Source'}</th>
               <th className="min-w-[150px] px-4 py-3 text-start">{ar ? 'الخردة' : 'Scrap loc'}</th>
               <th className="min-w-[120px] px-4 py-3 text-start">{ar ? 'التاريخ' : 'Date'}</th>
@@ -112,29 +115,31 @@ export function ScrapList() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50 dark:divide-dark-700">
-            {isLoading && <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">…</td></tr>}
+            {isLoading && <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-400">…</td></tr>}
             {!isLoading && items.length === 0 && (
-              <tr><td colSpan={8} className="p-8"><EmptyState title={ar ? 'لا خردة' : 'No scraps'} /></td></tr>
+              <tr><td colSpan={10} className="p-8"><EmptyState title={ar ? 'لا خردة' : 'No scraps'} /></td></tr>
             )}
             {items.map((s) => (
               <tr key={s._id} className="hover:bg-slate-50/60 dark:hover:bg-dark-900/40">
-                <td className="px-4 py-3">
+                <td className="min-w-[150px] px-4 py-3">
                   <Link to={`/app/dashboard/inventory/scrap/${s._id}`} className="font-medium text-primary-700 hover:underline dark:text-primary-300">
                     {s.name}
                   </Link>
                 </td>
-                <td className="px-4 py-3">
+                <td className="min-w-[150px] px-4 py-3">
                   <div className="font-medium">
                     {ar && s.productId?.nameAr ? s.productId.nameAr : s.productId?.nameEn}
                   </div>
                   {s.productId?.sku ? <div className="font-mono text-[11px] text-slate-400">{s.productId.sku}</div> : null}
                 </td>
-                <td className="px-4 py-3 tabular-nums">{s.quantity}</td>
-                <td className="px-4 py-3 text-xs text-slate-500">{s.uomId?.name || s.productId?.unitOfMeasure || '—'}</td>
-                <td className="px-4 py-3 text-xs text-slate-500">{s.sourceLocationId?.completePath || '—'}</td>
-                <td className="px-4 py-3 text-xs text-slate-500">{s.scrapLocationId?.completePath || '—'}</td>
-                <td className="px-4 py-3 text-xs text-slate-500">{s.date ? new Date(s.date).toLocaleDateString() : '—'}</td>
-                <td className="px-4 py-3"><StatusChip status={s.state === 'done' ? 'done' : 'draft'} language={language} /></td>
+                <td className="min-w-[120px] px-4 py-3 text-xs text-slate-500">{s.variantId?.name || '—'}</td>
+                <td className="min-w-[100px] px-4 py-3 tabular-nums">{s.quantity}</td>
+                <td className="min-w-[100px] px-4 py-3 text-xs text-slate-500">{s.uomId?.name || s.productId?.unitOfMeasure || '—'}</td>
+                <td className="min-w-[140px] px-4 py-3 text-xs text-slate-500">{s.sourceDocument || '—'}</td>
+                <td className="min-w-[150px] px-4 py-3 text-xs text-slate-500">{s.sourceLocationId?.completePath || '—'}</td>
+                <td className="min-w-[150px] px-4 py-3 text-xs text-slate-500">{s.scrapLocationId?.completePath || '—'}</td>
+                <td className="min-w-[120px] px-4 py-3 text-xs text-slate-500">{s.date ? new Date(s.date).toLocaleDateString() : '—'}</td>
+                <td className="min-w-[100px] px-4 py-3"><StatusChip status={s.state === 'done' ? 'done' : 'draft'} language={language} /></td>
               </tr>
             ))}
           </tbody>
