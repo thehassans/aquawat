@@ -4,7 +4,6 @@ import { useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Plus,
   Search,
   Download,
   Eye,
@@ -30,6 +29,7 @@ import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
 import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
+import SalesCreateMenu from '../../components/sales/SalesCreateMenu'
 import toast from 'react-hot-toast'
 import { downloadInvoicePdf, buildInvoicePdfBlob } from '../../lib/invoicePdfActions'
 import { isThermalInvoice } from '../../lib/invoiceFormat'
@@ -60,6 +60,7 @@ import {
   sectionEyebrowClass,
   softChipClass,
 } from '../sales/salesUi'
+import { Calculator } from 'lucide-react'
 
 const trimPartyName = (value) => String(value || '').trim()
 
@@ -669,13 +670,33 @@ export default function Invoices() {
             disabled={isLoading || (data?.invoices || []).length === 0}
           />
           {showNewInvoiceBtn && (
-            <Link to="/app/dashboard/invoices/new" className="btn btn-action-dark">
-              <Plus className="w-4 h-4" />
-              {t('newInvoice')}
-            </Link>
+            <SalesCreateMenu language={language} labelEn="Create" labelAr="إنشاء" />
           )}
         </div>
       </div>
+
+      {isSarTenant && (
+        <div className={`${filterBarClass} !flex !flex-col gap-3 sm:!flex-row sm:items-center sm:justify-between !py-3`}>
+          <div className="flex items-start gap-3">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-200">
+              <Calculator className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                {language === 'ar' ? 'متكامل مع إقرار ضريبة القيمة المضافة' : 'Integrated with VAT returns'}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                {language === 'ar'
+                  ? 'فواتير المبيعات الموقّعة/المعتمدة تُسجَّل كمخرجات، وفواتير المشتريات المعتمدة كمدخلات قابلة للخصم.'
+                  : 'Signed or approved sales invoices count as output VAT; approved purchase invoices count as deductible input VAT.'}
+              </p>
+            </div>
+          </div>
+          <Link to="/app/dashboard/vat-returns" className="btn btn-secondary btn-sm shrink-0">
+            {language === 'ar' ? 'فتح الإقرار الضريبي' : 'Open VAT return'}
+          </Link>
+        </div>
+      )}
 
       {/* Filters */}
       <div className={filterBarClass}>

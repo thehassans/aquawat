@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 import { FileText, Menu, X } from 'lucide-react'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import { salesTabClass } from './salesUi'
+import SalesCreateMenu from '../../components/sales/SalesCreateMenu'
 
 export default function SalesLayout() {
   const { language } = useSelector((s) => s.ui)
@@ -49,6 +50,9 @@ export default function SalesLayout() {
           </div>
 
           <div className="flex items-center gap-2 pb-2">
+            <div className="hidden lg:block">
+              <SalesCreateMenu language={language} labelEn="Create" labelAr="إنشاء" className="btn-sm" />
+            </div>
             <button
               type="button"
               className="btn btn-secondary btn-sm lg:hidden"

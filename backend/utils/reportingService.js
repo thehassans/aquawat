@@ -186,6 +186,7 @@ const buildVatReturnPayload = async ({ tenantId, startDate, endDate }) => {
     ...tenantMatch,
     issueDate: { $gte: startDate, $lte: endDate },
     status: { $nin: ['draft', 'cancelled', 'credited'] },
+    invoiceSubtype: { $ne: 'proforma' },
   };
   const expenseMatch = {
     ...tenantMatch,
@@ -269,6 +270,7 @@ export const buildVatReturnReport = async ({ tenantId, startDate, endDate }) => 
     ...tenantMatch,
     issueDate: { $gte: startDate, $lte: endDate },
     status: { $nin: ['draft', 'cancelled', 'credited'] },
+    invoiceSubtype: { $ne: 'proforma' },
   };
 
   const [result] = await Invoice.statsAggregate([
@@ -437,6 +439,7 @@ export const buildBusinessSummaryReport = async ({ tenantId, startDate, endDate 
     ...tenantMatch,
     issueDate: { $gte: startDate, $lte: endDate },
     status: { $nin: ['draft', 'cancelled', 'credited'] },
+    invoiceSubtype: { $ne: 'proforma' },
   };
 
   const expenseMatch = {

@@ -730,7 +730,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       <div className="flex items-center gap-4">
         <button
           type="button"
-          onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices/new')}
+          onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices')}
           className={backBtnClass}
         >
           <ArrowLeft className="h-5 w-5" />
@@ -1453,7 +1453,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 <div className="flex justify-between border-t border-gray-200 pt-2 text-lg font-bold dark:border-dark-600"><span>{t('total')}</span><span className="text-primary-600"><Money value={totals.grandTotal} /></span></div>
               </div>
               <div className="flex gap-3">
-                <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices/new')} className="btn btn-secondary">{t('cancel')}</button>
+                <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices')} className="btn btn-secondary">{t('cancel')}</button>
                 <button type="submit" disabled={saveMutation.isPending} className="btn btn-action-dark shadow-lg">
                   {saveMutation.isPending ? (
                     <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />

@@ -1968,6 +1968,12 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
 
     ensureInvoiceDueDate(invoiceData);
 
+    if (invoiceData.flow === 'purchase') {
+      invoiceData.status = ['approved', 'pending', 'sent'].includes(String(invoiceData.status || '').toLowerCase())
+        ? invoiceData.status
+        : 'approved';
+    }
+
     resolvePaymentStatus(invoiceData);
 
     const poId = cleanObjectId(req.body.sourcePurchaseOrderId || invoiceData.sourcePurchaseOrderId);

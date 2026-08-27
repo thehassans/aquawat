@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useFieldArray, useForm } from 'react-hook-form'
@@ -241,6 +241,8 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
 
 export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = null }) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const isProformaCreate = searchParams.get('proforma') === '1'
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
   const { tenant, user } = useSelector((state) => state.auth)
@@ -309,7 +311,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
 
   const { register, control, handleSubmit, watch, setValue, getValues, reset } = useForm({
     defaultValues: buildSellInvoiceFormValues({
-      invoice: initialInvoice,
+      invoice: initialInvoice || (isProformaCreate ? { invoiceSubtype: 'proforma' } : null),
       tenant,
       defaultBusinessContext,
       hasTravel: tenantBusinessTypes.includes('travel_agency'),
@@ -1044,7 +1046,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       <div className="flex items-center gap-4">
         <button
           type="button"
-          onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices/new')}
+          onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices')}
           className={backBtnClass}
         >
           <ArrowLeft className="h-5 w-5" />
@@ -2229,7 +2231,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices/new')} className="rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:text-slate-300">{t('cancel')}</button>
+              <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices')} className="rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:text-slate-300">{t('cancel')}</button>
               <button type="submit" disabled={saveMutation.isPending} className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white dark:bg-white dark:text-slate-900 shadow-lg hover:opacity-95 transition">
                 {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" /> : <><Eye className="w-4 h-4" />{isEdit ? (language === 'ar' ? 'معاينة وتعديل الفاتورة' : 'Preview & Update Invoice') : (language === 'ar' ? 'معاينة وحفظ الفاتورة' : 'Preview & Save Invoice')}</>}
               </button>

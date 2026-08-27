@@ -333,7 +333,8 @@ async function buildVatReturnPayload({ tenantId, tenantFilterValue, startDate, e
   const invoiceMatch = {
     ...tenantFilterValue,
     issueDate: { $gte: startDate, $lte: endDate },
-    status: { $nin: ['draft', 'cancelled', 'credited'] }
+    status: { $nin: ['draft', 'cancelled', 'credited'] },
+    invoiceSubtype: { $ne: 'proforma' },
   };
   const expenseMatch = {
     ...tenantFilterValue,
@@ -423,7 +424,8 @@ router.get('/vat-return', async (req, res) => {
     const match = {
       ...req.tenantFilter,
       issueDate: { $gte: startDate, $lte: endDate },
-      status: { $nin: ['draft', 'cancelled', 'credited'] }
+      status: { $nin: ['draft', 'cancelled', 'credited'] },
+      invoiceSubtype: { $ne: 'proforma' },
     };
 
     const [result] = await statsRead(Invoice.aggregate([

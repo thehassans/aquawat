@@ -22,6 +22,7 @@ import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
+import SalesCreateMenu from '../../components/sales/SalesCreateMenu'
 import { downloadQuotationPdf, printQuotationSnapshot } from '../../lib/invoicePdfActions'
 import {
   docLinkClass,
@@ -417,10 +418,10 @@ export default function Quotations() {
             title={language === 'ar' ? 'عروض الأسعار' : 'Quotations'}
             disabled={isLoading || (data?.quotations || []).length === 0}
           />
-          <Link to="/app/dashboard/quotations/new" className="btn btn-action-dark">
-            <Plus className="w-4 h-4" />
-            {language === 'ar' ? 'عرض سعر جديد' : 'New Quotation'}
+          <Link to="/app/dashboard/quotations/new" className="btn btn-secondary">
+            {language === 'ar' ? 'عرض سعر سريع' : 'Quick quotation'}
           </Link>
+          <SalesCreateMenu language={language} labelEn="Create" labelAr="إنشاء" />
         </div>
       </div>
 
