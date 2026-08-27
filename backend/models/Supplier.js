@@ -52,6 +52,9 @@ const supplierSchema = new mongoose.Schema({
     ref: 'Supplier',
     default: null,
   },
+  /** Accounting role flags — set from creation context, not manual UI */
+  isCustomer: { type: Boolean, default: false },
+  isVendor: { type: Boolean, default: true },
   /** Explicit Accounts Payable override */
   payableAccountId: {
     type: mongoose.Schema.Types.ObjectId,

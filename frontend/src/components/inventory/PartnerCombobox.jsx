@@ -63,8 +63,8 @@ export default function PartnerCombobox({
         queryKeyPrefix={queryKeyPrefix || (isVendor ? 'vendor-search' : 'customer-search')}
         fetchOptions={fetchOptions}
         placeholder={placeholder || (ar
-          ? (isVendor ? 'ابحث عن مورد…' : 'ابحث عن عميل…')
-          : (isVendor ? 'Search vendor…' : 'Search customer…'))}
+          ? (isVendor ? 'ابحث عن جهة اتصال (مورد)…' : 'ابحث عن جهة اتصال (عميل)…')
+          : (isVendor ? 'Search contact (vendor)…' : 'Search contact (customer)…'))}
         noResultsText={ar ? 'لا توجد نتائج' : 'No results found'}
         getOptionLabel={(c) => (ar && c.nameAr ? c.nameAr : c.name || c.nameEn) || c.customerCode || c.code || '—'}
         getOptionSub={(c) => [c.customerCode || c.code, c.vatNumber || c.taxNumber, c.phone || c.mobile, c.email]

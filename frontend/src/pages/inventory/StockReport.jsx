@@ -148,7 +148,7 @@ export default function StockReport() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-100 bg-slate-50/80 text-xs uppercase text-slate-500 dark:border-dark-600 dark:bg-dark-900/50">
             <tr>

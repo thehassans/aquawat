@@ -325,7 +325,7 @@ router.get('/uoms', checkPermission('inventory', 'read'), async (req, res) => {
     const filter = { ...req.tenantFilter };
     if (req.query.categoryId) filter.categoryId = req.query.categoryId;
     if (req.query.active !== 'false') filter.active = true;
-    return sendList(res, await InvUom.find(filter).sort({ name: 1 }));
+    return sendList(res, await InvUom.find(filter).populate('categoryId', 'name nameAr').sort({ name: 1 }));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -353,6 +353,32 @@ router.post('/uoms', checkPermission('inventory', 'create'), async (req, res) =>
 
 router.patch('/uoms/:id', checkPermission('inventory', 'update'), async (req, res) => {
   try {
+    const existing = await InvUom.findOne({ _id: req.params.id, ...req.tenantFilter }).lean();
+    if (!existing) return res.status(404).json({ error: 'UoM not found' });
+
+    const factorChanged = req.body.factor !== undefined && String(req.body.factor) !== String(existing.factor);
+    const roundingChanged = req.body.rounding !== undefined && String(req.body.rounding) !== String(existing.rounding);
+    if (factorChanged || roundingChanged) {
+      const Product = (await import('../models/Product.js')).default;
+      const productIds = await Product.find({
+        ...req.tenantFilter,
+        $or: [{ uomId: existing._id }, { purchaseUomId: existing._id }],
+      }).distinct('_id');
+      if (productIds.length) {
+        const activeStock = await InvQuant.findOne({
+          ...req.tenantFilter,
+          productId: { $in: productIds },
+          $expr: { $gt: [{ $toDouble: { $ifNull: ['$quantity', '0'] } }, 0] },
+        }).select('_id').lean();
+        if (activeStock) {
+          return res.status(409).json({
+            error: 'Cannot change Factor or Rounding while this UoM has active stock on hand. Doing so would recalculate historical valuations.',
+            code: 'UOM_ACTIVE_STOCK',
+          });
+        }
+      }
+    }
+
     const allowed = ['name', 'nameAr', 'factor', 'rounding', 'externalCode', 'active', 'uomType'];
     const $set = { updatedBy: req.user._id };
     for (const k of allowed) {

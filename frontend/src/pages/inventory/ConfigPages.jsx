@@ -1364,6 +1364,9 @@ export function InventoryUomPage() {
     factor: '1',
     rounding: '0.01',
   })
+  const [editingId, setEditingId] = useState(null)
+  const [editDraft, setEditDraft] = useState({ factor: '', rounding: '' })
+  const [uomWarning, setUomWarning] = useState('')
 
   const { data: cats } = useQuery({
     queryKey: ['inv-uom-categories'],
@@ -1375,6 +1378,33 @@ export function InventoryUomPage() {
   })
   const rows = uoms || []
   const categories = cats || []
+
+  const grouped = useMemo(() => {
+    const byCat = new Map()
+    for (const c of categories) {
+      byCat.set(String(c._id), {
+        id: String(c._id),
+        name: ar && c.nameAr ? c.nameAr : c.name,
+        items: [],
+      })
+    }
+    const uncategorized = { id: '_none', name: ar ? 'بدون فئة' : 'Uncategorized', items: [] }
+    for (const u of rows) {
+      const catRef = u.categoryId
+      const catId = String(catRef?._id || catRef || '')
+      let bucket = byCat.get(catId)
+      if (!bucket && catId) {
+        const label = (ar && catRef?.nameAr) ? catRef.nameAr : (catRef?.name || catId)
+        bucket = { id: catId, name: label, items: [] }
+        byCat.set(catId, bucket)
+      }
+      if (!bucket) bucket = uncategorized
+      bucket.items.push(u)
+    }
+    const groups = [...byCat.values()].filter((g) => g.items.length > 0)
+    if (uncategorized.items.length) groups.push(uncategorized)
+    return groups
+  }, [rows, categories, ar])
 
   const catMut = useMutation({
     mutationFn: () => api.post('/stock/uom-categories', catForm),
@@ -1396,12 +1426,53 @@ export function InventoryUomPage() {
     onError: (e) => toast.error(formatInvError(e, language)),
   })
 
+  const patchMut = useMutation({
+    mutationFn: ({ id, body }) => api.patch(`/stock/uoms/${id}`, body).then((r) => r.data),
+    onSuccess: () => {
+      toast.success(ar ? 'تم الحفظ' : 'Saved')
+      setEditingId(null)
+      setUomWarning('')
+      qc.invalidateQueries({ queryKey: ['inv-uoms'] })
+    },
+    onError: (e) => {
+      const code = e?.response?.data?.code
+      const msg = e?.response?.data?.error || formatInvError(e, language)
+      if (code === 'UOM_ACTIVE_STOCK') {
+        setUomWarning(msg)
+      }
+      toast.error(msg)
+    },
+  })
+
+  const startEdit = (u) => {
+    setEditingId(u._id)
+    setEditDraft({ factor: String(u.factor ?? '1'), rounding: String(u.rounding ?? '0.01') })
+    setUomWarning('')
+  }
+
+  const saveEdit = (u) => {
+    const factorChanged = String(editDraft.factor) !== String(u.factor)
+    const roundingChanged = String(editDraft.rounding) !== String(u.rounding)
+    if (factorChanged || roundingChanged) {
+      const ok = window.confirm(
+        ar
+          ? 'تحذير: تعديل العامل أو التقريب لوحدة لها مخزون نشط يعيد حساب التقييمات التاريخية وقد يُرفض. هل تريد المتابعة؟'
+          : 'Warning: Changing Factor or Rounding on a UoM with active stock recalculates historical valuations and may be blocked. Continue?',
+      )
+      if (!ok) return
+    }
+    patchMut.mutate({
+      id: u._id,
+      body: { factor: editDraft.factor, rounding: editDraft.rounding },
+    })
+  }
+
   return (
     <ListShell
       title={ar ? 'الوحدات والتعبئة' : 'Units & Packagings'}
       subtitle={ar
-        ? 'فئات وحدات القياس · عامل · تقريب (الاستهلاك يُقرّب للأعلى)'
-        : 'UoM categories · factor · rounding (consumption rounds up)'}
+        ? 'مجمّعة حسب الفئة · عامل · تقريب (الاستهلاك يُقرّب للأعلى)'
+        : 'Grouped by category · factor · rounding (consumption rounds up)'}
       action={(
         <Link to="/app/dashboard/inventory/product-packagings" className="btn btn-secondary btn-sm">
           {ar ? 'تعبئة المنتجات' : 'Product packagings'}
@@ -1452,30 +1523,92 @@ export function InventoryUomPage() {
           {ar ? 'إضافة وحدة' : 'Add UoM'}
         </button>
       </div>
-      {rows.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
-              <tr>
-                <th className="px-3 py-2">{ar ? 'الاسم' : 'Name'}</th>
-                <th className="px-3 py-2">{ar ? 'النوع' : 'Type'}</th>
-                <th className="px-3 py-2 text-right">Factor</th>
-                <th className="px-3 py-2 text-right">{ar ? 'التقريب' : 'Rounding'}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
-              {rows.map((u) => (
-                <tr key={u._id}>
-                  <td className="px-3 py-2.5 font-medium">{u.name}</td>
-                  <td className="px-3 py-2.5">{u.uomType}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{u.factor}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{u.rounding}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+      {uomWarning && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          {uomWarning}
+        </div>
+      )}
+
+      {grouped.length > 0 && (
+        <div className="space-y-4">
+          {grouped.map((group) => (
+            <div key={group.id} className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+              <div className="border-b border-slate-100 bg-slate-50/90 px-4 py-2.5 dark:border-dark-600 dark:bg-dark-900/50">
+                <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  {group.name}
+                </h3>
+              </div>
+              <table className="min-w-[720px] w-full text-sm">
+                <thead className="bg-white text-left text-xs uppercase text-slate-400 dark:bg-dark-800">
+                  <tr>
+                    <th className="min-w-[150px] px-3 py-2">{ar ? 'الاسم' : 'Name'}</th>
+                    <th className="min-w-[100px] px-3 py-2">{ar ? 'النوع' : 'Type'}</th>
+                    <th className="min-w-[100px] px-3 py-2 text-right">Factor</th>
+                    <th className="min-w-[100px] px-3 py-2 text-right">{ar ? 'التقريب' : 'Rounding'}</th>
+                    <th className="min-w-[120px] px-3 py-2 text-right">{ar ? 'إجراءات' : 'Actions'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
+                  {group.items.map((u) => {
+                    const isEditing = editingId === u._id
+                    return (
+                      <tr key={u._id}>
+                        <td className="min-w-[150px] px-3 py-2.5 font-medium text-slate-800 dark:text-slate-100">{u.name}</td>
+                        <td className="min-w-[100px] px-3 py-2.5 text-slate-500">{u.uomType}</td>
+                        <td className="min-w-[100px] px-3 py-2.5 text-right tabular-nums">
+                          {isEditing ? (
+                            <input
+                              className="input input-sm ms-auto w-24 text-end"
+                              value={editDraft.factor}
+                              onChange={(e) => setEditDraft((d) => ({ ...d, factor: e.target.value }))}
+                            />
+                          ) : u.factor}
+                        </td>
+                        <td className="min-w-[100px] px-3 py-2.5 text-right tabular-nums">
+                          {isEditing ? (
+                            <input
+                              className="input input-sm ms-auto w-24 text-end"
+                              value={editDraft.rounding}
+                              onChange={(e) => setEditDraft((d) => ({ ...d, rounding: e.target.value }))}
+                            />
+                          ) : u.rounding}
+                        </td>
+                        <td className="min-w-[120px] px-3 py-2.5 text-right">
+                          {isEditing ? (
+                            <div className="inline-flex gap-1.5">
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-xs"
+                                disabled={patchMut.isPending}
+                                onClick={() => saveEdit(u)}
+                              >
+                                {ar ? 'حفظ' : 'Save'}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-xs"
+                                onClick={() => { setEditingId(null); setUomWarning('') }}
+                              >
+                                {ar ? 'إلغاء' : 'Cancel'}
+                              </button>
+                            </div>
+                          ) : (
+                            <button type="button" className="btn btn-secondary btn-xs" onClick={() => startEdit(u)}>
+                              {ar ? 'تعديل' : 'Edit'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ))}
         </div>
       )}
     </ListShell>
   )
 }
+

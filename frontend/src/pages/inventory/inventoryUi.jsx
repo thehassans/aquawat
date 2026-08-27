@@ -1,5 +1,16 @@
 /** Shared inventory UI tokens — reuse Maqder primary/status classes only */
 
+/** Horizontal-scroll list tables: prevents column crush when sidebar opens */
+export const invTableWrapClass =
+  'overflow-x-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800'
+export const invTableClass = 'w-full min-w-[720px] text-sm'
+export const invThClass = 'min-w-[150px] px-4 py-3 text-start font-medium'
+export const invTdClass = 'min-w-[150px] px-4 py-3'
+export const invKpiCardClass =
+  'rounded-xl border border-slate-200/70 bg-slate-50/90 px-3.5 py-3 dark:border-dark-600 dark:bg-dark-900/50'
+export const invKpiLabelClass = 'text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400'
+export const invKpiValueClass = 'mt-1 text-lg font-semibold tabular-nums tracking-tight text-slate-800 dark:text-slate-100'
+
 export const TRANSFER_STATUS = {
   draft: {
     en: 'Draft',

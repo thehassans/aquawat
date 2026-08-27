@@ -52,16 +52,16 @@ export function DeliveryLineItems({
         />
       )}
 
-      <div className="overflow-hidden rounded-xl border border-slate-200/80 dark:border-dark-600">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+        <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-slate-50/90 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:bg-dark-900/50">
             <tr>
-              <th className="px-3 py-2.5 text-start">{ar ? 'المنتج' : 'Product'}</th>
-              <th className="px-3 py-2.5 text-start">{ar ? 'الوحدة' : 'UoM'}</th>
-              <th className="px-3 py-2.5 text-start">{ar ? 'الطلب' : 'Demand'}</th>
-              <th className="px-3 py-2.5 text-start">{ar ? 'المحجوز' : 'Reserved'}</th>
-              <th className="px-3 py-2.5 text-start">{ar ? 'المنجز' : 'Done'}</th>
-              <th className="px-3 py-2.5 text-start">{ar ? 'الحالة' : 'State'}</th>
+              <th className="min-w-[150px] px-3 py-2.5 text-start">{ar ? 'المنتج' : 'Product'}</th>
+              <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'الوحدة' : 'UoM'}</th>
+              <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'الطلب' : 'Demand'}</th>
+              <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'المحجوز' : 'Reserved'}</th>
+              <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'المنجز' : 'Done'}</th>
+              <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'الحالة' : 'State'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-dark-600">

@@ -72,6 +72,7 @@ async function buildScrapDoc(tid, userId, body, scrapLocationId, defaultUom) {
     transferId: body.transferId || null,
     reasonTag: body.reasonTag || body.scrapReasonTag,
     note: body.note,
+    sourceDocument: body.sourceDocument || body.origin || '',
     date: body.date ? new Date(body.date) : new Date(),
     responsibleId: body.responsibleId || userId,
     state: 'draft',
@@ -95,6 +96,7 @@ export async function createScrap(tenantId, userId, body) {
       date: line.date || body.date,
       reasonTag: line.reasonTag || body.reasonTag || body.scrapReasonTag,
       note: line.note || body.note,
+      sourceDocument: line.sourceDocument || body.sourceDocument || body.origin || '',
       transferId: body.transferId,
       responsibleId: body.responsibleId,
     }))

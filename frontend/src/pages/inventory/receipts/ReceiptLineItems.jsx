@@ -54,60 +54,75 @@ export function ReceiptDraftLines({
           </p>
         </div>
       ) : (
-        <div className="overflow-visible rounded-2xl border border-slate-200/80 dark:border-dark-600">
-          <div className="hidden grid-cols-[minmax(0,1.6fr)_minmax(5.5rem,8rem)_2.25rem] gap-2 border-b border-slate-100 px-3.5 py-2 text-[10px] font-medium uppercase tracking-[0.16em] text-slate-400 dark:border-dark-600 sm:grid">
-            <span>{ar ? 'المنتج' : 'Product'}</span>
-            <span>{ar ? 'الكمية' : 'Qty'}</span>
-            <span />
-          </div>
-          <div className="divide-y divide-slate-100/90 dark:divide-dark-600">
-            {lines.map((line, idx) => (
-              <div
-                key={`draft-${idx}`}
-                className="grid grid-cols-1 gap-2 px-3.5 py-2.5 sm:grid-cols-[minmax(0,1.6fr)_minmax(5.5rem,8rem)_2.25rem] sm:items-center"
-              >
-                <div className="min-w-0">
-                  <ProductChooser
-                    remote
-                    mode="inline"
-                    accent="sky"
-                    valueLabel={line.productName || ''}
-                    valueSub={line.sku || ''}
-                    onPick={(p) => onPickProduct(p, idx)}
-                    placeholder={ar ? 'اختر منتجاً…' : 'Pick product…'}
-                  />
-                  {line.sku && !line.productName ? (
-                    <div className="mt-1 font-mono text-[11px] text-slate-400">{line.sku}</div>
-                  ) : null}
-                  {variantsEnabled && line.needsVariant && Array.isArray(line.variants) && line.variants.length > 0 && (
-                    <select
-                      className="select mt-1 w-full text-xs"
-                      value={line.variantId || ''}
-                      onChange={(e) => onChangeLine(idx, { ...line, variantId: e.target.value })}
-                    >
-                      <option value="">{ar ? '— متغير —' : '— Variant —'}</option>
-                      {line.variants.map((v) => (
-                        <option key={v._id} value={v._id}>{v.name}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-                <input
-                  className="input input-sm w-full text-end tabular-nums"
-                  inputMode="decimal"
-                  value={line.demandQty}
-                  onChange={(e) => onChangeLine(idx, { ...line, demandQty: e.target.value })}
-                />
-                <button
-                  type="button"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                  onClick={() => onRemoveLine(idx)}
-                  aria-label="Remove"
+        <div className="overflow-x-auto overflow-y-visible rounded-2xl border border-slate-200/80 dark:border-dark-600">
+          <div className="min-w-[520px]">
+            <div className="hidden grid-cols-[minmax(0,1fr)_minmax(5.5rem,8rem)_2.25rem] gap-2 border-b border-slate-100 px-3.5 py-2 text-[10px] font-medium uppercase tracking-[0.16em] text-slate-400 dark:border-dark-600 sm:grid">
+              <span className="min-w-[150px]">{ar ? 'المنتج' : 'Product'}</span>
+              <span>{ar ? 'الكمية' : 'Qty'}</span>
+              <span />
+            </div>
+            <div className="divide-y divide-slate-100/90 dark:divide-dark-600">
+              {lines.map((line, idx) => (
+                <div
+                  key={`draft-${idx}`}
+                  className="grid grid-cols-1 gap-2 px-3.5 py-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(5.5rem,8rem)_2.25rem] sm:items-center"
                 >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
+                  <div className="relative z-10 min-w-0 overflow-visible">
+                    <ProductChooser
+                      remote
+                      mode="inline"
+                      accent="sky"
+                      valueLabel={line.productName || ''}
+                      valueSub={line.sku || ''}
+                      onPick={(p) => onPickProduct(p, idx)}
+                      placeholder={ar ? 'اختر منتجاً…' : 'Pick product…'}
+                    />
+                    {line.sku && !line.productName ? (
+                      <div className="mt-1 font-mono text-[11px] text-slate-400">{line.sku}</div>
+                    ) : null}
+                    {variantsEnabled && line.needsVariant && Array.isArray(line.variants) && line.variants.length > 0 && (
+                      <div className="relative z-20 mt-1 overflow-visible">
+                        <select
+                          className="select w-full text-xs"
+                          value={line.variantId || ''}
+                          onChange={(e) => {
+                            const variantId = e.target.value || null
+                            const selected = line.variants.find((v) => String(v._id) === String(variantId))
+                            onChangeLine(idx, {
+                              ...line,
+                              // Bind specific variant — never fall back to product/template id
+                              productId: line.productId,
+                              variantId,
+                              variantName: selected?.name || '',
+                              needsVariant: !variantId,
+                            })
+                          }}
+                        >
+                          <option value="">{ar ? '— متغير —' : '— Variant —'}</option>
+                          {line.variants.map((v) => (
+                            <option key={v._id} value={v._id}>{v.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    className="input input-sm w-full max-w-[8rem] text-end tabular-nums"
+                    inputMode="decimal"
+                    value={line.demandQty}
+                    onChange={(e) => onChangeLine(idx, { ...line, demandQty: e.target.value })}
+                  />
+                  <button
+                    type="button"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                    onClick={() => onRemoveLine(idx)}
+                    aria-label="Remove"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -156,15 +171,15 @@ export function ReceiptLineItems({
         />
       )}
 
-      <div className="overflow-hidden rounded-xl border border-slate-200/80 dark:border-dark-600">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-slate-50/90 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:bg-dark-900/50">
             <tr>
-              <th className="px-3 py-2.5 text-start">{ar ? 'المنتج' : 'Product'}</th>
-              <th className="px-3 py-2.5 text-start">{ar ? 'الوحدة' : 'UoM'}</th>
-              <th className="px-3 py-2.5 text-start">{ar ? 'الطلب' : 'Demand'}</th>
-              <th className="px-3 py-2.5 text-start">{ar ? 'المستلم' : 'Done'}</th>
-              <th className="px-3 py-2.5 text-start">{ar ? 'الحالة' : 'State'}</th>
+              <th className="min-w-[150px] px-3 py-2.5 text-start">{ar ? 'المنتج' : 'Product'}</th>
+              <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'الوحدة' : 'UoM'}</th>
+              <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'الطلب' : 'Demand'}</th>
+              <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'المستلم' : 'Done'}</th>
+              <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'الحالة' : 'State'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-dark-600">

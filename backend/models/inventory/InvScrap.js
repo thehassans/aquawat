@@ -15,6 +15,8 @@ const schema = new mongoose.Schema({
   scrapLocationId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvLocation', required: true },
   transferId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvTransfer', default: null },
   moveId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvMove', default: null },
+  /** Traceability: MO / receipt / transfer reference */
+  sourceDocument: { type: String, trim: true, default: '' },
   reasonTag: { type: String },
   note: { type: String },
   state: { type: String, enum: ['draft', 'done'], default: 'draft' },

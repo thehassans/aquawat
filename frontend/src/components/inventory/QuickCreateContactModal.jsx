@@ -3,10 +3,12 @@ import { X, Building2, User } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { formatInvError } from '../../lib/invError'
+import AsyncCombobox from '../ui/AsyncCombobox'
 
 /**
- * Lightweight contact create modal for inventory partner fields.
- * role: 'customer' | 'vendor'
+ * Unified contact create modal for inventory partner fields.
+ * role context sets hidden accounting flags (is_customer / is_vendor) — never asked of the user.
+ * Entity hierarchy: Individual | Company; individuals may link to a parent company.
  */
 export default function QuickCreateContactModal({
   open,
@@ -22,6 +24,8 @@ export default function QuickCreateContactModal({
   const [contactType, setContactType] = useState(isVendor ? 'company' : 'individual')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [parentCompanyId, setParentCompanyId] = useState('')
+  const [parentCompany, setParentCompany] = useState(null)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -30,6 +34,8 @@ export default function QuickCreateContactModal({
     setContactType(isVendor ? 'company' : 'individual')
     setEmail('')
     setPhone('')
+    setParentCompanyId('')
+    setParentCompany(null)
   }, [open, defaultName, isVendor])
 
   useEffect(() => {
@@ -40,6 +46,23 @@ export default function QuickCreateContactModal({
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [open, busy, onClose])
+
+  const fetchCompanies = async (q) => {
+    if (isVendor) {
+      const data = await api.get('/suppliers', {
+        params: { search: q, limit: 15, isActive: true },
+      }).then((r) => r.data)
+      const list = data?.suppliers || data?.data || (Array.isArray(data) ? data : [])
+      return (list || [])
+        .filter((s) => (s.type || 'company') !== 'individual')
+        .map((s) => ({
+          ...s,
+          name: s.nameEn || s.name || s.nameAr || '—',
+        }))
+    }
+    const rows = await api.get('/customers/search', { params: { q } }).then((r) => r.data || [])
+    return (Array.isArray(rows) ? rows : []).filter((c) => (c.type || 'business') !== 'individual')
+  }
 
   if (!open) return null
 
@@ -52,6 +75,9 @@ export default function QuickCreateContactModal({
     }
     setBusy(true)
     try {
+      // Contextual accounting flags — derived from where the contact is created
+      const is_customer = !isVendor
+      const is_vendor = isVendor
       let created
       if (isVendor) {
         const code = `S${Date.now().toString().slice(-7)}`
@@ -62,12 +88,18 @@ export default function QuickCreateContactModal({
           type: contactType === 'individual' ? 'individual' : 'company',
           email: email.trim() || undefined,
           phone: phone.trim() || undefined,
+          parentCompanyId: contactType === 'individual' && parentCompanyId ? parentCompanyId : undefined,
+          isVendor: true,
+          isCustomer: false,
+          is_vendor: true,
+          is_customer: false,
           isActive: true,
         }).then((r) => r.data)
-        // Normalize shape for combobox (Receipts expect name)
         created = {
           ...created,
           name: created.nameEn || created.name || trimmed,
+          is_vendor,
+          is_customer,
         }
       } else {
         created = await api.post('/customers', {
@@ -76,8 +108,14 @@ export default function QuickCreateContactModal({
           nameAr: trimmed,
           email: email.trim() || undefined,
           phone: phone.trim() || undefined,
+          parentCompanyId: contactType === 'individual' && parentCompanyId ? parentCompanyId : undefined,
+          isCustomer: true,
+          isVendor: false,
+          is_customer: true,
+          is_vendor: false,
           isActive: true,
         }).then((r) => r.data)
+        created = { ...created, is_customer, is_vendor }
       }
       toast.success(ar ? 'تم إنشاء جهة الاتصال' : 'Contact created')
       onCreated?.(created)
@@ -98,13 +136,13 @@ export default function QuickCreateContactModal({
       >
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-dark-600">
           <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-              {isVendor
-                ? (ar ? 'إنشاء مورد سريع' : 'Quick Create Vendor')
-                : (ar ? 'إنشاء عميل سريع' : 'Quick Create Customer')}
+            <h2 className="text-base font-semibold text-slate-800 dark:text-white">
+              {ar ? 'إنشاء جهة اتصال' : 'Create contact'}
             </h2>
             <p className="mt-0.5 text-xs text-slate-400">
-              {ar ? 'أدخل البيانات الأساسية فقط' : 'Enter basic details only'}
+              {isVendor
+                ? (ar ? 'سيُعلَّم كمورد تلقائياً من سياق الاستلام' : 'Marked as vendor from receipt context')
+                : (ar ? 'سيُعلَّم كعميل تلقائياً من سياق التسليم' : 'Marked as customer from delivery context')}
             </p>
           </div>
           <button
@@ -117,6 +155,46 @@ export default function QuickCreateContactModal({
         </div>
 
         <div className="space-y-4 px-5 py-4">
+          <div>
+            <span className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-300">
+              {ar ? 'الكيان' : 'Entity'}
+            </span>
+            <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100/80 p-1 dark:bg-dark-700" role="radiogroup">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={contactType === 'individual'}
+                className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                  contactType === 'individual'
+                    ? 'bg-white text-slate-800 shadow-sm dark:bg-dark-800 dark:text-white'
+                    : 'text-slate-500'
+                }`}
+                onClick={() => setContactType('individual')}
+              >
+                <User className="h-3.5 w-3.5" />
+                {ar ? 'فرد' : 'Individual'}
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={contactType === 'company'}
+                className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                  contactType === 'company'
+                    ? 'bg-white text-slate-800 shadow-sm dark:bg-dark-800 dark:text-white'
+                    : 'text-slate-500'
+                }`}
+                onClick={() => {
+                  setContactType('company')
+                  setParentCompanyId('')
+                  setParentCompany(null)
+                }}
+              >
+                <Building2 className="h-3.5 w-3.5" />
+                {ar ? 'شركة' : 'Company'}
+              </button>
+            </div>
+          </div>
+
           <label className="block text-sm">
             <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
               {ar ? 'الاسم' : 'Name'}
@@ -131,37 +209,29 @@ export default function QuickCreateContactModal({
             />
           </label>
 
-          <div>
-            <span className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-300">
-              {ar ? 'نوع الاتصال' : 'Contact Type'}
-            </span>
-            <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100/80 p-1 dark:bg-dark-700">
-              <button
-                type="button"
-                className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
-                  contactType === 'individual'
-                    ? 'bg-white text-slate-900 shadow-sm dark:bg-dark-800 dark:text-white'
-                    : 'text-slate-500'
-                }`}
-                onClick={() => setContactType('individual')}
-              >
-                <User className="h-3.5 w-3.5" />
-                {ar ? 'فرد' : 'Individual'}
-              </button>
-              <button
-                type="button"
-                className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
-                  contactType === 'company'
-                    ? 'bg-white text-slate-900 shadow-sm dark:bg-dark-800 dark:text-white'
-                    : 'text-slate-500'
-                }`}
-                onClick={() => setContactType('company')}
-              >
-                <Building2 className="h-3.5 w-3.5" />
-                {ar ? (isVendor ? 'مورد / شركة' : 'شركة') : (isVendor ? 'Company / Vendor' : 'Company')}
-              </button>
+          {contactType === 'individual' && (
+            <div className="block text-sm">
+              <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
+                {ar ? 'الشركة المرتبطة' : 'Linked company'}
+              </span>
+              <AsyncCombobox
+                value={parentCompanyId}
+                selectedOption={parentCompany}
+                debounceMs={300}
+                minChars={1}
+                queryKeyPrefix={isVendor ? 'vendor-parent-co' : 'customer-parent-co'}
+                fetchOptions={fetchCompanies}
+                placeholder={ar ? 'ابحث عن شركة…' : 'Search company…'}
+                noResultsText={ar ? 'لا توجد نتائج' : 'No results found'}
+                getOptionLabel={(c) => (ar && c.nameAr ? c.nameAr : c.name || c.nameEn) || '—'}
+                getOptionSub={(c) => [c.customerCode || c.code, c.vatNumber].filter(Boolean).join(' · ')}
+                onChange={(id, opt) => {
+                  setParentCompanyId(id || '')
+                  setParentCompany(opt || null)
+                }}
+              />
             </div>
-          </div>
+          )}
 
           <label className="block text-sm">
             <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">

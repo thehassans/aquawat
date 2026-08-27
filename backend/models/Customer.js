@@ -153,6 +153,9 @@ const customerSchema = new mongoose.Schema({
     ref: 'Customer',
     default: null,
   },
+  /** Accounting role flags — set from creation context, not manual UI */
+  isCustomer: { type: Boolean, default: true },
+  isVendor: { type: Boolean, default: false },
   /** Explicit Accounts Receivable override */
   receivableAccountId: {
     type: mongoose.Schema.Types.ObjectId,

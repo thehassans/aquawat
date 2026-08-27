@@ -336,6 +336,12 @@ export default function ManufacturingForm() {
       toast.error(ar ? 'أضف مكوناً واحداً على الأقل' : 'Add at least one component')
       return
     }
+    for (const l of cleanLines) {
+      if (l.needsVariant && !l.variantId) {
+        toast.error(ar ? 'اختر المتغير لكل مكون' : 'Select a variant for each component')
+        return
+      }
+    }
     createMut.mutate({
       operationTypeId: values.operationTypeId,
       partnerId: values.partnerId || undefined,

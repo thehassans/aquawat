@@ -97,18 +97,18 @@ export function ScrapList() {
           placeholder={ar ? 'بحث بالمرجع أو المنتج…' : 'Search reference or product…'}
         />
       </div>
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-        <table className="w-full min-w-[720px] text-sm">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+        <table className="w-full min-w-[900px] text-sm">
           <thead className="border-b border-slate-100 bg-slate-50/80 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:border-dark-600">
             <tr>
-              <th className="px-4 py-3 text-start">{ar ? 'المرجع' : 'Reference'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'المنتج' : 'Product'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'الكمية' : 'Qty'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'الوحدة' : 'UoM'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'المصدر' : 'Source'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'الخردة' : 'Scrap loc'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'التاريخ' : 'Date'}</th>
-              <th className="px-4 py-3 text-start">{ar ? 'الحالة' : 'Status'}</th>
+              <th className="min-w-[150px] px-4 py-3 text-start">{ar ? 'المرجع' : 'Reference'}</th>
+              <th className="min-w-[150px] px-4 py-3 text-start">{ar ? 'المنتج' : 'Product'}</th>
+              <th className="min-w-[100px] px-4 py-3 text-start">{ar ? 'الكمية' : 'Qty'}</th>
+              <th className="min-w-[100px] px-4 py-3 text-start">{ar ? 'الوحدة' : 'UoM'}</th>
+              <th className="min-w-[150px] px-4 py-3 text-start">{ar ? 'المصدر' : 'Source'}</th>
+              <th className="min-w-[150px] px-4 py-3 text-start">{ar ? 'الخردة' : 'Scrap loc'}</th>
+              <th className="min-w-[120px] px-4 py-3 text-start">{ar ? 'التاريخ' : 'Date'}</th>
+              <th className="min-w-[100px] px-4 py-3 text-start">{ar ? 'الحالة' : 'Status'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50 dark:divide-dark-700">
@@ -197,6 +197,7 @@ export function ScrapForm() {
     scrapLocationId: '',
     date: new Date().toISOString().slice(0, 16),
     reasonTag: '',
+    sourceDocument: '',
   })
   const [lines, setLines] = useState([emptyLine()])
 
@@ -319,6 +320,7 @@ export function ScrapForm() {
       scrapLocationId: header.scrapLocationId,
       date: header.date || undefined,
       reasonTag: header.reasonTag,
+      sourceDocument: header.sourceDocument?.trim() || undefined,
       lines: validLines.map((l) => ({
         productId: l.productId,
         quantity: l.quantity,
@@ -359,7 +361,7 @@ export function ScrapForm() {
 
       {isNew ? (
         <form onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <label className="block text-sm sm:col-span-1">
               <span className="label">{ar ? 'التاريخ' : 'Date'} <span className="text-rose-500">*</span></span>
               <input
@@ -399,6 +401,15 @@ export function ScrapForm() {
               </select>
             </label>
             <label className="block text-sm">
+              <span className="label">{ar ? 'المستند المصدر' : 'Source document'}</span>
+              <input
+                className="input mt-1 w-full"
+                value={header.sourceDocument}
+                onChange={(e) => setHeader((h) => ({ ...h, sourceDocument: e.target.value }))}
+                placeholder={ar ? 'أمر تصنيع / استلام / مرجع…' : 'MO / receipt / transfer ref…'}
+              />
+            </label>
+            <label className="block text-sm sm:col-span-2">
               <span className="label">{ar ? 'السبب' : 'Reason'}</span>
               <input
                 className="input mt-1 w-full"
@@ -429,93 +440,102 @@ export function ScrapForm() {
               </button>
             </div>
 
-            <div className="overflow-visible rounded-2xl border border-slate-200/80 dark:border-dark-600">
-              <div className="hidden grid-cols-[minmax(0,1.5fr)_minmax(6.5rem,10rem)_minmax(5rem,8rem)_4.75rem_2.25rem] gap-2 border-b border-slate-100 px-3.5 py-2 text-[10px] font-medium uppercase tracking-[0.16em] text-slate-400 dark:border-dark-600 sm:grid">
-                <span>{ar ? 'المنتج' : 'Product'}</span>
-                <span>{ar ? 'المتغير' : 'Variant'}</span>
-                <span>{ar ? 'الوحدة' : 'UoM'}</span>
-                <span>{ar ? 'الكمية' : 'Qty'}</span>
-                <span />
-              </div>
-              <div className="divide-y divide-slate-100/90 dark:divide-dark-600">
-                {lines.map((line, idx) => (
-                  <div
-                    key={idx}
-                    className="grid items-center gap-2 px-3.5 py-2.5 sm:grid-cols-[minmax(0,1.5fr)_minmax(6.5rem,10rem)_minmax(5rem,8rem)_4.75rem_2.25rem]"
-                  >
-                    <div className="min-w-0">
-                      <ProductChooser
-                        mode="inline"
-                        remote
-                        valueLabel={line.productName || ''}
-                        valueSub={line.sku ? line.sku : ''}
-                        onPick={(p) => pickProduct(p, idx)}
-                        placeholder={ar ? '— اختر من البحث —' : '— Pick from search —'}
-                      />
-                    </div>
-                    {(line.variants || []).length > 0 ? (
+            <div className="overflow-x-auto overflow-y-visible rounded-2xl border border-slate-200/80 dark:border-dark-600">
+              <div className="min-w-[640px]">
+                <div className="hidden grid-cols-[minmax(0,1.5fr)_minmax(6.5rem,10rem)_minmax(5rem,8rem)_4.75rem_2.25rem] gap-2 border-b border-slate-100 px-3.5 py-2 text-[10px] font-medium uppercase tracking-[0.16em] text-slate-400 dark:border-dark-600 sm:grid">
+                  <span className="min-w-[150px]">{ar ? 'المنتج' : 'Product'}</span>
+                  <span>{ar ? 'المتغير' : 'Variant'}</span>
+                  <span>{ar ? 'الوحدة' : 'UoM'}</span>
+                  <span>{ar ? 'الكمية' : 'Qty'}</span>
+                  <span />
+                </div>
+                <div className="divide-y divide-slate-100/90 dark:divide-dark-600">
+                  {lines.map((line, idx) => (
+                    <div
+                      key={idx}
+                      className="relative z-0 grid items-center gap-2 px-3.5 py-2.5 sm:grid-cols-[minmax(0,1.5fr)_minmax(6.5rem,10rem)_minmax(5rem,8rem)_4.75rem_2.25rem]"
+                    >
+                      <div className="relative z-10 min-w-0 overflow-visible">
+                        <ProductChooser
+                          mode="inline"
+                          remote
+                          valueLabel={line.productName || ''}
+                          valueSub={line.sku ? line.sku : ''}
+                          onPick={(p) => pickProduct(p, idx)}
+                          placeholder={ar ? '— اختر من البحث —' : '— Pick from search —'}
+                        />
+                      </div>
+                      {(line.variants || []).length > 0 ? (
+                        <div className="relative z-30 overflow-visible">
+                          <select
+                            className="select select-sm relative z-30 w-full border-slate-200/90"
+                            value={line.variantId || ''}
+                            onChange={(e) => {
+                              const id = e.target.value
+                              const v = line.variants.find((x) => String(x._id) === String(id))
+                              setLines((rows) => {
+                                const next = [...rows]
+                                next[idx] = {
+                                  ...line,
+                                  productId: line.productId,
+                                  variantId: id || '',
+                                  variantName: v?.name || '',
+                                }
+                                return next
+                              })
+                            }}
+                          >
+                            <option value="">{ar ? '— متغير —' : '— Variant —'}</option>
+                            {line.variants.map((v) => (
+                              <option key={v._id} value={v._id}>{v.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-slate-300">{line.variantName || '—'}</div>
+                      )}
                       <select
                         className="select select-sm border-slate-200/90"
-                        value={line.variantId || ''}
+                        value={line.uomId || ''}
                         onChange={(e) => {
                           const id = e.target.value
-                          const v = line.variants.find((x) => String(x._id) === String(id))
+                          const u = uoms.find((x) => String(x._id) === String(id))
                           setLines((rows) => {
                             const next = [...rows]
-                            next[idx] = { ...line, variantId: id, variantName: v?.name || '' }
+                            next[idx] = { ...line, uomId: id, uomLabel: u?.name || line.uomLabel }
                             return next
                           })
                         }}
                       >
-                        <option value="">{ar ? '— متغير —' : '— Variant —'}</option>
-                        {line.variants.map((v) => (
-                          <option key={v._id} value={v._id}>{v.name}</option>
+                        <option value="">{line.uomLabel || (ar ? 'افتراضي' : 'Default')}</option>
+                        {uoms.map((u) => (
+                          <option key={u._id} value={u._id}>{ar && u.nameAr ? u.nameAr : u.name}</option>
                         ))}
                       </select>
-                    ) : (
-                      <div className="text-xs text-slate-300">{line.variantName || '—'}</div>
-                    )}
-                    <select
-                      className="select select-sm border-slate-200/90"
-                      value={line.uomId || ''}
-                      onChange={(e) => {
-                        const id = e.target.value
-                        const u = uoms.find((x) => String(x._id) === String(id))
-                        setLines((rows) => {
-                          const next = [...rows]
-                          next[idx] = { ...line, uomId: id, uomLabel: u?.name || line.uomLabel }
-                          return next
-                        })
-                      }}
-                    >
-                      <option value="">{line.uomLabel || (ar ? 'افتراضي' : 'Default')}</option>
-                      {uoms.map((u) => (
-                        <option key={u._id} value={u._id}>{ar && u.nameAr ? u.nameAr : u.name}</option>
-                      ))}
-                    </select>
-                    <input
-                      className="input input-sm border-slate-200/90 text-end tabular-nums"
-                      inputMode="decimal"
-                      value={line.quantity}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        setLines((rows) => {
-                          const next = [...rows]
-                          next[idx] = { ...line, quantity: v }
-                          return next
-                        })
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-rose-50 hover:text-rose-600"
-                      onClick={() => setLines((rows) => (rows.length <= 1 ? [emptyLine()] : rows.filter((_, i) => i !== idx)))}
-                      aria-label={ar ? 'حذف' : 'Remove'}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
+                      <input
+                        className="input input-sm border-slate-200/90 text-end tabular-nums"
+                        inputMode="decimal"
+                        value={line.quantity}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          setLines((rows) => {
+                            const next = [...rows]
+                            next[idx] = { ...line, quantity: v }
+                            return next
+                          })
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-rose-50 hover:text-rose-600"
+                        onClick={() => setLines((rows) => (rows.length <= 1 ? [emptyLine()] : rows.filter((_, i) => i !== idx)))}
+                        aria-label={ar ? 'حذف' : 'Remove'}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -526,7 +546,7 @@ export function ScrapForm() {
         </form>
       ) : (
         <div className="space-y-4 rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 text-sm">
             <div>
               <div className="text-xs text-slate-500">{ar ? 'التاريخ' : 'Date'}</div>
               <div className="font-medium">{scrap?.date ? new Date(scrap.date).toLocaleString() : '—'}</div>
@@ -540,19 +560,27 @@ export function ScrapForm() {
               <div className="font-medium text-xs">{scrap?.scrapLocationId?.completePath || '—'}</div>
             </div>
             <div>
+              <div className="text-xs text-slate-500">{ar ? 'المستند المصدر' : 'Source document'}</div>
+              <div className="font-medium text-xs">{scrap?.sourceDocument || '—'}</div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">{ar ? 'السبب' : 'Reason'}</div>
+              <div className="font-medium text-xs">{scrap?.reasonTag || '—'}</div>
+            </div>
+            <div>
               <div className="text-xs text-slate-500">{ar ? 'الحالة' : 'Status'}</div>
               <StatusChip status={scrap?.state === 'done' ? 'done' : 'draft'} language={language} />
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-slate-100 dark:border-dark-600">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-dark-600">
+            <table className="w-full min-w-[520px] text-sm">
               <thead className="bg-slate-50/90 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:bg-dark-900/50">
                 <tr>
-                  <th className="px-3 py-2.5 text-start">{ar ? 'المنتج' : 'Product'}</th>
-                  <th className="px-3 py-2.5 text-start">{ar ? 'المتغير' : 'Variant'}</th>
-                  <th className="px-3 py-2.5 text-start">{ar ? 'الوحدة' : 'UoM'}</th>
-                  <th className="px-3 py-2.5 text-start">{ar ? 'الكمية' : 'Qty'}</th>
+                  <th className="min-w-[150px] px-3 py-2.5 text-start">{ar ? 'المنتج' : 'Product'}</th>
+                  <th className="min-w-[120px] px-3 py-2.5 text-start">{ar ? 'المتغير' : 'Variant'}</th>
+                  <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'الوحدة' : 'UoM'}</th>
+                  <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'الكمية' : 'Qty'}</th>
                 </tr>
               </thead>
               <tbody>

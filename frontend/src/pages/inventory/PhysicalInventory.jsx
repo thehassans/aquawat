@@ -363,7 +363,8 @@ export default function PhysicalInventory() {
           <button
             type="button"
             className="btn btn-secondary text-sm"
-            disabled={!selected.size}
+            disabled={selected.size === 0}
+            title={selected.size === 0 ? (ar ? 'حدد أسطراً أولاً' : 'Select rows first') : undefined}
             onClick={() => openApply([...selected])}
           >
             {ar ? `تطبيق المحدد (${selected.size})` : `Apply Selected (${selected.size})`}
@@ -485,12 +486,24 @@ export default function PhysicalInventory() {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-sm sm:grid-cols-5 dark:border-dark-600 dark:bg-dark-900/40">
-        <div><div className="text-xs text-slate-500">{ar ? 'أسطر للعد' : 'Lines to count'}</div><div className="tabular-nums font-semibold">{totals.linesToCount ?? meta.total ?? 0}</div></div>
-        <div><div className="text-xs text-slate-500">{ar ? 'تم العد' : 'Lines counted'}</div><div className="tabular-nums font-semibold">{totals.linesCounted ?? 0}</div></div>
-        <div><div className="text-xs text-slate-500">{ar ? 'فرق +' : 'Positive Δ'}</div><div className="tabular-nums font-semibold text-emerald-600">{totals.positiveDiff ?? '0'}</div></div>
-        <div><div className="text-xs text-slate-500">{ar ? 'فرق −' : 'Negative Δ'}</div><div className="tabular-nums font-semibold text-rose-600">{totals.negativeDiff ?? '0'}</div></div>
-        <div><div className="text-xs text-slate-500">{ar ? 'صافي القيمة (ر.س)' : 'Net value (SAR)'}</div><div className="tabular-nums font-semibold">{totals.netValueImpact ?? '0'}</div></div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {[
+          { label: ar ? 'أسطر للعد' : 'Lines to count', value: totals.linesToCount ?? meta.total ?? 0 },
+          { label: ar ? 'تم العد' : 'Lines counted', value: totals.linesCounted ?? 0 },
+          { label: ar ? 'فرق +' : 'Positive Δ', value: totals.positiveDiff ?? '0', tone: 'text-emerald-700 dark:text-emerald-400' },
+          { label: ar ? 'فرق −' : 'Negative Δ', value: totals.negativeDiff ?? '0', tone: 'text-amber-700 dark:text-amber-400' },
+          { label: ar ? 'صافي القيمة (ر.س)' : 'Net value (SAR)', value: totals.netValueImpact ?? '0' },
+        ].map((kpi) => (
+          <div
+            key={kpi.label}
+            className="rounded-xl border border-slate-200/70 bg-slate-50/90 px-3.5 py-3 dark:border-dark-600 dark:bg-dark-900/50"
+          >
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{kpi.label}</div>
+            <div className={`mt-1 text-lg font-semibold tabular-nums tracking-tight ${kpi.tone || 'text-slate-800 dark:text-slate-100'}`}>
+              {kpi.value}
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -554,31 +567,34 @@ export default function PhysicalInventory() {
         </div>
       )}
 
-      {selected.size > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className="btn btn-primary text-sm" onClick={() => openApply([...selected])}>
-            {ar ? `تطبيق (${selected.size})` : `Apply (${selected.size})`}
-          </button>
-        </div>
-      )}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="btn btn-primary text-sm"
+          disabled={selected.size === 0}
+          onClick={() => openApply([...selected])}
+        >
+          {ar ? `تطبيق المحدد (${selected.size})` : `Apply Selected (${selected.size})`}
+        </button>
+      </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
         <table className="w-full min-w-[1100px] text-sm">
           <thead className="border-b border-slate-100 bg-slate-50/80 text-xs uppercase text-slate-500 dark:border-dark-600 dark:bg-dark-900/50">
             <tr>
               <th className="px-3 py-3 w-10" />
-              <th className="px-3 py-3 text-start">{ar ? 'الموقع' : 'Location'}</th>
-              <th className="px-3 py-3 text-start">{ar ? 'المنتج' : 'Product'}</th>
-              {visibleCols.lot && <th className="px-3 py-3 text-start">{ar ? 'دفعة' : 'Lot/Serial'}</th>}
-              {visibleCols.package && <th className="px-3 py-3 text-start">{ar ? 'عبوة' : 'Package'}</th>}
-              {!blindMode && visibleCols.onHand && <th className="px-3 py-3 text-start">{ar ? 'المتاح' : 'On Hand'}</th>}
-              {visibleCols.uom && <th className="px-3 py-3 text-start">{ar ? 'وحدة' : 'UoM'}</th>}
-              <th className="px-3 py-3 text-start">{ar ? 'العد' : 'Counted'}</th>
-              {!blindMode && visibleCols.diff && <th className="px-3 py-3 text-start">{ar ? 'الفرق' : 'Diff'}</th>}
-              {visibleCols.scheduled && <th className="px-3 py-3 text-start">{ar ? 'مجدول' : 'Scheduled'}</th>}
-              {visibleCols.user && <th className="px-3 py-3 text-start">{ar ? 'المستخدم' : 'User'}</th>}
-              {visibleCols.lastCount && <th className="px-3 py-3 text-start">{ar ? 'آخر جرد' : 'Last count'}</th>}
-              <th className="px-3 py-3 text-start">{ar ? 'إجراءات' : 'Actions'}</th>
+              <th className="min-w-[150px] px-3 py-3 text-start">{ar ? 'الموقع' : 'Location'}</th>
+              <th className="min-w-[180px] px-3 py-3 text-start">{ar ? 'المنتج' : 'Product'}</th>
+              {visibleCols.lot && <th className="min-w-[120px] px-3 py-3 text-start">{ar ? 'دفعة' : 'Lot/Serial'}</th>}
+              {visibleCols.package && <th className="min-w-[120px] px-3 py-3 text-start">{ar ? 'عبوة' : 'Package'}</th>}
+              {!blindMode && visibleCols.onHand && <th className="min-w-[100px] px-3 py-3 text-start">{ar ? 'المتاح' : 'On Hand'}</th>}
+              {visibleCols.uom && <th className="min-w-[100px] px-3 py-3 text-start">{ar ? 'وحدة' : 'UoM'}</th>}
+              <th className="min-w-[120px] px-3 py-3 text-start">{ar ? 'العد' : 'Counted'}</th>
+              {!blindMode && visibleCols.diff && <th className="min-w-[100px] px-3 py-3 text-start">{ar ? 'الفرق' : 'Diff'}</th>}
+              {visibleCols.scheduled && <th className="min-w-[120px] px-3 py-3 text-start">{ar ? 'مجدول' : 'Scheduled'}</th>}
+              {visibleCols.user && <th className="min-w-[120px] px-3 py-3 text-start">{ar ? 'المستخدم' : 'User'}</th>}
+              {visibleCols.lastCount && <th className="min-w-[120px] px-3 py-3 text-start">{ar ? 'آخر جرد' : 'Last count'}</th>}
+              <th className="min-w-[120px] px-3 py-3 text-start">{ar ? 'إجراءات' : 'Actions'}</th>
             </tr>
           </thead>
           <tbody>

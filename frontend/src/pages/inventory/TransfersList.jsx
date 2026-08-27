@@ -237,12 +237,12 @@ export default function TransfersList() {
           </p>
         )}
 
-        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="border-b border-slate-100 bg-slate-50/80 text-start text-xs uppercase tracking-wide text-slate-500 dark:border-dark-600 dark:bg-dark-900/50">
               <tr>
                 {activeColumns.map((col) => (
-                  <th key={col.id} className="px-4 py-3 font-medium">
+                  <th key={col.id} className="min-w-[150px] px-4 py-3 font-medium">
                     {ar ? col.labelAr : col.labelEn}
                   </th>
                 ))}
@@ -257,7 +257,7 @@ export default function TransfersList() {
                   {activeColumns.map((col) => {
                     if (col.id === 'reference') {
                       return (
-                        <td key={col.id} className="px-4 py-3">
+                        <td key={col.id} className="min-w-[150px] px-4 py-3">
                           <Link
                             to={`${basePath}/${t._id}`}
                             className="font-medium text-sky-800 hover:underline dark:text-sky-300"
@@ -269,7 +269,7 @@ export default function TransfersList() {
                     }
                     if (col.id === 'status') {
                       return (
-                        <td key={col.id} className="px-4 py-3">
+                        <td key={col.id} className="min-w-[150px] px-4 py-3">
                           <StatusChip status={t.state} language={language} />
                         </td>
                       )
@@ -277,7 +277,7 @@ export default function TransfersList() {
                     return (
                       <td
                         key={col.id}
-                        className={`px-4 py-3 ${
+                        className={`min-w-[150px] px-4 py-3 ${
                           col.id === 'scheduled' || col.id === 'createdAt'
                             ? 'tabular-nums text-slate-500'
                             : col.id === 'partner'
