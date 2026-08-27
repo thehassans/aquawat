@@ -39,6 +39,27 @@ import { printThermalElement, getThermalPrinterSettings } from '../../lib/therma
 import { getZatcaStatusMeta, isEditableInvoice } from '../../lib/zatcaStatus'
 import { getTravelInvoiceLabelMeta, isTravelAgencyInvoice } from '../../lib/travelInvoiceStatus'
 import { isSaudiTenant } from '../../lib/saudiTenant'
+import {
+  chipFilterClass,
+  docLinkClass,
+  emptyStateClass,
+  fieldControlClass,
+  filterBarClass,
+  listShellClass,
+  pageSubtitleClass,
+  pageTitleClass,
+  paginationBarClass,
+  rowActionBtnClass,
+  rowActionDangerClass,
+  rowActionPrimaryClass,
+  rowActionsWrapClass,
+  salesTdClass,
+  salesThClass,
+  salesTrClass,
+  salesTableClass,
+  sectionEyebrowClass,
+  softChipClass,
+} from '../sales/salesUi'
 
 const trimPartyName = (value) => String(value || '').trim()
 
@@ -628,10 +649,11 @@ export default function Invoices() {
       </AnimatePresence>
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('invoices')}</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
+          <p className={sectionEyebrowClass}>{language === 'ar' ? 'المبيعات' : 'Sales'}</p>
+          <h1 className={pageTitleClass}>{t('invoices')}</h1>
+          <p className={pageSubtitleClass}>
             {language === 'ar' ? 'إدارة الفواتير الضريبية والمبسطة' : 'Manage tax and simplified invoices'}
           </p>
         </div>
@@ -656,10 +678,10 @@ export default function Invoices() {
       </div>
 
       {/* Filters */}
-      <div className="card p-4 space-y-3">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1 relative">
-            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+      <div className={filterBarClass}>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               placeholder={language === 'ar'
@@ -670,7 +692,7 @@ export default function Invoices() {
                 setSearch(e.target.value)
                 resetPaging()
               }}
-              className="input ps-10"
+              className={`${fieldControlClass} ps-10`}
             />
           </div>
           <select
@@ -679,7 +701,7 @@ export default function Invoices() {
               setFilters({ ...filters, flow: e.target.value })
               resetPaging()
             }}
-            className="select w-full sm:w-52"
+            className={`${fieldControlClass} w-full sm:w-52`}
           >
             <option value="">{language === 'ar' ? 'كل الأقسام (مبيعات ومشتريات)' : 'All (Sales & Purchases)'}</option>
             <option value="sell">{language === 'ar' ? 'فواتير مبيعات' : 'Sales Invoices'}</option>
@@ -691,7 +713,7 @@ export default function Invoices() {
               setFilters({ ...filters, businessContext: e.target.value })
               resetPaging()
             }}
-            className="select w-full sm:w-52"
+            className={`${fieldControlClass} w-full sm:w-52`}
           >
             <option value="">{language === 'ar' ? 'كل الأنواع' : 'All Types'}</option>
             {tenantBusinessTypes.map((businessType) => (
@@ -704,7 +726,7 @@ export default function Invoices() {
               setFilters({ ...filters, status: e.target.value })
               resetPaging()
             }}
-            className="select w-full sm:w-40"
+            className={`${fieldControlClass} w-full sm:w-40`}
           >
             <option value="">{language === 'ar' ? 'كل الحالات' : 'All Status'}</option>
             <option value="draft">{language === 'ar' ? 'مسودة' : 'Draft'}</option>
@@ -717,7 +739,7 @@ export default function Invoices() {
               setFilters({ ...filters, paymentStatus: e.target.value })
               resetPaging()
             }}
-            className="select w-full sm:w-40"
+            className={`${fieldControlClass} w-full sm:w-40`}
           >
             <option value="">{language === 'ar' ? 'كل حالات الدفع' : 'All payments'}</option>
             <option value="pending">{language === 'ar' ? 'غير مدفوعة' : 'Unpaid'}</option>
@@ -726,7 +748,6 @@ export default function Invoices() {
             <option value="overdue">{language === 'ar' ? 'متأخرة' : 'Overdue'}</option>
           </select>
         </div>
-        {/* ZATCA status quick-filter chips */}
         {isSarTenant && tenant?.zatca?.phase !== 1 && (
         <div className="flex flex-wrap gap-2">
           {zatcaFilterOptions.map((opt) => (
@@ -734,18 +755,14 @@ export default function Invoices() {
               key={opt.value}
               type="button"
               onClick={() => { setZatcaFilter(opt.value); resetPaging() }}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                zatcaFilter === opt.value
-                  ? 'bg-primary-600 text-white border-primary-600'
-                  : 'bg-white dark:bg-dark-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-dark-600 hover:border-primary-400'
-              }`}
+              className={chipFilterClass(zatcaFilter === opt.value)}
             >
               {opt.icon}{opt.label}
             </button>
           ))}
           {(isFetching && !isLoading) && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-400">
-              <div className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-400">
+              <div className="w-3 h-3 border-2 border-slate-300 border-t-transparent rounded-full animate-spin" />
               {language === 'ar' ? 'جارٍ التحديث...' : 'Updating...'}
             </span>
           )}
@@ -757,7 +774,7 @@ export default function Invoices() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="card"
+        className={listShellClass}
       >
         {isLoading ? (
           <div className="p-8 text-center">
@@ -767,31 +784,31 @@ export default function Invoices() {
           <>
             <ResponsiveDataList
               items={data?.invoices || []}
-              empty={<p className="p-6 text-center text-sm text-gray-500">{language === 'ar' ? 'لا توجد فواتير' : 'No invoices'}</p>}
+              empty={<p className={emptyStateClass}>{language === 'ar' ? 'لا توجد فواتير' : 'No invoices'}</p>}
               renderCard={(invoice) => {
                 const party = getInvoiceParty(invoice)
                 return (
-                  <div key={invoice._id} className="rounded-xl border border-gray-200 dark:border-dark-700 bg-white dark:bg-dark-800 p-4 space-y-3">
+                  <div key={invoice._id} className={`${filterBarClass} !space-y-3`}>
                     <div className="flex items-start justify-between gap-3">
-                      <button type="button" onClick={() => navigate(`/app/dashboard/invoices/${invoice._id}`)} className="text-start min-w-0">
-                        <p className="font-semibold text-primary-700 dark:text-primary-400 truncate">{invoice.invoiceNumber}</p>
+                      <button type="button" onClick={() => navigate(`/app/dashboard/invoices/${invoice._id}`)} className="min-w-0 text-start">
+                        <p className={docLinkClass}>{invoice.invoiceNumber}</p>
                         <div className="mt-0.5 text-sm"><PartyNames party={party} /></div>
-                        <p className="text-xs text-gray-500 mt-0.5">{new Date(invoice.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{new Date(invoice.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}</p>
                       </button>
-                      <div className="shrink-0 flex flex-col items-end gap-1">
+                      <div className="flex shrink-0 flex-col items-end gap-1">
                         {getStatusBadge(invoice)}
                         {getPaymentBadge(invoice)}
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-gray-900 dark:text-white"><Money value={invoice.grandTotal} /></span>
-                      <div className="flex items-center gap-1">
-                        <Link to={`/app/dashboard/invoices/${invoice._id}`} className="p-2.5 min-h-11 min-w-11 inline-flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
-                          <Eye className="w-4 h-4 text-gray-600" />
+                      <span className="font-semibold text-slate-900 dark:text-white"><Money value={invoice.grandTotal} /></span>
+                      <div className={rowActionsWrapClass}>
+                        <Link to={`/app/dashboard/invoices/${invoice._id}`} className={rowActionBtnClass}>
+                          <Eye className="h-4 w-4" />
                         </Link>
                         {isEditableInvoice(invoice, tenant?.zatca?.phase || 2) && (
-                          <Link to={`/app/dashboard/invoices/${invoice._id}/edit`} className="p-2.5 min-h-11 min-w-11 inline-flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
-                            <Edit className="w-4 h-4 text-gray-600" />
+                          <Link to={`/app/dashboard/invoices/${invoice._id}/edit`} className={rowActionBtnClass}>
+                            <Edit className="h-4 w-4" />
                           </Link>
                         )}
                       </div>
@@ -800,62 +817,58 @@ export default function Invoices() {
                 )
               }}
             >
-            <div className="table-container">
-              <table className="table">
+            <div className="overflow-x-auto">
+              <table className={salesTableClass}>
                 <thead>
                   <tr>
-                    <th>{t('invoiceNumber')}</th>
-                    <th>{language === 'ar' ? 'العميل / المورد' : 'Customer / Supplier'}</th>
-                    <th>{language === 'ar' ? 'النوع' : 'Type'}</th>
-                    <th>{t('date')}</th>
-                    <th>{language === 'ar' ? 'تم الإنشاء بواسطة' : 'Created By'}</th>
-                    {hasTravel && <th>{language === 'ar' ? 'سعر العميل' : 'Customer Price'}</th>}
-                    <th>{t('total')}</th>
-                    <th>{language === 'ar' ? 'ضريبة القيمة المضافة' : 'VAT'}</th>
-                    <th>{!isSarTenant ? (language === 'ar' ? 'الحالة' : 'Status') : (tenant?.zatca?.phase === 1 ? (language === 'ar' ? 'الحالة' : 'Status') : t('zatcaStatus'))}</th>
-                    <th>{t('actions')}</th>
+                    <th className={salesThClass}>{t('invoiceNumber')}</th>
+                    <th className={salesThClass}>{language === 'ar' ? 'العميل / المورد' : 'Customer / Supplier'}</th>
+                    <th className={salesThClass}>{language === 'ar' ? 'النوع' : 'Type'}</th>
+                    <th className={salesThClass}>{t('date')}</th>
+                    <th className={salesThClass}>{language === 'ar' ? 'تم الإنشاء بواسطة' : 'Created By'}</th>
+                    {hasTravel && <th className={salesThClass}>{language === 'ar' ? 'سعر العميل' : 'Customer Price'}</th>}
+                    <th className={salesThClass}>{t('total')}</th>
+                    <th className={salesThClass}>{language === 'ar' ? 'ضريبة القيمة المضافة' : 'VAT'}</th>
+                    <th className={salesThClass}>{!isSarTenant ? (language === 'ar' ? 'الحالة' : 'Status') : (tenant?.zatca?.phase === 1 ? (language === 'ar' ? 'الحالة' : 'Status') : t('zatcaStatus'))}</th>
+                    <th className={salesThClass}>{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data?.invoices?.map((invoice) => (
-                    <tr key={invoice._id}>
-                      <td>
+                    <tr key={invoice._id} className={salesTrClass}>
+                      <td className={salesTdClass}>
                         <button
                           type="button"
                           onClick={() => navigate(`/app/dashboard/invoices/${invoice._id}`)}
-                          className="flex items-center gap-3 group text-start"
+                          className={docLinkClass}
                         >
-                          <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg group-hover:bg-primary-200 dark:group-hover:bg-primary-900/50 transition-colors">
-                            <FileText className="w-4 h-4 text-primary-600" />
-                          </div>
-                          <span className="font-medium text-primary-700 dark:text-primary-400 group-hover:underline underline-offset-2">
-                            {invoice.invoiceNumber}
-                          </span>
+                          <FileText className="h-4 w-4 shrink-0 text-slate-400" strokeWidth={1.75} />
+                          {invoice.invoiceNumber}
                         </button>
                       </td>
-                      <td>
+                      <td className={salesTdClass}>
                         <PartyNames party={getInvoiceParty(invoice)} />
                         {(invoice.flow === 'purchase' ? invoice.seller?.vatNumber : invoice.buyer?.vatNumber) && (
-                          <p className="mt-0.5 text-xs text-gray-500">{invoice.flow === 'purchase' ? invoice.seller.vatNumber : invoice.buyer.vatNumber}</p>
+                          <p className="mt-0.5 text-xs text-slate-500">{invoice.flow === 'purchase' ? invoice.seller.vatNumber : invoice.buyer.vatNumber}</p>
                         )}
                       </td>
-                      <td>
+                      <td className={salesTdClass}>
                         <div>
                           {isTravelAgencyInvoice(invoice) ? (
                             <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getTravelInvoiceLabelMeta(invoice, language).className}`}>
                               {getInvoiceContextLabel(invoice, language)}
                             </span>
                           ) : (
-                            <>
-                              <span className={`badge ${invoice.flow === 'purchase' ? 'badge-info' : 'badge-neutral'} me-1`}>
+                            <div className="flex flex-wrap gap-1">
+                              <span className={softChipClass}>
                                 {invoice.flow === 'purchase' ? (language === 'ar' ? 'مشتريات' : 'Purchase') : (language === 'ar' ? 'مبيعات' : 'Sales')}
                               </span>
-                              <span className="badge badge-neutral">
+                              <span className={softChipClass}>
                                 {getInvoiceContextLabel(invoice, language)}
                               </span>
-                            </>
+                            </div>
                           )}
-                          <p className="mt-1 text-xs text-gray-500">{getTransactionTypeLabel(invoice.transactionType, language, t)}</p>
+                          <p className="mt-1 text-xs text-slate-500">{getTransactionTypeLabel(invoice.transactionType, language, t)}</p>
                           {isTravelAgencyInvoice(invoice) && (
                             <p className={`mt-1 text-[11px] font-medium ${getTravelInvoiceLabelMeta(invoice, language).textClassName}`}>
                               {getTravelInvoiceLabelMeta(invoice, language).description}
@@ -863,11 +876,11 @@ export default function Invoices() {
                           )}
                         </div>
                       </td>
-                      <td className="text-gray-600 dark:text-gray-400">
+                      <td className={`${salesTdClass} text-slate-600 dark:text-slate-400`}>
                         <div>{new Date(invoice.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}</div>
-                        <div className="text-xs text-gray-400 mt-0.5">{new Date(invoice.issueDate).toLocaleTimeString(language === 'ar' ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                        <div className="mt-0.5 text-xs text-slate-400">{new Date(invoice.issueDate).toLocaleTimeString(language === 'ar' ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' })}</div>
                       </td>
-                      <td className="text-gray-600 dark:text-gray-400 text-sm">
+                      <td className={`${salesTdClass} text-sm text-slate-600 dark:text-slate-400`}>
                         {(() => {
                           const en = [invoice?.createdBy?.firstName, invoice?.createdBy?.lastName].filter(Boolean).join(' ')
                           const ar = [invoice?.createdBy?.firstNameAr, invoice?.createdBy?.lastNameAr].filter(Boolean).join(' ')
@@ -877,62 +890,63 @@ export default function Invoices() {
                         })()}
                       </td>
                       {hasTravel && (
-                        <td className="font-medium text-gray-700 dark:text-gray-300">
+                        <td className={`${salesTdClass} font-medium text-slate-700 dark:text-slate-300`}>
                           {isTravelAgencyInvoice(invoice) && invoice.customerPriceTotal > 0
                             ? <Money value={invoice.customerPriceTotal} />
                             : '—'}
                         </td>
                       )}
-                      <td className="font-semibold"><Money value={invoice.grandTotal} /></td>
-                      <td className="text-gray-600 dark:text-gray-400">
+                      <td className={`${salesTdClass} font-semibold text-slate-900 dark:text-white`}><Money value={invoice.grandTotal} /></td>
+                      <td className={`${salesTdClass} text-slate-600 dark:text-slate-400`}>
                         {getInvoiceVatAmount(invoice) > 0
                           ? <Money value={getInvoiceVatAmount(invoice)} />
-                          : <span className="text-gray-400 text-sm">—</span>}
+                          : <span className="text-sm text-slate-400">—</span>}
                       </td>
-                      <td>
+                      <td className={salesTdClass}>
                         <div className="flex flex-col items-start gap-1">
                           {getStatusBadge(invoice)}
                           {getPaymentBadge(invoice)}
                         </div>
                       </td>
-                      <td>
-                        <div className="flex items-center gap-1">
+                      <td className={salesTdClass}>
+                        <div className={rowActionsWrapClass}>
                           {['draft', 'pending'].includes(invoice?.status) && !invoice?.zatca?.invoiceHash && invoice?.flow !== 'purchase' && (
                             <button
                               type="button"
                               onClick={() => setSignModalInvoice(invoice)}
-                              className="p-2 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
+                              className={rowActionPrimaryClass}
                               title={tenant?.zatca?.phase === 1 ? (language === 'ar' ? 'تجهيز الفاتورة' : 'Finalize') : (language === 'ar' ? 'توقيع وإرسال' : 'Sign & Submit')}
                             >
-                              <Send className="w-4 h-4 text-primary-600" />
+                              <Send className="h-4 w-4" />
                             </button>
                           )}
                           {isEditableInvoice(invoice, tenant?.zatca?.phase || 2) && (
                             <Link
                               to={`/app/dashboard/invoices/${invoice._id}/edit`}
-                              className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                              className={rowActionBtnClass}
                               title={language === 'ar' ? 'تعديل' : 'Edit'}
                             >
-                              <Edit className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                              <Edit className="h-4 w-4" />
                             </Link>
                           )}
                           <Link
                             to={`/app/dashboard/invoices/${invoice._id}`}
-                            className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                            className={rowActionBtnClass}
+                            title={language === 'ar' ? 'عرض' : 'View'}
                           >
-                            <Eye className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                            <Eye className="h-4 w-4" />
                           </Link>
                           <button
                             type="button"
                             onClick={() => handleWaClick(invoice)}
                             disabled={waLoadingId === invoice._id}
-                            className="p-2 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                            className={rowActionBtnClass}
                             title={language === 'ar' ? 'إرسال عبر واتساب' : 'Send via WhatsApp'}
                           >
                             {waLoadingId === invoice._id ? (
-                              <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
                             ) : (
-                              <MessageCircle className="w-4 h-4 text-green-600 dark:text-green-500" />
+                              <MessageCircle className="h-4 w-4" />
                             )}
                           </button>
                           <button
@@ -953,23 +967,23 @@ export default function Invoices() {
                               }
                             }}
                             disabled={pdfLoadingId === invoice._id}
-                            className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+                            className={rowActionBtnClass}
                             title={language === 'ar' ? 'تحميل PDF' : 'Download PDF'}
                           >
                             {pdfLoadingId === invoice._id ? (
-                              <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
                             ) : (
-                              <Download className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                              <Download className="h-4 w-4" />
                             )}
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDeleteInvoice(invoice)}
                             disabled={deleteMutation.isPending}
-                            className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            className={rowActionDangerClass}
                             title={language === 'ar' ? 'حذف الفاتورة' : 'Delete invoice'}
                           >
-                            <Trash2 className="w-4 h-4 text-red-500" />
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
                       </td>
@@ -982,8 +996,8 @@ export default function Invoices() {
 
             {/* Pagination */}
             {(data?.nextCursor || cursor || cursorStack.length > 0) && (
-                <div className="p-4 border-t border-gray-100 dark:border-dark-700 flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <p className="text-sm text-gray-500">
+                <div className={paginationBarClass}>
+                  <p className="text-sm text-slate-500">
                     {language === 'ar'
                       ? `${knownTotal != null ? knownTotal : (data?.invoices?.length || 0)} نتيجة`
                       : `${knownTotal != null ? knownTotal : (data?.invoices?.length || 0)} results`}
@@ -999,7 +1013,7 @@ export default function Invoices() {
                           return next
                         })
                       }}
-                      className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-dark-700 text-gray-700 dark:text-gray-300 disabled:opacity-40"
+                      className={`${rowActionBtnClass} min-h-11 min-w-11`}
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
@@ -1011,7 +1025,7 @@ export default function Invoices() {
                         setCursorStack((stack) => [...stack, cursor])
                         setCursor(data.nextCursor)
                       }}
-                      className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-dark-700 text-gray-700 dark:text-gray-300 disabled:opacity-40"
+                      className={`${rowActionBtnClass} min-h-11 min-w-11`}
                     >
                       <ChevronRight className="w-4 h-4" />
                     </button>

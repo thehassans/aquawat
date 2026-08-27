@@ -55,3 +55,57 @@ export const metaRowClass =
 
 export const metaValueClass =
   'font-semibold text-slate-900 dark:text-white text-end'
+
+/** List pages (Invoices / Quotations) */
+export const filterBarClass =
+  'rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_8px_30px_-24px_rgba(15,23,42,0.28)] space-y-3 dark:border-dark-600 dark:bg-dark-800'
+
+export const listShellClass =
+  'overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_30px_-24px_rgba(15,23,42,0.28)] dark:border-dark-600 dark:bg-dark-800'
+
+export const salesTableClass = 'w-full min-w-max text-sm'
+
+export const salesThClass =
+  'px-4 py-3 text-start text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 bg-slate-50/90 border-b border-slate-200/90 dark:bg-dark-800/90 dark:text-slate-400 dark:border-dark-600'
+
+export const salesTdClass =
+  'px-4 py-4 border-b border-slate-100 align-middle dark:border-dark-700'
+
+export const salesTrClass =
+  'bg-white transition-colors hover:bg-slate-50/70 dark:bg-dark-800 dark:hover:bg-dark-700/35'
+
+export const docLinkClass =
+  'inline-flex items-center gap-2 font-mono text-sm font-semibold text-slate-900 transition hover:text-teal-700 dark:text-white dark:hover:text-teal-300'
+
+export const rowActionBtnClass =
+  'inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white'
+
+export const rowActionPrimaryClass =
+  'inline-flex h-8 w-8 items-center justify-center rounded-lg text-teal-700 transition hover:bg-teal-50 hover:text-teal-800 disabled:opacity-40 dark:text-teal-300 dark:hover:bg-teal-950/30'
+
+export const rowActionDangerClass =
+  'inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-500 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40 dark:text-red-400 dark:hover:bg-red-950/30'
+
+export const rowActionsWrapClass =
+  'inline-flex items-center gap-0.5 rounded-xl border border-slate-200/80 bg-slate-50/50 p-0.5 dark:border-white/10 dark:bg-white/[0.03]'
+
+export const chipFilterClass = (active) =>
+  `inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+    active
+      ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-950'
+      : 'border-slate-200/90 bg-white text-slate-600 hover:border-slate-300 dark:border-dark-600 dark:bg-dark-800 dark:text-slate-300 dark:hover:border-slate-500'
+  }`
+
+export const salesTabClass = (active) =>
+  `relative px-3 py-2.5 text-sm font-medium transition-colors ${
+    active
+      ? 'text-slate-900 after:absolute after:inset-x-1 after:bottom-0 after:h-0.5 after:rounded-full after:bg-slate-900 dark:text-white dark:after:bg-white'
+      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
+  }`
+
+export const emptyStateClass =
+  'py-16 text-center text-sm text-slate-400 dark:text-slate-500'
+
+export const paginationBarClass =
+  'flex flex-col items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row dark:border-dark-700'
+

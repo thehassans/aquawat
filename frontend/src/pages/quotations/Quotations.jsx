@@ -23,6 +23,24 @@ import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
 import { downloadQuotationPdf, printQuotationSnapshot } from '../../lib/invoicePdfActions'
+import {
+  docLinkClass,
+  emptyStateClass,
+  fieldControlClass,
+  filterBarClass,
+  listShellClass,
+  pageSubtitleClass,
+  pageTitleClass,
+  paginationBarClass,
+  rowActionBtnClass,
+  rowActionPrimaryClass,
+  rowActionsWrapClass,
+  salesTdClass,
+  salesThClass,
+  salesTrClass,
+  salesTableClass,
+  sectionEyebrowClass,
+} from '../sales/salesUi'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -376,12 +394,13 @@ export default function Quotations() {
       </AnimatePresence>
 
       {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <p className={sectionEyebrowClass}>{language === 'ar' ? 'المبيعات' : 'Sales'}</p>
+          <h1 className={pageTitleClass}>
             {language === 'ar' ? 'عروض الأسعار' : 'Quotations'}
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
+          <p className={pageSubtitleClass}>
             {language === 'ar'
               ? 'إدارة عروض الأسعار وتحويلها إلى فواتير'
               : 'Manage quotations and convert them to invoices'}
@@ -406,22 +425,22 @@ export default function Quotations() {
       </div>
 
       {/* ── Filters ── */}
-      <div className="card p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1 relative">
-            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+      <div className={filterBarClass}>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               placeholder={language === 'ar' ? 'بحث برقم العرض أو العميل...' : 'Search by number or customer...'}
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-              className="input ps-10"
+              className={`${fieldControlClass} ps-10`}
             />
           </div>
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
-            className="select w-full sm:w-48"
+            className={`${fieldControlClass} w-full sm:w-48`}
           >
             <option value="">{language === 'ar' ? 'كل الحالات' : 'All Statuses'}</option>
             <option value="draft">{language === 'ar' ? 'مسودة' : 'Draft'}</option>
@@ -433,8 +452,8 @@ export default function Quotations() {
             <option value="expired">{language === 'ar' ? 'منتهي' : 'Expired'}</option>
           </select>
           {(isFetching && !isLoading) && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-400 self-center">
-              <div className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+            <span className="inline-flex items-center gap-1.5 self-center px-3 py-1.5 text-xs text-slate-400">
+              <div className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-transparent" />
               {language === 'ar' ? 'جارٍ التحديث...' : 'Updating...'}
             </span>
           )}
@@ -442,61 +461,52 @@ export default function Quotations() {
       </div>
 
       {/* ── Table ── */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={listShellClass}>
         {isLoading ? (
           <div className="p-8 text-center">
             <div className="inline-block w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <>
-            <div className="table-container">
-              <table className="table">
+            <div className="overflow-x-auto">
+              <table className={salesTableClass}>
                 <thead>
                   <tr>
-                    <th>{language === 'ar' ? 'رقم العرض' : 'Quotation #'}</th>
-                    <th>{language === 'ar' ? 'العميل' : 'Customer'}</th>
-                    <th>{language === 'ar' ? 'تاريخ الإصدار' : 'Issue Date'}</th>
-                    <th>{language === 'ar' ? 'صالح حتى' : 'Valid Until'}</th>
-                    <th>{language === 'ar' ? 'الإجمالي' : 'Total'}</th>
-                    <th>{language === 'ar' ? 'الحالة' : 'Status'}</th>
-                    <th>{language === 'ar' ? 'الإجراءات' : 'Actions'}</th>
+                    <th className={salesThClass}>{language === 'ar' ? 'رقم العرض' : 'Quotation #'}</th>
+                    <th className={salesThClass}>{language === 'ar' ? 'العميل' : 'Customer'}</th>
+                    <th className={salesThClass}>{language === 'ar' ? 'تاريخ الإصدار' : 'Issue Date'}</th>
+                    <th className={salesThClass}>{language === 'ar' ? 'صالح حتى' : 'Valid Until'}</th>
+                    <th className={salesThClass}>{language === 'ar' ? 'الإجمالي' : 'Total'}</th>
+                    <th className={salesThClass}>{language === 'ar' ? 'الحالة' : 'Status'}</th>
+                    <th className={salesThClass}>{language === 'ar' ? 'الإجراءات' : 'Actions'}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(data?.quotations || []).length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-12 text-gray-400">
+                      <td colSpan={7} className={emptyStateClass}>
                         {language === 'ar' ? 'لا توجد عروض أسعار' : 'No quotations found'}
                       </td>
                     </tr>
                   ) : (
                     (data?.quotations || []).map((q) => (
-                      <tr key={q._id}>
-                        {/* Number */}
-                        <td>
+                      <tr key={q._id} className={salesTrClass}>
+                        <td className={salesTdClass}>
                           <button
                             type="button"
                             onClick={() => navigate(`/app/dashboard/quotations/${q._id}`)}
-                            className="flex items-center gap-3 group text-start"
+                            className={docLinkClass}
                           >
-                            <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg group-hover:bg-primary-200 dark:group-hover:bg-primary-900/50 transition-colors">
-                              <FileText className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-                            </div>
-                            <div>
-                              <p className="font-mono text-sm font-semibold text-gray-900 dark:text-white group-hover:text-primary-600 transition-colors">
-                                {q.quotationNumber}
-                              </p>
-                            </div>
+                            <FileText className="h-4 w-4 shrink-0 text-slate-400" strokeWidth={1.75} />
+                            {q.quotationNumber}
                           </button>
                         </td>
 
-                        {/* Customer */}
-                        <td>
+                        <td className={salesTdClass}>
                           <PartyNames party={q?.buyer} fallback="—" />
                         </td>
 
-                        {/* Issue Date */}
-                        <td className="text-sm text-gray-600 dark:text-gray-300">
+                        <td className={`${salesTdClass} text-sm text-slate-600 dark:text-slate-300`}>
                           {q?.issueDate
                             ? new Date(q.issueDate).toLocaleDateString(
                                 language === 'ar' ? 'ar-SA' : 'en-US',
@@ -504,8 +514,7 @@ export default function Quotations() {
                             : '—'}
                         </td>
 
-                        {/* Valid Until */}
-                        <td className="text-sm text-gray-600 dark:text-gray-300">
+                        <td className={`${salesTdClass} text-sm text-slate-600 dark:text-slate-300`}>
                           {q?.validUntil
                             ? new Date(q.validUntil).toLocaleDateString(
                                 language === 'ar' ? 'ar-SA' : 'en-US',
@@ -513,42 +522,36 @@ export default function Quotations() {
                             : '—'}
                         </td>
 
-                        {/* Total */}
-                        <td className="font-semibold text-gray-900 dark:text-white text-sm">
+                        <td className={`${salesTdClass} text-sm font-semibold text-slate-900 dark:text-white`}>
                           <Money value={q?.grandTotal || 0} />
                         </td>
 
-                        {/* Status */}
-                        <td>{getStatusBadge(q)}</td>
+                        <td className={salesTdClass}>{getStatusBadge(q)}</td>
 
-                        {/* Actions */}
-                        <td>
-                          <div className="flex items-center gap-1">
-                            {/* View */}
+                        <td className={salesTdClass}>
+                          <div className={rowActionsWrapClass}>
                             <Link
                               to={`/app/dashboard/quotations/${q._id}`}
-                              className="btn btn-ghost btn-icon"
+                              className={rowActionBtnClass}
                               title={language === 'ar' ? 'عرض' : 'View'}
                             >
                               <Eye className="w-4 h-4" />
                             </Link>
 
-                            {/* Edit */}
                             {isEditableQuotation(q) && (
                               <Link
                                 to={`/app/dashboard/quotations/${q._id}/edit`}
-                                className="btn btn-ghost btn-icon"
+                                className={rowActionBtnClass}
                                 title={language === 'ar' ? 'تعديل' : 'Edit'}
                               >
                                 <Edit className="w-4 h-4" />
                               </Link>
                             )}
 
-                            {/* Approve */}
                             {canApproveQuotation(q) && (
                               <button
                                 type="button"
-                                className="btn btn-ghost btn-icon text-emerald-600"
+                                className={rowActionPrimaryClass}
                                 title={language === 'ar' ? 'اعتماد' : 'Approve'}
                                 onClick={() => setApproveModalQ(q)}
                               >
@@ -556,11 +559,10 @@ export default function Quotations() {
                               </button>
                             )}
 
-                            {/* Reject */}
                             {canRejectQuotation(q) && (
                               <button
                                 type="button"
-                                className="btn btn-ghost btn-icon text-rose-500"
+                                className={rowActionBtnClass}
                                 title={language === 'ar' ? 'رفض' : 'Reject'}
                                 onClick={() => setRejectModalQ(q)}
                               >
@@ -568,30 +570,27 @@ export default function Quotations() {
                               </button>
                             )}
 
-                            {/* View converted invoice */}
                             {hasConvertedInvoice(q) && (
                               <Link
                                 to={`/app/dashboard/invoices/${q.convertedInvoiceId}`}
-                                className="btn btn-ghost btn-icon"
+                                className={rowActionBtnClass}
                                 title={language === 'ar' ? 'عرض الفاتورة' : 'View Invoice'}
                               >
                                 <FileText className="w-4 h-4" />
                               </Link>
                             )}
 
-                            {/* Create Delivery Note */}
                             <Link
                               to={`/app/dashboard/delivery-notes/new?quotationId=${q._id}`}
-                              className="btn btn-ghost btn-icon text-sky-600 hover:text-sky-700"
+                              className={rowActionBtnClass}
                               title={language === 'ar' ? 'إنشاء سند تسليم' : 'Create Delivery Note'}
                             >
                               <Truck className="w-4 h-4" />
                             </Link>
 
-                            {/* Print */}
                             <button
                               type="button"
-                              className="btn btn-ghost btn-icon"
+                              className={rowActionBtnClass}
                               title={language === 'ar' ? 'طباعة' : 'Print'}
                               disabled={printLoadingId === q._id}
                               onClick={async () => {
@@ -618,16 +617,15 @@ export default function Quotations() {
                               }}
                             >
                               {printLoadingId === q._id ? (
-                                <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
                               ) : (
                                 <Printer className="w-4 h-4" />
                               )}
                             </button>
 
-                            {/* Download PDF */}
                             <button
                               type="button"
-                              className="btn btn-ghost btn-icon"
+                              className={rowActionBtnClass}
                               title={language === 'ar' ? 'تنزيل PDF' : 'Download PDF'}
                               disabled={pdfLoadingId === q._id}
                               onClick={async () => {
@@ -647,22 +645,21 @@ export default function Quotations() {
                               }}
                             >
                               {pdfLoadingId === q._id ? (
-                                <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
                               ) : (
                                 <Download className="w-4 h-4" />
                               )}
                             </button>
 
-                            {/* WhatsApp Send */}
                             <button
                               type="button"
                               onClick={() => handleWaClick(q)}
                               disabled={waLoadingId === q._id}
-                              className="btn btn-ghost btn-icon text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+                              className={rowActionBtnClass}
                               title={language === 'ar' ? 'إرسال عبر واتساب' : 'Send via WhatsApp'}
                             >
                               {waLoadingId === q._id ? (
-                                <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
                               ) : (
                                 <MessageCircle className="w-4 h-4" />
                               )}
@@ -677,8 +674,8 @@ export default function Quotations() {
             </div>
 
             {/* Pagination */}
-            <div className="flex items-center justify-between p-4 border-t border-gray-100 dark:border-dark-700">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+            <div className={paginationBarClass}>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 {language === 'ar'
                   ? `الصفحة ${pagination.page} من ${pagination.pages || 1}`
                   : `Page ${pagination.page} of ${pagination.pages || 1}`}
