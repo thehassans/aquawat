@@ -1,8 +1,53 @@
 import api from './api'
 
+function hasAttributeLines(product) {
+  return Array.isArray(product?.attributeLines) && product.attributeLines.length > 0
+}
+
+function mapVariantHit(v) {
+  const productId = typeof v.productId === 'object' ? v.productId?._id : v.productId
+  if (!productId || !v._id) return null
+  const productName = (typeof v.productId === 'object'
+    ? (v.productId.nameEn || v.productId.name)
+    : null) || ''
+  const sku = v.sku || (typeof v.productId === 'object' ? v.productId.sku : '') || ''
+  return {
+    _id: `v:${v._id}`,
+    kind: 'variant',
+    productId: String(productId),
+    variantId: String(v._id),
+    variantName: v.name || '',
+    productName,
+    sku,
+    name: [sku, v.name || productName].filter(Boolean).join(' — ') || v.name,
+    barcode: v.barcode,
+    productHasVariants: true,
+  }
+}
+
+function mapProductHit(p, { productHasVariants = false } = {}) {
+  const productId = String(p._id)
+  return {
+    _id: `p:${productId}`,
+    kind: 'product',
+    productId,
+    variantId: null,
+    variantName: '',
+    productName: p.nameEn || p.name || '',
+    sku: p.sku || '',
+    name: [p.sku, p.nameEn || p.name].filter(Boolean).join(' — ') || p.nameEn || p.name,
+    barcode: p.barcode,
+    uomId: p.uomId,
+    unitOfMeasure: p.unitOfMeasure,
+    nameAr: p.nameAr,
+    productHasVariants,
+  }
+}
+
 /**
  * Search products AND variants for operations line pickers.
- * When a product has variants, only variant rows are selectable — never the parent template.
+ * Two parallel API calls only — no per-product N+1 variant expansion.
+ * Templates with attribute lines are omitted (user picks a concrete variant hit).
  */
 export async function searchProductsAndVariants(q, { variantsEnabled = true, limit = 25 } = {}) {
   const needle = String(q || '').trim()
@@ -10,110 +55,47 @@ export async function searchProductsAndVariants(q, { variantsEnabled = true, lim
 
   const results = []
   const seen = new Set()
+  const coveredProductIds = new Set()
 
-  if (variantsEnabled) {
-    try {
-      const data = await api.get('/stock/variants', {
-        params: { q: needle, limit: 20 },
-      }).then((r) => r.data)
-      const items = Array.isArray(data) ? data : (data?.items || data?.variants || [])
-      for (const v of items) {
-        const productId = typeof v.productId === 'object' ? v.productId?._id : v.productId
-        if (!productId || !v._id) continue
-        const key = `v:${v._id}`
-        if (seen.has(key)) continue
-        seen.add(key)
-        const productName = (typeof v.productId === 'object'
-          ? (v.productId.nameEn || v.productId.name)
-          : null) || ''
-        const sku = v.sku || (typeof v.productId === 'object' ? v.productId.sku : '') || ''
-        results.push({
-          _id: key,
-          kind: 'variant',
-          productId: String(productId),
-          variantId: String(v._id),
-          variantName: v.name || '',
-          productName,
-          sku,
-          name: [sku, v.name || productName].filter(Boolean).join(' — ') || v.name,
-          barcode: v.barcode,
-          productHasVariants: true,
-        })
-      }
-    } catch {
-      /* variants optional */
+  const variantsPromise = variantsEnabled
+    ? api.get('/stock/variants', { params: { q: needle, limit: 20 } })
+      .then((r) => r.data)
+      .catch(() => null)
+    : Promise.resolve(null)
+
+  const productsPromise = api.get('/products', {
+    params: { search: needle, limit: 15, status: 'active' },
+  })
+    .then((r) => r.data?.products || r.data || [])
+    .catch(() => [])
+
+  const [variantData, productList] = await Promise.all([variantsPromise, productsPromise])
+
+  if (variantData) {
+    const items = Array.isArray(variantData)
+      ? variantData
+      : (variantData?.items || variantData?.variants || [])
+    for (const v of items) {
+      const row = mapVariantHit(v)
+      if (!row || seen.has(row._id)) continue
+      seen.add(row._id)
+      coveredProductIds.add(row.productId)
+      results.push(row)
     }
   }
 
-  try {
-    const list = await api.get('/products', {
-      params: { search: needle, limit: 15, status: 'active' },
-    }).then((r) => r.data?.products || r.data || [])
+  for (const p of productList || []) {
+    if (!p?._id) continue
+    const productId = String(p._id)
+    if (coveredProductIds.has(productId)) continue
 
-    await Promise.all((list || []).map(async (p) => {
-      if (!p?._id) return
-      const productId = String(p._id)
+    // Product has variants but none matched this query — don't offer the parent template
+    if (variantsEnabled && hasAttributeLines(p)) continue
 
-      if (variantsEnabled) {
-        // Template already represented by a variant hit — skip parent
-        if (results.some((r) => String(r.productId) === productId && r.kind === 'variant')) {
-          return
-        }
-        try {
-          const data = await api.get('/stock/variants', {
-            params: { productId, limit: 50 },
-          }).then((r) => r.data)
-          const items = Array.isArray(data) ? data : (data?.items || [])
-          if (items.length > 0) {
-            // Expand variants; never offer the parent template
-            for (const v of items) {
-              if (!v?._id) continue
-              const key = `v:${v._id}`
-              if (seen.has(key)) continue
-              seen.add(key)
-              results.push({
-                _id: key,
-                kind: 'variant',
-                productId,
-                variantId: String(v._id),
-                variantName: v.name || '',
-                productName: p.nameEn || p.name || '',
-                sku: v.sku || p.sku || '',
-                name: [v.sku || p.sku, v.name || p.nameEn || p.name].filter(Boolean).join(' — '),
-                barcode: v.barcode || p.barcode,
-                uomId: p.uomId,
-                unitOfMeasure: p.unitOfMeasure,
-                productHasVariants: true,
-              })
-            }
-            return
-          }
-        } catch {
-          /* fall through to template */
-        }
-      }
-
-      const key = `p:${productId}`
-      if (seen.has(key)) return
-      seen.add(key)
-      results.push({
-        _id: key,
-        kind: 'product',
-        productId,
-        variantId: null,
-        variantName: '',
-        productName: p.nameEn || p.name || '',
-        sku: p.sku || '',
-        name: [p.sku, p.nameEn || p.name].filter(Boolean).join(' — ') || p.nameEn || p.name,
-        barcode: p.barcode,
-        uomId: p.uomId,
-        unitOfMeasure: p.unitOfMeasure,
-        nameAr: p.nameAr,
-        productHasVariants: false,
-      })
-    }))
-  } catch {
-    /* ignore */
+    const key = `p:${productId}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    results.push(mapProductHit(p, { productHasVariants: false }))
   }
 
   return results.slice(0, limit)
@@ -163,6 +145,22 @@ export async function resolveOperationsLinePick(opt, { variantsEnabled = true } 
     }
   }
 
+  // Search already classified this as a plain product — skip another variants round-trip
+  if (opt.productHasVariants === false || (opt.kind === 'product' && !variantsEnabled)) {
+    return {
+      productId,
+      productName: opt.productName || opt.name || opt.nameEn || '',
+      sku: opt.sku || '',
+      variantId: null,
+      variantName: '',
+      variants: [],
+      needsVariant: false,
+      productHasVariants: false,
+      uomId: opt.uomId,
+      uomLabel: opt.unitOfMeasure || '',
+    }
+  }
+
   let variantId = null
   let variantName = ''
   let variants = []
@@ -202,4 +200,15 @@ export async function resolveOperationsLinePick(opt, { variantsEnabled = true } 
     uomId: opt.uomId,
     uomLabel: opt.unitOfMeasure || '',
   }
+}
+
+export function opsProductOptionLabel(o) {
+  return o?.name || o?.productName || '—'
+}
+
+export function opsProductOptionSub(o) {
+  if (o?.kind === 'variant' || o?.variantName) {
+    return [o.sku, o.productName].filter(Boolean).join(' · ')
+  }
+  return o?.sku || ''
 }

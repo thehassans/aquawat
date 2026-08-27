@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -15,7 +15,32 @@ import { formatInvError } from '../../lib/invError'
 import { useDirtyGuard } from '../../lib/useDirtyGuard'
 import ReverseTransferModal from './returns/ReverseTransferModal'
 import { inventoryPathForOpCode } from './returns/returnPaths'
-import { resolveOperationsLinePick, searchProductsAndVariants } from '../../lib/productVariantSearch'
+import {
+  opsProductOptionLabel,
+  opsProductOptionSub,
+  resolveOperationsLinePick,
+  searchProductsAndVariants,
+} from '../../lib/productVariantSearch'
+
+function newDraftLine(partial = {}) {
+  return {
+    id: typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `line-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    productId: '',
+    productName: '',
+    sku: '',
+    demandQty: '1',
+    variantId: null,
+    variantName: '',
+    variants: [],
+    needsVariant: false,
+    productHasVariants: false,
+    uomId: undefined,
+    uomLabel: '',
+    ...partial,
+  }
+}
 
 const CODE_FROM_PATH = () => {
   const parts = window.location.pathname.split('/')
@@ -67,12 +92,14 @@ export default function TransferForm() {
     queryKey: ['inv-locations'],
     queryFn: () => api.get('/stock/locations').then((r) => asInvList(r.data)),
     enabled: settings?.groupStockMultiLocations !== false,
+    staleTime: 10 * 60 * 1000,
   })
 
   const { data: customers = [] } = useQuery({
     queryKey: ['customers-lite'],
     queryFn: () => api.get('/customers', { params: { limit: 200 } }).then((r) => r.data?.customers || r.data || []),
     enabled: !!settings?.groupStockTrackingOwner,
+    staleTime: 5 * 60 * 1000,
   })
 
   const { data: transfer, isLoading } = useQuery({
@@ -192,13 +219,15 @@ export default function TransferForm() {
 
   const actionMut = useMutation({
     mutationFn: ({ action, body }) => api.post(`/stock/transfers/${id}/${action}`, body || {}).then((r) => r.data),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       toast.success(ar ? 'تم' : 'Done')
       qc.invalidateQueries({ queryKey: ['stock-transfer', id] })
-      qc.invalidateQueries({ queryKey: ['stock-transfers'] })
-      qc.invalidateQueries({ queryKey: ['physical-inventory'] })
-      qc.invalidateQueries({ queryKey: ['stock-report'] })
-      qc.invalidateQueries({ queryKey: ['products'] })
+      qc.invalidateQueries({ queryKey: ['stock-transfers'], refetchType: 'active' })
+      // Stock-changing actions only — avoid refetch storms on confirm/check-availability
+      if (vars?.action === 'validate' || vars?.action === 'cancel') {
+        qc.invalidateQueries({ queryKey: ['stock-report'], refetchType: 'active' })
+        qc.invalidateQueries({ queryKey: ['physical-inventory'], refetchType: 'active' })
+      }
     },
     onError: (e) => toast.error(formatInvError(e, language)),
   })
@@ -325,9 +354,9 @@ export default function TransferForm() {
 
   const variantsEnabled = !!(hints.variantsEnabled || settings?.groupProductVariant)
 
-  const buildLineFromProduct = async (productOrOpt) => {
+  const buildLineFromProduct = useCallback(async (productOrOpt) => {
     const resolved = await resolveOperationsLinePick(productOrOpt, { variantsEnabled })
-    return {
+    return newDraftLine({
       productId: resolved.productId,
       productName: ar && productOrOpt.nameAr ? productOrOpt.nameAr : resolved.productName,
       sku: resolved.sku,
@@ -339,10 +368,10 @@ export default function TransferForm() {
       productHasVariants: resolved.productHasVariants,
       uomId: resolved.uomId || productOrOpt.uomId || undefined,
       uomLabel: resolved.uomLabel || productOrOpt.unitOfMeasure || '',
-    }
-  }
+    })
+  }, [ar, variantsEnabled])
 
-  const pickProduct = async (product, targetIdx = null) => {
+  const pickProduct = useCallback(async (product, targetIdx = null) => {
     const nextLine = await buildLineFromProduct(product)
     setForm((f) => {
       if (targetIdx != null && targetIdx >= 0) {
@@ -350,6 +379,7 @@ export default function TransferForm() {
         const prev = lines[targetIdx] || {}
         lines[targetIdx] = {
           ...nextLine,
+          id: prev.id || nextLine.id,
           demandQty: prev.demandQty && Number(prev.demandQty) > 0 ? prev.demandQty : nextLine.demandQty,
         }
         return { ...f, lines }
@@ -359,7 +389,7 @@ export default function TransferForm() {
       const blankIdx = f.lines.findIndex((l) => !l.productId)
       if (blankIdx >= 0) {
         const lines = [...f.lines]
-        lines[blankIdx] = nextLine
+        lines[blankIdx] = { ...nextLine, id: lines[blankIdx].id || nextLine.id }
         return { ...f, lines }
       }
       const existing = f.lines.findIndex((l) => lineKey(l) === nextKey && !nextLine.needsVariant)
@@ -371,26 +401,28 @@ export default function TransferForm() {
       }
       return { ...f, lines: [...f.lines, nextLine] }
     })
-  }
+  }, [buildLineFromProduct])
 
-  const addEmptyLine = () => {
+  const updateLine = useCallback((idx, next) => {
+    startTransition(() => {
+      setForm((f) => {
+        const lines = f.lines.slice()
+        lines[idx] = typeof next === 'function' ? next(lines[idx]) : next
+        return { ...f, lines }
+      })
+    })
+  }, [])
+
+  const removeLine = useCallback((idx) => {
+    setForm((f) => ({ ...f, lines: f.lines.filter((_, i) => i !== idx) }))
+  }, [])
+
+  const addEmptyLine = useCallback(() => {
     setForm((f) => ({
       ...f,
-      lines: [...f.lines, {
-        productId: '',
-        productName: '',
-        sku: '',
-        demandQty: '1',
-        variantId: null,
-        variantName: '',
-        variants: [],
-        needsVariant: false,
-        productHasVariants: false,
-        uomId: undefined,
-        uomLabel: '',
-      }],
+      lines: [...f.lines, newDraftLine()],
     }))
-  }
+  }, [])
 
   const scanBarcode = async () => {
     const q = barcodeBuf.trim()
@@ -413,7 +445,7 @@ export default function TransferForm() {
             }
             return {
               ...f,
-              lines: [...f.lines, {
+              lines: [...f.lines, newDraftLine({
                 productId: product._id || hit.productId,
                 productName: product.nameEn || product.name || hit.name,
                 sku: product.sku || hit.sku,
@@ -423,7 +455,7 @@ export default function TransferForm() {
                 variants: [],
                 needsVariant: false,
                 productHasVariants: true,
-              }],
+              })],
             }
           })
           setBarcodeBuf('')
@@ -862,18 +894,15 @@ export default function TransferForm() {
                 <div className="divide-y divide-slate-100/90 dark:divide-dark-600">
                   {form.lines.map((line, idx) => (
                     <TransferDraftLine
-                      key={`line-${idx}`}
+                      key={line.id || `line-${idx}`}
+                      idx={idx}
                       line={line}
                       ar={ar}
-                      variantsEnabled={!!(hints.variantsEnabled || settings?.groupProductVariant)}
+                      variantsEnabled={variantsEnabled}
                       packagingEnabled={!!(hints.packagingEnabled || settings?.groupStockPackaging)}
-                      onPickProduct={(p) => pickProduct(p, idx)}
-                      onChange={(next) => {
-                        const lines = [...form.lines]
-                        lines[idx] = next
-                        setForm((f) => ({ ...f, lines }))
-                      }}
-                      onRemove={() => setForm((f) => ({ ...f, lines: f.lines.filter((_, i) => i !== idx) }))}
+                      onPickProduct={pickProduct}
+                      onChange={updateLine}
+                      onRemove={removeLine}
                     />
                   ))}
                 </div>
@@ -1332,7 +1361,16 @@ export default function TransferForm() {
   )
 }
 
-function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onPickProduct, onChange, onRemove }) {
+const TransferDraftLine = memo(function TransferDraftLine({
+  idx,
+  line,
+  ar,
+  packagingEnabled,
+  variantsEnabled,
+  onPickProduct,
+  onChange,
+  onRemove,
+}) {
   const fetchOptions = useCallback(
     (q) => searchProductsAndVariants(q, { variantsEnabled }),
     [variantsEnabled],
@@ -1354,17 +1392,19 @@ function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onPick
   const variants = line.variants || []
   const missingVariant = !!(line.productId && (line.needsVariant || line.productHasVariants) && !line.variantId)
 
-  const selectedOption = line.productId
-    ? {
-        _id: line.variantId ? `v:${line.variantId}` : `p:${line.productId}`,
-        name: [line.sku, line.variantName || line.productName].filter(Boolean).join(' — ')
-          || line.productName
-          || '—',
-        sku: line.sku,
-        productName: line.productName,
-        variantName: line.variantName,
-      }
-    : null
+  const selectedOption = useMemo(() => (
+    line.productId
+      ? {
+          _id: line.variantId ? `v:${line.variantId}` : `p:${line.productId}`,
+          name: [line.sku, line.variantName || line.productName].filter(Boolean).join(' — ')
+            || line.productName
+            || '—',
+          sku: line.sku,
+          productName: line.productName,
+          variantName: line.variantName,
+        }
+      : null
+  ), [line.productId, line.variantId, line.sku, line.variantName, line.productName])
 
   return (
     <div className="space-y-1 px-3.5 py-2.5">
@@ -1374,22 +1414,17 @@ function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onPick
             value={selectedOption?._id || ''}
             selectedOption={selectedOption}
             debounceMs={300}
-            minChars={1}
+            minChars={2}
             queryKeyPrefix="ops-product-variant"
             fetchOptions={fetchOptions}
             placeholder={ar ? 'ابحث عن منتج أو متغير…' : 'Search product or variant…'}
             noResultsText={ar ? 'لا توجد نتائج' : 'No results found'}
-            getOptionLabel={(o) => o.name || o.productName || '—'}
-            getOptionSub={(o) => {
-              if (o.kind === 'variant' || o.variantName) {
-                return [o.sku, o.productName].filter(Boolean).join(' · ')
-              }
-              return o.sku || ''
-            }}
+            getOptionLabel={opsProductOptionLabel}
+            getOptionSub={opsProductOptionSub}
             onChange={async (_id, opt) => {
               try {
                 if (!opt) {
-                  onChange({
+                  onChange(idx, {
                     ...line,
                     productId: '',
                     productName: '',
@@ -1402,17 +1437,7 @@ function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onPick
                   })
                   return
                 }
-                // Prefer parent pickProduct so merge/increment logic stays centralized
-                if (typeof onPickProduct === 'function') {
-                  await onPickProduct(opt)
-                  return
-                }
-                const resolved = await resolveOperationsLinePick(opt, { variantsEnabled })
-                onChange({
-                  ...line,
-                  ...resolved,
-                  demandQty: line.demandQty && Number(line.demandQty) > 0 ? line.demandQty : '1',
-                })
+                await onPickProduct(opt, idx)
               } catch {
                 /* ignore */
               }
@@ -1426,7 +1451,7 @@ function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onPick
             onChange={(e) => {
               const id = e.target.value
               const v = variants.find((x) => String(x._id) === String(id))
-              onChange({
+              onChange(idx, {
                 ...line,
                 variantId: id || null,
                 variantName: v?.name || '',
@@ -1451,7 +1476,7 @@ function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onPick
             value={line.productPackagingId || ''}
             onChange={(e) => {
               const id = e.target.value
-              onChange({
+              onChange(idx, {
                 ...line,
                 productPackagingId: id || undefined,
                 packagingQty: id ? (line.packagingQty || line.demandQty || '1') : undefined,
@@ -1474,14 +1499,14 @@ function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onPick
           value={selected ? (line.packagingQty || line.demandQty) : line.demandQty}
           onChange={(e) => {
             const v = e.target.value
-            if (selected) onChange({ ...line, packagingQty: v, demandQty: v })
-            else onChange({ ...line, demandQty: v })
+            if (selected) onChange(idx, { ...line, packagingQty: v, demandQty: v })
+            else onChange(idx, { ...line, demandQty: v })
           }}
         />
         <button
           type="button"
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-rose-50 hover:text-rose-600"
-          onClick={onRemove}
+          onClick={() => onRemove(idx)}
           aria-label="Remove"
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -1501,4 +1526,4 @@ function TransferDraftLine({ line, ar, packagingEnabled, variantsEnabled, onPick
       ) : null}
     </div>
   )
-}
+})

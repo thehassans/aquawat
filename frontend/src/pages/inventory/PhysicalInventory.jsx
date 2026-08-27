@@ -1,14 +1,20 @@
-import { useMemo, useState, useEffect, Fragment } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { ScanBarcode } from 'lucide-react'
 import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
-import ProductChooser from '../../components/inventory/ProductChooser'
+import AsyncCombobox from '../../components/ui/AsyncCombobox'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import { formatInvError } from '../../lib/invError'
+import {
+  opsProductOptionLabel,
+  opsProductOptionSub,
+  searchProductsAndVariants,
+} from '../../lib/productVariantSearch'
 
 function fmtDate(d) {
   if (!d) return ''
@@ -22,20 +28,57 @@ function fmtDate(d) {
 function diffColor(diff) {
   const n = Number(diff)
   if (!Number.isFinite(n) || n === 0) return 'text-slate-400'
-  return n > 0 ? 'text-emerald-600' : 'text-rose-600'
+  return n > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+}
+
+function productLabel(row, ar) {
+  const variant = row.variantId?.name || row.variantId?.nameAr
+  const template = ar && row.productId?.nameAr ? row.productId.nameAr : (row.productId?.nameEn || row.productId?.sku || '—')
+  if (variant) {
+    // Prefer full variant name; if it already includes template, use as-is
+    if (String(variant).toLowerCase().includes(String(template).toLowerCase().slice(0, 12))) {
+      return ar && row.variantId?.nameAr ? row.variantId.nameAr : variant
+    }
+    return `${template} — ${ar && row.variantId?.nameAr ? row.variantId.nameAr : variant}`
+  }
+  return template
+}
+
+function rowSku(row) {
+  return row.variantId?.sku || row.productId?.sku || ''
+}
+
+function csvEscape(v) {
+  const s = v == null ? '' : String(v)
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+  return s
+}
+
+function downloadCsv(filename, headers, rows) {
+  const lines = [
+    headers.map(csvEscape).join(','),
+    ...rows.map((r) => headers.map((h) => csvEscape(r[h])).join(',')),
+  ]
+  const blob = new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 export default function PhysicalInventory() {
   const { language } = useSelector((s) => s.ui)
   const ar = language === 'ar'
   const qc = useQueryClient()
+  const quickRef = useRef(null)
 
   const [filter, setFilter] = useState('')
   const [warehouseId, setWarehouseId] = useState('')
   const [locationId, setLocationId] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [addCountedQty, setAddCountedQty] = useState('0')
   const [selected, setSelected] = useState(() => new Set())
   const [edits, setEdits] = useState({})
   const [dirty, setDirty] = useState(false)
@@ -47,7 +90,7 @@ export default function PhysicalInventory() {
   const [reason, setReason] = useState('Physical inventory')
   const [reasonCode, setReasonCode] = useState('data_entry_error')
   const [blindMode, setBlindMode] = useState(false)
-  const [groupBy, setGroupBy] = useState('') // '' | location | product | category
+  const [groupBy, setGroupBy] = useState('')
   const [colOptsOpen, setColOptsOpen] = useState(false)
   const [visibleCols, setVisibleCols] = useState({
     lot: true,
@@ -76,8 +119,8 @@ export default function PhysicalInventory() {
   const [reqUser, setReqUser] = useState('')
   const [reqDate, setReqDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [reqZero, setReqZero] = useState(true)
-
   const [historyOpen, setHistoryOpen] = useState(null)
+  const [quickTerm, setQuickTerm] = useState('')
 
   const pageSize = 50
 
@@ -165,7 +208,7 @@ export default function PhysicalInventory() {
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['physical-inventory'] })
-    qc.invalidateQueries({ queryKey: ['stock-report'] })
+    qc.invalidateQueries({ queryKey: ['stock-report'], refetchType: 'active' })
   }
 
   const setCount = useMutation({
@@ -245,8 +288,8 @@ export default function PhysicalInventory() {
         key = String(row.locationId?._id || row.locationId || '—')
         label = row.locationId?.completePath || row.locationId?.name || '—'
       } else if (groupBy === 'product') {
-        key = String(row.productId?._id || row.productId || '—')
-        label = (ar && row.productId?.nameAr ? row.productId.nameAr : row.productId?.nameEn) || row.productId?.sku || '—'
+        key = `${row.productId?._id || row.productId}:${row.variantId?._id || row.variantId || ''}`
+        label = productLabel(row, ar)
       } else if (groupBy === 'category') {
         key = String(row.productId?.categoryId || row.productId?.category || '—')
         label = row.productId?.category || '—'
@@ -258,16 +301,36 @@ export default function PhysicalInventory() {
   }, [list, groupBy, ar])
 
   const whList = Array.isArray(warehouses) ? warehouses : []
-  const locList = Array.isArray(locations) ? locations : []
-  const reqLocList = Array.isArray(reqLocations) ? reqLocations : []
+  const locList = asInvList(locations)
+  const reqLocList = asInvList(reqLocations)
   const catList = Array.isArray(categories) ? categories : []
   const effectiveLocationId = locationId || locList[0]?._id || ''
+
+  const selectableIds = useMemo(
+    () => list.filter((r) => r.isCountSet && !r.isStale).map((r) => r._id),
+    [list],
+  )
+  const allFilteredSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id))
+  const someFilteredSelected = selectableIds.some((id) => selected.has(id))
 
   const toggle = (id) => {
     setSelected((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
+      return next
+    })
+  }
+
+  const toggleMaster = () => {
+    setSelected((prev) => {
+      if (allFilteredSelected) {
+        const next = new Set(prev)
+        selectableIds.forEach((id) => next.delete(id))
+        return next
+      }
+      const next = new Set(prev)
+      selectableIds.forEach((id) => next.add(id))
       return next
     })
   }
@@ -284,29 +347,116 @@ export default function PhysicalInventory() {
     }
   }
 
-  const addProductToCount = (product) => {
+  const addOrIncrement = useCallback(async ({ productId, variantId, name }) => {
     if (!effectiveLocationId) {
-      toast.error(ar ? 'اختر مستودعاً بموقع داخلي أولاً' : 'Select a warehouse with an internal location first')
+      toast.error(ar ? 'اختر موقعاً داخلياً أولاً' : 'Select an internal location first')
       return
     }
+    const existing = list.find((r) => {
+      const pid = String(r.productId?._id || r.productId || '')
+      const vid = String(r.variantId?._id || r.variantId || '')
+      const lid = String(r.locationId?._id || r.locationId || '')
+      return pid === String(productId)
+        && lid === String(effectiveLocationId)
+        && vid === String(variantId || '')
+    })
+
+    let countedQty = '1'
+    if (existing) {
+      const current = edits[existing._id] ?? existing.countedQuantity ?? existing.quantity ?? 0
+      countedQty = String(Number(current || 0) + 1)
+    }
+
     setCount.mutate(
       {
-        productId: product._id,
+        quantId: existing?._id,
+        productId,
+        variantId: variantId || undefined,
         locationId: effectiveLocationId,
-        countedQty: addCountedQty === '' ? '0' : addCountedQty,
+        countedQty,
       },
       {
         onSuccess: () => {
-          toast.success(ar ? `تمت إضافة ${product.name} للجرد` : `Added ${product.name} to count`)
+          toast.success(
+            existing
+              ? (ar ? `+1 → ${countedQty}` : `+1 → ${countedQty}`)
+              : (ar ? `أُضيف ${name || 'البند'}` : `Added ${name || 'line'}`),
+          )
+          if (existing) {
+            setEdits((m) => ({ ...m, [existing._id]: countedQty }))
+          }
         },
       },
     )
+  }, [effectiveLocationId, list, edits, setCount, ar])
+
+  const onQuickPick = async (_id, opt) => {
+    if (!opt) return
+    const productId = opt.productId || (opt.kind === 'product' ? opt._id : null)
+    const variantId = opt.variantId || null
+    if (!productId) return
+    if (opt.productHasVariants && !variantId) {
+      toast.error(ar ? 'اختر متغيراً محدداً' : 'Select a specific variant')
+      return
+    }
+    await addOrIncrement({
+      productId,
+      variantId,
+      name: opt.name || opt.variantName || opt.productName,
+    })
+    setQuickTerm('')
+  }
+
+  const scanBarcode = async (raw) => {
+    const q = String(raw || '').trim()
+    if (!q) return
+    try {
+      const variants = await api.get('/stock/variants', { params: { q, limit: 8 } }).then((r) => r.data?.items || r.data || [])
+      const hit = (Array.isArray(variants) ? variants : []).find(
+        (v) => String(v.barcode || '') === q || String(v.sku || '') === q,
+      )
+      if (hit) {
+        const productId = typeof hit.productId === 'object' ? hit.productId?._id : hit.productId
+        await addOrIncrement({
+          productId,
+          variantId: hit._id,
+          name: hit.name,
+        })
+        setQuickTerm('')
+        return
+      }
+      const product = await api.get('/products/lookup', { params: { barcode: q } }).then((r) => r.data).catch(async () => {
+        return api.get('/products/lookup', { params: { sku: q } }).then((r) => r.data)
+      })
+      if (!product?._id) {
+        toast.error(ar ? 'غير موجود' : 'Not found')
+        return
+      }
+      // Prefer a single default variant when present
+      const vData = await api.get('/stock/variants', { params: { productId: product._id, limit: 5 } })
+        .then((r) => r.data)
+        .catch(() => null)
+      const items = Array.isArray(vData) ? vData : (vData?.items || [])
+      if (items.length === 1) {
+        await addOrIncrement({ productId: product._id, variantId: items[0]._id, name: items[0].name || product.nameEn })
+      } else if (items.length > 1) {
+        toast.error(ar ? 'اختر المتغير من البحث' : 'Pick a specific variant from search')
+      } else {
+        await addOrIncrement({ productId: product._id, variantId: null, name: product.nameEn || product.name })
+      }
+      setQuickTerm('')
+    } catch {
+      toast.error(ar ? 'غير موجود' : 'Not found')
+    }
   }
 
   const persistRow = (row, patch = {}) => {
     const counted = edits[row._id] ?? row.countedQuantity
     setCount.mutate({
       quantId: row._id,
+      productId: row.productId?._id || row.productId,
+      variantId: row.variantId?._id || row.variantId || undefined,
+      locationId: row.locationId?._id || row.locationId,
       countedQty: counted === '' || counted == null ? undefined : counted,
       ...patch,
     })
@@ -318,6 +468,54 @@ export default function PhysicalInventory() {
     qc.invalidateQueries({ queryKey: ['physical-inventory'] })
   }
 
+  const exportAllFields = async () => {
+    try {
+      const res = await api.get('/stock/physical-inventory', {
+        params: {
+          warehouseId: warehouseId || undefined,
+          locationId: locationId || undefined,
+          filter: filter || undefined,
+          search: search || undefined,
+          page: 1,
+          limit: 500,
+        },
+      }).then((r) => r.data)
+      const rows = Array.isArray(res) ? res : (res?.data || [])
+      const headers = [
+        'Location', 'Product Name', 'Variant Name', 'SKU', 'Lot/Serial',
+        'On Hand', 'Counted', 'Difference', 'User',
+      ]
+      const mapped = rows.map((row) => {
+        const counted = edits[row._id] ?? row.countedQuantity ?? ''
+        const liveDiff = counted !== '' && counted != null
+          ? (Number(counted || 0) - Number(row.quantity || 0)).toFixed(2)
+          : (row.isCountSet ? row.countDifference : '')
+        const template = ar && row.productId?.nameAr ? row.productId.nameAr : (row.productId?.nameEn || '')
+        const variantName = row.variantId?.name || row.variantId?.nameAr || ''
+        return {
+          Location: row.locationId?.completePath || row.locationId?.name || '',
+          'Product Name': template,
+          'Variant Name': variantName,
+          SKU: rowSku(row),
+          'Lot/Serial': row.lotId?.name || '',
+          'On Hand': row.quantity ?? '',
+          Counted: counted,
+          Difference: liveDiff,
+          User: row.countUserId?.name || row.countUserId?.email || '',
+        }
+      })
+      downloadCsv(`physical-inventory-${fmtDate(new Date()) || 'export'}.csv`, headers, mapped)
+      toast.success(ar ? `تم تصدير ${mapped.length} سطراً` : `Exported ${mapped.length} rows`)
+    } catch (e) {
+      toast.error(formatInvError(e, language))
+    }
+  }
+
+  const fetchOptions = useCallback(
+    (q) => searchProductsAndVariants(q, { variantsEnabled: true, limit: 25 }),
+    [],
+  )
+
   const chips = [
     { id: '', en: 'All', ar: 'الكل' },
     { id: 'toCount', en: 'To count', ar: 'للعد' },
@@ -328,25 +526,43 @@ export default function PhysicalInventory() {
 
   const from = meta.total ? (page - 1) * (meta.pageSize || pageSize) + 1 : 0
   const to = Math.min(page * (meta.pageSize || pageSize), meta.total || 0)
+  const showOnHand = !blindMode && visibleCols.onHand
+  const showDiff = !blindMode && visibleCols.diff
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-          {ar ? 'الجرد الفعلي' : 'Physical Inventory'}
-        </h2>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className="btn btn-secondary text-sm" disabled={!dirty} onClick={discardLocal}>
+    <div
+      className="flex h-[calc(100vh-8.25rem)] max-h-[calc(100vh-8.25rem)] flex-col gap-2 overflow-hidden"
+      dir={ar ? 'rtl' : 'ltr'}
+    >
+      {/* Header — frozen */}
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+            {ar ? 'الجرد الفعلي' : 'Physical Inventory'}
+          </h2>
+          <p className="text-xs text-slate-500">
+            {ar ? 'عدّ المخزون وطابق الأرصدة' : 'Count stock and reconcile on-hand'}
+            {blindMode ? (ar ? ' · عد أعمى' : ' · Blind count') : ''}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <button type="button" className="btn btn-secondary btn-sm" disabled={!dirty} onClick={discardLocal}>
             {ar ? 'تجاهل' : 'Discard'}
           </button>
           <button
             type="button"
-            className="btn btn-secondary text-sm"
+            className="btn btn-secondary btn-sm"
             disabled={!dirty || setCount.isPending}
             onClick={() => {
               Object.entries(edits).forEach(([id, countedQty]) => {
                 if (countedQty === '' || countedQty == null) return
-                setCount.mutate({ quantId: id, countedQty })
+                const row = list.find((r) => String(r._id) === String(id))
+                setCount.mutate({
+                  quantId: id,
+                  productId: row?.productId?._id || row?.productId,
+                  variantId: row?.variantId?._id || row?.variantId || undefined,
+                  countedQty,
+                })
               })
             }}
           >
@@ -354,7 +570,7 @@ export default function PhysicalInventory() {
           </button>
           <button
             type="button"
-            className="btn btn-primary text-sm"
+            className="btn btn-primary btn-sm"
             disabled={!list.some((r) => r.isCountSet)}
             onClick={() => openApply(list.filter((r) => r.isCountSet).map((r) => r._id))}
           >
@@ -362,7 +578,7 @@ export default function PhysicalInventory() {
           </button>
           <button
             type="button"
-            className="btn btn-secondary text-sm"
+            className="btn btn-secondary btn-sm"
             disabled={selected.size === 0}
             title={selected.size === 0 ? (ar ? 'حدد أسطراً أولاً' : 'Select rows first') : undefined}
             onClick={() => openApply([...selected])}
@@ -371,14 +587,15 @@ export default function PhysicalInventory() {
           </button>
           <button
             type="button"
-            className={`btn text-sm ${blindMode ? 'btn-primary' : 'btn-secondary'}`}
+            className={`btn btn-sm ${blindMode ? 'btn-primary' : 'btn-secondary'}`}
+            aria-pressed={blindMode}
             onClick={() => setBlindMode((v) => !v)}
           >
             {ar ? (blindMode ? 'عد أعمى: تشغيل' : 'عد أعمى') : (blindMode ? 'Blind: ON' : 'Blind count')}
           </button>
           <button
             type="button"
-            className="btn btn-secondary text-sm"
+            className="btn btn-secondary btn-sm"
             onClick={async () => {
               try {
                 const res = await api.post('/stock/print', {
@@ -402,10 +619,13 @@ export default function PhysicalInventory() {
               }
             }}
           >
-            {ar ? 'طباعة ورقة الجرد' : 'Print count sheet'}
+            {ar ? 'طباعة' : 'Print'}
           </button>
-          <button type="button" className="btn btn-secondary text-sm" onClick={() => setRequestOpen(true)}>
-            {ar ? 'طلب جرد' : 'Request a Count'}
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setRequestOpen(true)}>
+            {ar ? 'طلب جرد' : 'Request count'}
+          </button>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={exportAllFields}>
+            {ar ? 'تصدير' : 'Export'}
           </button>
           <InventoryIeButtons
             model="physical_inventory"
@@ -424,18 +644,32 @@ export default function PhysicalInventory() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-sm font-medium text-slate-900 dark:text-white">
-            {ar ? 'إضافة منتج للجرد' : 'Add product to count'}
+      {/* Compact KPIs — frozen */}
+      <div className="grid shrink-0 grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5">
+        {[
+          { label: ar ? 'أسطر للعد' : 'Lines to count', value: totals.linesToCount ?? meta.total ?? 0 },
+          { label: ar ? 'تم العد' : 'Lines counted', value: totals.linesCounted ?? 0 },
+          { label: ar ? 'فرق +' : 'Positive Δ', value: totals.positiveDiff ?? '0', tone: 'text-emerald-700 dark:text-emerald-400' },
+          { label: ar ? 'فرق −' : 'Negative Δ', value: totals.negativeDiff ?? '0', tone: 'text-rose-700 dark:text-rose-400' },
+          { label: ar ? 'صافي القيمة' : 'Net value', value: totals.netValueImpact ?? '0' },
+        ].map((kpi) => (
+          <div
+            key={kpi.label}
+            className="rounded-lg border border-slate-200/70 bg-slate-50/90 px-2.5 py-1.5 dark:border-dark-600 dark:bg-dark-900/50"
+          >
+            <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">{kpi.label}</div>
+            <div className={`text-sm font-semibold tabular-nums tracking-tight ${kpi.tone || 'text-slate-800 dark:text-slate-100'}`}>
+              {kpi.value}
+            </div>
           </div>
-          <Link to="/app/dashboard/inventory/products" className="text-xs font-medium text-primary-600 hover:underline">
-            {ar ? 'فتح كتالوج المنتجات' : 'Open product catalog'}
-          </Link>
-        </div>
-        <div className="mb-3 flex flex-wrap gap-2">
+        ))}
+      </div>
+
+      {/* Filter bar + quick entry — frozen */}
+      <div className="shrink-0 space-y-2 rounded-xl border border-slate-200/80 bg-white p-2.5 dark:border-dark-600 dark:bg-dark-800">
+        <div className="flex flex-wrap items-center gap-1.5">
           <select
-            className="select"
+            className="select select-sm"
             value={warehouseId}
             onChange={(e) => {
               setWarehouseId(e.target.value)
@@ -443,13 +677,13 @@ export default function PhysicalInventory() {
               setPage(1)
             }}
           >
-            <option value="">{ar ? 'كل المستودعات (عرض)' : 'All warehouses (view)'}</option>
+            <option value="">{ar ? 'كل المستودعات' : 'All warehouses'}</option>
             {whList.map((w) => (
-              <option key={w._id} value={w._id}>{ar && w.nameAr ? w.nameAr : w.nameEn}</option>
+              <option key={w._id} value={w._id}>{ar && w.nameAr ? w.nameAr : (w.nameEn || w.name)}</option>
             ))}
           </select>
           <select
-            className="select"
+            className="select select-sm"
             value={locationId}
             onChange={(e) => {
               setLocationId(e.target.value)
@@ -461,53 +695,6 @@ export default function PhysicalInventory() {
               <option key={loc._id} value={loc._id}>{loc.completePath || loc.name}</option>
             ))}
           </select>
-          <input
-            className="input w-28"
-            type="text"
-            inputMode="decimal"
-            value={addCountedQty}
-            onChange={(e) => setAddCountedQty(e.target.value)}
-            placeholder={ar ? 'العد' : 'Counted'}
-          />
-          <input
-            className="input min-w-[12rem] flex-1"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-              setPage(1)
-            }}
-            placeholder={ar ? 'بحث منتج / SKU / باركود…' : 'Search product / SKU / barcode…'}
-          />
-        </div>
-        <ProductChooser
-          remote
-          onPick={addProductToCount}
-          placeholder={ar ? 'ابحث عن منتج من الكتالوج…' : 'Search catalog products to count…'}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        {[
-          { label: ar ? 'أسطر للعد' : 'Lines to count', value: totals.linesToCount ?? meta.total ?? 0 },
-          { label: ar ? 'تم العد' : 'Lines counted', value: totals.linesCounted ?? 0 },
-          { label: ar ? 'فرق +' : 'Positive Δ', value: totals.positiveDiff ?? '0', tone: 'text-emerald-700 dark:text-emerald-400' },
-          { label: ar ? 'فرق −' : 'Negative Δ', value: totals.negativeDiff ?? '0', tone: 'text-amber-700 dark:text-amber-400' },
-          { label: ar ? 'صافي القيمة (ر.س)' : 'Net value (SAR)', value: totals.netValueImpact ?? '0' },
-        ].map((kpi) => (
-          <div
-            key={kpi.label}
-            className="rounded-xl border border-slate-200/70 bg-slate-50/90 px-3.5 py-3 dark:border-dark-600 dark:bg-dark-900/50"
-          >
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{kpi.label}</div>
-            <div className={`mt-1 text-lg font-semibold tabular-nums tracking-tight ${kpi.tone || 'text-slate-800 dark:text-slate-100'}`}>
-              {kpi.value}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2">
           {chips.map((f) => (
             <button
               key={f.id || 'all'}
@@ -522,14 +709,14 @@ export default function PhysicalInventory() {
             </button>
           ))}
           <select
-            className="select text-sm"
+            className="select select-sm"
             value={groupBy}
             onChange={(e) => setGroupBy(e.target.value)}
           >
             <option value="">{ar ? 'بدون تجميع' : 'No grouping'}</option>
-            <option value="location">{ar ? 'تجميع بالموقع' : 'Group by location'}</option>
-            <option value="product">{ar ? 'تجميع بالمنتج' : 'Group by product'}</option>
-            <option value="category">{ar ? 'تجميع بالفئة' : 'Group by category'}</option>
+            <option value="location">{ar ? 'تجميع بالموقع' : 'By location'}</option>
+            <option value="product">{ar ? 'تجميع بالمنتج' : 'By product'}</option>
+            <option value="category">{ar ? 'تجميع بالفئة' : 'By category'}</option>
           </select>
           <button type="button" className="btn btn-sm btn-secondary" onClick={() => setColOptsOpen((v) => !v)}>
             {ar ? 'أعمدة' : 'Columns'}
@@ -544,57 +731,107 @@ export default function PhysicalInventory() {
               {ar ? 'اعتماد فروقات' : 'Approve variance'}
             </button>
           )}
+          <div className="ms-auto flex items-center gap-1.5 text-xs text-slate-500">
+            <span>{from}-{to} / {meta.total || 0}</span>
+            <button type="button" className="btn btn-sm btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>‹</button>
+            <button type="button" className="btn btn-sm btn-secondary" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>›</button>
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <span>{from}-{to} / {meta.total || 0}</span>
-          <button type="button" className="btn btn-sm btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>‹</button>
-          <button type="button" className="btn btn-sm btn-secondary" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>›</button>
+
+        {colOptsOpen && (
+          <div className="flex flex-wrap gap-3 rounded-lg border border-slate-100 bg-slate-50/80 px-2 py-1.5 text-xs dark:border-dark-600 dark:bg-dark-900/40">
+            {Object.entries(visibleCols).map(([k, on]) => (
+              <label key={k} className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={on}
+                  disabled={(k === 'onHand' || k === 'diff') && blindMode}
+                  onChange={(e) => setVisibleCols((c) => ({ ...c, [k]: e.target.checked }))}
+                />
+                {k}
+              </label>
+            ))}
+          </div>
+        )}
+
+        {/* Unified barcode / variant search */}
+        <div className="flex items-stretch gap-2">
+          <div className="relative min-w-0 flex-1">
+            <AsyncCombobox
+              value=""
+              selectedOption={null}
+              debounceMs={280}
+              minChars={2}
+              queryKeyPrefix="pi-variant-search"
+              fetchOptions={fetchOptions}
+              getOptionLabel={opsProductOptionLabel}
+              getOptionSub={opsProductOptionSub}
+              placeholder={ar ? 'امسح باركود أو ابحث عن متغير…' : 'Scan barcode or search variant…'}
+              noResultsText={ar ? 'لا نتائج' : 'No results'}
+              onChange={onQuickPick}
+              className="w-full"
+            />
+          </div>
+          <form
+            className="flex shrink-0 items-center gap-1"
+            onSubmit={(e) => {
+              e.preventDefault()
+              scanBarcode(quickTerm)
+            }}
+          >
+            <input
+              ref={quickRef}
+              className="input input-sm w-40 sm:w-48"
+              value={quickTerm}
+              onChange={(e) => setQuickTerm(e.target.value)}
+              placeholder={ar ? 'باركود…' : 'Barcode…'}
+              autoComplete="off"
+            />
+            <button type="submit" className="btn btn-secondary btn-sm" title={ar ? 'مسح' : 'Scan'}>
+              <ScanBarcode className="h-4 w-4" />
+            </button>
+          </form>
+          <input
+            className="input input-sm hidden max-w-[10rem] sm:block"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
+            placeholder={ar ? 'تصفية الجدول…' : 'Filter table…'}
+          />
         </div>
       </div>
 
-      {colOptsOpen && (
-        <div className="flex flex-wrap gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-dark-600 dark:bg-dark-800">
-          {Object.entries(visibleCols).map(([k, on]) => (
-            <label key={k} className="flex items-center gap-1.5">
-              <input
-                type="checkbox"
-                checked={on}
-                onChange={(e) => setVisibleCols((c) => ({ ...c, [k]: e.target.checked }))}
-              />
-              {k}
-            </label>
-          ))}
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          className="btn btn-primary text-sm"
-          disabled={selected.size === 0}
-          onClick={() => openApply([...selected])}
-        >
-          {ar ? `تطبيق المحدد (${selected.size})` : `Apply Selected (${selected.size})`}
-        </button>
-      </div>
-
-      <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-        <table className="w-full min-w-[1100px] text-sm">
-          <thead className="border-b border-slate-100 bg-slate-50/80 text-xs uppercase text-slate-500 dark:border-dark-600 dark:bg-dark-900/50">
+      {/* Scrollable table only */}
+      <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+        <table className="w-full min-w-[960px] text-sm">
+          <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50 text-xs uppercase text-slate-500 dark:border-dark-600 dark:bg-dark-900">
             <tr>
-              <th className="min-w-[150px] px-3 py-3 w-10" />
-              <th className="min-w-[150px] px-3 py-3 text-start">{ar ? 'الموقع' : 'Location'}</th>
-              <th className="min-w-[180px] px-3 py-3 text-start">{ar ? 'المنتج' : 'Product'}</th>
-              {visibleCols.lot && <th className="min-w-[120px] px-3 py-3 text-start">{ar ? 'دفعة' : 'Lot/Serial'}</th>}
-              {visibleCols.package && <th className="min-w-[120px] px-3 py-3 text-start">{ar ? 'عبوة' : 'Package'}</th>}
-              {!blindMode && visibleCols.onHand && <th className="min-w-[100px] px-3 py-3 text-start">{ar ? 'المتاح' : 'On Hand'}</th>}
-              {visibleCols.uom && <th className="min-w-[100px] px-3 py-3 text-start">{ar ? 'وحدة' : 'UoM'}</th>}
-              <th className="min-w-[120px] px-3 py-3 text-start">{ar ? 'العد' : 'Counted'}</th>
-              {!blindMode && visibleCols.diff && <th className="min-w-[100px] px-3 py-3 text-start">{ar ? 'الفرق' : 'Diff'}</th>}
-              {visibleCols.scheduled && <th className="min-w-[120px] px-3 py-3 text-start">{ar ? 'مجدول' : 'Scheduled'}</th>}
-              {visibleCols.user && <th className="min-w-[120px] px-3 py-3 text-start">{ar ? 'المستخدم' : 'User'}</th>}
-              {visibleCols.lastCount && <th className="min-w-[120px] px-3 py-3 text-start">{ar ? 'آخر جرد' : 'Last count'}</th>}
-              <th className="min-w-[120px] px-3 py-3 text-start">{ar ? 'إجراءات' : 'Actions'}</th>
+              <th className="w-10 px-3 py-2.5 text-start">
+                <input
+                  type="checkbox"
+                  checked={allFilteredSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = !allFilteredSelected && someFilteredSelected
+                  }}
+                  onChange={toggleMaster}
+                  aria-label={ar ? 'تحديد الكل' : 'Select all'}
+                  disabled={selectableIds.length === 0}
+                />
+              </th>
+              <th className="min-w-[140px] px-3 py-2.5 text-start">{ar ? 'الموقع' : 'Location'}</th>
+              <th className="min-w-[200px] px-3 py-2.5 text-start">{ar ? 'المنتج / المتغير' : 'Product / Variant'}</th>
+              {visibleCols.lot && <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'دفعة' : 'Lot/Serial'}</th>}
+              {visibleCols.package && <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'عبوة' : 'Package'}</th>}
+              {showOnHand && <th className="min-w-[90px] px-3 py-2.5 text-start">{ar ? 'المتاح' : 'On Hand'}</th>}
+              {visibleCols.uom && <th className="min-w-[70px] px-3 py-2.5 text-start">{ar ? 'وحدة' : 'UoM'}</th>}
+              <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'العد' : 'Counted'}</th>
+              {showDiff && <th className="min-w-[90px] px-3 py-2.5 text-start">{ar ? 'الفرق' : 'Diff'}</th>}
+              {visibleCols.scheduled && <th className="min-w-[110px] px-3 py-2.5 text-start">{ar ? 'مجدول' : 'Scheduled'}</th>}
+              {visibleCols.user && <th className="min-w-[110px] px-3 py-2.5 text-start">{ar ? 'المستخدم' : 'User'}</th>}
+              {visibleCols.lastCount && <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'آخر جرد' : 'Last count'}</th>}
+              <th className="min-w-[110px] px-3 py-2.5 text-start">{ar ? 'إجراءات' : 'Actions'}</th>
             </tr>
           </thead>
           <tbody>
@@ -608,8 +845,8 @@ export default function PhysicalInventory() {
                     title={ar ? 'لا أسطر جرد' : 'No count lines'}
                     description={
                       ar
-                        ? 'أضف منتجاً، أو استخدم «طلب جرد» لإنشاء أسطر (بما فيها الكميات الصفر).'
-                        : 'Add a product, or use Request a Count to generate lines (including zero qty).'
+                        ? 'امسح باركوداً أو ابحث عن متغير، أو استخدم «طلب جرد».'
+                        : 'Scan a barcode, search a variant, or use Request count.'
                     }
                   />
                 </td>
@@ -619,131 +856,127 @@ export default function PhysicalInventory() {
               <Fragment key={group.key || 'all'}>
                 {group.label && (
                   <tr className="bg-slate-100/80 dark:bg-dark-900/60">
-                    <td colSpan={14} className="px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    <td colSpan={14} className="px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200">
                       {group.label}
                       <span className="ms-2 font-normal text-slate-400">
                         ({group.rows.length})
-                        {!blindMode && ` · Δ ${group.rows.reduce((s, r) => s + Number(r.countDifference || 0), 0).toFixed(2)}`}
+                        {showDiff && ` · Δ ${group.rows.reduce((s, r) => s + Number(r.countDifference || 0), 0).toFixed(2)}`}
                       </span>
                     </td>
                   </tr>
                 )}
                 {group.rows.map((row) => {
-              const counted = edits[row._id] ?? row.countedQuantity ?? ''
-              const liveDiff = counted !== '' && counted != null
-                ? (Number(counted || 0) - Number(row.quantity || 0)).toFixed(2)
-                : (row.isCountSet ? row.countDifference : '—')
-              const pid = row.productId?._id || row.productId
-              const lid = row.locationId?._id || row.locationId
-              const pname = ar && row.productId?.nameAr ? row.productId.nameAr : row.productId?.nameEn
-              return (
-                <tr key={row._id} className={`border-b border-slate-50 dark:border-dark-700 ${row.isStale ? 'bg-amber-50/80 dark:bg-amber-950/20' : ''} ${row.varianceApprovalRequired && !row.varianceApprovedAt ? 'ring-1 ring-inset ring-amber-300' : ''}`}>
-                  <td className="px-3 py-2">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(row._id)}
-                      disabled={!row.isCountSet || row.isStale}
-                      onChange={() => toggle(row._id)}
-                    />
-                  </td>
-                  <td className="px-3 py-2 text-xs text-slate-500">{row.locationId?.completePath || row.locationId?.name}</td>
-                  <td className="px-3 py-2">
-                    <div className="font-medium">
-                      {pid ? (
-                        <Link className="text-primary-700 hover:underline dark:text-primary-300" to={`/app/dashboard/inventory/products/${pid}`}>
-                          {pname}
-                        </Link>
-                      ) : pname}
-                    </div>
-                    <div className="text-xs text-slate-400">{row.productId?.sku}</div>
-                    {row.isStale && (
-                      <div className="text-xs font-medium text-amber-700">{ar ? 'رصيد تغيّر — أعد العد' : 'Stale — recount required'}</div>
-                    )}
-                    {row.varianceApprovalRequired && !row.varianceApprovedAt && (
-                      <div className="text-xs font-medium text-amber-800">{ar ? 'يحتاج اعتماد فرق' : 'Needs variance approval'}</div>
-                    )}
-                    {row.varianceApprovedAt && (
-                      <div className="text-xs text-emerald-600">{ar ? 'معتمد' : 'Approved'}</div>
-                    )}
-                  </td>
-                  {visibleCols.lot && <td className="px-3 py-2 tabular-nums">{row.lotId?.name || '—'}</td>}
-                  {visibleCols.package && <td className="px-3 py-2">{row.packageId?.name || '—'}</td>}
-                  {!blindMode && visibleCols.onHand && <td className="px-3 py-2 tabular-nums">{row.quantity}</td>}
-                  {visibleCols.uom && <td className="px-3 py-2 text-xs text-slate-500">{row.uom || row.productId?.unitOfMeasure || 'PCE'}</td>}
-                  <td className="px-3 py-2">
-                    <input
-                      className="input w-24"
-                      value={counted}
-                      onChange={(e) => {
-                        setEdits((m) => ({ ...m, [row._id]: e.target.value }))
-                        setDirty(true)
-                      }}
-                      onBlur={() => {
-                        if (edits[row._id] == null || edits[row._id] === '') return
-                        persistRow(row)
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') e.currentTarget.blur()
-                      }}
-                    />
-                  </td>
-                  {!blindMode && visibleCols.diff && <td className={`px-3 py-2 tabular-nums ${diffColor(liveDiff)}`}>{liveDiff}</td>}
-                  {visibleCols.scheduled && (
-                  <td className="px-3 py-2">
-                    <input
-                      type="date"
-                      className="input w-[9.5rem] text-xs"
-                      value={fmtDate(row.countScheduledDate)}
-                      onChange={(e) => persistRow(row, { countScheduledDate: e.target.value || null })}
-                    />
-                  </td>
-                  )}
-                  {visibleCols.user && (
-                  <td className="px-3 py-2">
-                    <select
-                      className="select text-xs max-w-[9rem]"
-                      value={row.countUserId?._id || row.countUserId || ''}
-                      onChange={(e) => persistRow(row, { countUserId: e.target.value || null })}
+                  const counted = edits[row._id] ?? row.countedQuantity ?? ''
+                  const liveDiff = counted !== '' && counted != null
+                    ? (Number(counted || 0) - Number(row.quantity || 0)).toFixed(2)
+                    : (row.isCountSet ? row.countDifference : '—')
+                  const pid = row.productId?._id || row.productId
+                  const lid = row.locationId?._id || row.locationId
+                  const pname = productLabel(row, ar)
+                  return (
+                    <tr
+                      key={row._id}
+                      className={`border-b border-slate-50 dark:border-dark-700 ${row.isStale ? 'bg-amber-50/80 dark:bg-amber-950/20' : ''} ${row.varianceApprovalRequired && !row.varianceApprovedAt ? 'ring-1 ring-inset ring-amber-300' : ''}`}
                     >
-                      <option value="">—</option>
-                      {users.map((u) => (
-                        <option key={u._id} value={u._id}>{u.name || u.email}</option>
-                      ))}
-                    </select>
-                  </td>
-                  )}
-                  {visibleCols.lastCount && <td className="px-3 py-2 text-xs text-slate-500">{fmtDate(row.lastCountDate) || '—'}</td>}
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap gap-1">
-                      <button
-                        type="button"
-                        className="text-xs text-primary-600 hover:underline"
-                        onClick={() => setHistoryOpen({ productId: pid, locationId: lid, label: pname })}
-                      >
-                        {ar ? 'سجل' : 'History'}
-                      </button>
-                      {row.isCountSet && (
-                        <button
-                          type="button"
-                          className="text-xs text-emerald-600 hover:underline"
-                          onClick={() => openApply([row._id])}
-                        >
-                          {ar ? 'تطبيق' : 'Apply'}
-                        </button>
+                      <td className="px-3 py-1.5">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(row._id)}
+                          disabled={!row.isCountSet || row.isStale}
+                          onChange={() => toggle(row._id)}
+                        />
+                      </td>
+                      <td className="px-3 py-1.5 text-xs text-slate-500">{row.locationId?.completePath || row.locationId?.name}</td>
+                      <td className="px-3 py-1.5">
+                        <div className="font-medium text-slate-900 dark:text-white">
+                          {pid ? (
+                            <Link className="text-primary-700 hover:underline dark:text-primary-300" to={`/app/dashboard/inventory/products/${pid}`}>
+                              {pname}
+                            </Link>
+                          ) : pname}
+                        </div>
+                        <div className="text-[11px] text-slate-400">{rowSku(row)}</div>
+                        {row.isStale && (
+                          <div className="text-[11px] font-medium text-amber-700">{ar ? 'رصيد تغيّر — أعد العد' : 'Stale — recount required'}</div>
+                        )}
+                        {row.varianceApprovalRequired && !row.varianceApprovedAt && (
+                          <div className="text-[11px] font-medium text-amber-800">{ar ? 'يحتاج اعتماد فرق' : 'Needs variance approval'}</div>
+                        )}
+                      </td>
+                      {visibleCols.lot && <td className="px-3 py-1.5 tabular-nums">{row.lotId?.name || '—'}</td>}
+                      {visibleCols.package && <td className="px-3 py-1.5">{row.packageId?.name || '—'}</td>}
+                      {showOnHand && <td className="px-3 py-1.5 tabular-nums">{row.quantity}</td>}
+                      {visibleCols.uom && <td className="px-3 py-1.5 text-xs text-slate-500">{row.uom || row.productId?.unitOfMeasure || 'PCE'}</td>}
+                      <td className="px-3 py-1.5">
+                        <input
+                          className="input input-sm w-24"
+                          value={counted}
+                          onChange={(e) => {
+                            setEdits((m) => ({ ...m, [row._id]: e.target.value }))
+                            setDirty(true)
+                          }}
+                          onBlur={() => {
+                            if (edits[row._id] == null || edits[row._id] === '') return
+                            persistRow(row)
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') e.currentTarget.blur()
+                          }}
+                        />
+                      </td>
+                      {showDiff && (
+                        <td className={`px-3 py-1.5 tabular-nums font-medium ${diffColor(liveDiff)}`}>
+                          {liveDiff}
+                        </td>
                       )}
-                      {row.isCountSet && (
-                        <button
-                          type="button"
-                          className="text-xs text-rose-500 hover:underline"
-                          onClick={() => clear.mutate(row._id)}
-                        >
-                          {ar ? 'مسح' : 'Clear'}
-                        </button>
+                      {visibleCols.scheduled && (
+                        <td className="px-3 py-1.5">
+                          <input
+                            type="date"
+                            className="input input-sm w-[9.5rem] text-xs"
+                            value={fmtDate(row.countScheduledDate)}
+                            onChange={(e) => persistRow(row, { countScheduledDate: e.target.value || null })}
+                          />
+                        </td>
                       )}
-                    </div>
-                  </td>
-                </tr>
-              )
+                      {visibleCols.user && (
+                        <td className="px-3 py-1.5">
+                          <select
+                            className="select select-sm max-w-[9rem] text-xs"
+                            value={row.countUserId?._id || row.countUserId || ''}
+                            onChange={(e) => persistRow(row, { countUserId: e.target.value || null })}
+                          >
+                            <option value="">—</option>
+                            {users.map((u) => (
+                              <option key={u._id} value={u._id}>{u.name || u.email}</option>
+                            ))}
+                          </select>
+                        </td>
+                      )}
+                      {visibleCols.lastCount && <td className="px-3 py-1.5 text-xs text-slate-500">{fmtDate(row.lastCountDate) || '—'}</td>}
+                      <td className="px-3 py-1.5">
+                        <div className="flex flex-wrap gap-1">
+                          <button
+                            type="button"
+                            className="text-xs text-primary-600 hover:underline"
+                            onClick={() => setHistoryOpen({ productId: pid, locationId: lid, label: pname })}
+                          >
+                            {ar ? 'سجل' : 'History'}
+                          </button>
+                          {row.isCountSet && (
+                            <button type="button" className="text-xs text-emerald-600 hover:underline" onClick={() => openApply([row._id])}>
+                              {ar ? 'تطبيق' : 'Apply'}
+                            </button>
+                          )}
+                          {row.isCountSet && (
+                            <button type="button" className="text-xs text-rose-500 hover:underline" onClick={() => clear.mutate(row._id)}>
+                              {ar ? 'مسح' : 'Clear'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
                 })}
               </Fragment>
             ))}
@@ -774,11 +1007,6 @@ export default function PhysicalInventory() {
             </select>
             <label className="mt-3 block text-xs font-medium text-slate-500">{ar ? 'ملاحظة' : 'Note'}</label>
             <input className="input mt-1 w-full" value={reason} onChange={(e) => setReason(e.target.value)} />
-            <p className="mt-2 text-xs text-slate-400">
-              {ar
-                ? 'الاستيراد يملأ العد فقط — التطبيق خطوة منفصلة. يُنشئ حركات تسوية عبر موقع التعديل.'
-                : 'Import fills Counted only — apply stays a deliberate action. Creates adjustment moves via Inventory Loss.'}
-            </p>
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" className="btn btn-secondary" onClick={() => setApplyOpen(false)}>{ar ? 'إلغاء' : 'Cancel'}</button>
               <button
@@ -794,7 +1022,6 @@ export default function PhysicalInventory() {
         </div>
       )}
 
-      {/* Request a Count */}
       {requestOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl dark:bg-dark-800">
@@ -814,7 +1041,7 @@ export default function PhysicalInventory() {
                 >
                   <option value="">—</option>
                   {whList.map((w) => (
-                    <option key={w._id} value={w._id}>{ar && w.nameAr ? w.nameAr : w.nameEn}</option>
+                    <option key={w._id} value={w._id}>{ar && w.nameAr ? w.nameAr : (w.nameEn || w.name)}</option>
                   ))}
                 </select>
               </div>
@@ -852,7 +1079,7 @@ export default function PhysicalInventory() {
               <div className="flex items-end pb-2">
                 <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                   <input type="checkbox" checked={reqZero} onChange={(e) => setReqZero(e.target.checked)} />
-                  {ar ? 'أسطر كمية صفر (انكماش)' : 'Include zero-qty lines'}
+                  {ar ? 'أسطر كمية صفر' : 'Include zero-qty lines'}
                 </label>
               </div>
             </div>
@@ -880,7 +1107,6 @@ export default function PhysicalInventory() {
         </div>
       )}
 
-      {/* History */}
       {historyOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-dark-800">

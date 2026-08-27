@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, ChevronDown, X } from 'lucide-react'
 
@@ -38,13 +38,15 @@ export default function AsyncCombobox({
     return () => clearTimeout(t)
   }, [term, debounceMs])
 
+  // Only listen while open — one listener per open combobox, not per mounted row
   useEffect(() => {
+    if (!open) return undefined
     const onDoc = (e) => {
       if (!rootRef.current?.contains(e.target)) setOpen(false)
     }
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
-  }, [])
+  }, [open])
 
   const enabled = open && debounced.length >= minChars && typeof fetchOptions === 'function'
 
@@ -63,6 +65,8 @@ export default function AsyncCombobox({
     placeholderData: (prev) => prev,
     retry: false,
   })
+
+  const deferredOptions = useDeferredValue(options)
 
   const displayValue = useMemo(() => {
     if (open) return term
@@ -100,7 +104,7 @@ export default function AsyncCombobox({
     && debounced.length >= minChars
     && !isFetching
     && !isError
-    && options.length === 0,
+    && deferredOptions.length === 0,
   )
 
   return (
@@ -123,9 +127,9 @@ export default function AsyncCombobox({
           onFocus={() => setOpen(true)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') setOpen(false)
-            if (e.key === 'Enter' && options[0]) {
+            if (e.key === 'Enter' && deferredOptions[0]) {
               e.preventDefault()
-              select(options[0])
+              select(deferredOptions[0])
             }
           }}
         />
@@ -158,11 +162,11 @@ export default function AsyncCombobox({
             </p>
           ) : isError ? (
             <p className="px-3 py-2 text-xs text-rose-600">Search failed</p>
-          ) : isFetching && options.length === 0 ? (
+          ) : isFetching && deferredOptions.length === 0 ? (
             <p className="flex items-center gap-2 px-3 py-2 text-xs text-slate-400">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
             </p>
-          ) : options.length === 0 ? (
+          ) : deferredOptions.length === 0 ? (
             <>
               <p className="px-3 py-2 text-xs text-slate-400">{noResultsText}</p>
               {showEmptyActions
@@ -172,7 +176,7 @@ export default function AsyncCombobox({
                 : null}
             </>
           ) : (
-            options.map((opt) => {
+            deferredOptions.map((opt) => {
               const active = String(opt._id) === String(value)
               return (
                 <button

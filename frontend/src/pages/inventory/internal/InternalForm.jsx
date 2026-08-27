@@ -94,6 +94,7 @@ export default function InternalForm() {
   const { data: locations = [] } = useQuery({
     queryKey: ['inv-locations'],
     queryFn: () => api.get('/stock/locations').then((r) => asInvList(r.data)),
+    staleTime: 10 * 60 * 1000,
   })
 
   const { data: transfer, isLoading } = useQuery({
@@ -113,13 +114,33 @@ export default function InternalForm() {
   } = useForm({
     resolver: zodResolver(internalSchema),
     defaultValues: emptyDefaults,
-    mode: 'onChange',
+    mode: 'onSubmit',
+    reValidateMode: 'onSubmit',
   })
 
   const lines = watch('lines') || []
-  const formValues = watch()
   const watchSource = watch('sourceLocationId')
   const watchDest = watch('destLocationId')
+  const watchOpType = watch('operationTypeId')
+  const watchScheduled = watch('scheduledDate')
+  const watchDeadline = watch('deadlineDate')
+  const watchOrigin = watch('origin')
+  const watchNote = watch('note')
+  const watchPriority = watch('priority')
+  const formValues = useMemo(() => ({
+    operationTypeId: watchOpType,
+    sourceLocationId: watchSource,
+    destLocationId: watchDest,
+    scheduledDate: watchScheduled,
+    deadlineDate: watchDeadline,
+    origin: watchOrigin,
+    note: watchNote,
+    priority: watchPriority,
+    lines,
+  }), [
+    watchOpType, watchSource, watchDest, watchScheduled, watchDeadline,
+    watchOrigin, watchNote, watchPriority, lines,
+  ])
   const sameLocation = Boolean(
     watchSource && watchDest && String(watchSource) === String(watchDest),
   )
@@ -212,12 +233,13 @@ export default function InternalForm() {
 
   const actionMut = useMutation({
     mutationFn: ({ action, body }) => api.post(`/stock/transfers/${id}/${action}`, body || {}).then((r) => r.data),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       toast.success(ar ? 'تم' : 'Done')
       qc.invalidateQueries({ queryKey: ['stock-transfer', id] })
-      qc.invalidateQueries({ queryKey: ['stock-transfers'] })
-      qc.invalidateQueries({ queryKey: ['products'] })
-      qc.invalidateQueries({ queryKey: ['stock-report'] })
+      qc.invalidateQueries({ queryKey: ['stock-transfers'], refetchType: 'active' })
+      if (vars?.action === 'validate' || vars?.action === 'cancel') {
+        qc.invalidateQueries({ queryKey: ['stock-report'], refetchType: 'active' })
+      }
     },
     onError: (e) => toast.error(formatInvError(e, language)),
   })

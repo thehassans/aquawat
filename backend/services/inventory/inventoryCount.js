@@ -78,16 +78,44 @@ export async function listInventoryQuants(tenantId, {
   }
 
   if (search?.trim()) {
-    const products = await Product.find({
-      tenantId: tid,
-      $or: [
-        { nameEn: new RegExp(search.trim(), 'i') },
-        { nameAr: new RegExp(search.trim(), 'i') },
-        { sku: new RegExp(search.trim(), 'i') },
-        { barcode: new RegExp(search.trim(), 'i') },
-      ],
-    }).select('_id').limit(200).lean();
-    filter.productId = { $in: products.map((p) => p._id) };
+    const needle = search.trim();
+    const { default: InvProductVariant } = await import('../../models/inventory/InvProductVariant.js');
+    const [products, variants] = await Promise.all([
+      Product.find({
+        tenantId: tid,
+        $or: [
+          { nameEn: new RegExp(needle, 'i') },
+          { nameAr: new RegExp(needle, 'i') },
+          { sku: new RegExp(needle, 'i') },
+          { barcode: new RegExp(needle, 'i') },
+        ],
+      }).select('_id').limit(200).lean(),
+      InvProductVariant.find({
+        tenantId: tid,
+        active: true,
+        $or: [
+          { name: new RegExp(needle, 'i') },
+          { nameAr: new RegExp(needle, 'i') },
+          { sku: new RegExp(needle, 'i') },
+          { barcode: new RegExp(needle, 'i') },
+        ],
+      }).select('_id productId').limit(200).lean(),
+    ]);
+    const productIds = new Set([
+      ...products.map((p) => String(p._id)),
+      ...variants.map((v) => String(v.productId)),
+    ]);
+    const variantIds = variants.map((v) => v._id);
+    filter.$and = [
+      ...(filter.$and || []),
+      {
+        $or: [
+          { productId: { $in: [...productIds] } },
+          ...(variantIds.length ? [{ variantId: { $in: variantIds } }] : []),
+        ],
+      },
+    ];
+    delete filter.productId;
   }
 
   const pageN = Math.max(1, Number(page) || 1);
@@ -98,9 +126,10 @@ export async function listInventoryQuants(tenantId, {
     InvQuant.find(filter)
       .populate({
         path: 'productId',
-        select: 'nameEn nameAr sku barcode unitOfMeasure uomId tracking costPrice',
+        select: 'nameEn nameAr sku barcode unitOfMeasure uomId tracking costPrice categoryId',
         populate: { path: 'uomId', select: 'name' },
       })
+      .populate('variantId', 'name nameAr sku barcode')
       .populate({
         path: 'locationId',
         select: 'name completePath usage warehouseId barcode',

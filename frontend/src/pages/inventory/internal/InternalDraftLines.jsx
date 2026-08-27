@@ -2,7 +2,12 @@ import { useCallback } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import AsyncCombobox from '../../../components/ui/AsyncCombobox'
 import { ReceiptQuickAdd } from '../receipts/ReceiptQuickAdd'
-import { resolveOperationsLinePick, searchProductsAndVariants } from '../../../lib/productVariantSearch'
+import {
+  opsProductOptionLabel,
+  opsProductOptionSub,
+  resolveOperationsLinePick,
+  searchProductsAndVariants,
+} from '../../../lib/productVariantSearch'
 
 /**
  * Internal transfer draft lines with one-step product/variant picker.
@@ -92,18 +97,13 @@ export function InternalDraftLines({
                       value={selectedOption?._id || ''}
                       selectedOption={selectedOption}
                       debounceMs={300}
-                      minChars={1}
+                      minChars={2}
                       queryKeyPrefix="internal-product-variant"
                       fetchOptions={fetchOptions}
                       placeholder={ar ? 'ابحث عن منتج أو متغير…' : 'Search product or variant…'}
                       noResultsText={ar ? 'لا توجد نتائج' : 'No results found'}
-                      getOptionLabel={(o) => o.name || o.productName || '—'}
-                      getOptionSub={(o) => {
-                        if (o.kind === 'variant' || o.variantName) {
-                          return [o.sku, o.productName].filter(Boolean).join(' · ')
-                        }
-                        return o.sku || ''
-                      }}
+                      getOptionLabel={opsProductOptionLabel}
+                      getOptionSub={opsProductOptionSub}
                       onChange={async (_id, opt) => {
                         try {
                           const resolved = await resolveOperationsLinePick(opt, { variantsEnabled })
