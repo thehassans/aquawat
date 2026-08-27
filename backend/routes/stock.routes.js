@@ -46,6 +46,7 @@ import {
   listInventoryQuants,
   setCountedQuantity,
   clearCountedQuantity,
+  clearCountedQuantities,
   applyInventoryCounts,
   approveVarianceCounts,
   requestCount,
@@ -1462,6 +1463,10 @@ router.post('/physical-inventory/set', checkPermission('inventory', 'update'), a
 
 router.post('/physical-inventory/clear', checkPermission('inventory', 'update'), async (req, res) => {
   try {
+    if (Array.isArray(req.body?.ids) && req.body.ids.length) {
+      res.json(await clearCountedQuantities(req.user.tenantId, req.body.ids));
+      return;
+    }
     res.json(await clearCountedQuantity(req.user.tenantId, req.body.quantId));
   } catch (err) {
     handleInventoryError(res, err);

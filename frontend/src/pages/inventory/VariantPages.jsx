@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
+import { useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
@@ -13,11 +14,17 @@ export function VariantsPage() {
   const { language } = useSelector((s) => s.ui)
   const ar = language === 'ar'
   const qc = useQueryClient()
-  const [productId, setProductId] = useState('')
+  const [searchParams] = useSearchParams()
+  const [productId, setProductId] = useState(() => searchParams.get('productId') || '')
   const [productQ, setProductQ] = useState('')
   const [attrFilter, setAttrFilter] = useState('')
   const [q, setQ] = useState('')
   const [attrIds, setAttrIds] = useState([])
+
+  useEffect(() => {
+    const pid = searchParams.get('productId')
+    if (pid) setProductId(pid)
+  }, [searchParams])
 
   const { data: products = [] } = useQuery({
     queryKey: ['products-lite', productQ],
@@ -26,6 +33,21 @@ export function VariantsPage() {
       return d?.products || d?.data || (Array.isArray(d) ? d : [])
     }),
   })
+
+  const { data: pinnedProduct } = useQuery({
+    queryKey: ['product-lite', productId],
+    queryFn: () => api.get(`/products/${productId}`).then((r) => r.data),
+    enabled: Boolean(productId) && !products.some((p) => String(p._id) === String(productId)),
+    staleTime: 60_000,
+  })
+
+  const productOptions = useMemo(() => {
+    const rows = [...products]
+    if (pinnedProduct?._id && !rows.some((p) => String(p._id) === String(pinnedProduct._id))) {
+      rows.unshift(pinnedProduct)
+    }
+    return rows
+  }, [products, pinnedProduct])
 
   const { data: attrsData } = useQuery({
     queryKey: ['inv-attributes'],
@@ -114,7 +136,7 @@ export function VariantsPage() {
           <label className="label text-xs">{ar ? 'القالب' : 'Template'}</label>
           <select className="select select-sm w-full" value={productId} onChange={(e) => setProductId(e.target.value)}>
             <option value="">{ar ? '— الكل —' : '— All —'}</option>
-            {products.map((p) => (
+            {productOptions.map((p) => (
               <option key={p._id} value={p._id}>
                 {p.productId ? `${p.productId} · ` : ''}{(ar && p.nameAr) || p.nameEn || p.name} {p.sku ? `(${p.sku})` : ''}
               </option>

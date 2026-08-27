@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ScanBarcode } from 'lucide-react'
+import { ScanBarcode, X } from 'lucide-react'
 import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
@@ -88,6 +88,7 @@ export default function PhysicalInventory() {
   const [applyOpen, setApplyOpen] = useState(false)
   const [applyIds, setApplyIds] = useState([])
   const [applyPreview, setApplyPreview] = useState(null)
+  const [clearConfirm, setClearConfirm] = useState(null) // { ids: string[], label: string }
   const [accountingDate, setAccountingDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [reason, setReason] = useState('Physical inventory')
   const [reasonCode, setReasonCode] = useState('data_entry_error')
@@ -223,10 +224,83 @@ export default function PhysicalInventory() {
   })
 
   const clear = useMutation({
-    mutationFn: (quantId) => api.post('/stock/physical-inventory/clear', { quantId }),
-    onSuccess: () => invalidate(),
+    mutationFn: (payload) => {
+      if (Array.isArray(payload)) {
+        return api.post('/stock/physical-inventory/clear', { ids: payload })
+      }
+      return api.post('/stock/physical-inventory/clear', { quantId: payload })
+    },
+    onSuccess: (_res, payload) => {
+      const ids = Array.isArray(payload) ? payload : [payload]
+      setEdits((m) => {
+        const next = { ...m }
+        for (const id of ids) next[id] = ''
+        return next
+      })
+      setSelected((prev) => {
+        const next = new Set(prev)
+        for (const id of ids) next.delete(id)
+        return next
+      })
+      setClearConfirm(null)
+      invalidate()
+      toast.success(ar ? 'تم مسح العد' : 'Counted quantities cleared')
+    },
     onError: (e) => toast.error(formatInvError(e, language)),
   })
+
+  /** Reset counted to null/empty — never write 0 (that would wipe stock on apply). */
+  const requestClearLines = useCallback((ids, { forceConfirm = false } = {}) => {
+    const unique = [...new Set((ids || []).map(String).filter(Boolean))]
+    if (!unique.length) return
+
+    const run = () => {
+      const serverIds = unique.filter((id) => {
+        const row = list.find((r) => String(r._id) === String(id))
+        return row?.isCountSet
+      })
+      // Always clear local edits to empty string (uncounted)
+      setEdits((m) => {
+        const next = { ...m }
+        for (const id of unique) next[id] = ''
+        return next
+      })
+      setDirty(true)
+      if (serverIds.length) {
+        clear.mutate(serverIds)
+      } else {
+        setSelected((prev) => {
+          const next = new Set(prev)
+          for (const id of unique) next.delete(id)
+          return next
+        })
+        toast.success(ar ? 'تم مسح العد' : 'Counted quantities cleared')
+      }
+    }
+
+    if (forceConfirm || unique.length > 5) {
+      setClearConfirm({ ids: unique, count: unique.length })
+      return
+    }
+    run()
+  }, [list, clear, ar])
+
+  const confirmClearLines = () => {
+    if (!clearConfirm?.ids?.length) return
+    const ids = clearConfirm.ids
+    const serverIds = ids.filter((id) => list.find((r) => String(r._id) === String(id))?.isCountSet)
+    setEdits((m) => {
+      const next = { ...m }
+      for (const id of ids) next[id] = ''
+      return next
+    })
+    if (serverIds.length) clear.mutate(serverIds)
+    else {
+      setClearConfirm(null)
+      setSelected(new Set())
+      toast.success(ar ? 'تم مسح العد' : 'Counted quantities cleared')
+    }
+  }
 
   const apply = useMutation({
     mutationFn: (body) => api.post('/stock/physical-inventory/apply', body),
@@ -587,11 +661,35 @@ export default function PhysicalInventory() {
           <button
             type="button"
             className="btn btn-secondary btn-sm"
+            disabled={!list.some((r) => r.isCountSet || (edits[r._id] != null && edits[r._id] !== ''))}
+            onClick={() => {
+              const ids = list
+                .filter((r) => r.isCountSet || (edits[r._id] != null && edits[r._id] !== ''))
+                .map((r) => r._id)
+              requestClearLines(ids, { forceConfirm: ids.length > 5 })
+            }}
+          >
+            {ar ? 'مسح الكل' : 'Clear All'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
             disabled={selected.size === 0}
             title={selected.size === 0 ? (ar ? 'حدد أسطراً أولاً' : 'Select rows first') : undefined}
             onClick={() => openApply([...selected])}
           >
             {ar ? `تطبيق المحدد (${selected.size})` : `Apply Selected (${selected.size})`}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={selected.size === 0 || clear.isPending}
+            title={selected.size === 0 ? (ar ? 'حدد أسطراً أولاً' : 'Select rows first') : undefined}
+            onClick={() => requestClearLines([...selected])}
+          >
+            {ar
+              ? (selected.size ? `مسح المحدد (${selected.size})` : 'مسح المحدد')
+              : (selected.size ? `Clear Selected (${selected.size})` : 'Clear Selected')}
           </button>
           <button
             type="button"
@@ -963,7 +1061,7 @@ export default function PhysicalInventory() {
                       )}
                       {visibleCols.lastCount && <td className="px-3 py-1.5 text-xs text-slate-500">{fmtDate(row.lastCountDate) || '—'}</td>}
                       <td className="px-3 py-1.5">
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap items-center gap-1">
                           <button
                             type="button"
                             className="text-xs text-primary-600 hover:underline"
@@ -976,8 +1074,14 @@ export default function PhysicalInventory() {
                               {ar ? 'تطبيق' : 'Apply'}
                             </button>
                           )}
-                          {row.isCountSet && (
-                            <button type="button" className="text-xs text-rose-500 hover:underline" onClick={() => clear.mutate(row._id)}>
+                          {(row.isCountSet || (edits[row._id] != null && edits[row._id] !== '')) && (
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-0.5 text-xs text-rose-500 hover:underline"
+                              title={ar ? 'مسح العد (لا يصفر المخزون)' : 'Clear count (does not zero stock)'}
+                              onClick={() => requestClearLines([row._id])}
+                            >
+                              <X className="h-3 w-3" />
                               {ar ? 'مسح' : 'Clear'}
                             </button>
                           )}
@@ -991,6 +1095,35 @@ export default function PhysicalInventory() {
           </tbody>
         </table>
       </div>
+
+      {/* Clear counted confirm */}
+      {clearConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-dark-800">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+              {ar ? 'مسح الكميات المعدودة؟' : 'Clear Counted Quantities?'}
+            </h3>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+              {ar
+                ? `هل أنت متأكد من مسح الكميات المعدودة لـ ${clearConfirm.count} سطر محدد؟ هذا الإجراء لا يمكن التراجع عنه. لن يُصفَّر المخزون الفعلي.`
+                : `Are you sure you want to clear the counted quantities for ${clearConfirm.count} selected lines? This action cannot be undone. Physical stock is not zeroed.`}
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setClearConfirm(null)}>
+                {ar ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={clear.isPending}
+                onClick={confirmClearLines}
+              >
+                {ar ? 'مسح الأسطر' : 'Clear Lines'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Apply confirm */}
       {applyOpen && (

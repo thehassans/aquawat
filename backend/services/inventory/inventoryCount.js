@@ -320,8 +320,30 @@ export async function clearCountedQuantity(tenantId, quantId) {
   quant.isCountSet = false;
   quant.countDifference = '0';
   quant.countSnapshotQty = null;
+  quant.varianceApprovalRequired = false;
   await quant.save();
   return quant;
+}
+
+/** Bulk clear — resets counted state to null (never writes 0). */
+export async function clearCountedQuantities(tenantId, ids) {
+  if (!ids?.length) return { cleared: 0 };
+  const result = await InvQuant.updateMany(
+    {
+      _id: { $in: ids.map((id) => toObjectId(id)) },
+      tenantId: toObjectId(tenantId),
+    },
+    {
+      $set: {
+        countedQuantity: null,
+        isCountSet: false,
+        countDifference: '0',
+        countSnapshotQty: null,
+        varianceApprovalRequired: false,
+      },
+    },
+  );
+  return { cleared: result.modifiedCount || 0 };
 }
 
 export async function previewApplyCounts(tenantId, ids) {

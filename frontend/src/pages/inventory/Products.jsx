@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { useSelector } from 'react-redux'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Plus, Search, Package, AlertTriangle, Eye, Edit, QrCode, Boxes, Warehouse, CircleOff, Printer } from 'lucide-react'
 import api from '../../lib/api'
@@ -50,12 +50,18 @@ export default function Products() {
   const { language } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
   const isAr = language === 'ar'
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const categoryIdFromUrl = searchParams.get('categoryId') || ''
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filters, setFilters] = useState({ status: '', stockHealth: '', productType: '', categoryId: '' })
   const [page, setPage] = useState(1)
+
+  const goToVariantStock = (product) => {
+    if (!product?._id) return
+    navigate(`/app/dashboard/inventory/variants?productId=${product._id}`)
+  }
 
   useEffect(() => {
     if (categoryIdFromUrl) {
@@ -397,9 +403,19 @@ export default function Products() {
                     </span>
                   </div>
                   <div className="mt-3 flex items-center justify-between text-sm">
-                    <span className={`font-semibold ${tracked ? qtyClass(health) : 'text-slate-500'}`}>
-                      {tracked ? `${(inv.available ?? product.totalStock) || 0} ${product.unitOfMeasure || 'EA'}` : (isAr ? 'بدون مخزون' : 'No stock')}
-                    </span>
+                    {(inv.aggregatedFromVariants || (product.variantCount || 0) > 0) ? (
+                      <button
+                        type="button"
+                        className={`font-semibold hover:underline ${tracked ? qtyClass(health) : 'text-slate-500'}`}
+                        onClick={() => goToVariantStock(product)}
+                      >
+                        {tracked ? `${(inv.available ?? product.totalStock) || 0} ${product.unitOfMeasure || 'EA'}` : (isAr ? 'بدون مخزون' : 'No stock')}
+                      </button>
+                    ) : (
+                      <span className={`font-semibold ${tracked ? qtyClass(health) : 'text-slate-500'}`}>
+                        {tracked ? `${(inv.available ?? product.totalStock) || 0} ${product.unitOfMeasure || 'EA'}` : (isAr ? 'بدون مخزون' : 'No stock')}
+                      </span>
+                    )}
                     <Money value={product.sellingPrice} />
                   </div>
                   {tracked ? (
@@ -483,11 +499,28 @@ export default function Products() {
                           <td className="px-3 py-3.5">
                             {tracked ? (
                               <>
-                                <p className={`font-semibold tabular-nums ${qtyClass(health)}`}>
-                                  {inv.available ?? product.totalStock ?? 0}
-                                </p>
+                                {(inv.aggregatedFromVariants || (product.variantCount || 0) > 0) ? (
+                                  <button
+                                    type="button"
+                                    className={`font-semibold tabular-nums hover:underline ${qtyClass(health)}`}
+                                    title={isAr ? 'عرض تفصيل المتغيرات' : 'View variant breakdown'}
+                                    onClick={() => goToVariantStock(product)}
+                                  >
+                                    {inv.available ?? product.totalStock ?? 0}
+                                  </button>
+                                ) : (
+                                  <p className={`font-semibold tabular-nums ${qtyClass(health)}`}>
+                                    {inv.available ?? product.totalStock ?? 0}
+                                  </p>
+                                )}
                                 {inv.reserved > 0 && (
                                   <p className="text-[11px] text-slate-400">{inv.onHand} {isAr ? 'في اليد' : 'on hand'} · {inv.reserved} {isAr ? 'محجوز' : 'reserved'}</p>
+                                )}
+                                {(inv.aggregatedFromVariants || (product.variantCount || 0) > 0) && (
+                                  <p className="text-[10px] text-slate-400">
+                                    {isAr ? 'مجموع المتغيرات' : 'Sum of variants'}
+                                    {inv.forecasted != null ? ` · ${isAr ? 'متوقع' : 'Fcst'} ${inv.forecasted}` : ''}
+                                  </p>
                                 )}
                               </>
                             ) : (
@@ -517,11 +550,31 @@ export default function Products() {
                         {col('actions') && (
                           <td className="px-5 py-3.5">
                             <div className="flex justify-end gap-1">
-                              {tracked ? (
-                                <button type="button" onClick={() => openStockModal(product)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-emerald-700 hover:bg-emerald-50" title={isAr ? 'استلام مخزون' : 'Receive stock'}>
-                                  <Plus className="h-4 w-4" />
-                                </button>
-                              ) : null}
+                            {tracked ? (
+                              <button
+                                type="button"
+                                onClick={() => openStockModal(product)}
+                                disabled={inv.aggregatedFromVariants || (product.variantCount || 0) > 0}
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                title={
+                                  (inv.aggregatedFromVariants || (product.variantCount || 0) > 0)
+                                    ? (isAr ? 'اضبط المخزون على مستوى المتغير' : 'Adjust stock on the variant')
+                                    : (isAr ? 'استلام مخزون' : 'Receive stock')
+                                }
+                              >
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            ) : null}
+                            {(inv.aggregatedFromVariants || (product.variantCount || 0) > 0) && (
+                              <button
+                                type="button"
+                                onClick={() => goToVariantStock(product)}
+                                className="inline-flex h-9 items-center rounded-xl px-2 text-xs font-semibold text-sky-800 hover:bg-sky-50"
+                                title={isAr ? 'المتغيرات' : 'Variants'}
+                              >
+                                {isAr ? 'متغيرات' : 'Variants'}
+                              </button>
+                            )}
                               <Link to={`/app/dashboard/inventory/products/${product._id}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700">
                                 <Eye className="h-4 w-4" />
                               </Link>

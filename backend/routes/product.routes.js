@@ -8,6 +8,7 @@ import { isStockTrackedProductType, normalizeProductType } from '../utils/produc
 import { isInvEngineEnabled } from '../services/inventory/legacyAdapter.js';
 import { saveUploadBuffer } from '../utils/objectStorage.js';
 import { cacheAside } from '../lib/redis.js';
+import { applyEngineInventoryToProducts } from '../services/inventory/productListInventory.js';
 
 const router = express.Router();
 const imageUpload = multer({
@@ -120,7 +121,8 @@ router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
           .limit(limitNum)
           .lean(),
       ]);
-      const products = found.map((p) => enrichInventory(normalizeProductForClient(p)));
+      const normalized = found.map((p) => enrichInventory(normalizeProductForClient(p)));
+      const products = await applyEngineInventoryToProducts(req.user.tenantId, normalized);
       return res.json({
         products,
         pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) || 0 },
@@ -131,9 +133,9 @@ router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
       .select('-landedCostHistory')
       .sort({ createdAt: -1 })
       .lean();
-    const filteredProducts = found
-      .map((p) => enrichInventory(normalizeProductForClient(p)))
-      .filter((p) => p.inventory?.health === healthFilter);
+    const normalized = found.map((p) => enrichInventory(normalizeProductForClient(p)));
+    const withEngine = await applyEngineInventoryToProducts(req.user.tenantId, normalized);
+    const filteredProducts = withEngine.filter((p) => p.inventory?.health === healthFilter);
     const total = filteredProducts.length;
     const paged = filteredProducts.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
@@ -175,10 +177,11 @@ router.get('/stats', checkPermission('inventory', 'read'), async (req, res) => {
     const cacheKey = `products:stats:v1:${req.user.tenantId}`;
     const payload = await cacheAside(cacheKey, 90, async () => {
       const products = await Product.find({ ...req.tenantFilter, isActive: { $ne: false } })
-        .select('stocks allowNegativeStock costPrice sellingPrice category status productType')
+        .select('stocks allowNegativeStock costPrice sellingPrice category status productType attributeLines')
         .lean();
 
-      const rows = products.map((p) => enrichInventory(p));
+      const normalized = products.map((p) => enrichInventory(p));
+      const rows = await applyEngineInventoryToProducts(req.user.tenantId, normalized);
       const byHealth = { in_stock: 0, low_stock: 0, out_of_stock: 0, backorder: 0, not_tracked: 0 };
       const byType = { goods: 0, service: 0 };
       let totalStock = 0;
@@ -231,8 +234,10 @@ router.get('/:id', checkPermission('inventory', 'read'), async (req, res) => {
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
     }
-    
-    res.json(normalizeProductForClient(enrichInventory(product.toObject ? product.toObject() : product)));
+
+    const normalized = enrichInventory(normalizeProductForClient(product));
+    const [enriched] = await applyEngineInventoryToProducts(req.user.tenantId, [normalized]);
+    res.json(enriched);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
