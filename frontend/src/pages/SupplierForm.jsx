@@ -11,6 +11,18 @@ import { useTranslation } from '../lib/translations'
 import { useLiveTranslation } from '../lib/liveTranslation'
 import { getTenantCountryCode, getTaxIdLabel, showArabicFields as isArabicTenantMarket } from '../lib/saudiTenant'
 
+function pathWithPartnerId(returnTo, partnerId) {
+  if (!returnTo || !partnerId) return returnTo
+  try {
+    const u = new URL(returnTo, window.location.origin)
+    u.searchParams.set('partnerId', partnerId)
+    return `${u.pathname}${u.search}${u.hash}`
+  } catch {
+    const sep = returnTo.includes('?') ? '&' : '?'
+    return `${returnTo}${sep}partnerId=${encodeURIComponent(partnerId)}`
+  }
+}
+
 export default function SupplierForm() {
   const { id } = useParams()
   const isEdit = Boolean(id)
@@ -18,6 +30,7 @@ export default function SupplierForm() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const returnTo = searchParams.get('returnTo')
+  const namePrefill = searchParams.get('name') || ''
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
   const { tenant } = useSelector((state) => state.auth)
@@ -25,10 +38,15 @@ export default function SupplierForm() {
   const showArabicFields = isArabicTenantMarket(tenant)
   const taxIdLabel = getTaxIdLabel(tenant)
   const tenantCountry = getTenantCountryCode(tenant)
+  const backPath = returnTo || '/app/dashboard/suppliers'
 
   const { register, handleSubmit, reset, setValue, watch, control } = useForm({
     defaultValues: {
       type: 'company',
+      nameEn: namePrefill,
+      nameAr: '',
+      parentCompanyId: '',
+      payableAccountId: '',
       paymentTerms: { term: 'net_30' },
       address: { country: tenantCountry },
     },
@@ -56,16 +74,35 @@ export default function SupplierForm() {
     enabled: showArabicFields,
   })
 
+  const supplierType = watch('type')
+
   const { data: supplierData, isLoading } = useQuery({
     queryKey: ['supplier', id],
     queryFn: () => api.get(`/suppliers/${id}`).then((res) => res.data),
     enabled: isEdit,
   })
 
+  const { data: parentCompanies = [] } = useQuery({
+    queryKey: ['suppliers-parent-companies'],
+    queryFn: () => api.get('/suppliers', { params: { limit: 200, isActive: true } })
+      .then((r) => {
+        const list = r.data?.suppliers || r.data?.data || (Array.isArray(r.data) ? r.data : [])
+        return (list || []).filter((s) => s.type === 'company' || !s.type)
+      }),
+  })
+
+  const { data: payableAccounts = [] } = useQuery({
+    queryKey: ['accounts-payable'],
+    queryFn: () => api.get('/accounting/accounts', { params: { type: 'liability', subtype: 'payable' } })
+      .then((r) => (Array.isArray(r.data) ? r.data : [])),
+  })
+
   useEffect(() => {
     if (isEdit && supplierData) {
       reset({
         ...supplierData,
+        parentCompanyId: supplierData.parentCompanyId?._id || supplierData.parentCompanyId || '',
+        payableAccountId: supplierData.payableAccountId?._id || supplierData.payableAccountId || '',
         paymentTerms: supplierData.paymentTerms || { term: 'net_30' },
         address: supplierData.address || { country: 'SA' },
         bank: supplierData.bank || {},
@@ -73,9 +110,20 @@ export default function SupplierForm() {
     }
   }, [isEdit, supplierData, reset])
 
+  useEffect(() => {
+    if (!isEdit && namePrefill) setValue('nameEn', namePrefill)
+  }, [isEdit, namePrefill, setValue])
+
   const mutation = useMutation({
-    mutationFn: (data) => (isEdit ? api.put(`/suppliers/${id}`, data) : api.post('/suppliers', data)),
-    onSuccess: () => {
+    mutationFn: (data) => {
+      const payload = {
+        ...data,
+        parentCompanyId: data.parentCompanyId || null,
+        payableAccountId: data.payableAccountId || null,
+      }
+      return isEdit ? api.put(`/suppliers/${id}`, payload) : api.post('/suppliers', payload)
+    },
+    onSuccess: (res) => {
       toast.success(
         isEdit
           ? language === 'ar'
@@ -87,7 +135,13 @@ export default function SupplierForm() {
       )
       queryClient.invalidateQueries(['suppliers'])
       queryClient.invalidateQueries(['suppliers-stats'])
-      navigate(returnTo || '/app/dashboard/suppliers')
+      const created = res?.data
+      const newId = created?._id || id
+      if (returnTo && newId) {
+        navigate(pathWithPartnerId(returnTo, newId))
+      } else {
+        navigate('/app/dashboard/suppliers')
+      }
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error'),
   })
@@ -103,7 +157,7 @@ export default function SupplierForm() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <button onClick={() => navigate(returnTo || '/app/dashboard/suppliers')} className="btn btn-ghost btn-icon shrink-0">
+        <button onClick={() => navigate(backPath)} className="btn btn-ghost btn-icon shrink-0">
           <ArrowLeft className={`h-5 w-5 ${language === 'ar' ? 'rotate-180' : ''}`} />
         </button>
         <div>
@@ -187,6 +241,53 @@ export default function SupplierForm() {
           </div>
         </motion.div>
 
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="card p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 bg-slate-100 dark:bg-dark-700 rounded-lg">
+              <CreditCard className="w-5 h-5 text-slate-700" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold">{language === 'ar' ? 'التسلسل المحاسبي' : 'Hierarchy & Accounting'}</h3>
+              <p className="text-xs text-slate-400">
+                {language === 'ar'
+                  ? 'اربط الأفراد بالشركات الأم وحدد حساب الذمم الدائنة'
+                  : 'Link individuals to parent companies and set Accounts Payable'}
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="label">{language === 'ar' ? 'الشركة الأم' : 'Parent Company'}</label>
+              <select {...register('parentCompanyId')} className="select">
+                <option value="">{language === 'ar' ? '— بدون —' : '— None —'}</option>
+                {(parentCompanies || [])
+                  .filter((s) => String(s._id) !== String(id))
+                  .map((s) => (
+                    <option key={s._id} value={s._id}>
+                      {s.nameEn || s.name || s.code}
+                    </option>
+                  ))}
+              </select>
+              {supplierType === 'individual' && (
+                <p className="mt-1 text-xs text-slate-400">
+                  {language === 'ar' ? 'اختياري: ربط هذا الفرد بمورد شركة' : 'Optional: attach this individual to a company vendor'}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="label">{language === 'ar' ? 'حساب الذمم الدائنة' : 'Accounts Payable'}</label>
+              <select {...register('payableAccountId')} className="select">
+                <option value="">{language === 'ar' ? '— افتراضي —' : '— Default —'}</option>
+                {(payableAccounts || []).map((a) => (
+                  <option key={a._id} value={a._id}>
+                    {a.code} · {language === 'ar' && a.nameAr ? a.nameAr : a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </motion.div>
+
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="card p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
@@ -262,7 +363,7 @@ export default function SupplierForm() {
         </motion.div>
 
         <div className="flex justify-end gap-3">
-          <button type="button" onClick={() => navigate(returnTo || '/app/dashboard/suppliers')} className="btn btn-secondary">
+          <button type="button" onClick={() => navigate(backPath)} className="btn btn-secondary">
             {t('cancel')}
           </button>
           <button type="submit" disabled={mutation.isPending} className="btn btn-primary">

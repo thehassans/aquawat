@@ -147,6 +147,18 @@ const customerSchema = new mongoose.Schema({
   /** Inventory partner warning (when InvSettings.groupStockWarning) */
   stockWarn: { type: String, enum: ['no', 'warning', 'block'], default: 'no' },
   stockWarnMsg: { type: String, default: '' },
+  /** Parent company for individual contacts (ERP hierarchy) */
+  parentCompanyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Customer',
+    default: null,
+  },
+  /** Explicit Accounts Receivable override */
+  receivableAccountId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ChartOfAccount',
+    default: null,
+  },
 }, {
   timestamps: true
 });

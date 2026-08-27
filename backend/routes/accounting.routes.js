@@ -46,6 +46,7 @@ router.get('/accounts', checkPermission('finance', 'read'), async (req, res) => 
     await ensureDefaultChartOfAccounts(tenantId, req.user._id, req.tenant?.settings?.currency || 'SAR');
     const filter = { tenantId };
     if (req.query.type) filter.type = req.query.type;
+    if (req.query.subtype) filter.subtype = req.query.subtype;
     if (req.query.active !== 'false') filter.isActive = true;
     if (req.query.q) {
       const q = String(req.query.q).trim();

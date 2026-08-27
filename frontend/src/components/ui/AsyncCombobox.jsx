@@ -4,21 +4,7 @@ import { Loader2, ChevronDown, X } from 'lucide-react'
 
 /**
  * Reusable async combobox with debounced search (default 300ms).
- * Uses React Query for caching / deduping identical searches.
- *
- * @param {object} props
- * @param {string|null} props.value - selected option id
- * @param {object|null} [props.selectedOption] - optional preloaded selected row { _id, label, … }
- * @param {(id: string, option: object|null) => void} props.onChange
- * @param {(q: string) => Promise<object[]>} props.fetchOptions - async search fn
- * @param {string} [props.queryKeyPrefix='async-combobox']
- * @param {(opt: object) => string} [props.getOptionLabel]
- * @param {(opt: object) => string} [props.getOptionSub]
- * @param {string} [props.placeholder]
- * @param {string} [props.noResultsText]
- * @param {boolean} [props.disabled]
- * @param {number} [props.debounceMs=300]
- * @param {number} [props.minChars=2]
+ * Supports emptyActions footer when search returns zero results.
  */
 export default function AsyncCombobox({
   value,
@@ -34,6 +20,7 @@ export default function AsyncCombobox({
   debounceMs = 300,
   minChars = 2,
   className = '',
+  emptyActions = null,
 }) {
   const listId = useId()
   const rootRef = useRef(null)
@@ -90,6 +77,14 @@ export default function AsyncCombobox({
     onChange?.('', null)
   }
 
+  const showEmptyActions = Boolean(
+    emptyActions
+    && debounced.length >= minChars
+    && !isFetching
+    && !isError
+    && options.length === 0,
+  )
+
   return (
     <div ref={rootRef} className={`relative ${className}`}>
       <div className="relative">
@@ -137,7 +132,7 @@ export default function AsyncCombobox({
         <div
           id={listId}
           role="listbox"
-          className="absolute z-40 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
+          className="absolute z-40 mt-1 max-h-72 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
         >
           {debounced.length < minChars ? (
             <p className="px-3 py-2 text-xs text-slate-400">
@@ -150,7 +145,14 @@ export default function AsyncCombobox({
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
             </p>
           ) : options.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-slate-400">{noResultsText}</p>
+            <>
+              <p className="px-3 py-2 text-xs text-slate-400">{noResultsText}</p>
+              {showEmptyActions
+                ? (typeof emptyActions === 'function'
+                  ? emptyActions({ query: debounced, close: () => setOpen(false) })
+                  : emptyActions)
+                : null}
+            </>
           ) : (
             options.map((opt) => {
               const active = String(opt._id) === String(value)

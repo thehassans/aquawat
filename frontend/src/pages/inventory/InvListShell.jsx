@@ -1,7 +1,11 @@
 import { Link } from 'react-router-dom'
 import EmptyState from '../../components/ui/EmptyState'
 
-/** D07 — shared inventory list chrome (pagination, filters meta, empty) */
+/**
+ * Shared inventory list chrome.
+ * Children (filters + table) always render when not loading —
+ * empty states must live inside children so the filter bar stays visible.
+ */
 export default function InvListShell({
   title,
   subtitle,
@@ -9,6 +13,7 @@ export default function InvListShell({
   children,
   empty,
   loading,
+  filtersActive = false,
   meta,
   page = 1,
   pageSize = 50,
@@ -19,13 +24,21 @@ export default function InvListShell({
   const ar = language === 'ar'
   const totalPages = total ? Math.max(1, Math.ceil(total / pageSize)) : 1
 
+  // Prefer explicit filtersActive; fall back to meta only when caller opts in via truthy non-code keys
+  const showFiltersBadge = filtersActive === true
+    || (filtersActive !== false && meta?.appliedFilters && (() => {
+      const af = meta.appliedFilters
+      // Ignore always-on `code` filter — that is the page context, not a user filter
+      return Boolean(af.state || af.search || af.q || af.emptyOperationTypeMatch)
+    })())
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h2>
           {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
-          {meta?.appliedFilters && Object.values(meta.appliedFilters).some(Boolean) && (
+          {showFiltersBadge && (
             <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
               {ar ? 'فلاتر نشطة' : 'Filters active'}
             </p>
@@ -35,14 +48,15 @@ export default function InvListShell({
       </div>
       {loading ? (
         <div className="py-12 text-center text-sm text-slate-400">…</div>
-      ) : empty ? (
-        typeof empty === 'boolean' ? (
-          <EmptyState title={ar ? 'لا سجلات' : 'No records'} />
-        ) : (
-          empty
-        )
       ) : (
-        children
+        <>
+          {children}
+          {empty ? (
+            typeof empty === 'boolean' ? (
+              <EmptyState title={ar ? 'لا سجلات' : 'No records'} />
+            ) : null
+          ) : null}
+        </>
       )}
       {onPageChange && total > pageSize && (
         <div className="flex items-center justify-between gap-2 text-sm">

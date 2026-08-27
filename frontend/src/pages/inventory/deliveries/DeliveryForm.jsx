@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -18,6 +18,7 @@ import { DeliveryFormFields } from './DeliveryFormFields'
 import { DeliveryDraftLines, DeliveryLineItems } from './DeliveryLineItems'
 import ReverseTransferModal from '../returns/ReverseTransferModal'
 import { inventoryPathForOpCode } from '../returns/returnPaths'
+import { useReturnedPartner } from '../useReturnedPartner'
 
 const LIST_PATH = '/app/dashboard/inventory/deliveries'
 
@@ -123,15 +124,16 @@ export default function DeliveryForm() {
   const [doneEdits, setDoneEdits] = useState({})
   const [returnOpen, setReturnOpen] = useState(false)
 
+  useReturnedPartner({
+    role: 'customer',
+    setValue,
+    setSelected: setSelectedCustomer,
+  })
+
   useDirtyGuard(isNew && isDirty, ar ? 'لديك تغييرات غير محفوظة' : 'You have unsaved changes')
 
   const barcodeEnabled = !!(settings?.groupStockBarcode || transfer?.settingsHints?.barcode)
   const variantsEnabled = !!(settings?.groupProductVariant || transfer?.settingsHints?.variantsEnabled)
-
-  const fetchCustomers = useCallback(async (q) => {
-    const rows = await api.get('/customers/search', { params: { q } }).then((r) => r.data || [])
-    return Array.isArray(rows) ? rows : []
-  }, [])
 
   const enrichedMoves = useMemo(
     () => enrichMovesWithReserved(transfer?.moves || [], transfer?.moveLines || []),
@@ -569,6 +571,7 @@ export default function DeliveryForm() {
         >
           <DeliveryFormFields
             ar={ar}
+            language={language}
             register={register}
             errors={errors}
             setValue={setValue}
@@ -579,7 +582,6 @@ export default function DeliveryForm() {
             values={formValues}
             selectedCustomer={selectedCustomer}
             onCustomerChange={setSelectedCustomer}
-            fetchCustomers={fetchCustomers}
             onOperationTypeChange={(otId) => {
               setValue('operationTypeId', otId, { shouldDirty: true })
               applyOpTypeDefaults(otId)
@@ -628,6 +630,7 @@ export default function DeliveryForm() {
           {isDraft ? (
             <DeliveryFormFields
               ar={ar}
+              language={language}
               register={register}
               errors={errors}
               setValue={setValue}
@@ -638,7 +641,6 @@ export default function DeliveryForm() {
               values={{ ...formValues, _lockOperationType: true }}
               selectedCustomer={selectedCustomer}
               onCustomerChange={setSelectedCustomer}
-              fetchCustomers={fetchCustomers}
               onOperationTypeChange={(otId) => {
                 setValue('operationTypeId', otId, { shouldDirty: true })
                 applyOpTypeDefaults(otId)

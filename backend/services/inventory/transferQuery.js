@@ -104,8 +104,14 @@ export async function listTransfers(tenantId, query = {}, warehouseScope = null)
       .sort({ scheduledDate: -1, createdAt: -1 })
       .skip(skip)
       .limit(pageSize)
-      .populate('operationTypeId', 'name nameAr code cardColor warehouseId')
-      .select('name origin state scheduledDate operationTypeId partnerId priority createdAt')
+      .populate({
+        path: 'operationTypeId',
+        select: 'name nameAr code cardColor warehouseId',
+        populate: { path: 'warehouseId', select: 'code nameEn nameAr name' },
+      })
+      .populate('sourceLocationId', 'name nameAr completePath')
+      .populate('destLocationId', 'name nameAr completePath')
+      .select('name origin state scheduledDate operationTypeId partnerId priority createdAt sourceLocationId destLocationId')
       .lean(),
     InvTransfer.countDocuments(filter),
   ]);

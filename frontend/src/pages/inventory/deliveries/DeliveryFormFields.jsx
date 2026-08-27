@@ -1,13 +1,14 @@
-import AsyncCombobox from '../../../components/ui/AsyncCombobox'
+import PartnerCombobox from '../../../components/inventory/PartnerCombobox'
 import { groupOperationTypesByWarehouse, operationTypeOptionLabel } from '../receipts/opTypeGroups'
 import { filterReceiptLocations, locationOptionLabel } from '../receipts/locationLabel'
 
 /**
  * Metadata form for delivery orders.
- * Partner = async customer search (Deliver To).
+ * Partner = async customer search with Quick Create / Advanced Create.
  */
 export function DeliveryFormFields({
   ar,
+  language,
   register,
   errors,
   setValue,
@@ -20,7 +21,6 @@ export function DeliveryFormFields({
   values,
   selectedCustomer,
   onCustomerChange,
-  fetchCustomers,
 }) {
   const groups = groupOperationTypesByWarehouse(opTypes, warehouses, ar)
   const locationOptions = filterReceiptLocations(locations, {
@@ -60,18 +60,13 @@ export function DeliveryFormFields({
           {ar ? 'تسليم إلى (العميل)' : 'Deliver To (Customer)'}
           <span className="text-rose-500"> *</span>
         </span>
-        <AsyncCombobox
+        <PartnerCombobox
+          role="customer"
           value={values?.partnerId || ''}
           selectedOption={selectedCustomer}
           disabled={readOnly}
-          debounceMs={300}
-          minChars={2}
-          queryKeyPrefix="customer-search"
-          fetchOptions={fetchCustomers}
-          placeholder={ar ? 'ابحث عن عميل…' : 'Search customer…'}
-          noResultsText={ar ? 'لا توجد نتائج' : 'No results found'}
-          getOptionLabel={(c) => (ar && c.nameAr ? c.nameAr : c.name) || c.customerCode || '—'}
-          getOptionSub={(c) => [c.customerCode, c.vatNumber || c.taxNumber, c.phone || c.mobile].filter(Boolean).join(' · ')}
+          ar={ar}
+          language={language}
           onChange={(id, opt) => {
             setValue('partnerId', id || '', { shouldDirty: true, shouldValidate: true })
             onCustomerChange?.(opt)

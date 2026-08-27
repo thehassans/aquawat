@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { motion } from 'framer-motion'
 import { 
@@ -20,9 +20,24 @@ import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import { getTenantCountryCode, isPakistanTenant, getTaxIdLabel, showArabicFields as isArabicTenantMarket, getTenantCurrency } from '../../lib/saudiTenant'
 
+function pathWithPartnerId(returnTo, partnerId) {
+  if (!returnTo || !partnerId) return returnTo
+  try {
+    const u = new URL(returnTo, window.location.origin)
+    u.searchParams.set('partnerId', partnerId)
+    return `${u.pathname}${u.search}${u.hash}`
+  } catch {
+    const sep = returnTo.includes('?') ? '&' : '?'
+    return `${returnTo}${sep}partnerId=${encodeURIComponent(partnerId)}`
+  }
+}
+
 export default function CustomerForm() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const returnTo = searchParams.get('returnTo')
+  const namePrefill = searchParams.get('name') || ''
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
   const { tenant } = useSelector((state) => state.auth)
@@ -32,18 +47,21 @@ export default function CustomerForm() {
   const isPk = isPakistanTenant(tenant)
   const taxIdLabel = getTaxIdLabel(tenant)
   const tenantCountry = getTenantCountryCode(tenant)
+  const backPath = returnTo || '/app/dashboard/customers'
 
-  const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm({
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors, isSubmitting } } = useForm({
     defaultValues: {
       type: 'business',
       customerCode: '',
-      name: '',
+      name: namePrefill,
       nameAr: '',
       email: '',
       phone: '',
       mobile: '',
       vatNumber: '',
       crNumber: '',
+      parentCompanyId: '',
+      receivableAccountId: '',
       address: {
         street: '',
         city: '',
@@ -74,23 +92,54 @@ export default function CustomerForm() {
     enabled: isEditing
   })
 
+  const { data: parentCompanies = [] } = useQuery({
+    queryKey: ['customers-parent-companies'],
+    queryFn: () => api.get('/customers', { params: { type: 'business', limit: 200, isActive: true } })
+      .then((r) => r.data?.customers || r.data?.data || (Array.isArray(r.data) ? r.data : [])),
+  })
+
+  const { data: receivableAccounts = [] } = useQuery({
+    queryKey: ['accounts-receivable'],
+    queryFn: () => api.get('/accounting/accounts', { params: { type: 'asset', subtype: 'receivable' } })
+      .then((r) => (Array.isArray(r.data) ? r.data : [])),
+  })
+
   useEffect(() => {
     if (customer) {
-      reset(customer)
+      reset({
+        ...customer,
+        parentCompanyId: customer.parentCompanyId?._id || customer.parentCompanyId || '',
+        receivableAccountId: customer.receivableAccountId?._id || customer.receivableAccountId || '',
+      })
     }
   }, [customer, reset])
 
+  useEffect(() => {
+    if (!isEditing && namePrefill) setValue('name', namePrefill)
+  }, [isEditing, namePrefill, setValue])
+
   const mutation = useMutation({
     mutationFn: (data) => {
-      if (isEditing) {
-        return api.put(`/customers/${id}`, data)
+      const payload = {
+        ...data,
+        parentCompanyId: data.parentCompanyId || null,
+        receivableAccountId: data.receivableAccountId || null,
       }
-      return api.post('/customers', data)
+      if (isEditing) {
+        return api.put(`/customers/${id}`, payload)
+      }
+      return api.post('/customers', payload)
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries(['customers'])
       queryClient.invalidateQueries(['customer-stats'])
-      navigate('/app/dashboard/customers')
+      const created = res?.data
+      const newId = created?._id || id
+      if (returnTo && newId) {
+        navigate(pathWithPartnerId(returnTo, newId))
+      } else {
+        navigate('/app/dashboard/customers')
+      }
     }
   })
 
@@ -111,7 +160,7 @@ export default function CustomerForm() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <button
-          onClick={() => navigate('/app/dashboard/customers')}
+          onClick={() => navigate(backPath)}
           className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
@@ -525,6 +574,65 @@ export default function CustomerForm() {
           </motion.div>
         )}
 
+        {/* Hierarchy & Accounting */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 }}
+          className="card p-6"
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 bg-slate-100 dark:bg-dark-700 rounded-lg">
+              <Building2 className="w-5 h-5 text-slate-700 dark:text-slate-200" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {language === 'ar' ? 'التسلسل المحاسبي' : 'Hierarchy & Accounting'}
+              </h3>
+              <p className="text-xs text-slate-400">
+                {language === 'ar'
+                  ? 'اربط الأفراد بالشركات الأم وحدد حساب الذمم المدينة'
+                  : 'Link individuals to parent companies and set Accounts Receivable'}
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {language === 'ar' ? 'الشركة الأم' : 'Parent Company'}
+              </label>
+              <select {...register('parentCompanyId')} className="input">
+                <option value="">{language === 'ar' ? '— بدون —' : '— None —'}</option>
+                {(parentCompanies || [])
+                  .filter((c) => String(c._id) !== String(id))
+                  .map((c) => (
+                    <option key={c._id} value={c._id}>
+                      {c.name || c.nameEn || c.customerCode || c._id}
+                    </option>
+                  ))}
+              </select>
+              {customerType === 'individual' && (
+                <p className="mt-1 text-xs text-slate-400">
+                  {language === 'ar' ? 'اختياري: ربط هذا الفرد بشركة' : 'Optional: attach this individual to a company'}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {language === 'ar' ? 'حساب الذمم المدينة' : 'Accounts Receivable'}
+              </label>
+              <select {...register('receivableAccountId')} className="input">
+                <option value="">{language === 'ar' ? '— افتراضي —' : '— Default —'}</option>
+                {(receivableAccounts || []).map((a) => (
+                  <option key={a._id} value={a._id}>
+                    {a.code} · {language === 'ar' && a.nameAr ? a.nameAr : a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </motion.div>
+
         {/* Payment Terms */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -586,7 +694,7 @@ export default function CustomerForm() {
         <div className="flex items-center justify-end gap-4">
           <button
             type="button"
-            onClick={() => navigate('/app/dashboard/customers')}
+            onClick={() => navigate(backPath)}
             className="btn btn-secondary"
           >
             {language === 'ar' ? 'إلغاء' : 'Cancel'}

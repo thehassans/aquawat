@@ -1,4 +1,4 @@
-import AsyncCombobox from '../../../components/ui/AsyncCombobox'
+import PartnerCombobox from '../../../components/inventory/PartnerCombobox'
 import { groupOperationTypesByWarehouse, operationTypeOptionLabel } from '../receipts/opTypeGroups'
 import { filterManufacturingLocations, locationOptionLabel } from '../receipts/locationLabel'
 
@@ -22,9 +22,9 @@ export function ManufacturingFormFields({
   watchDest,
   selectedPartner,
   onPartnerChange,
-  fetchPartners,
   showPartner,
   onTogglePartner,
+  language,
 }) {
   const groups = groupOperationTypesByWarehouse(opTypes, warehouses, ar)
   const locationOptions = filterManufacturingLocations(locations, {
@@ -99,18 +99,14 @@ export function ManufacturingFormFields({
               {ar ? 'إخفاء' : 'Hide'}
             </button>
           </div>
-          <AsyncCombobox
+          <PartnerCombobox
+            role="customer"
             value={values?.partnerId || ''}
             selectedOption={selectedPartner}
             disabled={readOnly}
-            debounceMs={300}
-            minChars={2}
+            ar={ar}
+            language={language}
             queryKeyPrefix="mfg-partner-search"
-            fetchOptions={fetchPartners}
-            placeholder={ar ? 'ابحث عن شريك…' : 'Search partner…'}
-            noResultsText={ar ? 'لا توجد نتائج' : 'No results found'}
-            getOptionLabel={(c) => (ar && c.nameAr ? c.nameAr : c.name) || c.customerCode || '—'}
-            getOptionSub={(c) => [c.customerCode, c.phone || c.mobile].filter(Boolean).join(' · ')}
             onChange={(id, opt) => {
               setValue?.('partnerId', id || '', { shouldDirty: true })
               onPartnerChange?.(opt)

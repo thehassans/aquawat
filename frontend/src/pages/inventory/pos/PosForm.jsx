@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -18,6 +18,7 @@ import { PosHeader, PosActionBar } from './PosHeader'
 import { PosFormFields } from './PosFormFields'
 import { PosQuickEntry } from './PosQuickEntry'
 import { ensureWalkInCustomer } from './walkInCustomer'
+import { useReturnedPartner } from '../useReturnedPartner'
 
 const LIST_PATH = '/app/dashboard/inventory/pos'
 
@@ -120,15 +121,16 @@ export default function PosForm() {
   const [doneEdits, setDoneEdits] = useState({})
   const [walkInReady, setWalkInReady] = useState(false)
 
+  useReturnedPartner({
+    role: 'customer',
+    setValue,
+    setSelected: setSelectedCustomer,
+  })
+
   useDirtyGuard(isNew && isDirty, ar ? 'لديك تغييرات غير محفوظة' : 'You have unsaved changes')
 
   const barcodeEnabled = true
   const variantsEnabled = !!(settings?.groupProductVariant || transfer?.settingsHints?.variantsEnabled)
-
-  const fetchCustomers = useCallback(async (q) => {
-    const rows = await api.get('/customers/search', { params: { q } }).then((r) => r.data || [])
-    return Array.isArray(rows) ? rows : []
-  }, [])
 
   const enrichedMoves = useMemo(
     () => enrichMovesWithReserved(transfer?.moves || [], transfer?.moveLines || []),
@@ -458,6 +460,7 @@ export default function PosForm() {
         >
           <PosFormFields
             ar={ar}
+            language={language}
             register={register}
             errors={errors}
             setValue={setValue}
@@ -468,7 +471,6 @@ export default function PosForm() {
             values={formValues}
             selectedCustomer={selectedCustomer}
             onCustomerChange={setSelectedCustomer}
-            fetchCustomers={fetchCustomers}
             onOperationTypeChange={(otId) => {
               setValue('operationTypeId', otId, { shouldDirty: true })
               applyOpTypeDefaults(otId)
@@ -512,6 +514,7 @@ export default function PosForm() {
           {isDraft ? (
             <PosFormFields
               ar={ar}
+              language={language}
               register={register}
               errors={errors}
               setValue={setValue}
@@ -522,7 +525,6 @@ export default function PosForm() {
               values={{ ...formValues, _lockOperationType: true }}
               selectedCustomer={selectedCustomer}
               onCustomerChange={setSelectedCustomer}
-              fetchCustomers={fetchCustomers}
               onOperationTypeChange={(otId) => {
                 setValue('operationTypeId', otId, { shouldDirty: true })
                 applyOpTypeDefaults(otId)

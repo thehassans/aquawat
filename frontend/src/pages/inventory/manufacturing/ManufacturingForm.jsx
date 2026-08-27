@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -23,6 +23,7 @@ import { ManufacturingBomPicker } from './ManufacturingBomPicker'
 import { toManufacturingUiState } from './manufacturingState'
 import ReverseTransferModal from '../returns/ReverseTransferModal'
 import { inventoryPathForOpCode } from '../returns/returnPaths'
+import { useReturnedPartner } from '../useReturnedPartner'
 
 const LIST_PATH = '/app/dashboard/inventory/manufacturing'
 
@@ -132,6 +133,13 @@ export default function ManufacturingForm() {
   const [finishedGood, setFinishedGood] = useState(null)
   const [produceQty, setProduceQty] = useState('1')
 
+  useReturnedPartner({
+    role: 'customer',
+    setValue,
+    setSelected: setSelectedPartner,
+    showPartner: () => setShowPartner(true),
+  })
+
   useDirtyGuard(isNew && isDirty, ar ? 'لديك تغييرات غير محفوظة' : 'You have unsaved changes')
 
   const barcodeEnabled = !!(settings?.groupStockBarcode || transfer?.settingsHints?.barcode)
@@ -141,11 +149,6 @@ export default function ManufacturingForm() {
     () => enrichMovesWithReserved(transfer?.moves || [], transfer?.moveLines || []),
     [transfer?.moves, transfer?.moveLines],
   )
-
-  const fetchPartners = useCallback(async (q) => {
-    const rows = await api.get('/customers/search', { params: { q } }).then((r) => r.data || [])
-    return Array.isArray(rows) ? rows : []
-  }, [])
 
   const applyOpTypeDefaults = (otId, otArg) => {
     const ot = otArg || opTypes.find((o) => String(o._id) === String(otId))
@@ -525,6 +528,7 @@ export default function ManufacturingForm() {
         >
           <ManufacturingFormFields
             ar={ar}
+            language={language}
             register={register}
             errors={errors}
             setValue={setValue}
@@ -536,7 +540,6 @@ export default function ManufacturingForm() {
             watchDest={watchDest}
             selectedPartner={selectedPartner}
             onPartnerChange={setSelectedPartner}
-            fetchPartners={fetchPartners}
             showPartner={showPartner}
             onTogglePartner={() => setShowPartner((v) => !v)}
             onOperationTypeChange={(otId) => {
@@ -581,6 +584,7 @@ export default function ManufacturingForm() {
           {isDraft ? (
             <ManufacturingFormFields
               ar={ar}
+              language={language}
               register={register}
               errors={errors}
               setValue={setValue}
@@ -592,7 +596,6 @@ export default function ManufacturingForm() {
               watchDest={watchDest}
               selectedPartner={selectedPartner}
               onPartnerChange={setSelectedPartner}
-              fetchPartners={fetchPartners}
               showPartner={showPartner}
               onTogglePartner={() => setShowPartner((v) => !v)}
               onOperationTypeChange={(otId) => {

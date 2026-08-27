@@ -8,6 +8,8 @@ import { InventoryIeButtons } from '../../components/inventory/ImportExportDialo
 import { StatusChip } from './inventoryUi'
 import EmptyState from '../../components/ui/EmptyState'
 import InvListShell from './InvListShell'
+import { ColumnChooser, useColumnVisibility } from './columnVisibility'
+import { formatLocationLabel } from './receipts/locationLabel'
 
 const PAGE_SIZE = 40
 
@@ -17,6 +19,62 @@ function codeFromPath(pathname) {
   if (pathname.includes('/pos')) return 'pos'
   if (pathname.includes('/manufacturing')) return 'manufacturing'
   return 'internal'
+}
+
+function buildColumnDefs(code, ar) {
+  const partnerLabelEn = code === 'incoming' ? 'Vendor' : 'Customer'
+  const partnerLabelAr = code === 'incoming' ? 'المورد' : 'العميل'
+  const showPartnerBase = code === 'incoming' || code === 'outgoing' || code === 'pos'
+
+  return [
+    { id: 'reference', labelEn: 'Reference', labelAr: 'المرجع', locked: true, defaultVisible: true },
+    ...(showPartnerBase
+      ? [{ id: 'partner', labelEn: partnerLabelEn, labelAr: partnerLabelAr, locked: false, defaultVisible: true }]
+      : []),
+    { id: 'origin', labelEn: 'Origin', labelAr: 'المصدر', locked: false, defaultVisible: true },
+    { id: 'scheduled', labelEn: 'Scheduled', labelAr: 'الموعد', locked: false, defaultVisible: true },
+    { id: 'status', labelEn: 'Status', labelAr: 'الحالة', locked: true, defaultVisible: true },
+    { id: 'sourceLocation', labelEn: 'From', labelAr: 'من', locked: false, defaultVisible: code === 'internal' },
+    { id: 'destLocation', labelEn: 'To', labelAr: 'إلى', locked: false, defaultVisible: code === 'internal' },
+    { id: 'warehouse', labelEn: 'Warehouse Responsible', labelAr: 'المستودع المسؤول', locked: false, defaultVisible: false },
+    { id: 'priority', labelEn: 'Priority', labelAr: 'الأولوية', locked: false, defaultVisible: false },
+    { id: 'createdAt', labelEn: 'Created', labelAr: 'تاريخ الإنشاء', locked: false, defaultVisible: false },
+  ]
+}
+
+function cellValue(colId, t, { ar }) {
+  switch (colId) {
+    case 'partner': {
+      if (!t.partner) return '—'
+      return ar && t.partner.nameAr ? t.partner.nameAr : (t.partner.name || t.partner.nameEn || '—')
+    }
+    case 'origin':
+      return t.origin || '—'
+    case 'scheduled':
+      return t.scheduledDate ? new Date(t.scheduledDate).toLocaleDateString() : '—'
+    case 'sourceLocation':
+      return formatLocationLabel(t.sourceLocationId?.completePath, t.sourceLocationId?.name || '—')
+    case 'destLocation':
+      return formatLocationLabel(t.destLocationId?.completePath, t.destLocationId?.name || '—')
+    case 'warehouse': {
+      const wh = t.operationTypeId?.warehouseId
+      if (!wh) return '—'
+      if (typeof wh === 'object') {
+        const code = wh.code || ''
+        const name = ar && wh.nameAr ? wh.nameAr : (wh.nameEn || wh.name || '')
+        return [code, name].filter(Boolean).join(' · ') || '—'
+      }
+      return '—'
+    }
+    case 'priority':
+      return t.priority === 'urgent'
+        ? (ar ? 'عاجل' : 'Urgent')
+        : (ar ? 'عادي' : 'Normal')
+    case 'createdAt':
+      return t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '—'
+    default:
+      return '—'
+  }
 }
 
 export default function TransfersList() {
@@ -37,6 +95,10 @@ export default function TransfersList() {
     manufacturing: ar ? 'التصنيع' : 'Manufacturing',
   }[code]
 
+  const columnDefs = useMemo(() => buildColumnDefs(code, ar), [code, ar])
+  const storageKey = `maqder-inv-transfer-cols-${code}`
+  const { visible, toggle, activeColumns } = useColumnVisibility(storageKey, columnDefs)
+
   const { data, isLoading } = useQuery({
     queryKey: ['stock-transfers', code, state, page],
     queryFn: () =>
@@ -54,10 +116,14 @@ export default function TransfersList() {
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
+      const from = String(t.sourceLocationId?.completePath || t.sourceLocationId?.name || '').toLowerCase()
+      const to = String(t.destLocationId?.completePath || t.destLocationId?.name || '').toLowerCase()
       return (
-        t.name?.toLowerCase().includes(needle) ||
-        t.origin?.toLowerCase().includes(needle) ||
-        partnerName.includes(needle)
+        t.name?.toLowerCase().includes(needle)
+        || t.origin?.toLowerCase().includes(needle)
+        || partnerName.includes(needle)
+        || from.includes(needle)
+        || to.includes(needle)
       )
     })
   }, [data, q])
@@ -65,6 +131,7 @@ export default function TransfersList() {
   const meta = data?._meta
   const total = meta?.total ?? 0
   const applied = meta?.appliedFilters || {}
+  const filtersActive = Boolean(state || q.trim() || applied.emptyOperationTypeMatch)
 
   const setPage = (next) => {
     const params = new URLSearchParams(searchParams)
@@ -78,13 +145,6 @@ export default function TransfersList() {
     setQ('')
   }
 
-  const showPartner = code === 'outgoing' || code === 'incoming'
-  const partnerCol = code === 'outgoing'
-    ? (ar ? 'العميل' : 'Customer')
-    : code === 'incoming'
-      ? (ar ? 'المورد' : 'Vendor')
-      : (ar ? 'المورد / الشريك' : 'Partner')
-
   const basePath = `/app/dashboard/inventory/${
     code === 'incoming' ? 'receipts'
       : code === 'outgoing' ? 'deliveries'
@@ -93,31 +153,11 @@ export default function TransfersList() {
             : 'internal'
   }`
 
-  const colSpan = showPartner ? 5 : 4
-
-  const emptyNode = (
-    <EmptyState
-      title={ar ? 'لا توجد تحويلات' : 'No transfers'}
-      description={
-        applied.emptyOperationTypeMatch
-          ? (ar
-            ? 'لا توجد أنواع عمليات لهذا المستودع/الكود — شغّل التهيئة من الإعدادات'
-            : 'No operation types for this warehouse/code — run bootstrap from Settings')
-          : state
-            ? (ar
-              ? `لا نتائج للتصفية الحالية (state=${state}). جرّب «كل الحالات» أو مسح التصفية.`
-              : `No rows for current filters (state=${state}). Try “All states” or Clear filters.`)
-            : (ar ? 'أنشئ مستنداً جديداً للبدء' : 'Create a document to get started')
-      }
-    />
-  )
-
   return (
     <InvListShell
       title={title}
-      meta={meta}
+      filtersActive={filtersActive}
       loading={isLoading}
-      empty={!isLoading && rows.length === 0 ? emptyNode : false}
       page={page}
       pageSize={PAGE_SIZE}
       total={total}
@@ -145,6 +185,7 @@ export default function TransfersList() {
       )}
     >
       <div className="space-y-4">
+        {/* Filter bar — always visible */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[200px] flex-1">
             <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -178,7 +219,8 @@ export default function TransfersList() {
               <option key={s.id} value={s.id}>{ar ? s.ar : s.en}</option>
             ))}
           </select>
-          {(state || q) && (
+          <ColumnChooser ar={ar} definitions={columnDefs} visible={visible} onToggle={toggle} />
+          {filtersActive && (
             <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>
               {ar ? 'مسح التصفية' : 'Clear filters'}
             </button>
@@ -189,7 +231,6 @@ export default function TransfersList() {
           <p className="text-xs text-slate-400">
             {total} {ar ? 'سجل' : 'record(s)'}
             {applied.state ? ` · state=${applied.state}` : ''}
-            {applied.code ? ` · code=${applied.code}` : ''}
             {applied.emptyOperationTypeMatch
               ? (ar ? ' · لا أنواع عمليات مطابقة' : ' · no matching operation types')
               : ''}
@@ -200,43 +241,74 @@ export default function TransfersList() {
           <table className="w-full text-sm">
             <thead className="border-b border-slate-100 bg-slate-50/80 text-start text-xs uppercase tracking-wide text-slate-500 dark:border-dark-600 dark:bg-dark-900/50">
               <tr>
-                <th className="px-4 py-3 font-medium">{ar ? 'المرجع' : 'Reference'}</th>
-                {showPartner && <th className="px-4 py-3 font-medium">{partnerCol}</th>}
-                <th className="px-4 py-3 font-medium">{ar ? 'المصدر' : 'Origin'}</th>
-                <th className="px-4 py-3 font-medium">{ar ? 'الموعد' : 'Scheduled'}</th>
-                <th className="px-4 py-3 font-medium">{ar ? 'الحالة' : 'Status'}</th>
+                {activeColumns.map((col) => (
+                  <th key={col.id} className="px-4 py-3 font-medium">
+                    {ar ? col.labelAr : col.labelEn}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {rows.map((t) => {
-                const partnerLabel = t.partner
-                  ? (ar && t.partner.nameAr ? t.partner.nameAr : (t.partner.name || t.partner.nameEn))
-                  : '—'
-                return (
-                  <tr key={t._id} className="border-b border-slate-50 transition hover:bg-slate-50/80 dark:border-dark-700 dark:hover:bg-dark-700/40">
-                    <td className="px-4 py-3">
-                      <Link to={`${basePath}/${t._id}`} className="font-medium text-primary-700 hover:underline dark:text-primary-300">
-                        {t.name}
-                      </Link>
-                    </td>
-                    {showPartner && (
-                      <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">{partnerLabel}</td>
-                    )}
-                    <td className="px-4 py-3 text-slate-500">{t.origin || '—'}</td>
-                    <td className="px-4 py-3 tabular-nums text-slate-500">
-                      {t.scheduledDate ? new Date(t.scheduledDate).toLocaleDateString() : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusChip status={t.state} language={language} />
-                    </td>
-                  </tr>
-                )
-              })}
+              {rows.map((t) => (
+                <tr
+                  key={t._id}
+                  className="border-b border-slate-50 transition hover:bg-slate-50/80 dark:border-dark-700 dark:hover:bg-dark-700/40"
+                >
+                  {activeColumns.map((col) => {
+                    if (col.id === 'reference') {
+                      return (
+                        <td key={col.id} className="px-4 py-3">
+                          <Link
+                            to={`${basePath}/${t._id}`}
+                            className="font-medium text-sky-800 hover:underline dark:text-sky-300"
+                          >
+                            {t.name}
+                          </Link>
+                        </td>
+                      )
+                    }
+                    if (col.id === 'status') {
+                      return (
+                        <td key={col.id} className="px-4 py-3">
+                          <StatusChip status={t.state} language={language} />
+                        </td>
+                      )
+                    }
+                    return (
+                      <td
+                        key={col.id}
+                        className={`px-4 py-3 ${
+                          col.id === 'scheduled' || col.id === 'createdAt'
+                            ? 'tabular-nums text-slate-500'
+                            : col.id === 'partner'
+                              ? 'font-medium text-slate-700 dark:text-slate-200'
+                              : 'text-slate-500'
+                        }`}
+                      >
+                        {cellValue(col.id, t, { ar })}
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
               {rows.length === 0 && !isLoading && (
                 <tr>
-                  <td colSpan={colSpan} className="p-8">
-                    {emptyNode}
-                    {(state || applied.emptyOperationTypeMatch) && (
+                  <td colSpan={Math.max(activeColumns.length, 1)} className="p-8">
+                    <EmptyState
+                      title={ar ? 'لا توجد تحويلات' : 'No transfers'}
+                      description={
+                        applied.emptyOperationTypeMatch
+                          ? (ar
+                            ? 'لا توجد أنواع عمليات لهذا المستودع/الكود — شغّل التهيئة من الإعدادات'
+                            : 'No operation types for this warehouse/code — run bootstrap from Settings')
+                          : state || q
+                            ? (ar
+                              ? 'لا نتائج للتصفية الحالية. غيّر الحالة أو امسح التصفية من الشريط أعلاه.'
+                              : 'No rows for current filters. Change the state or Clear filters above.')
+                            : (ar ? 'أنشئ مستنداً جديداً للبدء' : 'Create a document to get started')
+                      }
+                    />
+                    {filtersActive && (
                       <div className="mt-3 flex justify-center">
                         <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>
                           {ar ? 'مسح التصفية' : 'Clear filters'}

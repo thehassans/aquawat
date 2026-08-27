@@ -44,7 +44,20 @@ const supplierSchema = new mongoose.Schema({
   tags: [{ type: String }],
 
   isActive: { type: Boolean, default: true },
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+
+  /** Parent company for individual contacts (ERP hierarchy) */
+  parentCompanyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Supplier',
+    default: null,
+  },
+  /** Explicit Accounts Payable override */
+  payableAccountId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ChartOfAccount',
+    default: null,
+  },
 }, {
   timestamps: true
 });

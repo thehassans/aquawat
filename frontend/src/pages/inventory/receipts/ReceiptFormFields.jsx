@@ -1,3 +1,4 @@
+import PartnerCombobox from '../../../components/inventory/PartnerCombobox'
 import { groupOperationTypesByWarehouse, operationTypeOptionLabel } from './opTypeGroups'
 import { filterReceiptLocations, locationOptionLabel } from './locationLabel'
 
@@ -6,23 +7,24 @@ import { filterReceiptLocations, locationOptionLabel } from './locationLabel'
  */
 export function ReceiptFormFields({
   ar,
+  language,
   register,
   errors,
+  setValue,
   opTypes,
   warehouses,
   locations,
-  suppliers,
   multiLocations,
   readOnly,
   onOperationTypeChange,
   values,
+  selectedVendor,
+  onVendorChange,
 }) {
   const groups = groupOperationTypesByWarehouse(opTypes, warehouses, ar)
   const locationOptions = filterReceiptLocations(locations, {
     includeIds: [values?.sourceLocationId, values?.destLocationId],
   })
-
-  const partnerLabel = (p) => (ar && p.nameAr ? p.nameAr : (p.nameEn || p.name)) || '—'
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
@@ -54,17 +56,23 @@ export function ReceiptFormFields({
         )}
       </label>
 
-      <label className="block text-sm">
+      <div className="block text-sm">
         <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
           {ar ? 'استلام من (المورد)' : 'Receive From (Vendor)'}
         </span>
-        <select className="select mt-0.5 w-full" disabled={readOnly} {...register('partnerId')}>
-          <option value="">{ar ? '— اختر المورد —' : '— Select supplier —'}</option>
-          {(suppliers || []).map((s) => (
-            <option key={s._id} value={s._id}>{partnerLabel(s)}</option>
-          ))}
-        </select>
-      </label>
+        <PartnerCombobox
+          role="vendor"
+          value={values?.partnerId || ''}
+          selectedOption={selectedVendor}
+          disabled={readOnly}
+          ar={ar}
+          language={language}
+          onChange={(id, opt) => {
+            setValue?.('partnerId', id || '', { shouldDirty: true })
+            onVendorChange?.(opt)
+          }}
+        />
+      </div>
 
       {multiLocations && (
         <>

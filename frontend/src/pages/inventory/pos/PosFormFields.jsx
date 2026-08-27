@@ -1,12 +1,13 @@
-import AsyncCombobox from '../../../components/ui/AsyncCombobox'
+import PartnerCombobox from '../../../components/inventory/PartnerCombobox'
 import { groupOperationTypesByWarehouse, operationTypeOptionLabel } from '../receipts/opTypeGroups'
 import { filterReceiptLocations, locationOptionLabel } from '../receipts/locationLabel'
 
 /**
- * PoS transfer fields — Walk-in customer via AsyncCombobox, Stock → Customers.
+ * PoS transfer fields — Walk-in customer via PartnerCombobox, Stock → Customers.
  */
 export function PosFormFields({
   ar,
+  language,
   register,
   errors,
   setValue,
@@ -19,7 +20,6 @@ export function PosFormFields({
   values,
   selectedCustomer,
   onCustomerChange,
-  fetchCustomers,
 }) {
   const groups = groupOperationTypesByWarehouse(opTypes, warehouses, ar)
   const locationOptions = filterReceiptLocations(locations, {
@@ -63,18 +63,14 @@ export function PosFormFields({
         <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
           {ar ? 'العميل (افتراضي: زائر)' : 'Customer (default: Walk-in)'}
         </span>
-        <AsyncCombobox
+        <PartnerCombobox
+          role="customer"
           value={values?.partnerId || ''}
           selectedOption={selectedCustomer}
           disabled={readOnly}
-          debounceMs={300}
-          minChars={2}
+          ar={ar}
+          language={language}
           queryKeyPrefix="pos-customer-search"
-          fetchOptions={fetchCustomers}
-          placeholder={ar ? 'ابحث عن عميل…' : 'Search customer…'}
-          noResultsText={ar ? 'لا توجد نتائج' : 'No results found'}
-          getOptionLabel={(c) => (ar && c.nameAr ? c.nameAr : c.name) || c.customerCode || '—'}
-          getOptionSub={(c) => [c.customerCode, c.phone || c.mobile].filter(Boolean).join(' · ')}
           onChange={(id, opt) => {
             setValue('partnerId', id || '', { shouldDirty: true })
             onCustomerChange?.(opt)

@@ -17,6 +17,7 @@ import { ReceiptFormFields } from './ReceiptFormFields'
 import { ReceiptDraftLines, ReceiptLineItems } from './ReceiptLineItems'
 import ReverseTransferModal from '../returns/ReverseTransferModal'
 import { inventoryPathForOpCode } from '../returns/returnPaths'
+import { useReturnedPartner } from '../useReturnedPartner'
 
 const LIST_PATH = '/app/dashboard/inventory/receipts'
 
@@ -96,11 +97,6 @@ export default function ReceiptForm() {
     enabled: multiLocations,
   })
 
-  const { data: suppliers = [] } = useQuery({
-    queryKey: ['suppliers-lite'],
-    queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((r) => r.data?.suppliers || r.data || []),
-  })
-
   const { data: transfer, isLoading } = useQuery({
     queryKey: ['stock-transfer', id],
     enabled: !isNew,
@@ -131,6 +127,13 @@ export default function ReceiptForm() {
 
   const [doneEdits, setDoneEdits] = useState({})
   const [returnOpen, setReturnOpen] = useState(false)
+  const [selectedVendor, setSelectedVendor] = useState(null)
+
+  useReturnedPartner({
+    role: 'vendor',
+    setValue,
+    setSelected: setSelectedVendor,
+  })
 
   useEffect(() => {
     if (!transfer) return
@@ -140,6 +143,13 @@ export default function ReceiptForm() {
       next[m._id] = done > 0 ? String(m.doneQty) : String(m.demandQty ?? '0')
     }
     setDoneEdits(next)
+
+    if (transfer.partner) {
+      setSelectedVendor({
+        ...transfer.partner,
+        name: transfer.partner.name || transfer.partner.nameEn,
+      })
+    }
 
     if (transfer.state === 'draft') {
       reset({
@@ -558,14 +568,17 @@ export default function ReceiptForm() {
         >
           <ReceiptFormFields
             ar={ar}
+            language={language}
             register={register}
             errors={errors}
+            setValue={setValue}
             opTypes={opTypes}
             warehouses={warehouses}
             locations={locations}
-            suppliers={suppliers}
             multiLocations={multiLocations}
             values={formValues}
+            selectedVendor={selectedVendor}
+            onVendorChange={setSelectedVendor}
             onOperationTypeChange={(otId) => {
               setValue('operationTypeId', otId, { shouldDirty: true })
               applyOpTypeDefaults(otId)
@@ -614,15 +627,18 @@ export default function ReceiptForm() {
           {isDraft ? (
             <ReceiptFormFields
               ar={ar}
+              language={language}
               register={register}
               errors={errors}
+              setValue={setValue}
               opTypes={opTypes}
               warehouses={warehouses}
               locations={locations}
-              suppliers={suppliers}
               multiLocations={multiLocations}
               values={{ ...formValues, _lockOperationType: true }}
               readOnly={false}
+              selectedVendor={selectedVendor}
+              onVendorChange={setSelectedVendor}
               onOperationTypeChange={(otId) => {
                 setValue('operationTypeId', otId, { shouldDirty: true })
                 applyOpTypeDefaults(otId)
