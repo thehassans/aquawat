@@ -4,6 +4,7 @@ import api from '../../lib/api';
 import { normalizeGrnList } from '../../lib/grnApi';
 import toast from 'react-hot-toast';
 import ProductChooser, { loadInventoryProducts } from '../../components/inventory/ProductChooser';
+import PartnerCombobox from '../../components/inventory/PartnerCombobox';
 import { useSelector } from 'react-redux';
 import { hasBusinessType } from '../../lib/businessTypes';
 
@@ -13,15 +14,17 @@ const field = 'w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 t
 
 export default function GoodsReceiptNote() {
   const tenant = useSelector((state) => state.auth.tenant);
+  const { language } = useSelector((state) => state.ui);
+  const ar = language === 'ar';
   const isPharmacy = hasBusinessType(tenant, 'pharmacy');
   const requireBatch = isPharmacy && tenant?.settings?.pharmacy?.requireBatchOnReceive !== false;
   const [grns, setGrns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('list');
 
-  const [suppliers, setSuppliers] = useState([]);
-  const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [selectedSupplier, setSelectedSupplier] = useState('');
+  const [selectedSupplierOpt, setSelectedSupplierOpt] = useState(null);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [selectedPO, setSelectedPO] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [lines, setLines] = useState([]);
@@ -33,12 +36,8 @@ export default function GoodsReceiptNote() {
 
   const fetchData = async () => {
     try {
-      const [grnRes, suppRes] = await Promise.all([
-        api.get('/grn'),
-        api.get('/contacts?types=supplier')
-      ]);
+      const grnRes = await api.get('/grn');
       setGrns(normalizeGrnList(grnRes.data));
-      setSuppliers(suppRes.data?.contacts || []);
 
       try {
         const poRes = await api.get('/purchase-orders');
@@ -141,13 +140,22 @@ export default function GoodsReceiptNote() {
           </div>
 
           <div className="grid gap-4 rounded-[1.5rem] border border-white/80 bg-white/90 p-6 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.35)] sm:grid-cols-3">
-            <label className="text-xs font-medium text-slate-500">
+            <div className="text-xs font-medium text-slate-500">
               Supplier *
-              <select value={selectedSupplier} onChange={(e) => setSelectedSupplier(e.target.value)} className={`${field} mt-1.5`}>
-                <option value="">Select supplier</option>
-                {suppliers.map(s => <option key={s.entityId || s._id} value={s.entityId || s._id}>{s.displayName || s.name}</option>)}
-              </select>
-            </label>
+              <div className="mt-1.5">
+                <PartnerCombobox
+                  role="vendor"
+                  value={selectedSupplier}
+                  selectedOption={selectedSupplierOpt}
+                  ar={ar}
+                  language={language}
+                  onChange={(id, opt) => {
+                    setSelectedSupplier(id || '');
+                    setSelectedSupplierOpt(opt || null);
+                  }}
+                />
+              </div>
+            </div>
             <label className="text-xs font-medium text-slate-500">
               Link PO (optional)
               <select value={selectedPO} onChange={(e) => setSelectedPO(e.target.value)} className={`${field} mt-1.5`}>

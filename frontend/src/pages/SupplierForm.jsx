@@ -49,6 +49,8 @@ export default function SupplierForm() {
       payableAccountId: '',
       paymentTerms: { term: 'net_30' },
       address: { country: tenantCountry },
+      isCustomer: false,
+      isVendor: true,
     },
   })
 
@@ -106,6 +108,8 @@ export default function SupplierForm() {
         paymentTerms: supplierData.paymentTerms || { term: 'net_30' },
         address: supplierData.address || { country: 'SA' },
         bank: supplierData.bank || {},
+        isVendor: supplierData.isVendor !== false,
+        isCustomer: Boolean(supplierData.isCustomer),
       })
     }
   }, [isEdit, supplierData, reset])
@@ -193,6 +197,31 @@ export default function SupplierForm() {
             <div>
               <label className="label">{language === 'ar' ? 'الرقم الضريبي' : taxIdLabel}</label>
               <input {...register('vatNumber')} className="input" placeholder="300000000000003" />
+            </div>
+
+            <div className="md:col-span-2 lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-dark-600 dark:bg-dark-800/60">
+                <input type="checkbox" {...register('isVendor')} className="mt-1 rounded border-slate-300" />
+                <span>
+                  <span className="block text-sm font-semibold text-slate-800 dark:text-white">
+                    {language === 'ar' ? 'مورد' : 'Vendor'}
+                  </span>
+                  <span className="block text-xs text-slate-500">
+                    {language === 'ar' ? 'يظهر في المشتريات والاستلام' : 'Appears in purchases and receipts'}
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-dark-600 dark:bg-dark-800/60">
+                <input type="checkbox" {...register('isCustomer')} className="mt-1 rounded border-slate-300" />
+                <span>
+                  <span className="block text-sm font-semibold text-slate-800 dark:text-white">
+                    {language === 'ar' ? 'عميل أيضاً' : 'Also a customer'}
+                  </span>
+                  <span className="block text-xs text-slate-500">
+                    {language === 'ar' ? 'يمكن استخدامه في المبيعات والتسليمات' : 'Usable in sales and deliveries'}
+                  </span>
+                </span>
+              </label>
             </div>
 
             {showArabicFields ? (

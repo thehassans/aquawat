@@ -7,6 +7,7 @@ import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import ProductChooser from '../../components/inventory/ProductChooser'
+import PartnerCombobox from '../../components/inventory/PartnerCombobox'
 import { StatusChip } from './inventoryUi'
 import { TransferPrintButton } from './TransferPrint'
 import { TransferQualityPanel } from './QualityPages'
@@ -70,21 +71,8 @@ export default function TransferForm() {
   const { data: customers = [] } = useQuery({
     queryKey: ['customers-lite'],
     queryFn: () => api.get('/customers', { params: { limit: 200 } }).then((r) => r.data?.customers || r.data || []),
-    enabled: code === 'outgoing' || code === 'pos' || !!settings?.groupStockTrackingOwner,
+    enabled: !!settings?.groupStockTrackingOwner,
   })
-
-  const { data: suppliers = [] } = useQuery({
-    queryKey: ['suppliers-lite'],
-    queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((r) => r.data?.suppliers || r.data || []),
-    enabled: code === 'incoming',
-  })
-
-  const partners = code === 'incoming' ? suppliers : customers
-  const partnerOptionLabel = (p) => {
-    if (!p) return '—'
-    if (code === 'incoming') return (ar && p.nameAr ? p.nameAr : (p.nameEn || p.name)) || '—'
-    return (ar && p.nameAr ? p.nameAr : p.name) || '—'
-  }
 
   const { data: transfer, isLoading } = useQuery({
     queryKey: ['stock-transfer', id],
@@ -104,6 +92,7 @@ export default function TransferForm() {
     priority: 'normal',
     lines: [],
   })
+  const [selectedPartner, setSelectedPartner] = useState(null)
   const [tab, setTab] = useState('operations')
   const [logNote, setLogNote] = useState('')
   const [signedBy, setSignedBy] = useState('')
@@ -278,7 +267,7 @@ export default function TransferForm() {
         return
       }
     }
-    const partner = partners.find((c) => String(c._id) === String(form.partnerId))
+    const partner = selectedPartner
     if (hints.partnerWarnings && partner?.stockWarn === 'block') {
       toast.error(partner.stockWarnMsg || (ar ? 'الشريك محظور' : 'Partner blocked'))
       return
@@ -644,29 +633,25 @@ export default function TransferForm() {
               </select>
             </label>
             {code !== 'internal' && (
-              <label className="block text-sm">
+              <div className="block text-sm">
                 <span className="label">
                   {partnerLabel}
                   {code === 'outgoing' ? <span className="text-rose-500"> *</span> : null}
                 </span>
-                <select
-                  className="select mt-1 w-full"
-                  required={code === 'outgoing'}
-                  value={form.partnerId}
-                  onChange={(e) => setForm((f) => ({ ...f, partnerId: e.target.value }))}
-                >
-                  <option value="">
-                    {code === 'outgoing'
-                      ? (ar ? '— اختر العميل —' : '— Select customer —')
-                      : code === 'incoming'
-                        ? (ar ? '— اختر المورد —' : '— Select supplier —')
-                        : '—'}
-                  </option>
-                  {partners.map((c) => (
-                    <option key={c._id} value={c._id}>{partnerOptionLabel(c)}</option>
-                  ))}
-                </select>
-              </label>
+                <div className="mt-1">
+                  <PartnerCombobox
+                    role={code === 'incoming' ? 'vendor' : 'customer'}
+                    value={form.partnerId}
+                    selectedOption={selectedPartner}
+                    ar={ar}
+                    language={language}
+                    onChange={(id, opt) => {
+                      setForm((f) => ({ ...f, partnerId: id || '' }))
+                      setSelectedPartner(opt || null)
+                    }}
+                  />
+                </div>
+              </div>
             )}
             {hints.ownerTracking && (
               <label className="block text-sm">

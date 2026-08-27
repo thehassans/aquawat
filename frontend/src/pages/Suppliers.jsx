@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Users, MapPin, AlertCircle, X, ChevronRight, Loader2, Building2, Phone, Mail, FileText, ArrowUpRight, ArrowDownRight, Wallet } from 'lucide-react'
+import { Plus, Users, MapPin, AlertCircle, X, ChevronRight, Loader2, Building2, Phone, Mail, FileText, ArrowUpRight, ArrowDownRight, Wallet, Contact } from 'lucide-react'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import ExportMenu from '../components/ui/ExportMenu'
@@ -52,6 +52,13 @@ export default function Suppliers() {
           <p className="mt-1.5 max-w-xl text-[13px] leading-6 text-slate-500 dark:text-slate-400">
             {language === 'ar' ? 'إدارة الموردين وتتبع العمليات المالية والطلبات.' : 'Manage suppliers and track financials and orders.'}
           </p>
+          <Link
+            to="/app/dashboard/contacts?types=customer,supplier"
+            className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700 hover:text-sky-900 dark:text-sky-400"
+          >
+            <Contact className="h-3.5 w-3.5" />
+            {language === 'ar' ? 'عرض الشركاء الموحّد' : 'Open unified Partners hub'}
+          </Link>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExportMenu

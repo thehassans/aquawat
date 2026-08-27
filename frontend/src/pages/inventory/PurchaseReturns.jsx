@@ -3,18 +3,22 @@ import { PackageMinus, Plus, Check, Save, ArrowLeft, Trash2 } from 'lucide-react
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import ProductChooser, { loadInventoryProducts } from '../../components/inventory/ProductChooser';
+import PartnerCombobox from '../../components/inventory/PartnerCombobox';
+import { useSelector } from 'react-redux';
 
 const fontPage = { fontFamily: "'Plus Jakarta Sans', 'DM Sans', 'Tajawal', sans-serif" };
 const fontDisplay = { fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif" };
 const field = 'w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-rose-400 focus:ring-4 focus:ring-rose-500/10';
 
 export default function PurchaseReturns() {
+  const { language } = useSelector((state) => state.ui);
+  const ar = language === 'ar';
   const [returns, setReturns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('list');
 
-  const [suppliers, setSuppliers] = useState([]);
   const [selectedSupplier, setSelectedSupplier] = useState('');
+  const [selectedSupplierOpt, setSelectedSupplierOpt] = useState(null);
   const [referenceNumber, setReferenceNumber] = useState('');
   const [lines, setLines] = useState([]);
   const [allProducts, setAllProducts] = useState([]);
@@ -25,13 +29,11 @@ export default function PurchaseReturns() {
 
   const fetchData = async () => {
     try {
-      const [retRes, suppRes, products] = await Promise.all([
+      const [retRes, products] = await Promise.all([
         api.get('/purchase-returns'),
-        api.get('/contacts?types=supplier'),
         loadInventoryProducts(api),
       ]);
       setReturns(Array.isArray(retRes.data) ? retRes.data : []);
-      setSuppliers(suppRes.data?.contacts || []);
       setAllProducts(products);
     } catch (err) {
       toast.error('Failed to load data');
@@ -112,13 +114,22 @@ export default function PurchaseReturns() {
           </div>
 
           <div className="grid gap-4 rounded-[1.5rem] border border-white/80 bg-white/90 p-6 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.35)] sm:grid-cols-2">
-            <label className="text-xs font-medium text-slate-500">
+            <div className="text-xs font-medium text-slate-500">
               Supplier *
-              <select value={selectedSupplier} onChange={(e) => setSelectedSupplier(e.target.value)} className={`${field} mt-1.5`}>
-                <option value="">Select supplier</option>
-                {suppliers.map(s => <option key={s.entityId || s._id} value={s.entityId || s._id}>{s.displayName || s.name}</option>)}
-              </select>
-            </label>
+              <div className="mt-1.5">
+                <PartnerCombobox
+                  role="vendor"
+                  value={selectedSupplier}
+                  selectedOption={selectedSupplierOpt}
+                  ar={ar}
+                  language={language}
+                  onChange={(id, opt) => {
+                    setSelectedSupplier(id || '');
+                    setSelectedSupplierOpt(opt || null);
+                  }}
+                />
+              </div>
+            </div>
             <label className="text-xs font-medium text-slate-500">
               Reference / invoice #
               <input type="text" value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} className={`${field} mt-1.5`} placeholder="Optional" />

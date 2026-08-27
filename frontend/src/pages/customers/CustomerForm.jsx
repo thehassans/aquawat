@@ -80,7 +80,9 @@ export default function CustomerForm() {
       paymentTerms: 'net30',
       creditLimit: 0,
       notes: '',
-      isActive: true
+      isActive: true,
+      isCustomer: true,
+      isVendor: false,
     }
   })
 
@@ -110,6 +112,8 @@ export default function CustomerForm() {
         ...customer,
         parentCompanyId: customer.parentCompanyId?._id || customer.parentCompanyId || '',
         receivableAccountId: customer.receivableAccountId?._id || customer.receivableAccountId || '',
+        isCustomer: customer.isCustomer !== false,
+        isVendor: Boolean(customer.isVendor),
       })
     }
   }, [customer, reset])
@@ -220,7 +224,7 @@ export default function CustomerForm() {
               </div>
               <div>
                 <p className="font-semibold text-gray-900 dark:text-white">
-                  {language === 'ar' ? 'شركة' : 'Business'}
+                  {language === 'ar' ? 'شركة' : 'Company'}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {language === 'ar' ? 'منشأة تجارية مسجلة' : 'Registered business entity'}
@@ -250,6 +254,31 @@ export default function CustomerForm() {
                   {language === 'ar' ? 'عميل شخصي' : 'Personal customer'}
                 </p>
               </div>
+            </label>
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-dark-600 dark:bg-dark-800/60">
+              <input type="checkbox" {...register('isCustomer')} className="mt-1 rounded border-slate-300" />
+              <span>
+                <span className="block text-sm font-semibold text-slate-800 dark:text-white">
+                  {language === 'ar' ? 'عميل' : 'Customer'}
+                </span>
+                <span className="block text-xs text-slate-500">
+                  {language === 'ar' ? 'يظهر في المبيعات والتسليمات' : 'Appears in sales and deliveries'}
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-dark-600 dark:bg-dark-800/60">
+              <input type="checkbox" {...register('isVendor')} className="mt-1 rounded border-slate-300" />
+              <span>
+                <span className="block text-sm font-semibold text-slate-800 dark:text-white">
+                  {language === 'ar' ? 'مورد أيضاً' : 'Also a vendor'}
+                </span>
+                <span className="block text-xs text-slate-500">
+                  {language === 'ar' ? 'يمكن استخدامه في المشتريات والاستلام' : 'Usable in purchases and receipts'}
+                </span>
+              </span>
             </label>
           </div>
         </motion.div>

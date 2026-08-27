@@ -911,11 +911,11 @@ function App() {
           <Route path="delivery-methods" element={<DeliveryMethodsPage />} />
           <Route path="shipping-connectors" element={<Navigate to="/app/dashboard/inventory/delivery-methods" replace />} />
         </Route>
-        <Route path="suppliers" element={<BusinessTypeRoute allowedTypes={['trading']}><Suppliers /></BusinessTypeRoute>} />
-        <Route path="suppliers/new" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierForm /></BusinessTypeRoute>} />
-        <Route path="suppliers/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierDashboard /></BusinessTypeRoute>} />
-        <Route path="suppliers/:id/edit" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierForm /></BusinessTypeRoute>} />
-        <Route path="supplier-performance" element={<BusinessTypeRoute allowedTypes={['trading']}><SupplierPerformance /></BusinessTypeRoute>} />
+        <Route path="suppliers" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><Suppliers /></BusinessTypeRoute>} />
+        <Route path="suppliers/new" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><SupplierForm /></BusinessTypeRoute>} />
+        <Route path="suppliers/:id" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><SupplierDashboard /></BusinessTypeRoute>} />
+        <Route path="suppliers/:id/edit" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><SupplierForm /></BusinessTypeRoute>} />
+        <Route path="supplier-performance" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><SupplierPerformance /></BusinessTypeRoute>} />
         <Route path="purchases" element={<PurchasesLayout />}>
           <Route index element={<Navigate to="orders" replace />} />
           <Route path="orders" element={<PurchaseOrders />} />
