@@ -164,8 +164,8 @@ export default function Contacts() {
           <p className="mt-1 max-w-xl text-sm text-slate-500">
             {partnerHub
               ? (isAr
-                ? 'دليل موحّد للعملاء والموردين. يُضبط نوع المحاسبة تلقائياً حسب سياق الإنشاء.'
-                : 'Unified partner book. Accounting flags are set automatically from create context.')
+                ? 'دليل موحّد للعملاء والموردين مع نموذج كامل وأدوار محاسبية'
+                : 'Unified contact registry with full form and accounting roles')
               : (isAr ? 'دليل موحّد للعملاء والموردين والموظفين.' : 'One book for customers, suppliers, employees, and WhatsApp.')}
           </p>
         </div>
@@ -205,18 +205,18 @@ export default function Contacts() {
                   </span>
                 </button>
                 <Link
-                  to="/app/dashboard/customers/new"
+                  to="/app/dashboard/customers/new?role=customer&returnTo=/app/dashboard/contacts?types=customer,supplier"
                   className="block border-t border-slate-100 px-3 py-2 text-xs text-slate-500 hover:bg-slate-50 dark:border-dark-600"
                   onClick={() => setCreateMenuOpen(false)}
                 >
-                  {isAr ? 'إنشاء عميل متقدم…' : 'Advanced customer form…'}
+                  {isAr ? 'نموذج كامل — عميل…' : 'Full form — customer…'}
                 </Link>
                 <Link
-                  to="/app/dashboard/suppliers/new"
+                  to="/app/dashboard/suppliers/new?role=vendor&returnTo=/app/dashboard/contacts?types=customer,supplier"
                   className="block px-3 py-2 text-xs text-slate-500 hover:bg-slate-50"
                   onClick={() => setCreateMenuOpen(false)}
                 >
-                  {isAr ? 'إنشاء مورد متقدم…' : 'Advanced supplier form…'}
+                  {isAr ? 'نموذج كامل — مورد…' : 'Full form — vendor…'}
                 </Link>
               </div>
             )}

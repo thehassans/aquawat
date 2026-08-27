@@ -45,6 +45,7 @@ export default function PartnerCombobox({
     const params = new URLSearchParams()
     if (term) params.set('name', term)
     params.set('returnTo', returnTo)
+    params.set('role', isVendor ? 'vendor' : 'customer')
     if (isVendor) {
       navigate(`/app/dashboard/suppliers/new?${params.toString()}`)
     } else {

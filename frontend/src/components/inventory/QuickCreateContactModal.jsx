@@ -1,14 +1,19 @@
 import { useEffect, useState } from 'react'
-import { X, Building2, User } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { X, Building2, User, ArrowRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { formatInvError } from '../../lib/invError'
 import AsyncCombobox from '../ui/AsyncCombobox'
+import {
+  buildFullFormUrl,
+  fetchDefaultPayableAccountId,
+  fetchDefaultReceivableAccountId,
+} from '../../lib/partnerDefaults'
 
 /**
- * Unified contact create modal for inventory partner fields.
- * role context sets hidden accounting flags (is_customer / is_vendor) — never asked of the user.
- * Entity hierarchy: Individual | Company; individuals may link to a parent company.
+ * Unified contact quick-create.
+ * role: 'vendor' (receipt) injects default payable; 'customer' (delivery) injects receivable.
  */
 export default function QuickCreateContactModal({
   open,
@@ -20,6 +25,9 @@ export default function QuickCreateContactModal({
   language = 'en',
 }) {
   const isVendor = role === 'vendor'
+  const navigate = useNavigate()
+  const location = useLocation()
+
   const [name, setName] = useState('')
   const [contactType, setContactType] = useState(isVendor ? 'company' : 'individual')
   const [email, setEmail] = useState('')
@@ -27,6 +35,8 @@ export default function QuickCreateContactModal({
   const [parentCompanyId, setParentCompanyId] = useState('')
   const [parentCompany, setParentCompany] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [formError, setFormError] = useState('')
+  const [showFullFormCta, setShowFullFormCta] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -36,6 +46,8 @@ export default function QuickCreateContactModal({
     setPhone('')
     setParentCompanyId('')
     setParentCompany(null)
+    setFormError('')
+    setShowFullFormCta(false)
   }, [open, defaultName, isVendor])
 
   useEffect(() => {
@@ -64,24 +76,42 @@ export default function QuickCreateContactModal({
     return (Array.isArray(rows) ? rows : []).filter((c) => (c.type || 'business') !== 'individual')
   }
 
+  const goFullForm = () => {
+    const returnTo = `${location.pathname}${location.search}`
+    const url = buildFullFormUrl({
+      role: isVendor ? 'vendor' : 'customer',
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      entity: contactType,
+      returnTo,
+    })
+    onClose?.()
+    navigate(url)
+  }
+
   if (!open) return null
 
   const submit = async (e) => {
     e?.preventDefault?.()
     const trimmed = name.trim()
+    setFormError('')
+    setShowFullFormCta(false)
     if (!trimmed) {
-      toast.error(ar ? 'الاسم مطلوب' : 'Name is required')
+      setFormError(ar ? 'الاسم مطلوب' : 'Name is required')
       return
     }
     setBusy(true)
     try {
-      // Contextual accounting flags — derived from where the contact is created
-      const is_customer = !isVendor
-      const is_vendor = isVendor
+      const [receivableAccountId, payableAccountId] = await Promise.all([
+        fetchDefaultReceivableAccountId(),
+        fetchDefaultPayableAccountId(),
+      ])
+
       let created
       if (isVendor) {
         const code = `S${Date.now().toString().slice(-7)}`
-        created = await api.post('/suppliers', {
+        const payload = {
           code,
           nameEn: trimmed,
           nameAr: trimmed,
@@ -89,39 +119,38 @@ export default function QuickCreateContactModal({
           email: email.trim() || undefined,
           phone: phone.trim() || undefined,
           parentCompanyId: contactType === 'individual' && parentCompanyId ? parentCompanyId : undefined,
+          payableAccountId: payableAccountId || undefined,
           isVendor: true,
           isCustomer: false,
-          is_vendor: true,
-          is_customer: false,
           isActive: true,
-        }).then((r) => r.data)
+        }
+        created = await api.post('/suppliers', payload).then((r) => r.data)
         created = {
           ...created,
           name: created.nameEn || created.name || trimmed,
-          is_vendor,
-          is_customer,
         }
       } else {
-        created = await api.post('/customers', {
+        const payload = {
           type: contactType === 'company' ? 'business' : 'individual',
           name: trimmed,
           nameAr: trimmed,
           email: email.trim() || undefined,
           phone: phone.trim() || undefined,
           parentCompanyId: contactType === 'individual' && parentCompanyId ? parentCompanyId : undefined,
+          receivableAccountId: receivableAccountId || undefined,
           isCustomer: true,
           isVendor: false,
-          is_customer: true,
-          is_vendor: false,
           isActive: true,
-        }).then((r) => r.data)
-        created = { ...created, is_customer, is_vendor }
+        }
+        created = await api.post('/customers', payload).then((r) => r.data)
       }
       toast.success(ar ? 'تم إنشاء جهة الاتصال' : 'Contact created')
       onCreated?.(created)
       onClose?.()
     } catch (err) {
-      toast.error(formatInvError(err, language))
+      const msg = formatInvError(err, language)
+      setFormError(msg)
+      setShowFullFormCta(true)
     } finally {
       setBusy(false)
     }
@@ -155,8 +184,24 @@ export default function QuickCreateContactModal({
         </div>
 
         <div className="space-y-4 px-5 py-4">
+          {formError ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-sm text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-200">
+              {formError}
+              {showFullFormCta ? (
+                <button
+                  type="button"
+                  onClick={goFullForm}
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-rose-900 underline-offset-2 hover:underline dark:text-rose-100"
+                >
+                  {ar ? 'المتابعة في النموذج الكامل' : 'Continue in Full Form'}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
           <div>
-            <span className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-300">
+            <span className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">
               {ar ? 'الكيان' : 'Entity'}
             </span>
             <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100/80 p-1 dark:bg-dark-700" role="radiogroup">
@@ -196,7 +241,7 @@ export default function QuickCreateContactModal({
           </div>
 
           <label className="block text-sm">
-            <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
+            <span className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
               {ar ? 'الاسم' : 'Name'}
               <span className="text-rose-500"> *</span>
             </span>
@@ -204,15 +249,18 @@ export default function QuickCreateContactModal({
               className="input w-full"
               autoFocus
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value)
+                if (formError) setFormError('')
+              }}
               placeholder={ar ? 'اسم جهة الاتصال' : 'Contact name'}
             />
           </label>
 
           {contactType === 'individual' && (
             <div className="block text-sm">
-              <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
-                {ar ? 'الشركة المرتبطة' : 'Linked company'}
+              <span className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                {ar ? 'الشركة المرتبطة' : 'Related company'}
               </span>
               <AsyncCombobox
                 value={parentCompanyId}
@@ -234,7 +282,7 @@ export default function QuickCreateContactModal({
           )}
 
           <label className="block text-sm">
-            <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
+            <span className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
               {ar ? 'البريد' : 'Email'}
             </span>
             <input
@@ -246,7 +294,7 @@ export default function QuickCreateContactModal({
           </label>
 
           <label className="block text-sm">
-            <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
+            <span className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
               {ar ? 'الهاتف' : 'Phone'}
             </span>
             <input
@@ -257,13 +305,23 @@ export default function QuickCreateContactModal({
           </label>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4 dark:border-dark-600">
-          <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={() => onClose?.()}>
-            {ar ? 'إلغاء' : 'Cancel'}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-5 py-4 dark:border-dark-600">
+          <button
+            type="button"
+            className="text-xs font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+            disabled={busy}
+            onClick={goFullForm}
+          >
+            {ar ? 'نموذج كامل…' : 'Full form…'}
           </button>
-          <button type="submit" className="btn btn-primary text-sm" disabled={busy}>
-            {busy ? '…' : (ar ? 'إنشاء' : 'Create')}
-          </button>
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={() => onClose?.()}>
+              {ar ? 'إلغاء' : 'Cancel'}
+            </button>
+            <button type="submit" className="btn btn-primary text-sm" disabled={busy}>
+              {busy ? '…' : (ar ? 'إنشاء' : 'Create')}
+            </button>
+          </div>
         </div>
       </form>
     </div>
