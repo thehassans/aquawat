@@ -240,6 +240,15 @@ export async function createVariant(tenantId, userId, body) {
   const product = await Product.findOne({ _id: body.productId, tenantId: tid }).lean();
   if (!product) throw new InventoryValidationError('Product not found', 'PRODUCT_NOT_FOUND');
 
+  const hasAttrLines = Array.isArray(product.attributeLines) && product.attributeLines.length > 0;
+  if (hasAttrLines && !(body.attributeValueIds || []).length) {
+    throw new InventoryValidationError(
+      'Manual variant rows are not allowed — use Generate Variants from attribute lines',
+      'VARIANT_MATRIX_ONLY',
+      { messageAr: 'لا يُسمح بإضافة متغيرات يدوياً — استخدم توليد المتغيرات من أسطر السمات' },
+    );
+  }
+
   const valueIds = [...new Set((body.attributeValueIds || []).map((id) => String(id)))];
   if (!valueIds.length && !body.name) {
     throw new InventoryValidationError('attributeValueIds or name required', 'VARIANT_DIMS');
@@ -261,12 +270,13 @@ export async function createVariant(tenantId, userId, body) {
     ? combinationKeyFromIds(values.map((v) => v._id))
     : `manual:${String(body.name).trim().toLowerCase()}`;
 
-  const name = body.name
-    ? String(body.name).trim()
-    : values.map((v) => v.name).join(' / ');
-  const nameAr = body.nameAr
-    ? String(body.nameAr).trim()
-    : values.map((v) => v.nameAr || v.name).join(' / ');
+  const { formatVariantDisplayName } = await import('./variantGuard.js');
+  const name = valueIds.length
+    ? formatVariantDisplayName(product.nameEn || product.sku, values.map((v) => v.name))
+    : String(body.name).trim();
+  const nameAr = valueIds.length
+    ? formatVariantDisplayName(product.nameAr || product.nameEn || product.sku, values.map((v) => v.nameAr || v.name))
+    : (body.nameAr ? String(body.nameAr).trim() : name);
 
   try {
     return await InvProductVariant.create({
@@ -293,8 +303,14 @@ export async function updateVariant(tenantId, id, userId, body) {
   await assertVariantsEnabled(tenantId);
   const doc = await InvProductVariant.findOne({ _id: id, tenantId: toObjectId(tenantId) });
   if (!doc) throw new InventoryValidationError('Variant not found', 'VARIANT_NOT_FOUND');
-  if (body.name != null) doc.name = String(body.name).trim();
-  if (body.nameAr != null) doc.nameAr = String(body.nameAr).trim();
+  // Name is system-owned when generated from attribute values (locked)
+  const isMatrixVariant = Array.isArray(doc.attributeValueIds) && doc.attributeValueIds.length > 0
+    && doc.combinationKey !== 'default'
+    && !String(doc.combinationKey || '').startsWith('manual:');
+  if (!isMatrixVariant) {
+    if (body.name != null) doc.name = String(body.name).trim();
+    if (body.nameAr != null) doc.nameAr = String(body.nameAr).trim();
+  }
   if (body.sku != null) doc.sku = String(body.sku).trim() || undefined;
   if (body.barcode != null) doc.barcode = String(body.barcode).trim() || undefined;
   if (body.extraPrice != null) doc.extraPrice = Number(body.extraPrice) || 0;
@@ -427,20 +443,30 @@ export async function generateVariants(tenantId, userId, {
 
   for (const combo of combos) {
     const key = combinationKeyFromIds(combo.map((v) => v._id));
-    const name = combo.map((v) => v.name).join(' / ');
-    const nameAr = combo.map((v) => v.nameAr || v.name).join(' / ');
+    const valueNames = combo.map((v) => v.name);
+    const valueNamesAr = combo.map((v) => v.nameAr || v.name);
+    const { formatVariantDisplayName } = await import('./variantGuard.js');
+    const name = formatVariantDisplayName(product.nameEn || product.sku, valueNames);
+    const nameAr = formatVariantDisplayName(product.nameAr || product.nameEn || product.sku, valueNamesAr);
     const existing = existingAll.find((e) => e.combinationKey === key);
     if (existing) {
       if (existing.active) {
         skipped += 1;
         preview.push({ name, action: 'skip', id: existing._id });
+        if (!dryRun) {
+          // Keep display names in sync with template + attribute values
+          await InvProductVariant.updateOne(
+            { _id: existing._id },
+            { $set: { name, nameAr, updatedBy: userId } },
+          );
+        }
       } else {
         reactivated += 1;
         preview.push({ name, action: 'reactivate', id: existing._id });
         if (!dryRun) {
           await InvProductVariant.updateOne(
             { _id: existing._id },
-            { $set: { active: true, updatedBy: userId } },
+            { $set: { active: true, name, nameAr, updatedBy: userId } },
           );
         }
       }

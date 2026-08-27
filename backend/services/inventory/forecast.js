@@ -5,7 +5,13 @@ import InvLocation from '../../models/inventory/InvLocation.js';
 import { toObjectId } from '../../models/inventory/common.js';
 import { getInternalLocationIds } from './locationHelpers.js';
 
-export async function computeOnHand(tenantId, productId, { warehouseId, locationId, variantId } = {}) {
+export async function computeOnHand(tenantId, productId, {
+  warehouseId,
+  locationId,
+  variantId,
+  excludeNullVariant = false,
+  sumVariantsOnly = false,
+} = {}) {
   const tid = toObjectId(tenantId);
   let locationFilter = {};
 
@@ -36,6 +42,8 @@ export async function computeOnHand(tenantId, productId, { warehouseId, location
   };
   if (variantId != null && variantId !== '') {
     quantFilter.variantId = toObjectId(variantId);
+  } else if (excludeNullVariant || sumVariantsOnly) {
+    quantFilter.variantId = { $ne: null };
   }
 
   const quants = await InvQuant.find(quantFilter).lean();

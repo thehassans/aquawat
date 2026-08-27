@@ -15,6 +15,7 @@ import {
   opsProductOptionSub,
   searchProductsAndVariants,
 } from '../../lib/productVariantSearch'
+import { isVariantPickCancelled, useForceVariantPick } from '../../lib/useForceVariantPick'
 
 function fmtDate(d) {
   if (!d) return ''
@@ -73,6 +74,7 @@ export default function PhysicalInventory() {
   const ar = language === 'ar'
   const qc = useQueryClient()
   const quickRef = useRef(null)
+  const { resolvePick, forceVariantModal } = useForceVariantPick({ ar, variantsEnabled: true })
 
   const [filter, setFilter] = useState('')
   const [warehouseId, setWarehouseId] = useState('')
@@ -392,19 +394,23 @@ export default function PhysicalInventory() {
 
   const onQuickPick = async (_id, opt) => {
     if (!opt) return
-    const productId = opt.productId || (opt.kind === 'product' ? opt._id : null)
-    const variantId = opt.variantId || null
-    if (!productId) return
-    if (opt.productHasVariants && !variantId) {
-      toast.error(ar ? 'اختر متغيراً محدداً' : 'Select a specific variant')
-      return
+    try {
+      const resolved = await resolvePick(opt)
+      if (!resolved.productId) return
+      if (resolved.needsVariant && !resolved.variantId) {
+        toast.error(ar ? 'اختر متغيراً محدداً' : 'Select a specific variant')
+        return
+      }
+      await addOrIncrement({
+        productId: resolved.productId,
+        variantId: resolved.variantId,
+        name: resolved.variantName || resolved.productName || opt.name,
+      })
+      setQuickTerm('')
+    } catch (e) {
+      if (isVariantPickCancelled(e)) return
+      toast.error(formatInvError(e, language))
     }
-    await addOrIncrement({
-      productId,
-      variantId,
-      name: opt.name || opt.variantName || opt.productName,
-    })
-    setQuickTerm('')
   }
 
   const scanBarcode = async (raw) => {
@@ -432,20 +438,21 @@ export default function PhysicalInventory() {
         toast.error(ar ? 'غير موجود' : 'Not found')
         return
       }
-      // Prefer a single default variant when present
-      const vData = await api.get('/stock/variants', { params: { productId: product._id, limit: 5 } })
-        .then((r) => r.data)
-        .catch(() => null)
-      const items = Array.isArray(vData) ? vData : (vData?.items || [])
-      if (items.length === 1) {
-        await addOrIncrement({ productId: product._id, variantId: items[0]._id, name: items[0].name || product.nameEn })
-      } else if (items.length > 1) {
-        toast.error(ar ? 'اختر المتغير من البحث' : 'Pick a specific variant from search')
-      } else {
-        await addOrIncrement({ productId: product._id, variantId: null, name: product.nameEn || product.name })
-      }
+      const resolved = await resolvePick({
+        kind: 'product',
+        productId: product._id,
+        productName: product.nameEn || product.name,
+        name: product.nameEn || product.name,
+        sku: product.sku,
+      })
+      await addOrIncrement({
+        productId: resolved.productId,
+        variantId: resolved.variantId,
+        name: resolved.variantName || resolved.productName || product.nameEn,
+      })
       setQuickTerm('')
-    } catch {
+    } catch (e) {
+      if (isVariantPickCancelled(e)) return
       toast.error(ar ? 'غير موجود' : 'Not found')
     }
   }
@@ -534,6 +541,7 @@ export default function PhysicalInventory() {
       className="flex h-[calc(100vh-8.25rem)] max-h-[calc(100vh-8.25rem)] flex-col gap-2 overflow-hidden"
       dir={ar ? 'rtl' : 'ltr'}
     >
+      {forceVariantModal}
       {/* Header — frozen */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <div>

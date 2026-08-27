@@ -17,6 +17,8 @@
     "seed:inventory-audit": "node scripts/seedInventoryAuditTenant.js",
     "migrate:partners": "node scripts/migratePartners.js",
     "migrate:partners:dry": "node scripts/migratePartners.js --dry-run",
+    "migrate:template-quants": "node scripts/migrateTemplateQuants.js",
+    "migrate:template-quants:dry": "node scripts/migrateTemplateQuants.js --dry-run",
     "sample:inventory-pdfs": "node scripts/sampleInventoryPdfs.js",
     "bench:inventory-perf": "node scripts/benchInventoryPerf.js",
     "cleanup:ecommerce": "node scripts/removeEcommerceTenantData.mjs",

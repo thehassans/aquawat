@@ -136,30 +136,14 @@ export async function reserveMove(move, session) {
     return move;
   }
 
-  // Strict variant binding: never reserve template-level stock for a specific variant
-  // (and never mix variants). If the product has variants but the move has none, require one.
-  const { default: InvProductVariant } = await import('../../models/inventory/InvProductVariant.js');
-  const activeVariants = await InvProductVariant.find({
-    tenantId: move.tenantId,
+  // Enterprise guard: never reserve against a template that has variants
+  const { assertStockMoveVariant } = await import('./variantGuard.js');
+  move.variantId = await assertStockMoveVariant(move.tenantId, {
     productId: move.productId,
-    active: true,
-  }).select('_id isDefault').limit(50).session(session).lean();
-
-  if (activeVariants.length > 0 && !move.variantId) {
-    if (activeVariants.length === 1) {
-      move.variantId = activeVariants[0]._id;
-    } else {
-      const def = activeVariants.find((v) => v.isDefault);
-      if (def) {
-        move.variantId = def._id;
-      } else {
-        throw new InventoryValidationError(
-          'Must select a specific variant to move stock',
-          'VARIANT_REQUIRED',
-        );
-      }
-    }
-  }
+    variantId: move.variantId || null,
+    session,
+    allowAutoSingle: false,
+  });
 
   const quantFilter = {
     tenantId: move.tenantId,

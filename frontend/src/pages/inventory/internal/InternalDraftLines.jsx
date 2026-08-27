@@ -5,9 +5,9 @@ import { ReceiptQuickAdd } from '../receipts/ReceiptQuickAdd'
 import {
   opsProductOptionLabel,
   opsProductOptionSub,
-  resolveOperationsLinePick,
   searchProductsAndVariants,
 } from '../../../lib/productVariantSearch'
+import { isVariantPickCancelled, useForceVariantPick } from '../../../lib/useForceVariantPick'
 
 /**
  * Internal transfer draft lines with one-step product/variant picker.
@@ -28,9 +28,11 @@ export function InternalDraftLines({
     (q) => searchProductsAndVariants(q, { variantsEnabled }),
     [variantsEnabled],
   )
+  const { resolvePick, forceVariantModal } = useForceVariantPick({ ar, variantsEnabled })
 
   return (
     <div className="space-y-3">
+      {forceVariantModal}
       <div className="flex items-end justify-between gap-2">
         <div>
           <div className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white">
@@ -106,9 +108,23 @@ export function InternalDraftLines({
                       getOptionSub={opsProductOptionSub}
                       onChange={async (_id, opt) => {
                         try {
-                          const resolved = await resolveOperationsLinePick(opt, { variantsEnabled })
+                          if (!opt) {
+                            onPickResolved?.(idx, {
+                              productId: '',
+                              productName: '',
+                              sku: '',
+                              variantId: null,
+                              variantName: '',
+                              variants: [],
+                              needsVariant: false,
+                              productHasVariants: false,
+                            })
+                            return
+                          }
+                          const resolved = await resolvePick(opt)
                           onPickResolved?.(idx, resolved)
-                        } catch {
+                        } catch (e) {
+                          if (isVariantPickCancelled(e)) return
                           /* never leak unhandled axios/rejection to window */
                         }
                       }}

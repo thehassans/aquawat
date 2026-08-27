@@ -110,33 +110,14 @@ export async function createTransfer(tenantId, payload, userId = null) {
         }
       }
 
-      // Strict: products with variants must bind a specific InvProductVariant._id
-      let resolvedVariantId = line.variantId ? toObjectId(line.variantId) : null;
-      if (settings.groupProductVariant) {
-        const { default: InvProductVariant } = await import('../../models/inventory/InvProductVariant.js');
-        const variants = await InvProductVariant.find({
-          tenantId: tid,
-          productId: product._id,
-          active: true,
-        }).select('_id isDefault').limit(50).session(session).lean();
-        if (variants.length > 0) {
-          if (!resolvedVariantId) {
-            if (variants.length === 1) {
-              resolvedVariantId = variants[0]._id;
-            } else {
-              const def = variants.find((v) => v.isDefault);
-              if (def) resolvedVariantId = def._id;
-              else {
-                throw new InventoryValidationError(
-                  'Must select a specific variant to move stock',
-                  'VARIANT_REQUIRED',
-                  { messageAr: 'يجب اختيار متغير محدد لنقل المخزون' },
-                );
-              }
-            }
-          }
-        }
-      }
+      // Enterprise guard: never stock a template that has (or must have) variants
+      const { assertStockMoveVariant } = await import('./variantGuard.js');
+      const resolvedVariantId = await assertStockMoveVariant(tid, {
+        productId: product._id,
+        variantId: line.variantId || null,
+        session,
+        allowAutoSingle: false,
+      });
 
       const uomId = line.uomId || product.uomId || defaultUom?._id;
       if (!uomId) throw new InventoryValidationError('UoM required — run bootstrap first', 'UOM_REQUIRED');

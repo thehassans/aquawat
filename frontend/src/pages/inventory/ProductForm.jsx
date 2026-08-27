@@ -1323,6 +1323,11 @@ export default function ProductForm() {
                 {language === 'ar' ? 'إدارة السمات' : 'Manage attributes'}
               </Link>
             </div>
+            <p className="text-sm text-slate-500">
+              {language === 'ar'
+                ? 'عرّف أسطر السمات (سمة + قيم)، ثم اضغط «توليد المتغيرات». الشبكة السفلية للقراءة فقط — لا تُضاف صفوفاً يدوياً.'
+                : 'Define attribute lines (Attribute + Values), then click Generate variants. The bottom grid is matrix output only — rows cannot be added manually.'}
+            </p>
             {!isEdit && (
               <p className="text-sm text-slate-500">
                 {language === 'ar' ? 'احفظ المنتج أولاً ثم ولّد المتغيرات.' : 'Save the product first, then generate variants.'}

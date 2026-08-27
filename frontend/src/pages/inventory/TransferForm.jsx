@@ -18,9 +18,9 @@ import { inventoryPathForOpCode } from './returns/returnPaths'
 import {
   opsProductOptionLabel,
   opsProductOptionSub,
-  resolveOperationsLinePick,
   searchProductsAndVariants,
 } from '../../lib/productVariantSearch'
+import { isVariantPickCancelled, useForceVariantPick } from '../../lib/useForceVariantPick'
 
 function newDraftLine(partial = {}) {
   return {
@@ -353,9 +353,10 @@ export default function TransferForm() {
   }
 
   const variantsEnabled = !!(hints.variantsEnabled || settings?.groupProductVariant)
+  const { resolvePick, forceVariantModal } = useForceVariantPick({ ar, variantsEnabled })
 
   const buildLineFromProduct = useCallback(async (productOrOpt) => {
-    const resolved = await resolveOperationsLinePick(productOrOpt, { variantsEnabled })
+    const resolved = await resolvePick(productOrOpt)
     return newDraftLine({
       productId: resolved.productId,
       productName: ar && productOrOpt.nameAr ? productOrOpt.nameAr : resolved.productName,
@@ -369,10 +370,16 @@ export default function TransferForm() {
       uomId: resolved.uomId || productOrOpt.uomId || undefined,
       uomLabel: resolved.uomLabel || productOrOpt.unitOfMeasure || '',
     })
-  }, [ar, variantsEnabled])
+  }, [ar, resolvePick])
 
   const pickProduct = useCallback(async (product, targetIdx = null) => {
-    const nextLine = await buildLineFromProduct(product)
+    let nextLine
+    try {
+      nextLine = await buildLineFromProduct(product)
+    } catch (e) {
+      if (isVariantPickCancelled(e)) return
+      throw e
+    }
     setForm((f) => {
       if (targetIdx != null && targetIdx >= 0) {
         const lines = [...f.lines]
@@ -500,6 +507,7 @@ export default function TransferForm() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
+      {forceVariantModal}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Link to={listPath} className="btn btn-secondary btn-sm">

@@ -239,11 +239,17 @@ export async function setCountedQuantity(tenantId, {
     if (!productId || !locationId) {
       throw new InventoryValidationError('productId and locationId required', 'MISSING_FIELDS');
     }
+    const { assertStockMoveVariant } = await import('./variantGuard.js');
+    const resolvedVariantId = await assertStockMoveVariant(tid, {
+      productId,
+      variantId: variantId || null,
+      allowAutoSingle: false,
+    });
     const dims = {
       tenantId: tid,
       productId,
       locationId,
-      variantId: variantId ? toObjectId(variantId) : null,
+      variantId: resolvedVariantId || (variantId ? toObjectId(variantId) : null),
       lotId: lotId || null,
       packageId: packageId || null,
       ownerId: null,

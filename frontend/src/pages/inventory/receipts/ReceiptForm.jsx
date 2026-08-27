@@ -18,6 +18,7 @@ import { ReceiptDraftLines, ReceiptLineItems } from './ReceiptLineItems'
 import ReverseTransferModal from '../returns/ReverseTransferModal'
 import { inventoryPathForOpCode } from '../returns/returnPaths'
 import { useReturnedPartner } from '../useReturnedPartner'
+import { isVariantPickCancelled, useForceVariantPick } from '../../../lib/useForceVariantPick'
 
 const LIST_PATH = '/app/dashboard/inventory/receipts'
 
@@ -124,6 +125,7 @@ export default function ReceiptForm() {
 
   const barcodeEnabled = !!(settings?.groupStockBarcode || transfer?.settingsHints?.barcode)
   const variantsEnabled = !!(settings?.groupProductVariant || transfer?.settingsHints?.variantsEnabled)
+  const { resolvePick, forceVariantModal } = useForceVariantPick({ ar, variantsEnabled })
 
   const [doneEdits, setDoneEdits] = useState({})
   const [returnOpen, setReturnOpen] = useState(false)
@@ -238,42 +240,42 @@ export default function ReceiptForm() {
   })
 
   const buildLineFromProduct = async (product) => {
-    let variantId = null
-    let variantName = ''
-    let variants = []
-    let needsVariant = false
-    if (variantsEnabled) {
-      try {
-        const { items = [] } = await api.get('/stock/variants', {
-          params: { productId: product._id, limit: 50 },
-        }).then((r) => r.data)
-        variants = items
-        if (items.length === 1) {
-          variantId = items[0]._id
-          variantName = items[0].name
-        } else if (items.length > 1) {
-          needsVariant = true
-        }
-      } catch { /* optional */ }
-    }
+    const resolved = await resolvePick(product.kind || product.variantId ? product : {
+      kind: 'product',
+      productId: product._id || product.productId,
+      productName: product.nameEn || product.name || product.productName,
+      name: product.nameEn || product.name,
+      nameAr: product.nameAr,
+      sku: product.sku,
+      uomId: product.uomId,
+      unitOfMeasure: product.unitOfMeasure,
+      productHasVariants: product.productHasVariants,
+    })
     return {
-      productId: product._id,
-      productName: ar && product.nameAr ? product.nameAr : (product.nameEn || product.name),
-      sku: product.sku || '',
+      productId: resolved.productId,
+      productName: ar && product.nameAr ? product.nameAr : resolved.productName,
+      sku: resolved.sku,
       demandQty: '1',
-      variantId,
-      variantName,
-      variants,
-      needsVariant,
-      uomId: product.uomId || undefined,
-      uomLabel: product.unitOfMeasure || '',
+      variantId: resolved.variantId,
+      variantName: resolved.variantName,
+      variants: resolved.variants,
+      needsVariant: resolved.needsVariant,
+      productHasVariants: resolved.productHasVariants,
+      uomId: resolved.uomId || product.uomId || undefined,
+      uomLabel: resolved.uomLabel || product.unitOfMeasure || '',
     }
   }
 
   const setLines = (next) => setValue('lines', next, { shouldDirty: true, shouldValidate: false })
 
   const pickProduct = async (product, targetIdx = null) => {
-    const nextLine = await buildLineFromProduct(product)
+    let nextLine
+    try {
+      nextLine = await buildLineFromProduct(product)
+    } catch (e) {
+      if (isVariantPickCancelled(e)) return
+      throw e
+    }
     const current = getValues('lines') || []
     if (targetIdx != null && targetIdx >= 0) {
       const linesNext = [...current]
@@ -538,6 +540,7 @@ export default function ReceiptForm() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 px-1 pb-10">
+      {forceVariantModal}
       <ReceiptHeader
         ar={ar}
         language={language}

@@ -187,7 +187,6 @@ export function VariantsPage() {
   const [attrFilter, setAttrFilter] = useState('')
   const [q, setQ] = useState('')
   const [attrIds, setAttrIds] = useState([])
-  const [manualName, setManualName] = useState('')
 
   const { data: products = [] } = useQuery({
     queryKey: ['products-lite', productQ],
@@ -227,16 +226,6 @@ export function VariantsPage() {
       toast.success(ar
         ? `أُنشئ ${res.data.created} · تخطّي ${res.data.skipped} · أرشفة ${res.data.archived || 0}`
         : `Created ${res.data.created} · skipped ${res.data.skipped} · archived ${res.data.archived || 0}`)
-      qc.invalidateQueries({ queryKey: ['inv-variants'] })
-    },
-    onError: (e) => toast.error(formatInvError(e, ar ? 'ar' : 'en')),
-  })
-
-  const createMut = useMutation({
-    mutationFn: () => api.post('/stock/variants', { productId, name: manualName }),
-    onSuccess: () => {
-      toast.success(ar ? 'تم المتغير' : 'Variant created')
-      setManualName('')
       qc.invalidateQueries({ queryKey: ['inv-variants'] })
     },
     onError: (e) => toast.error(formatInvError(e, ar ? 'ar' : 'en')),
@@ -332,21 +321,11 @@ export function VariantsPage() {
             >
               {ar ? 'توليد التوافيق' : 'Generate combinations'}
             </button>
-            <form
-              className="flex flex-wrap items-end gap-2"
-              onSubmit={(e) => { e.preventDefault(); createMut.mutate() }}
-            >
-              <input
-                className="input input-sm"
-                required
-                value={manualName}
-                onChange={(e) => setManualName(e.target.value)}
-                placeholder={ar ? 'متغير يدوي' : 'Manual variant name'}
-              />
-              <button type="submit" className="btn btn-secondary btn-sm" disabled={createMut.isPending}>
-                <Plus className="h-4 w-4" /> {ar ? 'يدوي' : 'Manual'}
-              </button>
-            </form>
+            <p className="self-center text-xs text-slate-400">
+              {ar
+                ? 'المتغيرات تُنشأ من المصفوفة فقط — لا إنشاء يدوي.'
+                : 'Variants are matrix-generated only — no manual rows.'}
+            </p>
           </div>
         </div>
       )}

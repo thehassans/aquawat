@@ -958,6 +958,13 @@ router.post('/report/stock/:productId/adjust', checkPermission('inventory', 'upd
     }
 
     const isGain = diff.gt(0);
+    const variantId = req.body.variantId || null;
+    const { assertStockMoveVariant } = await import('../services/inventory/variantGuard.js');
+    const resolvedVariantId = await assertStockMoveVariant(req.user.tenantId, {
+      productId,
+      variantId,
+      allowAutoSingle: false,
+    });
     const transfer = await createTransfer(req.user.tenantId, {
       operationTypeId: opType._id,
       sourceLocationId: isGain ? adjLoc._id : wh.stockLocationId,
@@ -965,7 +972,7 @@ router.post('/report/stock/:productId/adjust', checkPermission('inventory', 'upd
       origin: 'Stock report adjustment',
       note: req.body.reason || 'Inline on-hand edit',
       sourceModel: 'stockReport',
-      lines: [{ productId, demandQty: decStr(diff.abs()) }],
+      lines: [{ productId, variantId: resolvedVariantId || undefined, demandQty: decStr(diff.abs()) }],
     }, req.user._id);
 
     await confirmTransfer(req.user.tenantId, transfer._id, req.user._id);
@@ -1017,8 +1024,12 @@ router.get('/products/:productId/smart-buttons', checkPermission('inventory', 'r
       InvPutawayRule.countDocuments({ tenantId: tid, productId }),
       InvProductVariant.countDocuments({ tenantId: tid, productId, active: true }),
     ]);
+    // Template On Hand = sum of child variant quants when variants exist (exclude orphan template-level stock)
+    const onHandResolved = variantCount > 0
+      ? await computeOnHand(tid, productId, { sumVariantsOnly: true })
+      : onHand;
     res.json({
-      onHand: onHand.onHand,
+      onHand: onHandResolved.onHand,
       forecasted: forecast.forecasted ?? forecast.forecast,
       incoming: forecast.incoming,
       outgoing: forecast.outgoing,
@@ -1027,6 +1038,7 @@ router.get('/products/:productId/smart-buttons', checkPermission('inventory', 'r
       moves: moveCount,
       putawayRules: putawayCount,
       variants: variantCount,
+      onHandIsVariantSum: variantCount > 0,
     });
   } catch (err) {
     handleInventoryError(res, err);
