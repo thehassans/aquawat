@@ -3,9 +3,9 @@ import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import { Plus, Search } from 'lucide-react'
-import api from '../../lib/api'
-import { asInvList } from '../../lib/invList'
-import EmptyState from '../../components/ui/EmptyState'
+import api from '../../../lib/api'
+import { asInvList } from '../../../lib/invList'
+import EmptyState from '../../../components/ui/EmptyState'
 import { invTableClass, invTableWrapClass } from '../inventoryUi'
 
 const MODE_META = {
