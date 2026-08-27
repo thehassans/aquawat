@@ -81,7 +81,9 @@ export default function TransfersList() {
   const showPartner = code === 'outgoing' || code === 'incoming'
   const partnerCol = code === 'outgoing'
     ? (ar ? 'العميل' : 'Customer')
-    : (ar ? 'المورد / الشريك' : 'Partner')
+    : code === 'incoming'
+      ? (ar ? 'المورد' : 'Vendor')
+      : (ar ? 'المورد / الشريك' : 'Partner')
 
   const basePath = `/app/dashboard/inventory/${
     code === 'incoming' ? 'receipts'
@@ -159,8 +161,15 @@ export default function TransfersList() {
             }}
           >
             <option value="">{ar ? 'كل الحالات' : 'All states'}</option>
-            {['draft', 'waiting', 'confirmed', 'assigned', 'done', 'cancelled'].map((s) => (
-              <option key={s} value={s}>{s}</option>
+            {[
+              { id: 'draft', en: 'Draft', ar: 'مسودة' },
+              { id: 'waiting', en: 'Waiting', ar: 'انتظار' },
+              { id: 'confirmed', en: 'Ready', ar: 'جاهز' },
+              { id: 'assigned', en: 'Ready (assigned)', ar: 'جاهز (مخصص)' },
+              { id: 'done', en: 'Done', ar: 'منجز' },
+              { id: 'cancelled', en: 'Cancelled', ar: 'ملغى' },
+            ].map((s) => (
+              <option key={s.id} value={s.id}>{ar ? s.ar : s.en}</option>
             ))}
           </select>
           {(state || q) && (

@@ -377,7 +377,13 @@ router.get('/operation-types', checkPermission('inventory', 'read'), async (req,
     if (req.query.code) filter.code = req.query.code;
     if (req.query.warehouseId) filter.warehouseId = req.query.warehouseId;
     if (req.query.active !== 'false') filter.active = true;
-    return sendList(res, await InvOperationType.find(filter).sort({ name: 1 }));
+    return sendList(
+      res,
+      await InvOperationType.find(filter)
+        .populate('warehouseId', 'code nameEn nameAr name')
+        .sort({ name: 1 })
+        .lean(),
+    );
   } catch (err) {
     handleInventoryError(res, err);
   }

@@ -1,0 +1,135 @@
+import { groupOperationTypesByWarehouse, operationTypeOptionLabel } from './opTypeGroups'
+import { filterReceiptLocations, locationOptionLabel } from './locationLabel'
+
+/**
+ * Metadata form for a receipt (create or editable draft fields).
+ */
+export function ReceiptFormFields({
+  ar,
+  register,
+  errors,
+  opTypes,
+  warehouses,
+  locations,
+  suppliers,
+  multiLocations,
+  readOnly,
+  onOperationTypeChange,
+  values,
+}) {
+  const groups = groupOperationTypesByWarehouse(opTypes, warehouses, ar)
+  const locationOptions = filterReceiptLocations(locations, {
+    includeIds: [values?.sourceLocationId, values?.destLocationId],
+  })
+
+  const partnerLabel = (p) => (ar && p.nameAr ? p.nameAr : (p.nameEn || p.name)) || '—'
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <label className="block text-sm">
+        <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
+          {ar ? 'نوع العملية' : 'Operation Type'}
+        </span>
+        <select
+          className="select mt-0.5 w-full"
+          disabled={readOnly || Boolean(values?._lockOperationType)}
+          value={values?.operationTypeId || ''}
+          onChange={(e) => {
+            onOperationTypeChange?.(e.target.value)
+          }}
+        >
+          <option value="">{ar ? '— اختر —' : '— Select —'}</option>
+          {groups.map((g) => (
+            <optgroup key={g.warehouseId} label={g.warehouseLabel}>
+              {g.options.map((o) => (
+                <option key={o._id} value={o._id}>
+                  {operationTypeOptionLabel(o, ar)}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        {errors?.operationTypeId && (
+          <p className="mt-1 text-xs text-rose-600">{errors.operationTypeId.message}</p>
+        )}
+      </label>
+
+      <label className="block text-sm">
+        <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
+          {ar ? 'استلام من (المورد)' : 'Receive From (Vendor)'}
+        </span>
+        <select className="select mt-0.5 w-full" disabled={readOnly} {...register('partnerId')}>
+          <option value="">{ar ? '— اختر المورد —' : '— Select supplier —'}</option>
+          {(suppliers || []).map((s) => (
+            <option key={s._id} value={s._id}>{partnerLabel(s)}</option>
+          ))}
+        </select>
+      </label>
+
+      {multiLocations && (
+        <>
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
+              {ar ? 'موقع المصدر' : 'Source Location'}
+            </span>
+            <select className="select mt-0.5 w-full" disabled={readOnly} {...register('sourceLocationId')}>
+              <option value="">—</option>
+              {locationOptions.map((l) => (
+                <option key={l._id} value={l._id}>{locationOptionLabel(l, ar)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
+              {ar ? 'موقع الوجهة' : 'Destination Location'}
+            </span>
+            <select className="select mt-0.5 w-full" disabled={readOnly} {...register('destLocationId')}>
+              <option value="">—</option>
+              {locationOptions.map((l) => (
+                <option key={l._id} value={l._id}>{locationOptionLabel(l, ar)}</option>
+              ))}
+            </select>
+          </label>
+        </>
+      )}
+
+      <label className="block text-sm">
+        <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
+          {ar ? 'الموعد المجدول' : 'Scheduled Date'}
+        </span>
+        <input type="datetime-local" className="input mt-0.5 w-full" disabled={readOnly} {...register('scheduledDate')} />
+      </label>
+
+      <label className="block text-sm">
+        <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
+          {ar ? 'آخر موعد' : 'Deadline'}
+        </span>
+        <input type="datetime-local" className="input mt-0.5 w-full" disabled={readOnly} {...register('deadlineDate')} />
+      </label>
+
+      <label className="block text-sm">
+        <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
+          {ar ? 'الأولوية' : 'Priority'}
+        </span>
+        <select className="select mt-0.5 w-full" disabled={readOnly} {...register('priority')}>
+          <option value="normal">{ar ? 'عادي' : 'Normal'}</option>
+          <option value="urgent">{ar ? 'عاجل' : 'Urgent'}</option>
+        </select>
+      </label>
+
+      <label className="block text-sm">
+        <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
+          {ar ? 'المستند المصدر' : 'Source Document'}
+        </span>
+        <input className="input mt-0.5 w-full" disabled={readOnly} {...register('origin')} placeholder="PO-…" />
+      </label>
+
+      <label className="block text-sm sm:col-span-2">
+        <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">
+          {ar ? 'ملاحظة' : 'Note'}
+        </span>
+        <textarea className="input mt-0.5 w-full" rows={2} disabled={readOnly} {...register('note')} />
+      </label>
+    </div>
+  )
+}

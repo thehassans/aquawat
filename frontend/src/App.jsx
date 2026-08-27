@@ -75,6 +75,7 @@ const InventoryLayout = lazy(() => import('./pages/inventory/InventoryLayout'))
 const InventoryOverview = lazy(() => import('./pages/inventory/InventoryOverview'))
 const TransfersList = lazy(() => import('./pages/inventory/TransfersList'))
 const TransferForm = lazy(() => import('./pages/inventory/TransferForm'))
+const ReceiptForm = lazy(() => import('./pages/inventory/receipts/ReceiptForm'))
 const StockReport = lazy(() => import('./pages/inventory/StockReport'))
 const LocationsReportPage = lazy(() => import('./pages/inventory/ReportPages').then((m) => ({ default: m.LocationsReportPage })))
 const ReconcileReportPage = lazy(() => import('./pages/inventory/ReportPages').then((m) => ({ default: m.ReconcileReportPage })))
@@ -827,7 +828,7 @@ function App() {
           <Route path="warehouses/:id" element={<WarehouseDashboard />} />
           <Route path="warehouses/:id/edit" element={<WarehouseForm />} />
           <Route path="receipts" element={<TransfersList />} />
-          <Route path="receipts/:id" element={<TransferForm />} />
+          <Route path="receipts/:id" element={<ReceiptForm />} />
           <Route path="deliveries" element={<TransfersList />} />
           <Route path="deliveries/:id" element={<TransferForm />} />
           <Route path="internal" element={<TransfersList />} />
