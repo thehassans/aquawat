@@ -270,7 +270,7 @@ export default function UomCategoryDetail() {
                             onChange={(e) => setEditDraft((d) => ({ ...d, ratio: e.target.value }))}
                           />
                         ) : (
-                          <span title={ar ? 'كمية المرجع لكل وحدة واحدة : 'Reference qty per 1 of this unit'}>
+                          <span title={ar ? 'كمية المرجع لكل وحدة' : 'Reference qty per 1 of this unit'}>
                             {isRef ? '1' : (u.ratio ?? '—')}
                           </span>
                         )}
