@@ -7,6 +7,7 @@ import { Plus, Search, Truck, Building, Warehouse as WarehouseIcon, Calendar, Ed
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import ExportMenu from '../components/ui/ExportMenu'
+import PartnerCombobox from '../components/inventory/PartnerCombobox'
 
 export default function Shipments() {
   const { language } = useSelector((state) => state.ui)
@@ -113,9 +114,10 @@ export default function Shipments() {
     queryFn: () => api.get('/shipments/stats').then((res) => res.data),
   })
 
-  const { data: suppliers } = useQuery({
-    queryKey: ['suppliers-lookup'],
-    queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((res) => res.data.suppliers),
+  const { data: selectedSupplier } = useQuery({
+    queryKey: ['supplier', filters.supplierId],
+    queryFn: () => api.get(`/suppliers/${filters.supplierId}`).then((res) => res.data),
+    enabled: Boolean(filters.supplierId),
   })
 
   const { data: warehouses } = useQuery({
@@ -250,21 +252,21 @@ export default function Shipments() {
             <option value="cancelled">{language === 'ar' ? 'ملغي' : 'Cancelled'}</option>
           </select>
 
-          <select
-            value={filters.supplierId}
-            onChange={(e) => {
-              setFilters((f) => ({ ...f, supplierId: e.target.value }))
-              setPage(1)
-            }}
-            className="w-full lg:w-60 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-white/10 dark:bg-dark-900"
-          >
-            <option value="">{language === 'ar' ? 'كل الموردين' : 'All Suppliers'}</option>
-            {(suppliers || []).map((s) => (
-              <option key={s._id} value={s._id}>
-                {(language === 'ar' ? s.nameAr || s.nameEn : s.nameEn) || s.code}
-              </option>
-            ))}
-          </select>
+          <div className="w-full lg:w-60">
+            <PartnerCombobox
+              role="vendor"
+              value={filters.supplierId || null}
+              selectedOption={selectedSupplier || null}
+              language={language}
+              ar={language === 'ar'}
+              placeholder={language === 'ar' ? 'كل الموردين…' : 'All suppliers…'}
+              queryKeyPrefix="shipments-supplier-filter"
+              onChange={(opt) => {
+                setFilters((f) => ({ ...f, supplierId: opt?._id || '' }))
+                setPage(1)
+              }}
+            />
+          </div>
 
           <select
             value={filters.warehouseId}

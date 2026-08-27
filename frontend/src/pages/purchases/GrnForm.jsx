@@ -71,11 +71,6 @@ export default function GrnForm() {
     enabled: isEdit,
   })
 
-  const { data: suppliers } = useQuery({
-    queryKey: ['suppliers-lookup'],
-    queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((res) => res.data.suppliers || []),
-  })
-
   const { data: purchaseOrders = [], isLoading: loadingPos } = useQuery({
     queryKey: ['purchase-orders-open'],
     queryFn: () =>

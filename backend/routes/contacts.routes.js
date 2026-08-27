@@ -5,6 +5,7 @@ import Employee from '../models/Employee.js';
 import { WhatsAppContact } from '../models/WhatsApp.js';
 import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import { cacheAside } from '../lib/redis.js';
+import { backfillDualRoleMirrors } from '../services/partnerDualRole.js';
 
 const router = express.Router();
 
@@ -286,6 +287,24 @@ router.get('/stats', async (req, res) => {
         whatsappGroups: waGroups
       }
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/** Admin: create missing Customer↔Supplier mirrors for existing dual-role flags. */
+router.post('/backfill-dual-role', async (req, res) => {
+  try {
+    const access = getAccess(req.user);
+    if (!access.isAdmin) {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    const tenantId = req.tenantFilter?.tenantId || req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'tenantId required' });
+    }
+    const result = await backfillDualRoleMirrors(tenantId);
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

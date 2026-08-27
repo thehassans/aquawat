@@ -210,24 +210,10 @@ export default function ExpenseForm() {
     retry: false,
   })
 
-  const { data: suppliers } = useQuery({
-    queryKey: ['suppliers-lookup'],
-    queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((res) => res.data.suppliers),
-    enabled: payeeType === 'supplier',
-    retry: false,
-  })
-
   const { data: employees } = useQuery({
     queryKey: ['employees-lookup'],
     queryFn: () => api.get('/employees', { params: { limit: 200 } }).then((res) => res.data.employees),
     enabled: payeeType === 'employee',
-    retry: false,
-  })
-
-  const { data: customers } = useQuery({
-    queryKey: ['customers-lookup'],
-    queryFn: () => api.get('/customers', { params: { limit: 200 } }).then((res) => res.data.customers),
-    enabled: payeeType === 'customer',
     retry: false,
   })
 

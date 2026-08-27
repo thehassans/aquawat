@@ -44,11 +44,6 @@ export default function PurchaseReturnForm() {
     enabled: isEdit,
   })
 
-  const { data: suppliers } = useQuery({
-    queryKey: ['suppliers-lookup'],
-    queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((res) => res.data.suppliers || []),
-  })
-
   const { data: grns } = useQuery({
     queryKey: ['grn-list'],
     queryFn: () => api.get('/grn').then((res) => normalizeGrnList(res.data)),

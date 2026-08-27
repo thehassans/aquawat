@@ -31,7 +31,6 @@ import {
   pageTitleClass,
   sectionCardClass,
   sectionEyebrowClass,
-  softChipClass,
 } from '../sales/salesUi'
 
 const blobToBase64 = (blob) => new Promise((resolve, reject) => {

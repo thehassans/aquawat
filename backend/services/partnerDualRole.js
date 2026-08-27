@@ -166,3 +166,31 @@ export async function syncSupplierCustomerMirror(supplier) {
 
   return supplier;
 }
+
+/**
+ * One-shot for existing dual-role rows created before mirror hooks existed.
+ * Safe to re-run — sync* functions are idempotent.
+ */
+export async function backfillDualRoleMirrors(tenantId) {
+  if (!tenantId) throw new Error('tenantId required');
+
+  const vendorCustomers = await Customer.find({ tenantId, isVendor: true });
+  let customersSynced = 0;
+  for (const customer of vendorCustomers) {
+    await syncCustomerVendorMirror(customer);
+    customersSynced += 1;
+  }
+
+  const customerSuppliers = await Supplier.find({ tenantId, isCustomer: true });
+  let suppliersSynced = 0;
+  for (const supplier of customerSuppliers) {
+    await syncSupplierCustomerMirror(supplier);
+    suppliersSynced += 1;
+  }
+
+  return {
+    customersSynced,
+    suppliersSynced,
+    tenantId: String(tenantId),
+  };
+}

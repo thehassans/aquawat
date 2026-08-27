@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Search, Users, Building2, Briefcase, Phone, Mail, Hash, MessageCircle, MessageSquare, ArrowUpRight, UserRound, Plus, ChevronDown } from 'lucide-react'
+import { Search, Users, Building2, Briefcase, Phone, Mail, Hash, MessageCircle, MessageSquare, ArrowUpRight, UserRound, Plus, ChevronDown, RefreshCw } from 'lucide-react'
+import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import ExportMenu from '../components/ui/ExportMenu'
@@ -35,8 +36,10 @@ const initials = (name = '') =>
 
 export default function Contacts() {
   const { language } = useSelector((state) => state.ui)
+  const { user } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const isAr = language === 'ar'
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
   const qc = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -139,6 +142,22 @@ export default function Contacts() {
     setCreateOpen(true)
   }
 
+  const backfillMutation = useMutation({
+    mutationFn: () => api.post('/contacts/backfill-dual-role').then((r) => r.data),
+    onSuccess: (data) => {
+      toast.success(
+        isAr
+          ? `تمت مزامنة ${data.customersSynced || 0} عميل و ${data.suppliersSynced || 0} مورد`
+          : `Synced ${data.customersSynced || 0} customers and ${data.suppliersSynced || 0} suppliers`
+      )
+      qc.invalidateQueries({ queryKey: ['contacts'] })
+      qc.invalidateQueries({ queryKey: ['contacts-stats'] })
+    },
+    onError: (err) => {
+      toast.error(err?.response?.data?.error || (isAr ? 'فشلت المزامنة' : 'Sync failed'))
+    },
+  })
+
   const tiles = [
     { key: '', label: isAr ? 'الكل' : 'All', value: partnerHub ? (totals.customers || 0) + (totals.suppliers || 0) : totalContacts, icon: Users, active: type === '' },
     { key: 'customer', label: isAr ? 'العملاء' : 'Customers', value: totals.customers || 0, icon: Building2, active: type === 'customer' },
@@ -170,6 +189,18 @@ export default function Contacts() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {partnerHub && isAdmin ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={backfillMutation.isPending}
+              title={isAr ? 'إنشاء سجلات مرآة للأدوار المزدوجة الحالية' : 'Create mirror records for existing dual-role flags'}
+              onClick={() => backfillMutation.mutate()}
+            >
+              <RefreshCw className={`h-4 w-4 ${backfillMutation.isPending ? 'animate-spin' : ''}`} />
+              {isAr ? 'مزامنة الأدوار المزدوجة' : 'Sync dual-role'}
+            </button>
+          ) : null}
           <div className="relative">
             <button
               type="button"

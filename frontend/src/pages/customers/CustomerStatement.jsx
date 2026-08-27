@@ -7,6 +7,7 @@ import { Download, FileText, Printer, Search, Users } from 'lucide-react'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
+import PartnerCombobox from '../../components/inventory/PartnerCombobox'
 
 const shell =
   'overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_16px_40px_-32px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#0c111a]'
@@ -55,9 +56,10 @@ export default function CustomerStatement() {
     if (routeCustomerId) setCustomerId(routeCustomerId)
   }, [routeCustomerId])
 
-  const { data: customers = [] } = useQuery({
-    queryKey: ['customers-list'],
-    queryFn: () => api.get('/customers', { params: { limit: 500 } }).then((res) => res.data.customers || res.data || []),
+  const { data: selectedCustomer } = useQuery({
+    queryKey: ['customer', customerId],
+    queryFn: () => api.get(`/customers/${customerId}`).then((res) => res.data),
+    enabled: Boolean(customerId),
   })
 
   const { data: statementData, isLoading } = useQuery({
@@ -65,11 +67,6 @@ export default function CustomerStatement() {
     queryFn: () => api.get('/reports/customer-statement', { params: { customerId, startDate, endDate } }).then((res) => res.data),
     enabled: Boolean(customerId),
   })
-
-  const selectedCustomer = useMemo(
-    () => customers.find((row) => String(row._id) === String(customerId)),
-    [customers, customerId]
-  )
 
   const rows = useMemo(() => {
     const statement = Array.isArray(statementData?.statement) ? statementData.statement : []
@@ -156,14 +153,16 @@ export default function CustomerStatement() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <div className="lg:col-span-2">
             <label className="label">{language === 'ar' ? 'العميل' : 'Customer'}</label>
-            <select value={customerId} onChange={(e) => selectCustomer(e.target.value)} className="select">
-              <option value="">{language === 'ar' ? 'اختر العميل' : 'Select customer'}</option>
-              {customers.map((customer) => (
-                <option key={customer._id} value={customer._id}>
-                  {customerLabel(customer, language)}
-                </option>
-              ))}
-            </select>
+            <PartnerCombobox
+              role="customer"
+              value={customerId || null}
+              selectedOption={selectedCustomer || null}
+              language={language}
+              ar={language === 'ar'}
+              placeholder={language === 'ar' ? 'اختر العميل…' : 'Select customer…'}
+              queryKeyPrefix="customer-statement-filter"
+              onChange={(opt) => selectCustomer(opt?._id || '')}
+            />
           </div>
           <div>
             <label className="label">{language === 'ar' ? 'من تاريخ' : 'Start date'}</label>
