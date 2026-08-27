@@ -276,7 +276,9 @@ export default function CustomerForm() {
                   {language === 'ar' ? 'مورد أيضاً' : 'Also a vendor'}
                 </span>
                 <span className="block text-xs text-slate-500">
-                  {language === 'ar' ? 'يمكن استخدامه في المشتريات والاستلام' : 'Usable in purchases and receipts'}
+                  {language === 'ar'
+                    ? 'يُنشئ سجل مورد مرتبط تلقائياً لاستخدامه في المشتريات والاستلام'
+                    : 'Auto-creates a linked supplier record for purchases and receipts'}
                 </span>
               </span>
             </label>

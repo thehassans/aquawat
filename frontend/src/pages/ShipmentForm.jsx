@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
@@ -24,6 +24,7 @@ import {
 import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
+import PartnerCombobox from '../components/inventory/PartnerCombobox'
 import ShipmentDocumentPreview from '../components/shipments/ShipmentDocumentPreview'
 import { buildElementImageBlob, printElementHtml } from '../lib/shipmentPrint'
 
@@ -53,6 +54,7 @@ export default function ShipmentForm() {
   const { t } = useTranslation(language)
   const hasEmailAddon = tenant?.subscription?.hasEmailAddon === true || (Array.isArray(tenant?.subscription?.features) && tenant.subscription.features.includes('email_automation'))
   const hasLandedCosts = true
+  const [selectedSupplier, setSelectedSupplier] = useState(null)
 
   const formatDateForInput = (value) => {
     if (!value) return ''
@@ -115,11 +117,6 @@ export default function ShipmentForm() {
   const requestedType = String(searchParams.get('type') || '').trim().toLowerCase()
   const requestedDocument = String(searchParams.get('document') || '').trim().toLowerCase()
 
-  const { data: suppliers } = useQuery({
-    queryKey: ['suppliers-lookup'],
-    queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((res) => res.data.suppliers),
-  })
-
   const { data: purchaseOrders } = useQuery({
     queryKey: ['purchase-orders-lookup'],
     queryFn: () => api.get('/purchase-orders', { params: { page: 1, limit: 200 } }).then((res) => res.data.purchaseOrders),
@@ -176,6 +173,7 @@ export default function ShipmentForm() {
           quantity: li?.quantity ?? 0,
         })),
       })
+      setSelectedSupplier(data?.supplierId && typeof data.supplierId === 'object' ? data.supplierId : null)
     },
   })
 
@@ -571,14 +569,19 @@ export default function ShipmentForm() {
             {shipmentType === 'inbound' && (
               <div>
                 <label className="label">{language === 'ar' ? 'المورد' : 'Supplier'}</label>
-                <select {...register('supplierId')} className="select" disabled={isLocked}>
-                  <option value="">{language === 'ar' ? 'اختياري' : 'Optional'}</option>
-                  {(suppliers || []).map((s) => (
-                    <option key={s._id} value={s._id}>
-                      {(language === 'ar' ? s.nameAr || s.nameEn : s.nameEn) || s.code}
-                    </option>
-                  ))}
-                </select>
+                <PartnerCombobox
+                  role="vendor"
+                  value={watch('supplierId') || ''}
+                  selectedOption={selectedSupplier}
+                  ar={language === 'ar'}
+                  language={language}
+                  disabled={isLocked}
+                  onChange={(id, opt) => {
+                    setValue('supplierId', id || '', { shouldDirty: true })
+                    setSelectedSupplier(opt || null)
+                  }}
+                />
+                <input type="hidden" {...register('supplierId')} />
               </div>
             )}
 

@@ -6,6 +6,7 @@ import PurchaseReturn from '../models/PurchaseReturn.js';
 import GRN from '../models/GRN.js';
 import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
+import { syncSupplierCustomerMirror } from '../services/partnerDualRole.js';
 
 const router = express.Router();
 
@@ -483,6 +484,7 @@ router.post('/', checkTrialLimits('suppliers'), checkPermission('supply_chain', 
     };
 
     const supplier = await Supplier.create(data);
+    await syncSupplierCustomerMirror(supplier);
     res.status(201).json(supplier);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -506,6 +508,7 @@ router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) =
       return res.status(404).json({ error: 'Supplier not found' });
     }
 
+    await syncSupplierCustomerMirror(supplier);
     res.json(supplier);
   } catch (error) {
     res.status(500).json({ error: error.message });

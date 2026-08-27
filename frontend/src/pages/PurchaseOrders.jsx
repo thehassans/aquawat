@@ -24,6 +24,7 @@ import {
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
+import PartnerCombobox from '../components/inventory/PartnerCombobox'
 import ExportMenu from '../components/ui/ExportMenu'
 import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../lib/invoicePdfActions'
 import RecordPoPaymentModal from '../components/purchases/RecordPoPaymentModal'
@@ -58,6 +59,7 @@ export default function PurchaseOrders() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [filters, setFilters] = useState({ status: '', supplierId: '', warehouseId: '' })
+  const [filterSupplier, setFilterSupplier] = useState(null)
   const [pdfBusyId, setPdfBusyId] = useState(null)
   const [whatsAppModalPo, setWhatsAppModalPo] = useState(null)
   const [emailModalPo, setEmailModalPo] = useState(null)
@@ -231,11 +233,6 @@ export default function PurchaseOrders() {
   const { data: stats } = useQuery({
     queryKey: ['purchase-orders-stats'],
     queryFn: () => api.get('/purchase-orders/stats').then((res) => res.data),
-  })
-
-  const { data: suppliers } = useQuery({
-    queryKey: ['suppliers-lookup'],
-    queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((res) => res.data.suppliers),
   })
 
   const { data: warehouses } = useQuery({
@@ -449,21 +446,21 @@ export default function PurchaseOrders() {
               className="input ps-10"
             />
           </div>
-          <select
-            value={filters.supplierId}
-            onChange={(e) => {
-              setFilters((f) => ({ ...f, supplierId: e.target.value }))
-              setPage(1)
-            }}
-            className="select w-full lg:w-72"
-          >
-            <option value="">{language === 'ar' ? 'كل الموردين' : 'All suppliers'}</option>
-            {(suppliers || []).map((s) => (
-              <option key={s._id} value={s._id}>
-                {supplierName(s)}
-              </option>
-            ))}
-          </select>
+          <div className="w-full lg:w-72">
+            <PartnerCombobox
+              role="vendor"
+              value={filters.supplierId}
+              selectedOption={filterSupplier}
+              ar={language === 'ar'}
+              language={language}
+              placeholder={language === 'ar' ? 'كل الموردين / ابحث…' : 'All suppliers / search…'}
+              onChange={(id, opt) => {
+                setFilters((f) => ({ ...f, supplierId: id || '' }))
+                setFilterSupplier(opt || null)
+                setPage(1)
+              }}
+            />
+          </div>
           <select
             value={filters.warehouseId}
             onChange={(e) => {

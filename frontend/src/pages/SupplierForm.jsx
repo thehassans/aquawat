@@ -218,7 +218,9 @@ export default function SupplierForm() {
                     {language === 'ar' ? 'عميل أيضاً' : 'Also a customer'}
                   </span>
                   <span className="block text-xs text-slate-500">
-                    {language === 'ar' ? 'يمكن استخدامه في المبيعات والتسليمات' : 'Usable in sales and deliveries'}
+                    {language === 'ar'
+                      ? 'يُنشئ سجل عميل مرتبط تلقائياً لاستخدامه في المبيعات والتسليمات'
+                      : 'Auto-creates a linked customer record for sales and deliveries'}
                   </span>
                 </span>
               </label>

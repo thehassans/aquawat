@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Customer from '../models/Customer.js';
 import { protect, tenantFilter, checkPermission, authorize, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
+import { syncCustomerVendorMirror } from '../services/partnerDualRole.js';
 
 const router = express.Router();
 
@@ -482,6 +483,7 @@ router.post('/', checkTrialLimits('customers'), checkPermission('invoicing', 'cr
 
     const customer = new Customer(customerData);
     await customer.save();
+    await syncCustomerVendorMirror(customer);
     
     res.status(201).json(customer);
   } catch (error) {
@@ -527,6 +529,7 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
     
     Object.assign(customer, req.body);
     await customer.save();
+    await syncCustomerVendorMirror(customer);
     
     res.json(customer);
   } catch (error) {

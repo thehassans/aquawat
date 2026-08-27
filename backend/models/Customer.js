@@ -156,6 +156,12 @@ const customerSchema = new mongoose.Schema({
   /** Accounting role flags — set from creation context, not manual UI */
   isCustomer: { type: Boolean, default: true },
   isVendor: { type: Boolean, default: false },
+  /** Mirror Supplier when isVendor (dual-role without full Partner merge) */
+  linkedSupplierId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Supplier',
+    default: null,
+  },
   /** Explicit Accounts Receivable override */
   receivableAccountId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -171,6 +177,7 @@ customerSchema.index({ tenantId: 1, name: 1 });
 customerSchema.index({ tenantId: 1, email: 1 });
 customerSchema.index({ tenantId: 1, vatNumber: 1 });
 customerSchema.index({ tenantId: 1, isActive: 1 });
+customerSchema.index({ tenantId: 1, linkedSupplierId: 1 });
 customerSchema.index({ tenantId: 1, khayyatReceiptNumbers: 1 });
 
 const Customer = mongoose.model('Customer', customerSchema);

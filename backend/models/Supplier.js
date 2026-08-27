@@ -55,6 +55,12 @@ const supplierSchema = new mongoose.Schema({
   /** Accounting role flags — set from creation context, not manual UI */
   isCustomer: { type: Boolean, default: false },
   isVendor: { type: Boolean, default: true },
+  /** Mirror Customer when isCustomer (dual-role without full Partner merge) */
+  linkedCustomerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Customer',
+    default: null,
+  },
   /** Explicit Accounts Payable override */
   payableAccountId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -68,6 +74,7 @@ const supplierSchema = new mongoose.Schema({
 supplierSchema.index({ tenantId: 1, code: 1 }, { unique: true });
 supplierSchema.index({ tenantId: 1, nameEn: 1 });
 supplierSchema.index({ tenantId: 1, vatNumber: 1 });
+supplierSchema.index({ tenantId: 1, linkedCustomerId: 1 });
 supplierSchema.index({ tenantId: 1, isAddition: 1 });
 
 const Supplier = mongoose.model('Supplier', supplierSchema);

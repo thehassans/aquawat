@@ -127,6 +127,7 @@ router.get('/', async (req, res) => {
       code: null,
       isCustomer: doc.isCustomer !== false,
       isVendor: Boolean(doc.isVendor),
+      linkedSupplierId: doc.linkedSupplierId ? String(doc.linkedSupplierId) : null,
       isActive: doc.isActive !== false,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt
@@ -143,6 +144,7 @@ router.get('/', async (req, res) => {
       code: doc.code,
       isCustomer: Boolean(doc.isCustomer),
       isVendor: doc.isVendor !== false,
+      linkedCustomerId: doc.linkedCustomerId ? String(doc.linkedCustomerId) : null,
       isActive: doc.isActive !== false,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt
@@ -167,15 +169,15 @@ router.get('/', async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
     const fetchCap = Math.min(500, skip + limitNum + 100);
 
-    const cacheKey = `contacts:v2:${req.user.tenantId}:${pageNum}:${limitNum}:${q}:${types || ''}:${isActive || ''}:${sortBy || ''}:${sortDir || ''}`;
+    const cacheKey = `contacts:v3:${req.user.tenantId}:${pageNum}:${limitNum}:${q}:${types || ''}:${isActive || ''}:${sortBy || ''}:${sortDir || ''}`;
 
     const payload = await cacheAside(cacheKey, 45, async () => {
     const [customerDocs, supplierDocs, employeeDocs, customerTotal, supplierTotal, employeeTotal] = await Promise.all([
       wantCustomers
-        ? Customer.find(customerMatch).select('name nameAr email phone mobile vatNumber isActive isCustomer isVendor createdAt updatedAt').sort({ name: 1 }).limit(fetchCap).lean()
+        ? Customer.find(customerMatch).select('name nameAr email phone mobile vatNumber isActive isCustomer isVendor linkedSupplierId createdAt updatedAt').sort({ name: 1 }).limit(fetchCap).lean()
         : [],
       wantSuppliers
-        ? Supplier.find(supplierMatch).select('code nameEn nameAr email phone vatNumber isActive isCustomer isVendor createdAt updatedAt').sort({ nameEn: 1 }).limit(fetchCap).lean()
+        ? Supplier.find(supplierMatch).select('code nameEn nameAr email phone vatNumber isActive isCustomer isVendor linkedCustomerId createdAt updatedAt').sort({ nameEn: 1 }).limit(fetchCap).lean()
         : [],
       wantEmployees
         ? Employee.find(employeeMatch).select('employeeId firstNameEn lastNameEn firstNameAr lastNameAr email phone alternatePhone isActive createdAt updatedAt').sort({ firstNameEn: 1 }).limit(fetchCap).lean()

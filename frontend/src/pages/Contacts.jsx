@@ -326,20 +326,38 @@ export default function Contacts() {
                     </div>
                   </td>
                   <td className="min-w-[120px] px-3 py-3.5">
-                    <div className="flex flex-wrap gap-1">
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${c.meta.tint}`}>
-                        <c.Icon className="h-3.5 w-3.5" />
-                        {isAr ? c.meta.ar : c.meta.en}
-                      </span>
-                      {c.entityType === 'customer' && c.isVendor ? (
-                        <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-800">
-                          {isAr ? 'مورد أيضاً' : 'Also vendor'}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex flex-wrap gap-1">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${c.meta.tint}`}>
+                          <c.Icon className="h-3.5 w-3.5" />
+                          {isAr ? c.meta.ar : c.meta.en}
                         </span>
+                        {c.entityType === 'customer' && c.isVendor ? (
+                          <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-800">
+                            {isAr ? 'مورد أيضاً' : 'Also vendor'}
+                          </span>
+                        ) : null}
+                        {c.entityType === 'supplier' && c.isCustomer ? (
+                          <span className="rounded-full bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-800">
+                            {isAr ? 'عميل أيضاً' : 'Also customer'}
+                          </span>
+                        ) : null}
+                      </div>
+                      {c.entityType === 'customer' && c.linkedSupplierId ? (
+                        <Link
+                          to={`/app/dashboard/suppliers/${c.linkedSupplierId}`}
+                          className="text-[10px] font-medium text-amber-700 hover:underline"
+                        >
+                          {isAr ? 'فتح سجل المورد المرتبط' : 'Open linked supplier'}
+                        </Link>
                       ) : null}
-                      {c.entityType === 'supplier' && c.isCustomer ? (
-                        <span className="rounded-full bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-800">
-                          {isAr ? 'عميل أيضاً' : 'Also customer'}
-                        </span>
+                      {c.entityType === 'supplier' && c.linkedCustomerId ? (
+                        <Link
+                          to={`/app/dashboard/customers/${c.linkedCustomerId}`}
+                          className="text-[10px] font-medium text-sky-700 hover:underline"
+                        >
+                          {isAr ? 'فتح سجل العميل المرتبط' : 'Open linked customer'}
+                        </Link>
                       ) : null}
                     </div>
                   </td>

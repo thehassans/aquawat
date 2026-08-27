@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, UploadCloud, FileSpreadsheet, AlertCircle, CheckCircle, FileText } from 'lucide-react'
 import api from '../../lib/api'
 import toast from 'react-hot-toast'
-import { useQueryClient, useQuery } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import * as XLSX from 'xlsx'
+import PartnerCombobox from '../inventory/PartnerCombobox'
 
 export default function BulkInvoiceModal({ isOpen, onClose, language, t, mode = 'bulk', onPopulate }) {
   const [file, setFile] = useState(null)
@@ -14,14 +15,9 @@ export default function BulkInvoiceModal({ isOpen, onClose, language, t, mode = 
 
   const [flow, setFlow] = useState('sell')
   const [supplierId, setSupplierId] = useState('')
+  const [selectedSupplier, setSelectedSupplier] = useState(null)
 
   const isArabic = language === 'ar'
-
-  const { data: suppliers } = useQuery({
-    queryKey: ['suppliers-list'],
-    queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then(res => res.data.suppliers),
-    enabled: flow === 'purchase',
-  })
 
   const handleFileChange = (e) => {
     const selected = e.target.files?.[0]
@@ -224,16 +220,17 @@ export default function BulkInvoiceModal({ isOpen, onClose, language, t, mode = 
                       <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
                         {isArabic ? 'المورد (اختياري)' : 'Supplier (Optional)'}
                       </label>
-                      <select 
+                      <PartnerCombobox
+                        role="vendor"
                         value={supplierId}
-                        onChange={(e) => setSupplierId(e.target.value)}
-                        className="select w-full"
-                      >
-                        <option value="">{isArabic ? 'اختر المورد' : 'Select Supplier'}</option>
-                        {(suppliers || []).map(s => (
-                          <option key={s._id} value={s._id}>{isArabic ? (s.nameAr || s.nameEn || s.name) : (s.nameEn || s.name || s.nameAr)}</option>
-                        ))}
-                      </select>
+                        selectedOption={selectedSupplier}
+                        ar={isArabic}
+                        language={language}
+                        onChange={(id, opt) => {
+                          setSupplierId(id || '')
+                          setSelectedSupplier(opt || null)
+                        }}
+                      />
                     </motion.div>
                   )}
                 </div>
