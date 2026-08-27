@@ -260,7 +260,7 @@ export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, bus
           perm: { module: 'invoicing', action: 'read' },
           excludeBusinessTypes: ['bakala'],
           children: [
-            { path: '/app/dashboard/contacts?types=customer,supplier', label: language === 'ar' ? 'الشركاء' : 'Partners' },
+            { path: '/app/dashboard/contacts?types=customer,supplier', label: language === 'ar' ? 'الشركاء (موحّد)' : 'Partners (unified)' },
             { path: '/app/dashboard/customers', label: language === 'ar' ? 'العملاء' : 'Customers', perm: { module: 'sales', action: 'read' } },
             { path: '/app/dashboard/customers/statement', label: language === 'ar' ? 'كشوف الحساب' : 'Statements', perm: { module: 'sales', action: 'read' } },
             { path: '/app/dashboard/suppliers', label: language === 'ar' ? 'الموردون' : 'Suppliers', perm: { module: 'supply_chain', action: 'read' }, businessTypes: ['trading', 'bakala', 'pharmacy', 'furniture_shop'] },
