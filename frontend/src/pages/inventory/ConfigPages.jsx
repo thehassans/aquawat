@@ -10,6 +10,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import ImportExportDialog, { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import { isFullInventoryAccounting } from '../../lib/inventoryAccountingMode'
 import { formatInvError } from '../../lib/invError'
+import { invalidateProductCategories } from '../../lib/productCategoryQueries'
 import { invTableWrapClass, invTableClass } from './inventoryUi'
 
 const categoryAccountLabel = (row, language) => {
@@ -348,7 +349,7 @@ export function ProductCategoriesPage() {
     mutationFn: (id) => api.post(`/stock/product-categories/${id}/duplicate`),
     onSuccess: (res) => {
       toast.success(ar ? 'تم النسخ' : 'Duplicated')
-      qc.invalidateQueries({ queryKey: ['inv-product-categories'] })
+      invalidateProductCategories(qc)
       navigate(`/app/dashboard/inventory/product-categories/${res.data._id}/edit`)
     },
     onError: (e) => toast.error(formatInvError(e, language)),
@@ -360,7 +361,7 @@ export function ProductCategoriesPage() {
       toast.success(ar ? 'تم الحذف' : 'Deleted')
       setSelected(new Set())
       setDeleteBlock(null)
-      qc.invalidateQueries({ queryKey: ['inv-product-categories'] })
+      invalidateProductCategories(qc)
     },
     onError: (e) => {
       const data = e.response?.data
@@ -387,7 +388,7 @@ export function ProductCategoriesPage() {
           <InventoryIeButtons
             model="product_categories"
             ar={ar}
-            onImported={() => qc.invalidateQueries({ queryKey: ['inv-product-categories'] })}
+            onImported={() => invalidateProductCategories(qc)}
           />
           <div className="relative">
             <button
@@ -516,7 +517,7 @@ export function ProductCategoriesPage() {
           ar={ar}
           filters={selectedIds.length ? { ids: selectedIds } : {}}
           onClose={() => setIeOpen(null)}
-          onImported={() => qc.invalidateQueries({ queryKey: ['inv-product-categories'] })}
+          onImported={() => invalidateProductCategories(qc)}
         />
       )}
     </ListShell>
@@ -636,7 +637,7 @@ export function ProductCategoryForm() {
       isEdit ? api.patch(`/stock/product-categories/${id}`, body) : api.post('/stock/product-categories', body),
     onSuccess: () => {
       toast.success(language === 'ar' ? 'تم الحفظ' : 'Saved')
-      qc.invalidateQueries({ queryKey: ['inv-product-categories'] })
+      invalidateProductCategories(qc)
       navigate('/app/dashboard/inventory/product-categories')
     },
     onError: (e) => toast.error(formatInvError(e, language)),

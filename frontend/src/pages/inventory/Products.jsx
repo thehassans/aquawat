@@ -80,8 +80,9 @@ export default function Products() {
   }, [search])
 
   const queryClient = useQueryClient()
-  const [stockModal, setStockModal] = useState({ isOpen: false, productId: null, productName: '' })
+  const [stockModal, setStockModal] = useState({ isOpen: false, productId: null, productName: '', variantMode: false })
   const [stockWarehouseId, setStockWarehouseId] = useState('')
+  const [stockVariantId, setStockVariantId] = useState('')
   const [stockQuantity, setStockQuantity] = useState(1)
   const [selected, setSelected] = useState(() => new Set())
   const [labelModalOpen, setLabelModalOpen] = useState(false)
@@ -111,17 +112,29 @@ export default function Products() {
   })
   const engineOn = Boolean(engineStatus?.engineEnabled)
 
+  const { data: stockModalVariants = [] } = useQuery({
+    queryKey: ['inv-variants-stock-modal', stockModal.productId],
+    queryFn: () => api.get('/stock/variants', {
+      params: { productId: stockModal.productId, limit: 200, active: 'false' },
+    }).then((r) => r.data?.items || []),
+    enabled: stockModal.isOpen && stockModal.variantMode && Boolean(stockModal.productId),
+  })
+
   const addStockMutation = useMutation({
     mutationFn: async (data) => {
       const qty = Number(data.quantity)
       if (engineOn) {
         const current = await api
           .get(`/stock/products/${data.productId}/on-hand`, {
-            params: { warehouseId: data.warehouseId },
+            params: {
+              warehouseId: data.warehouseId,
+              variantId: data.variantId || undefined,
+            },
           })
           .then((r) => Number(r.data?.onHand || 0))
         return api.post(`/stock/report/stock/${data.productId}/adjust`, {
           warehouseId: data.warehouseId,
+          variantId: data.variantId || undefined,
           onHand: current + qty,
           reason: 'Products list receive stock',
         })
@@ -138,30 +151,36 @@ export default function Products() {
       queryClient.invalidateQueries(['products-stats'])
       queryClient.invalidateQueries(['stock-report'])
       queryClient.invalidateQueries(['physical-inventory'])
-      setStockModal({ isOpen: false, productId: null, productName: '' })
+      setStockModal({ isOpen: false, productId: null, productName: '', variantMode: false })
+      setStockVariantId('')
     },
     onError: (err) => {
       toast.error(err.response?.data?.error || (isAr ? 'حدث خطأ' : 'Failed to add stock'))
     }
   })
 
-  const openStockModal = (product) => {
+  const openStockModal = (product, inv = {}) => {
+    const variantMode = Boolean(inv.aggregatedFromVariants || (product.variantCount || 0) > 0)
     setStockModal({
       isOpen: true,
       productId: product._id,
-      productName: isAr ? product.nameAr || product.nameEn : product.nameEn
+      productName: isAr ? product.nameAr || product.nameEn : product.nameEn,
+      variantMode,
     })
     setStockQuantity(1)
+    setStockVariantId('')
     if (warehouseOptions.length > 0) setStockWarehouseId(warehouseOptions[0]._id)
   }
 
   const handleAddStock = (e) => {
     e.preventDefault()
     if (!stockWarehouseId || stockQuantity <= 0) return
+    if (stockModal.variantMode && !stockVariantId) return
     addStockMutation.mutate({
       productId: stockModal.productId,
       warehouseId: stockWarehouseId,
-      quantity: stockQuantity
+      variantId: stockVariantId || undefined,
+      quantity: stockQuantity,
     })
   }
 
@@ -675,12 +694,11 @@ export default function Products() {
                             {tracked ? (
                               <button
                                 type="button"
-                                onClick={() => openStockModal(product)}
-                                disabled={inv.aggregatedFromVariants || (product.variantCount || 0) > 0}
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                onClick={() => openStockModal(product, inv)}
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-emerald-700 hover:bg-emerald-50"
                                 title={
                                   (inv.aggregatedFromVariants || (product.variantCount || 0) > 0)
-                                    ? (isAr ? 'اضبط المخزون على مستوى المتغير' : 'Adjust stock on the variant')
+                                    ? (isAr ? 'استلام مخزون للمتغير' : 'Receive stock for variant')
                                     : (isAr ? 'استلام مخزون' : 'Receive stock')
                                 }
                               >
@@ -745,6 +763,11 @@ export default function Products() {
                 {isAr ? 'استلام مخزون' : 'Receive stock'}
               </h3>
               <p className="mt-1 text-sm text-slate-500">{stockModal.productName}</p>
+              {stockModal.variantMode && (
+                <p className="mt-1 text-xs text-sky-700">
+                  {isAr ? 'اختر المتغير — التسوية على مستوى المتغير فقط.' : 'Pick a variant — stock posts to that variant only.'}
+                </p>
+              )}
               {engineOn && (
                 <p className="mt-2 text-xs text-slate-400">
                   {isAr
@@ -753,6 +776,24 @@ export default function Products() {
                 </p>
               )}
               <form onSubmit={handleAddStock} className="mt-5 space-y-4">
+                {stockModal.variantMode && (
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{isAr ? 'المتغير' : 'Variant'}</label>
+                    <select
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                      value={stockVariantId}
+                      onChange={(e) => setStockVariantId(e.target.value)}
+                      required
+                    >
+                      <option value="">{isAr ? 'اختر متغير' : 'Select variant'}</option>
+                      {stockModalVariants.map((v) => (
+                        <option key={v._id} value={v._id}>
+                          {(isAr && v.nameAr ? v.nameAr : v.name) || v.sku || v._id}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{isAr ? 'المستودع' : 'Warehouse'}</label>
                   <select className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" value={stockWarehouseId} onChange={(e) => setStockWarehouseId(e.target.value)} required>
@@ -767,7 +808,7 @@ export default function Products() {
                   <input type="number" min="0.0001" step="0.0001" className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" value={stockQuantity} onChange={(e) => setStockQuantity(e.target.value)} required />
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => setStockModal({ isOpen: false, productId: null, productName: '' })} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600">
+                  <button type="button" onClick={() => { setStockModal({ isOpen: false, productId: null, productName: '', variantMode: false }); setStockVariantId('') }} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600">
                     {isAr ? 'إلغاء' : 'Cancel'}
                   </button>
                   <button type="submit" disabled={addStockMutation.isPending} className="rounded-xl bg-[#1a3d28] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">

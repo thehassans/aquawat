@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import { formatInvError } from '../../lib/invError'
+import { invalidateProductCategories, PRODUCT_CATEGORIES_KEY, PRODUCT_CATEGORIES_POPULAR_KEY } from '../../lib/productCategoryQueries'
 
 /**
  * Searchable hierarchical category combobox.
@@ -22,14 +23,14 @@ export default function CategoryCombobox({
   const rootRef = useRef(null)
 
   const { data: categories = [], isError: catsError, error: catsErr } = useQuery({
-    queryKey: ['product-categories'],
+    queryKey: PRODUCT_CATEGORIES_KEY,
     queryFn: () => api.get('/stock/product-categories').then((r) => asInvList(r.data)),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60_000,
     retry: 1,
   })
 
   const { data: popular = [] } = useQuery({
-    queryKey: ['product-categories-popular'],
+    queryKey: PRODUCT_CATEGORIES_POPULAR_KEY,
     queryFn: () => api.get('/stock/product-categories/popular').then((r) => asInvList(r.data)).catch(() => []),
     staleTime: 10 * 60 * 1000,
   })
@@ -48,7 +49,7 @@ export default function CategoryCombobox({
         return path.includes(needle) || String(c.nameAr || '').toLowerCase().includes(needle)
       })
     }
-    return rows.slice(0, 40)
+    return rows.slice(0, 80)
   }, [categories, q])
 
   const popularUnique = useMemo(() => {
@@ -72,9 +73,17 @@ export default function CategoryCombobox({
       parentId: selected?._id || undefined,
     }),
     onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: ['product-categories'] })
-      qc.invalidateQueries({ queryKey: ['inv-product-categories'] })
-      onChange?.(res.data._id || res.data?.data?._id, res.data?.data || res.data)
+      const cat = res?.data ?? res
+      const catId = cat?._id
+      if (catId) {
+        qc.setQueryData(PRODUCT_CATEGORIES_KEY, (old) => {
+          const list = Array.isArray(old) ? old : []
+          if (list.some((c) => String(c._id) === String(catId))) return list
+          return [...list, cat].sort((a, b) => String(a.completePath || a.name || '').localeCompare(String(b.completePath || b.name || '')))
+        })
+      }
+      invalidateProductCategories(qc)
+      onChange?.(catId, cat)
       setQ('')
       setOpen(false)
       toast.success(ar ? 'تم إنشاء الفئة' : 'Category created')

@@ -323,7 +323,9 @@ router.post('/', checkTrialLimits('products'), checkPermission('inventory', 'cre
     productData.productId = await nextProductId(req.user.tenantId);
 
     const { assertProductAccountingAccounts } = await import('../services/inventory/productAccounting.js');
-    await assertProductAccountingAccounts(req.user.tenantId, productData);
+    if (req.body?.requireAccountingAccounts === true) {
+      await assertProductAccountingAccounts(req.user.tenantId, productData);
+    }
 
     const product = await Product.create(productData);
     res.status(201).json(computeTotalStock(product));
@@ -384,7 +386,9 @@ router.put('/:id', checkPermission('inventory', 'update'), async (req, res) => {
     product.productType = normalizeProductType(product.productType);
 
     const { assertProductAccountingAccounts } = await import('../services/inventory/productAccounting.js');
-    await assertProductAccountingAccounts(req.user.tenantId, product);
+    if (req.body?.requireAccountingAccounts === true) {
+      await assertProductAccountingAccounts(req.user.tenantId, product);
+    }
 
     await product.save();
     

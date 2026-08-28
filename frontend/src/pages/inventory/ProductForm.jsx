@@ -90,6 +90,7 @@ export default function ProductForm() {
   })
   const [product, setProduct] = useState(null)
   const [stockWarehouseId, setStockWarehouseId] = useState('')
+  const [stockVariantId, setStockVariantId] = useState('')
   const [stockQuantity, setStockQuantity] = useState(0)
   const [stockReorderPoint, setStockReorderPoint] = useState(10)
   const [savingStock, setSavingStock] = useState(false)
@@ -186,6 +187,7 @@ export default function ProductForm() {
       'stockOutputAccountId',
       'categoryId',
       'uomId',
+      'purchaseUomId',
     ]) {
       if (payload[key] === '' || payload[key] == null) payload[key] = null
     }
@@ -441,6 +443,22 @@ export default function ProductForm() {
     enabled: isEdit && invSettings?.groupProductVariant !== false && attributeLines.some((l) => l.attributeId),
   })
 
+  const hasVariantMatrix = useMemo(
+    () => Boolean(
+      (smartButtons?.variants ?? 0) > 0
+      || attributeLines.some((l) => l?.attributeId),
+    ),
+    [smartButtons?.variants, attributeLines],
+  )
+
+  const { data: stockVariants = [] } = useQuery({
+    queryKey: ['product-form-variants', id],
+    queryFn: () => api.get('/stock/variants', {
+      params: { productId: id, limit: 200, active: 'false' },
+    }).then((r) => r.data?.items || []),
+    enabled: isEdit && engineOn && hasVariantMatrix,
+  })
+
   const runGenerate = async (dryRun) => {
     try {
       const res = await api.post('/stock/variants/generate', {
@@ -480,14 +498,26 @@ export default function ProductForm() {
   }, [isEdit, product, stockWarehouseId, warehouseOptions])
 
   useEffect(() => {
-    if (!isEdit) return
-    if (!stockWarehouseId) return
+    if (!isEdit || !stockWarehouseId) return
+
+    if (engineOn && hasVariantMatrix) {
+      if (!stockVariantId) {
+        setStockQuantity(0)
+        return
+      }
+      api.get(`/stock/products/${id}/on-hand`, {
+        params: { warehouseId: stockWarehouseId, variantId: stockVariantId },
+      })
+        .then((r) => setStockQuantity(Number(r.data?.onHand || 0)))
+        .catch(() => setStockQuantity(0))
+      return
+    }
 
     const stocks = Array.isArray(product?.stocks) ? product.stocks : []
     const s = stocks.find((x) => String(x?.warehouseId?._id || x?.warehouseId) === String(stockWarehouseId))
     setStockQuantity(Number(s?.quantity || 0))
     setStockReorderPoint(Number.isFinite(Number(s?.reorderPoint)) ? Number(s.reorderPoint) : 10)
-  }, [isEdit, product, stockWarehouseId])
+  }, [isEdit, product, stockWarehouseId, engineOn, hasVariantMatrix, stockVariantId, id])
 
   useEffect(() => {
     if (!canBeSold && canBeSoldOnPos) {
@@ -553,11 +583,16 @@ export default function ProductForm() {
   const saveStock = async () => {
     if (!isEdit) return
     if (!stockWarehouseId) return
+    if (engineOn && hasVariantMatrix && !stockVariantId) {
+      toast.error(language === 'ar' ? 'اختر متغيراً' : 'Select a variant')
+      return
+    }
     try {
       setSavingStock(true)
       if (engineOn) {
         await api.post(`/stock/report/stock/${id}/adjust`, {
           warehouseId: stockWarehouseId,
+          variantId: stockVariantId || undefined,
           onHand: stockQuantity,
           reason: 'Product form adjustment',
         })
@@ -700,28 +735,7 @@ export default function ProductForm() {
 
       <form
         onSubmit={handleSubmit((data) => {
-          const payload = buildPayload(data)
-          const warnings = []
-          const cat = (Array.isArray(invCategories) ? invCategories : []).find(
-            (c) => String(c._id) === String(payload.categoryId || ''),
-          )
-          const hasIncome = !!(payload.incomeAccountId || cat?.incomeAccountId)
-          const hasExpense = !!(payload.expenseAccountId || cat?.expenseAccountId)
-          if (payload.canBeSold !== false && !hasIncome) {
-            warnings.push(language === 'ar'
-              ? 'المنتج القابل للبيع يحتاج حساب إيراد على المنتج أو الفئة'
-              : 'Sold products require an income account on the product or category')
-          }
-          if ((payload.canBePurchased || payload.canBeExpensed) && !hasExpense) {
-            warnings.push(language === 'ar'
-              ? 'المنتج القابل للشراء/المصروف يحتاج حساب مصروف على المنتج أو الفئة'
-              : 'Purchased/expensed products require an expense account on the product or category')
-          }
-          if (warnings.length) {
-            toast.error(warnings.join('\n'))
-            return
-          }
-          mutation.mutate(payload)
+          mutation.mutate(buildPayload(data))
         })}
         className="space-y-6"
       >
@@ -1222,7 +1236,7 @@ export default function ProductForm() {
             </div>
             {productTab === 'purchase' && invSettings?.groupUom !== false && (
               <div>
-                <label className="label">{language === 'ar' ? 'وحدة الشراء' : 'Purchase UoM'}</label>
+                <label className="label">{language === 'ar' ? 'وحدة الشراء (اختياري)' : 'Purchase UoM (Optional)'}</label>
                 <select {...register('purchaseUomId')} className="select">
                   <option value="">—</option>
                   {(Array.isArray(invUoms) ? invUoms : []).map((u) => (
@@ -1298,6 +1312,30 @@ export default function ProductForm() {
                   )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {engineOn && hasVariantMatrix && (
+                    <div className="md:col-span-2">
+                      <label className="label">{language === 'ar' ? 'المتغير' : 'Variant'}</label>
+                      <select
+                        className="select"
+                        value={stockVariantId}
+                        onChange={(e) => setStockVariantId(e.target.value)}
+                      >
+                        <option value="">{language === 'ar' ? '— اختر متغير —' : '— Select variant —'}</option>
+                        {stockVariants.map((v) => (
+                          <option key={v._id} value={v._id}>
+                            {(language === 'ar' && v.nameAr ? v.nameAr : v.name) || v.sku || v._id}
+                          </option>
+                        ))}
+                      </select>
+                      {!stockVariants.length && (
+                        <p className="mt-1 text-[11px] text-amber-600">
+                          {language === 'ar'
+                            ? 'ولّد المتغيرات من تبويب السمات أولاً.'
+                            : 'Generate variants from the Attributes tab first.'}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   <div>
                     <label className="label">{language === 'ar' ? 'المستودع' : 'Warehouse'}</label>
                     <select
@@ -1329,7 +1367,7 @@ export default function ProductForm() {
                 </div>
 
                 <div className="flex justify-end">
-                  <button type="button" onClick={saveStock} disabled={savingStock || !stockWarehouseId} className="btn btn-secondary">
+                  <button type="button" onClick={saveStock} disabled={savingStock || !stockWarehouseId || (engineOn && hasVariantMatrix && !stockVariantId)} className="btn btn-secondary">
                     {savingStock ? (
                       <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
                     ) : (

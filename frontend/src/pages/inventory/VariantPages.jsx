@@ -11,6 +11,53 @@ import Money from '../../components/ui/Money'
 import { formatInvError } from '../../lib/invError'
 import { invTableWrapClass } from './inventoryUi'
 
+function VariantOnHandCell({ productId, variantId, initialOnHand, warehouseId, ar, onAdjusted }) {
+  const [value, setValue] = useState(String(initialOnHand ?? 0))
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setValue(String(initialOnHand ?? 0))
+  }, [initialOnHand, variantId])
+
+  const save = async () => {
+    if (!warehouseId || !productId || !variantId) return
+    const next = Number(value)
+    if (!Number.isFinite(next) || next < 0) return
+    if (String(next) === String(initialOnHand ?? 0)) return
+    setSaving(true)
+    try {
+      await api.post(`/stock/report/stock/${productId}/adjust`, {
+        warehouseId,
+        variantId,
+        onHand: next,
+        reason: 'Variant page adjustment',
+      })
+      toast.success(ar ? 'تم تحديث المخزون' : 'Stock updated')
+      onAdjusted?.()
+    } catch (e) {
+      toast.error(formatInvError(e, ar ? 'ar' : 'en'))
+      setValue(String(initialOnHand ?? 0))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <input
+      className="input input-sm w-24 tabular-nums"
+      inputMode="decimal"
+      disabled={!warehouseId || saving}
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+      }}
+      title={ar ? 'عدّل واضغط خارج الحقل' : 'Edit and blur to save'}
+    />
+  )
+}
+
 export function VariantsPage() {
   const { language } = useSelector((s) => s.ui)
   const ar = language === 'ar'
@@ -21,6 +68,18 @@ export function VariantsPage() {
   const [attrFilter, setAttrFilter] = useState('')
   const [q, setQ] = useState('')
   const [attrIds, setAttrIds] = useState([])
+  const [adjustWarehouseId, setAdjustWarehouseId] = useState('')
+
+  const { data: warehouses = [] } = useQuery({
+    queryKey: ['warehouses'],
+    queryFn: () => api.get('/warehouses').then((r) => r.data?.warehouses || r.data || []),
+    staleTime: 60_000,
+  })
+
+  useEffect(() => {
+    if (adjustWarehouseId || !warehouses.length) return
+    setAdjustWarehouseId(String(warehouses[0]._id))
+  }, [warehouses, adjustWarehouseId])
 
   useEffect(() => {
     const pid = searchParams.get('productId')
@@ -184,6 +243,30 @@ export function VariantsPage() {
         </div>
       )}
 
+      {variants.length > 0 && (
+        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200/80 bg-slate-50/60 px-4 py-3 dark:border-dark-600 dark:bg-dark-900/30">
+          <label className="text-sm">
+            <span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-slate-400">
+              {ar ? 'مستودع التسوية' : 'Adjust warehouse'}
+            </span>
+            <select
+              className="input input-sm min-w-[12rem]"
+              value={adjustWarehouseId}
+              onChange={(e) => setAdjustWarehouseId(e.target.value)}
+            >
+              {warehouses.map((w) => (
+                <option key={w._id} value={w._id}>{ar ? w.nameAr || w.nameEn : w.nameEn}</option>
+              ))}
+            </select>
+          </label>
+          <p className="pb-1 text-xs text-slate-500">
+            {ar
+              ? 'عدّل عمود «المتاح» — يُحفظ عند مغادرة الحقل.'
+              : 'Edit On hand inline — saves when you leave the field.'}
+          </p>
+        </div>
+      )}
+
       {isLoading ? <div className="text-sm text-slate-500">…</div> : !variants.length ? (
         <EmptyState title={ar ? 'لا متغيرات' : 'No variants'} />
       ) : (
@@ -232,7 +315,16 @@ export function VariantsPage() {
                       }}
                     />
                   </td>
-                  <td className="px-3 py-2 tabular-nums">{v.onHand ?? '—'}</td>
+                  <td className="px-3 py-2 tabular-nums">
+                    <VariantOnHandCell
+                      productId={v.productId?._id || v.productId}
+                      variantId={v._id}
+                      initialOnHand={v.onHand}
+                      warehouseId={adjustWarehouseId}
+                      ar={ar}
+                      onAdjusted={() => qc.invalidateQueries({ queryKey: ['inv-variants'] })}
+                    />
+                  </td>
                   <td className="px-3 py-2 tabular-nums">{v.forecasted ?? '—'}</td>
                   <td className="px-3 py-2"><Money value={v.cost} /></td>
                   <td className="px-3 py-2"><Money value={v.price} /></td>
