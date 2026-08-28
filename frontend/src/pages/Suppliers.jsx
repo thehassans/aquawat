@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Users, MapPin, AlertCircle, X, ChevronRight, Loader2, Building2, Phone, Mail, FileText, ArrowUpRight, ArrowDownRight, Wallet, Contact } from 'lucide-react'
+import { contactToSupplier, fetchContactsList } from '../lib/contactMappers'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import ExportMenu from '../components/ui/ExportMenu'
@@ -26,23 +27,15 @@ export default function Suppliers() {
   const { data: response, isLoading: loadingSuppliers } = useQuery({
     queryKey: ['suppliers', { page }],
     queryFn: async () => {
-      const res = await api.get('/contacts', {
-        params: { types: 'supplier', page, limit: 50, isActive: 'all' },
+      const { contacts, pagination } = await fetchContactsList(api, {
+        types: 'supplier',
+        page,
+        limit: 50,
+        isActive: 'all',
       })
-      const contacts = res.data?.contacts || []
       return {
-        suppliers: contacts
-          .filter((c) => c.entityType === 'supplier')
-          .map((c) => ({
-            _id: c.entityId,
-            nameEn: c.displayName,
-            nameAr: c.displayNameAr,
-            name: c.displayName,
-            code: c.code,
-            phone: c.phone,
-            email: c.email,
-          })),
-        pagination: res.data?.pagination,
+        suppliers: contacts.filter((c) => c.entityType === 'supplier').map(contactToSupplier),
+        pagination,
       }
     },
   })

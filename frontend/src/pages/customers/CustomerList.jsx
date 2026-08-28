@@ -41,6 +41,7 @@ import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
 import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
+import { contactToCustomer, fetchContactsList } from '../../lib/contactMappers'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 
 export default function CustomerList() {
@@ -63,18 +64,22 @@ export default function CustomerList() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['customers', { search, type: typeFilter, isActive: statusFilter, page }],
-    queryFn: () =>
-      api
-        .get('/customers', {
-          params: {
-            search: search.trim() || undefined,
-            type: typeFilter || undefined,
-            isActive: statusFilter || undefined,
-            page,
-            limit: 25,
-          },
-        })
-        .then((res) => res.data),
+    queryFn: async () => {
+      const { contacts, pagination } = await fetchContactsList(api, {
+        types: 'customer',
+        page,
+        limit: 25,
+        isActive: statusFilter || 'all',
+        search: search.trim() || undefined,
+      })
+      let customers = contacts
+        .filter((c) => c.entityType === 'customer')
+        .map(contactToCustomer)
+      if (typeFilter) {
+        customers = customers.filter((c) => c.type === typeFilter)
+      }
+      return { customers, pagination }
+    },
   })
 
   const { data: stats } = useQuery({
@@ -167,20 +172,18 @@ export default function CustomerList() {
     let all = []
 
     while (true) {
-      const res = await api.get('/customers', {
-        params: {
-          search: search.trim() || undefined,
-          type: typeFilter || undefined,
-          isActive: statusFilter || undefined,
-          page: currentPage,
-          limit,
-        },
+      const { contacts, pagination } = await fetchContactsList(api, {
+        types: 'customer',
+        page: currentPage,
+        limit,
+        isActive: statusFilter || 'all',
+        search: search.trim() || undefined,
       })
-      const batch = res.data?.customers || []
+      let batch = contacts.filter((c) => c.entityType === 'customer').map(contactToCustomer)
+      if (typeFilter) batch = batch.filter((c) => c.type === typeFilter)
       all = all.concat(batch)
 
-      const pages = res.data?.pagination?.pages || 1
-      if (currentPage >= pages) break
+      if (currentPage >= (pagination?.pages || 1) || batch.length === 0) break
       currentPage += 1
 
       if (all.length >= 10000) break

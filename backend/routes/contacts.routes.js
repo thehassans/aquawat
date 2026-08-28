@@ -70,6 +70,7 @@ const mapPartner = (doc, { wantCustomers, wantSuppliers }) => {
     code: doc.supplierCode || doc.customerCode || null,
     isCustomer,
     isVendor,
+    partnerType: doc.type || 'business',
     linkedSupplierId: null,
     linkedCustomerId: null,
     isActive: doc.isActive !== false,
@@ -177,7 +178,7 @@ router.get('/', async (req, res) => {
     const [partnerDocs, employeeDocs, partnerTotal, employeeTotal] = await Promise.all([
       wantPartners
         ? Partner.find(partnerMatch)
-          .select('name nameEn nameAr email phone mobile vatNumber customerCode supplierCode isActive isCustomer isVendor createdAt updatedAt')
+          .select('name nameEn nameAr email phone mobile vatNumber customerCode supplierCode isActive isCustomer isVendor type createdAt updatedAt')
           .sort({ name: 1 })
           .limit(fetchCap)
           .lean()

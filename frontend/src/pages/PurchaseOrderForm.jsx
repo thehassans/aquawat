@@ -41,6 +41,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
+import { contactToSupplier, fetchContactsList } from '../lib/contactMappers'
 import { autoTranslateText } from '../lib/builtInTranslator'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
@@ -314,12 +315,8 @@ export default function PurchaseOrderForm() {
     queryKey: ['suppliers-lookup'],
     queryFn: async () => {
       try {
-        const res = await api.get('/suppliers', { params: { limit: 200 } })
-        return Array.isArray(res.data?.suppliers)
-          ? res.data.suppliers
-          : Array.isArray(res.data)
-            ? res.data
-            : []
+        const { contacts } = await fetchContactsList(api, { types: 'supplier', limit: 200, isActive: 'all' })
+        return contacts.filter((c) => c.entityType === 'supplier').map(contactToSupplier)
       } catch {
         return []
       }

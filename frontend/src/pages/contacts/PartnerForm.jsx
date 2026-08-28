@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import { fetchContactsList } from '../../lib/contactMappers'
 import { useTranslation } from '../../lib/translations'
 import AsyncCombobox from '../../components/ui/AsyncCombobox'
 import {
@@ -216,24 +217,27 @@ export default function PartnerForm() {
   }, [existing, reset, isSupplierRoute, tenantCountry])
 
   const fetchCompanies = async (q) => {
-    const [cust, supp] = await Promise.all([
-      api.get('/customers/search', { params: { q } }).then((r) => r.data || []).catch(() => []),
-      api.get('/suppliers', { params: { search: q, limit: 15, isActive: true } })
-        .then((r) => r.data?.suppliers || [])
-        .catch(() => []),
-    ])
-    const map = new Map()
-    ;[...(Array.isArray(cust) ? cust : []), ...supp].forEach((row) => {
-      const type = row.type
-      if (type === 'individual') return
-      const key = String(row._id)
-      if (!map.has(key)) {
-        map.set(key, {
-          ...row,
-          name: row.name || row.nameEn || row.nameAr || '—',
-        })
-      }
+    const { contacts } = await fetchContactsList(api, {
+      types: 'customer,supplier',
+      search: q,
+      limit: 15,
+      isActive: true,
     })
+    const map = new Map()
+    contacts
+      .filter((c) => c.partnerType !== 'individual')
+      .forEach((c) => {
+        const key = String(c.entityId)
+        if (!map.has(key)) {
+          map.set(key, {
+            _id: c.entityId,
+            name: c.displayName,
+            nameEn: c.displayName,
+            nameAr: c.displayNameAr,
+            type: c.partnerType,
+          })
+        }
+      })
     return [...map.values()]
   }
 

@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import Money from '../ui/Money'
 import { formatInvError } from '../../lib/invError'
+import { invTableWrapClass, invTableClass } from '../../pages/inventory/inventoryUi'
 
 /**
  * Read-only matrix output grid — variants are system-generated.
@@ -55,8 +56,8 @@ export default function ProductVariantsGrid({ productId, language, templateName 
           ? 'الأسماء تُبنى تلقائياً من القالب + قيم السمات. عدّل SKU / الباركود / فرق السعر فقط.'
           : 'Names are locked (Template + attribute values). Edit SKU, barcode, and price extra only.'}
       </p>
-      <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-        <table className="min-w-[860px] w-full text-sm">
+      <div className={invTableWrapClass}>
+        <table className={`${invTableClass} min-w-[860px]`}>
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
             <tr>
               <th className="px-3 py-2">{ar ? 'المتغير' : 'Variant'}</th>

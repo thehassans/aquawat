@@ -25,6 +25,8 @@ import TemplatePriceExtrasEditor from '../../components/inventory/TemplatePriceE
 import ProductVariantsGrid from '../../components/inventory/ProductVariantsGrid'
 import ProductActionsMenu from '../../components/inventory/ProductActionsMenu'
 import { formatInvError } from '../../lib/invError'
+import { invTableWrapClass, invTableClass } from './inventoryUi'
+import { contactToSupplier, fetchContactsList } from '../../lib/contactMappers'
 
 function AttributeValuesMulti({ attributeId, valueIds, onChange, language }) {
   const ar = language === 'ar'
@@ -375,7 +377,10 @@ export default function ProductForm() {
   })
   const { data: supplierOptions } = useQuery({
     queryKey: ['suppliers-lite-product'],
-    queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((r) => r.data?.suppliers || r.data || []),
+    queryFn: async () => {
+      const { contacts } = await fetchContactsList(api, { types: 'supplier', limit: 200, isActive: 'all' })
+      return contacts.filter((c) => c.entityType === 'supplier').map(contactToSupplier)
+    },
     enabled: canBePurchased,
   })
   const supplierById = useMemo(() => {
@@ -1033,8 +1038,8 @@ export default function ProductForm() {
                   {productSuppliers.length === 0 ? (
                     <p className="text-xs text-slate-400">{language === 'ar' ? 'لا موردين' : 'No vendors linked'}</p>
                   ) : (
-                    <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-dark-600">
-                      <table className="w-full min-w-[720px] text-sm">
+                    <div className={invTableWrapClass}>
+                      <table className={`${invTableClass} min-w-[720px]`}>
                         <thead className="bg-slate-50 text-xs uppercase dark:bg-dark-800">
                           <tr>
                             <th className="min-w-[150px] px-2 py-2 text-start">{language === 'ar' ? 'المورد' : 'Supplier'}</th>

@@ -445,7 +445,7 @@ export function ScrapForm() {
               </button>
             </div>
 
-            <div className="overflow-x-auto overflow-y-visible rounded-2xl border border-slate-200/80 dark:border-dark-600">
+            <div className={`${invTableWrapClass} overflow-y-visible`}>
               <div className="min-w-[640px]">
                 <div className="hidden grid-cols-[minmax(0,1.5fr)_minmax(6.5rem,10rem)_minmax(5rem,8rem)_4.75rem_2.25rem] gap-2 border-b border-slate-100 px-3.5 py-2 text-[10px] font-medium uppercase tracking-[0.16em] text-slate-400 dark:border-dark-600 sm:grid">
                   <span className="min-w-[150px]">{ar ? 'المنتج' : 'Product'}</span>
@@ -578,7 +578,7 @@ export function ScrapForm() {
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-dark-600">
+          <div className={invTableWrapClass}>
             <table className="w-full min-w-[520px] text-sm">
               <thead className="bg-slate-50/90 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:bg-dark-900/50">
                 <tr>

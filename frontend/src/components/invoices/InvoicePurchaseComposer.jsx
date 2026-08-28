@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Clock3, PackageCheck, Plus, Save, Trash2, UploadCloud, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import { contactToSupplier, fetchContactsList } from '../../lib/contactMappers'
 import { useTranslation } from '../../lib/translations'
 import Money from '../ui/Money'
 import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/businessTypes'
@@ -372,7 +373,10 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
 
   const { data: suppliers } = useQuery({
     queryKey: ['suppliers-lookup'],
-    queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((res) => res.data.suppliers),
+    queryFn: async () => {
+      const { contacts } = await fetchContactsList(api, { types: 'supplier', limit: 200, isActive: 'all' })
+      return contacts.filter((c) => c.entityType === 'supplier').map(contactToSupplier)
+    },
     enabled: isTradingContext,
   })
 

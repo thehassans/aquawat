@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import api from '../../lib/api';
+import { contactToSupplier, fetchContactsList } from '../../lib/contactMappers';
 const t = (key, opts) => opts?.defaultValue || key;
 
 import { Card } from './components/ui/Card';
@@ -52,10 +53,13 @@ const FabricRollar = () => {
       setLoading(true);
       const [res, supRes] = await Promise.all([
         api.get('/khayyat/fabrics'),
-        api.get('/suppliers')
+        fetchContactsList(api, { types: 'supplier', limit: 500, isActive: 'all' }),
       ]);
       setFabrics(Array.isArray(res.data?.fabrics) ? res.data.fabrics : []);
-      setSuppliers(Array.isArray(supRes.data) ? supRes.data : supRes.data?.suppliers || []);
+      const suppliers = (supRes.contacts || [])
+        .filter((c) => c.entityType === 'supplier')
+        .map(contactToSupplier);
+      setSuppliers(suppliers);
     } catch (e) {
       setFabrics([]);
       setSuppliers([]);

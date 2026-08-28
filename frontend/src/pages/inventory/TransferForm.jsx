@@ -8,11 +8,12 @@ import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import AsyncCombobox from '../../components/ui/AsyncCombobox'
 import PartnerCombobox from '../../components/inventory/PartnerCombobox'
-import { StatusChip } from './inventoryUi'
+import { StatusChip, invTableWrapClass, invTableClass } from './inventoryUi'
 import { TransferPrintButton } from './TransferPrint'
 import { TransferQualityPanel } from './QualityPages'
 import { formatInvError } from '../../lib/invError'
 import { useDirtyGuard } from '../../lib/useDirtyGuard'
+import { contactToCustomer, fetchContactsList } from '../../lib/contactMappers'
 import ReverseTransferModal from './returns/ReverseTransferModal'
 import { inventoryPathForOpCode } from './returns/returnPaths'
 import {
@@ -97,7 +98,10 @@ export default function TransferForm() {
 
   const { data: customers = [] } = useQuery({
     queryKey: ['customers-lite'],
-    queryFn: () => api.get('/customers', { params: { limit: 200 } }).then((r) => r.data?.customers || r.data || []),
+    queryFn: async () => {
+      const { contacts } = await fetchContactsList(api, { types: 'customer', limit: 200, isActive: 'all' })
+      return contacts.filter((c) => c.entityType === 'customer').map(contactToCustomer)
+    },
     enabled: !!settings?.groupStockTrackingOwner,
     staleTime: 5 * 60 * 1000,
   })
@@ -1008,8 +1012,8 @@ export default function TransferForm() {
                     </button>
                   </div>
                 )}
-              <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-dark-600">
-                <table className="w-full min-w-[720px] text-sm">
+              <div className={invTableWrapClass}>
+                <table className={`${invTableClass} min-w-[720px]`}>
                   <thead className="bg-slate-50/90 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:bg-dark-900/50">
                     <tr>
                       <th className="min-w-[150px] px-3 py-2.5 text-start">{ar ? 'المنتج' : 'Product'}</th>

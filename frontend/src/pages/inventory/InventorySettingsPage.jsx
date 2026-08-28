@@ -11,6 +11,7 @@ import {
   resolveInventoryAccountingMode,
 } from '../../lib/inventoryAccountingMode'
 import { formatInvError } from '../../lib/invError'
+import { invTableWrapClass, invTableClass } from './inventoryUi'
 
 function PrintJobsPanel({ ar }) {
   const { data } = useQuery({
@@ -27,8 +28,8 @@ function PrintJobsPanel({ ar }) {
     )
   }
   return (
-    <div className="sm:col-span-2 overflow-x-auto rounded-lg border border-slate-200 dark:border-dark-600">
-      <table className="min-w-full text-xs">
+    <div className={`sm:col-span-2 ${invTableWrapClass}`}>
+      <table className={`${invTableClass} min-w-full text-xs`}>
         <thead className="bg-slate-50 text-left uppercase text-slate-500 dark:bg-dark-800">
           <tr>
             <th className="min-w-[150px] px-2 py-1.5">{ar ? 'التخطيط' : 'Layout'}</th>

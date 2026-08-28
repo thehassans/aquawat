@@ -34,6 +34,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import { contactToSupplier, fetchContactsList } from '../../lib/contactMappers'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
@@ -102,7 +103,10 @@ export default function PurchasesReports() {
   // Fetch all suppliers and warehouses for filter dropdowns
   const { data: suppliers } = useQuery({
     queryKey: ['suppliers-lookup'],
-    queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((res) => res.data.suppliers || []),
+    queryFn: async () => {
+      const { contacts } = await fetchContactsList(api, { types: 'supplier', limit: 200, isActive: 'all' })
+      return contacts.filter((c) => c.entityType === 'supplier').map(contactToSupplier)
+    },
   })
 
   const { data: warehouses } = useQuery({

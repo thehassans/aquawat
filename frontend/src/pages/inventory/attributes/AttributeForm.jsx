@@ -7,6 +7,7 @@ import { ArrowLeft, Save, Trash2 } from 'lucide-react'
 import api from '../../../lib/api'
 import { asInvList } from '../../../lib/invList'
 import { formatInvError } from '../../../lib/invError'
+import { invTableWrapClass, invTableClass } from '../inventoryUi'
 import { useDirtyGuard } from '../../../lib/useDirtyGuard'
 
 const MODE_OPTIONS = [
@@ -361,8 +362,8 @@ export default function AttributeForm() {
           </div>
         </div>
 
-        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-100 dark:border-dark-600">
-          <table className="min-w-full text-sm">
+        <div className={`${invTableWrapClass} mt-4`}>
+          <table className={`${invTableClass} min-w-full`}>
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/80 text-start text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-dark-600 dark:bg-dark-900/50">
                 <th className="min-w-[160px] px-3 py-2.5">{ar ? 'القيمة (EN)' : 'Value name (EN)'}</th>

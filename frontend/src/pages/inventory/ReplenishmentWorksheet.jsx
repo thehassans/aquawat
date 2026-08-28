@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import EmptyState from '../../components/ui/EmptyState'
 import { formatInvError } from '../../lib/invError'
+import { invTableWrapClass, invTableClass } from './inventoryUi'
 
 function calcToOrder(maxQty, forecasted) {
   const max = Number(maxQty)
@@ -126,8 +127,8 @@ export default function ReplenishmentWorksheet() {
           description={ar ? 'أضف قواعد إعادة الطلب أو انتظر توقعات سالبة' : 'Add reorder rules or wait for negative forecasts'}
         />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-900">
-          <table className="w-full min-w-[960px] text-sm">
+        <div className={invTableWrapClass}>
+          <table className={`${invTableClass} min-w-[960px]`}>
             <thead className="bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:bg-dark-800">
               <tr>
                 <th className="min-w-[220px] px-3 py-2.5">{ar ? 'المنتج والموقع' : 'Product & location'}</th>
