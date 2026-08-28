@@ -212,6 +212,9 @@ export function ManufacturingBomPicker({
               onChange={(e) => {
                 onFinishedVariantChange?.(e.target.value || null)
               }}
+              onBlur={() => {
+                if (selectedFinished) loadBom(selectedFinished)
+              }}
             >
               <option value="">{ar ? '— اختر —' : '— Select —'}</option>
               {finishedVariants.map((v) => (

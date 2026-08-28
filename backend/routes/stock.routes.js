@@ -1061,7 +1061,7 @@ router.post('/transfers/:id/validate', checkPermission('inventory', 'update'), v
     const transfer = await InvTransfer.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!transfer) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Transfer not found', messageAr: 'التحويل غير موجود' } });
     await assertTransferWarehouseAccess(req, transfer);
-    res.json(await validateTransfer(req.user.tenantId, req.params.id, {
+    const done = await validateTransfer(req.user.tenantId, req.params.id, {
       userId: req.user._id,
       createBackorder: typeof req.validatedBody.createBackorder === 'boolean'
         ? (req.validatedBody.createBackorder ? 'always' : 'never')
@@ -1070,7 +1070,20 @@ router.post('/transfers/:id/validate', checkPermission('inventory', 'update'), v
       moveQuantities: Array.isArray(req.validatedBody.moveQuantities)
         ? req.validatedBody.moveQuantities
         : undefined,
-    }));
+    });
+    let payload = done?.toObject ? done.toObject() : done;
+    if (payload?.state === 'done') {
+      const { manufactureProduceFromConsume } = await import('../services/inventory/posManufacturing.js');
+      const moProduce = await manufactureProduceFromConsume(req.user.tenantId, req.user._id, payload);
+      if (moProduce) {
+        payload = {
+          ...payload,
+          moProduceTransferId: moProduce._id,
+          moProduceTransferName: moProduce.name,
+        };
+      }
+    }
+    res.json(payload);
   } catch (err) {
     handleInventoryError(res, err);
   }

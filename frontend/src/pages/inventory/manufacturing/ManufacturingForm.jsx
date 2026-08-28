@@ -25,6 +25,7 @@ import ReverseTransferModal from '../returns/ReverseTransferModal'
 import { inventoryPathForOpCode } from '../returns/returnPaths'
 import { useReturnedPartner } from '../useReturnedPartner'
 import { isVariantPickCancelled, useForceVariantPick } from '../../../lib/useForceVariantPick'
+import { formatMoOrigin, parseMoOrigin } from '../../../lib/moOrigin'
 
 const LIST_PATH = '/app/dashboard/inventory/manufacturing'
 
@@ -133,6 +134,7 @@ export default function ManufacturingForm() {
   const [selectedPartner, setSelectedPartner] = useState(null)
   const [finishedGood, setFinishedGood] = useState(null)
   const [finishedVariantId, setFinishedVariantId] = useState(null)
+  const [finishedGoodLabel, setFinishedGoodLabel] = useState('')
   const [produceQty, setProduceQty] = useState('1')
 
   useReturnedPartner({
@@ -201,6 +203,24 @@ export default function ManufacturingForm() {
   }, [transfer?._id, transfer?.state, transfer?.moves?.length, reset])
 
   useEffect(() => {
+    if (!transfer?.origin) return
+    const parsed = parseMoOrigin(transfer.origin)
+    if (!parsed) return
+    setFinishedVariantId(parsed.variantId)
+    setProduceQty(parsed.qty || '1')
+    api.get(`/products/${parsed.productId}`)
+      .then((r) => {
+        const p = r.data?.product || r.data
+        if (!p) return
+        setFinishedGood(p)
+        setFinishedGoodLabel((ar && p.nameAr ? p.nameAr : p.nameEn || p.name) || p.sku || parsed.productId)
+      })
+      .catch(() => {
+        setFinishedGoodLabel(parsed.productId)
+      })
+  }, [transfer?.origin, ar])
+
+  useEffect(() => {
     if (!isNew || !opTypes.length) return
     if (getValues('operationTypeId')) return
     const first = opTypes[0]
@@ -230,8 +250,16 @@ export default function ManufacturingForm() {
 
   const actionMut = useMutation({
     mutationFn: ({ action, body }) => api.post(`/stock/transfers/${id}/${action}`, body || {}).then((r) => r.data),
-    onSuccess: () => {
-      toast.success(ar ? 'تم' : 'Done')
+    onSuccess: (data) => {
+      if (data?.moProduceTransferName) {
+        toast.success(
+          ar
+            ? `تم الإنتاج — ${data.moProduceTransferName}`
+            : `Produced — ${data.moProduceTransferName}`,
+        )
+      } else {
+        toast.success(ar ? 'تم' : 'Done')
+      }
       qc.invalidateQueries({ queryKey: ['stock-transfer', id] })
       qc.invalidateQueries({ queryKey: ['stock-transfers'] })
       qc.invalidateQueries({ queryKey: ['products'] })
@@ -353,7 +381,11 @@ export default function ManufacturingForm() {
       destLocationId: values.destLocationId,
       scheduledDate: values.scheduledDate || undefined,
       origin: finishedGood
-        ? `MO:${finishedGood._id}${finishedVariantId ? `:${finishedVariantId}` : ''}`
+        ? formatMoOrigin({
+          productId: finishedGood._id,
+          variantId: finishedVariantId,
+          qty: produceQty,
+        })
         : (values.origin || undefined),
       note: values.note || undefined,
       priority: values.priority || 'normal',
@@ -496,9 +528,18 @@ export default function ManufacturingForm() {
             {formatLocationLabel(transfer?.destLocationId?.completePath, transfer?.destLocationId?.name || '—')}
           </div>
         </div>
+        {finishedGoodLabel ? (
+          <div className="sm:col-span-2">
+            <div className="text-xs text-slate-500">{ar ? 'المنتج النهائي' : 'Finished good'}</div>
+            <div className="font-medium">
+              {finishedGoodLabel}
+              {produceQty ? ` × ${produceQty}` : ''}
+            </div>
+          </div>
+        ) : null}
       </div>
     )
-  }, [isNew, transfer, ar, isDraft])
+  }, [isNew, transfer, ar, isDraft, finishedGoodLabel, produceQty])
 
   if (!isNew && isLoading) {
     return <div className="p-6 text-sm text-slate-400">{ar ? 'جاري التحميل…' : 'Loading…'}</div>

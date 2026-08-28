@@ -1,11 +1,14 @@
 import InvOperationType from '../../models/inventory/InvOperationType.js';
 import InvLocation from '../../models/inventory/InvLocation.js';
+import InvTransfer from '../../models/inventory/InvTransfer.js';
 import Warehouse from '../../models/Warehouse.js';
 import { toObjectId } from '../../models/inventory/common.js';
 import { createTransfer } from './createTransfer.js';
 import { confirmTransfer, validateTransfer } from './transferService.js';
 import { ensureInventoryBootstrap, bootstrapWarehouse } from './bootstrap.js';
 import { InventoryValidationError } from './errors.js';
+import { assertStockMoveVariant } from './variantGuard.js';
+import { moProduceOrigin, parseMoOrigin } from './moOrigin.js';
 
 async function ensureWh(tenantId, userId, warehouseId) {
   let wh = await Warehouse.findOne({ _id: warehouseId, tenantId: toObjectId(tenantId) });
@@ -147,4 +150,73 @@ export async function manufactureConsumeProduce(tenantId, userId, body) {
   });
 
   return { consume: consumeDone, produce: produceDone };
+}
+
+/**
+ * After an MO consume transfer validates, receive finished goods into stock.
+ * Idempotent — keyed by MO-produce:{consumeTransferId}.
+ */
+export async function manufactureProduceFromConsume(tenantId, userId, consumeTransfer) {
+  const parsed = parseMoOrigin(consumeTransfer?.origin);
+  if (!parsed) return null;
+
+  const tid = toObjectId(tenantId);
+  const produceOrigin = moProduceOrigin(consumeTransfer._id);
+
+  const existing = await InvTransfer.findOne({
+    tenantId: tid,
+    origin: produceOrigin,
+    state: { $ne: 'cancelled' },
+  }).lean();
+  if (existing) {
+    if (existing.state === 'done') return existing;
+    await confirmTransfer(tid, existing._id, userId);
+    return validateTransfer(tid, existing._id, {
+      userId,
+      immediate: true,
+      createBackorder: false,
+    });
+  }
+
+  const opType = await InvOperationType.findOne({
+    _id: consumeTransfer.operationTypeId,
+    tenantId: tid,
+    code: 'manufacturing',
+  });
+  if (!opType) return null;
+
+  const wh = await ensureWh(tid, userId, opType.warehouseId);
+  const production = await InvLocation.findOne({
+    tenantId: tid,
+    usage: 'production',
+    active: { $ne: false },
+  }).sort({ completePath: 1 });
+  if (!production) {
+    throw new InventoryValidationError('Production location missing — bootstrap inventory', 'LOCATIONS_REQUIRED');
+  }
+
+  const resolvedVariantId = await assertStockMoveVariant(tid, {
+    productId: parsed.productId,
+    variantId: parsed.variantId,
+    allowAutoSingle: true,
+  });
+
+  const produce = await createTransfer(tid, {
+    operationTypeId: opType._id,
+    sourceLocationId: production._id,
+    destLocationId: wh.stockLocationId,
+    origin: produceOrigin,
+    note: consumeTransfer.note,
+    lines: [{
+      productId: parsed.productId,
+      demandQty: parsed.qty || '1',
+      variantId: resolvedVariantId || undefined,
+    }],
+  }, userId);
+  await confirmTransfer(tid, produce._id, userId);
+  return validateTransfer(tid, produce._id, {
+    userId,
+    immediate: true,
+    createBackorder: false,
+  });
 }
