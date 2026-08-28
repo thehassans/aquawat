@@ -50,13 +50,14 @@ export function validateProductionEnv({ logger = console } = {}) {
     const hasS3 = Boolean(
       process.env.S3_BUCKET && process.env.S3_ACCESS_KEY && process.env.S3_SECRET_KEY
     );
+    const allowLocalUploads = process.env.ALLOW_LOCAL_UPLOADS === 'true';
     if (!hasS3) {
-      if (process.env.REQUIRE_OBJECT_STORAGE === 'true') {
+      if (allowLocalUploads) {
+        // Explicit single-node uploads — do not warn on every boot.
+      } else if (process.env.REQUIRE_OBJECT_STORAGE === 'true') {
         errors.push(
           'S3_BUCKET/S3_ACCESS_KEY/S3_SECRET_KEY required when REQUIRE_OBJECT_STORAGE=true'
         );
-      } else if (process.env.ALLOW_LOCAL_UPLOADS === 'true') {
-        // Explicit single-node uploads — do not warn on every boot.
       } else if (isProd && process.env.NODE_ENV === 'production') {
         warnings.push(
           'Object storage (S3/R2) not configured — set S3_* vars or ALLOW_LOCAL_UPLOADS=true for single-node deploys. Production compose should set REQUIRE_OBJECT_STORAGE=true'

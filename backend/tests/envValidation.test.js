@@ -59,6 +59,22 @@ test('SENTRY_TRACES_SAMPLE_RATE env overrides default', () => {
   });
 });
 
+test('ALLOW_LOCAL_UPLOADS=true wins over REQUIRE_OBJECT_STORAGE=true', () => {
+  withEnv({
+    NODE_ENV: 'production',
+    JWT_SECRET: 'a-unique-production-jwt-secret-value-ok',
+    MONGODB_URI: 'mongodb://localhost/maqder',
+    ALLOW_LOCAL_UPLOADS: 'true',
+    REQUIRE_OBJECT_STORAGE: 'true',
+    S3_BUCKET: undefined,
+    S3_ACCESS_KEY: undefined,
+    S3_SECRET_KEY: undefined,
+  }, () => {
+    const result = validateProductionEnv({ logger: silent });
+    assert.equal(result.ok, true);
+  });
+});
+
 test('ALLOW_LOCAL_UPLOADS=true does not warn about missing S3', () => {
   withEnv({
     NODE_ENV: 'production',
