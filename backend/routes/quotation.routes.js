@@ -416,13 +416,28 @@ async function resolveQuotationPayload(req, existingQuotation = null) {
   const pdfTemplateId = resolvePdfTemplateId(req.body?.pdfTemplateId, tenant, businessContext);
   const issueDate = req.body.issueDate ? new Date(req.body.issueDate) : (existingQuotation?.issueDate || new Date());
   let validUntil = req.body.validUntil ? new Date(req.body.validUntil) : undefined;
+  const settings = await getSalesSettings(req.user.tenantId);
   if (!validUntil && !existingQuotation) {
-    const settings = await getSalesSettings(req.user.tenantId);
     validUntil = computeQuotationValidUntil(issueDate, settings.quotationValidityDays);
   }
-  const editableStatus = existingQuotation
+
+  let termsAndConditions = req.body.termsAndConditions;
+  let notes = req.body.notes;
+  if (!existingQuotation) {
+    if (!String(termsAndConditions || '').trim() && settings.quotationDefaultTerms) {
+      termsAndConditions = settings.quotationDefaultTerms;
+    }
+    if (!String(notes || '').trim() && settings.quotationDefaultNotes) {
+      notes = settings.quotationDefaultNotes;
+    }
+  }
+
+  let editableStatus = existingQuotation
     ? resolveEditableQuotationStatus(req.body?.status, existingQuotation?.status)
     : 'draft';
+  if (!existingQuotation && settings.quotationAutoSendOnCreate && editableStatus === 'draft') {
+    editableStatus = 'sent';
+  }
 
   return {
     tenant,
@@ -433,6 +448,8 @@ async function resolveQuotationPayload(req, existingQuotation = null) {
       pdfTemplateId,
       issueDate,
       validUntil,
+      termsAndConditions,
+      notes,
       buyer,
       customerId: customer?._id,
       seller: {

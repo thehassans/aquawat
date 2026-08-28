@@ -250,6 +250,10 @@ router.put('/current', authorize('admin'), async (req, res) => {
         invoiceBranding: {
           ...(currentSettings.invoiceBranding || {}),
           ...(settings.invoiceBranding || {}),
+          typography: {
+            ...(currentSettings.invoiceBranding?.typography || {}),
+            ...(settings.invoiceBranding?.typography || {}),
+          },
         },
         posTerminal: {
           ...(currentSettings.posTerminal || {}),

@@ -47,7 +47,7 @@ export default function SalesLayout() {
       <div className="relative z-[30] border-b border-slate-200/90 bg-white/90 backdrop-blur-md dark:border-dark-600 dark:bg-dark-900/90">
         <div className="flex flex-wrap items-end justify-between gap-3 px-4 pb-0 pt-4 sm:px-6">
           <div className="flex items-center gap-3 pb-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-900 to-slate-700 text-white shadow-[0_12px_30px_-16px_rgba(15,23,42,0.7)] dark:from-teal-500 dark:to-teal-700">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200/90 bg-white text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-dark-800 dark:text-slate-200">
               <ShoppingCart className="h-5 w-5" strokeWidth={1.75} />
             </div>
             <div>

@@ -38,6 +38,7 @@ import {
 } from '../../pages/sales/salesUi'
 import SalesEnhancementBar from '../sales/SalesEnhancementBar'
 import CustomerSummaryCard from '../sales/CustomerSummaryCard'
+import { useSalesSettings } from '../../context/SalesSettingsContext'
 
 const getEmptyLine = (tenant) => {
   const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
@@ -160,6 +161,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
   const { tenant } = useSelector((state) => state.auth)
+  const { settings: salesSettings } = useSalesSettings()
   const { t } = useTranslation(language)
   const isEdit = Boolean(quotationId)
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
@@ -234,6 +236,24 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     }),
   })
 
+  useEffect(() => {
+    if (isEdit || !salesSettings) return
+    if (!getValues('validUntil') && salesSettings.quotationValidityDays) {
+      const issue = getValues('issueDate') ? new Date(getValues('issueDate')) : new Date()
+      const until = new Date(issue)
+      until.setDate(until.getDate() + Number(salesSettings.quotationValidityDays || 30))
+      setValue('validUntil', formatDateForInput(until))
+    }
+    if (!getValues('termsAndConditions') && salesSettings.quotationDefaultTerms) {
+      setValue('termsAndConditions', salesSettings.quotationDefaultTerms)
+      setShowTermsPanel(true)
+    }
+    if (!getValues('notes') && salesSettings.quotationDefaultNotes) {
+      setValue('notes', salesSettings.quotationDefaultNotes)
+      setShowNotesPanel(true)
+    }
+  }, [salesSettings, isEdit, getValues, setValue])
+
   const handleToggleBankDetails = (enable) => {
     setShowBankPanel(enable)
     setValue('includeBankDetails', enable)
@@ -257,7 +277,8 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     if (enable) {
       const current = getValues('termsAndConditions')
       if (!current) {
-        const defaultTerms = tenant?.settings?.invoiceBranding?.termsAndConditions ||
+        const defaultTerms = salesSettings?.quotationDefaultTerms ||
+          tenant?.settings?.invoiceBranding?.termsAndConditions ||
           tenant?.settings?.termsAndConditions ||
           tenant?.settings?.invoiceBranding?.defaultTermsAndConditions ||
           ''
@@ -273,7 +294,8 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     if (enable) {
       const current = getValues('notes')
       if (!current) {
-        const defaultNotes = tenant?.settings?.invoiceBranding?.defaultNotes ||
+        const defaultNotes = salesSettings?.quotationDefaultNotes ||
+          tenant?.settings?.invoiceBranding?.defaultNotes ||
           tenant?.settings?.notes ||
           ''
         if (defaultNotes) setValue('notes', defaultNotes)

@@ -238,7 +238,7 @@ export const getLetterheadStyle = (tenant) => {
   const branding = tenant?.settings?.invoiceBranding || {}
   return {
     textColor: normalizeHexColor(branding.letterheadTextColor, '#0F172A'),
-    accentColor: normalizeHexColor(branding.letterheadAccentColor, '#14B8A6'),
+    accentColor: normalizeHexColor(branding.letterheadAccentColor, '#0F172A'),
     headerTextEn: String(branding.headerTextEn || '').trim(),
     headerTextAr: String(branding.headerTextAr || '').trim(),
     footerTextEn: String(branding.footerTextEn || '').trim(),

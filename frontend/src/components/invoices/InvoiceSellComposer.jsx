@@ -47,6 +47,7 @@ import {
 } from '../../pages/sales/salesUi'
 import SalesEnhancementBar from '../sales/SalesEnhancementBar'
 import { canViewSalesMargin } from '../../lib/salesPermissions'
+import { useSalesSettings } from '../../context/SalesSettingsContext'
 
 const getEmptyLine = (tenant) => {
   const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
@@ -253,6 +254,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
   const { tenant, user } = useSelector((state) => state.auth)
+  const { settings: salesSettings } = useSalesSettings()
   const { t } = useTranslation(language)
   const showArabicFields = isArabicTenantMarket(tenant)
   const isPk = isPakistanTenant(tenant)
@@ -328,6 +330,18 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       hasTravel: tenantBusinessTypes.includes('travel_agency'),
     })
   })
+
+  useEffect(() => {
+    if (invoiceId || !salesSettings) return
+    if (!getValues('termsAndConditions') && salesSettings.invoiceDefaultTerms) {
+      setValue('termsAndConditions', salesSettings.invoiceDefaultTerms)
+      setShowTermsPanel(true)
+    }
+    if (!getValues('notes') && salesSettings.invoiceDefaultNotes) {
+      setValue('notes', salesSettings.invoiceDefaultNotes)
+      setShowNotesPanel(true)
+    }
+  }, [salesSettings, invoiceId, getValues, setValue])
 
   const { fields, append, remove, replace } = useFieldArray({ control, name: 'lineItems', keyName: 'fieldId' })
   const values = watch()
@@ -409,7 +423,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     if (enable) {
       const current = getValues('termsAndConditions')
       if (!current) {
-        const defaultTerms = tenant?.settings?.invoiceBranding?.termsAndConditions ||
+        const defaultTerms = salesSettings?.invoiceDefaultTerms ||
+          tenant?.settings?.invoiceBranding?.termsAndConditions ||
           tenant?.settings?.termsAndConditions ||
           tenant?.settings?.invoiceBranding?.defaultTermsAndConditions ||
           ''
@@ -425,7 +440,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     if (enable) {
       const current = getValues('notes')
       if (!current) {
-        const defaultNotes = tenant?.settings?.invoiceBranding?.defaultNotes ||
+        const defaultNotes = salesSettings?.invoiceDefaultNotes ||
+          tenant?.settings?.invoiceBranding?.defaultNotes ||
           tenant?.settings?.notes ||
           ''
         if (defaultNotes) setValue('notes', defaultNotes)

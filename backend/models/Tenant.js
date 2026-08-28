@@ -399,6 +399,10 @@ const tenantSchema = new mongoose.Schema({
       headingSize: { type: Number, min: 10, max: 72, default: 24 },
       crVatSize: { type: Number, min: 8, max: 48, default: 14 },
       singleLineHeading: { type: Boolean, default: false },
+      /** Heading + footer text color (letterhead chrome) */
+      letterheadTextColor: { type: String, default: '#0F172A' },
+      /** Header + footer accent/border color (letterhead chrome) */
+      letterheadAccentColor: { type: String, default: '#0F172A' },
       typography: { type: invoiceTypographySchema, default: () => ({}) },
       showVision2030: { type: Boolean, default: true },
       vision2030Logo: { type: String },

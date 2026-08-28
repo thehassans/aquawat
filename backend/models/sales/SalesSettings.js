@@ -36,6 +36,16 @@ const salesSettingsSchema = new mongoose.Schema({
   /** Reveal [Send Pro-Forma] action on quotations */
   enableProforma: { type: Boolean, default: true },
 
+  /** Invoice document defaults */
+  invoiceDefaultTerms: { type: String, default: '' },
+  invoiceDefaultNotes: { type: String, default: '' },
+  invoiceShowCrVatOnLetterhead: { type: Boolean, default: true },
+
+  /** Quotation document defaults */
+  quotationDefaultTerms: { type: String, default: '' },
+  quotationDefaultNotes: { type: String, default: '' },
+  quotationAutoSendOnCreate: { type: Boolean, default: false },
+
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 

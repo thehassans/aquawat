@@ -6,7 +6,7 @@ import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import { PortalDropdown } from '../../pages/inventory/PortalDropdown'
 import { isSaudiTenant } from '../../lib/saudiTenant'
 
-function buildCreateItems({ businessTypes, isAr, isSaudi, hideQuotations }) {
+function buildCreateItems({ businessTypes, isSaudi, hideQuotations }) {
   const canCreatePurchase = businessTypes.some((type) =>
     ['trading', 'construction', 'travel_agency', 'bakala', 'pharmacy', 'furniture_shop', 'supermarket'].includes(type)
   )
@@ -74,6 +74,9 @@ function buildCreateItems({ businessTypes, isAr, isSaudi, hideQuotations }) {
   return items
 }
 
+const triggerClass =
+  'inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3.5 py-2 text-sm font-semibold text-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-dark-800 dark:text-slate-100 dark:hover:bg-dark-700'
+
 export default function SalesCreateMenu({
   language = 'en',
   labelEn = 'Create',
@@ -87,7 +90,7 @@ export default function SalesCreateMenu({
   const businessTypes = getTenantBusinessTypes(tenant)
   const hideQuotations = businessTypes.includes('bakala')
   const isSaudi = isSaudiTenant(tenant)
-  const items = buildCreateItems({ businessTypes, isAr, isSaudi, hideQuotations })
+  const items = buildCreateItems({ businessTypes, isSaudi, hideQuotations })
 
   useEffect(() => {
     setOpen(false)
@@ -98,17 +101,17 @@ export default function SalesCreateMenu({
       <button
         ref={btnRef}
         type="button"
-        className={`btn btn-action-dark ${className}`}
+        className={`${triggerClass} ${className}`}
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
-        <Plus className="h-4 w-4" />
+        <Plus className="h-4 w-4 text-slate-500" strokeWidth={1.75} />
         {isAr ? labelAr : labelEn}
-        <ChevronDown className={`h-4 w-4 transition ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition ${open ? 'rotate-180' : ''}`} />
       </button>
       <PortalDropdown open={open} onClose={() => setOpen(false)} anchorRef={btnRef} align="end">
-        <div className="py-1">
-          <div className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+        <div className="min-w-[260px] overflow-hidden rounded-2xl border border-slate-200/90 bg-white py-1 shadow-[0_20px_50px_-24px_rgba(15,23,42,0.35)] dark:border-dark-600 dark:bg-dark-800">
+          <div className="px-3.5 pb-1 pt-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
             {isAr ? 'مستند جديد' : 'New document'}
           </div>
           {items.map((item) => {
@@ -118,9 +121,9 @@ export default function SalesCreateMenu({
                 key={item.id}
                 to={item.href}
                 onClick={() => setOpen(false)}
-                className="flex items-start gap-3 px-3 py-2.5 transition hover:bg-slate-50 dark:hover:bg-dark-700"
+                className="flex items-start gap-3 px-3.5 py-2.5 transition hover:bg-slate-50 dark:hover:bg-dark-700"
               >
-                <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-200">
+                <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200/90 bg-white text-slate-600 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300">
                   <Icon className="h-4 w-4" strokeWidth={1.75} />
                 </span>
                 <span className="min-w-0">

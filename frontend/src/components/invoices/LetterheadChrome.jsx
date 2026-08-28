@@ -1,5 +1,5 @@
 import { Building2, Mail, Phone, MapPin } from 'lucide-react'
-import { getLetterheadContact, splitCompanyNameLines, getLetterheadStyle } from '../../lib/invoiceBranding'
+import { getLetterheadContact, splitCompanyNameLines, getLetterheadStyle, getInvoiceTypography, getInvoiceCssFontFamily } from '../../lib/invoiceBranding'
 import { toEasternArabicNumerals, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 import { isPakistanTenant, isBangladeshTenant } from '../../lib/saudiTenant'
 
@@ -30,9 +30,12 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
   const addressSec = isArabic ? toEasternArabicNumerals(contact.addressAr) : (contact.addressAr || '')
 
   const invoiceBranding = tenant?.settings?.invoiceBranding || {}
+  const typography = getInvoiceTypography(tenant)
+  const headingFontFamily = getInvoiceCssFontFamily(typography.headingFontFamily)
+  const bodyFontFamily = getInvoiceCssFontFamily(typography.bodyFontFamily)
   const logoHeight = invoiceBranding.logoSize || 112
-  const headingFontSize = invoiceBranding.headingSize || 24
-  const crVatFontSize = invoiceBranding.crVatSize || 14
+  const headingFontSize = invoiceBranding.headingSize || typography.headingFontSize || 24
+  const crVatFontSize = invoiceBranding.crVatSize || Math.max(9, (typography.bodyFontSize || 12) + 2)
   const isSingleLine = invoiceBranding.singleLineHeading || false
 
   const { textColor, accentColor, headerTextEn, headerTextAr, footerTextEn, footerTextAr } = letterheadStyle
@@ -53,7 +56,11 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
   const footerBorderStyle = { borderTopColor: accentColor, borderTopWidth: 2, borderTopStyle: 'solid' }
 
   return (
-    <div data-letterhead-root className={`relative mx-auto flex min-h-[297mm] w-full max-w-4xl flex-col overflow-hidden bg-white text-gray-900 ${className}`}>
+    <div
+      data-letterhead-root
+      className={`relative mx-auto flex min-h-[297mm] w-full max-w-4xl flex-col overflow-hidden bg-white text-gray-900 ${className}`}
+      style={{ fontFamily: bodyFontFamily, color: textColor }}
+    >
       {logoSrc ? (
         <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center select-none">
           <img src={logoSrc} alt="" className="h-72 w-72 object-contain opacity-[0.06] sm:h-96 sm:w-96" />
@@ -65,7 +72,7 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
           <div className="min-w-0 w-full text-left">
             {showEn ? (
               <>
-                <h1 className="min-h-16 font-bold leading-tight print:text-black" style={{ fontSize: `${headingFontSize}px`, color: textColor }}>
+                <h1 className="min-h-16 font-bold leading-tight print:text-black" style={{ fontSize: `${headingFontSize}px`, color: textColor, fontFamily: headingFontFamily }}>
                   {isSingleLine ? (
                     <span className="block whitespace-nowrap">{contact.companyEn || '—'}</span>
                   ) : (
@@ -98,7 +105,7 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
           <div className={`min-w-0 w-full ${isBangla ? 'text-right' : 'text-right font-[\'Almarai\']'}`} dir={isBangla ? 'ltr' : 'rtl'}>
             {showSec ? (
               <>
-                <h1 className={`min-h-16 w-full font-bold leading-tight print:text-black ${!isBangla ? "font-['Almarai']" : ''}`} style={{ fontSize: `${headingFontSize}px`, color: textColor }}>
+                <h1 className={`min-h-16 w-full font-bold leading-tight print:text-black ${!isBangla ? "font-['Almarai']" : ''}`} style={{ fontSize: `${headingFontSize}px`, color: textColor, fontFamily: isBangla ? headingFontFamily : undefined }}>
                   {isSingleLine ? (
                     <span className="block whitespace-nowrap">{contact.companyAr || contact.companyEn}</span>
                   ) : (
@@ -122,8 +129,8 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
 
       <div className="relative z-10 flex-1 bg-transparent">{children}</div>
 
-      <footer className="relative z-10 mt-auto bg-gradient-to-r from-gray-50/80 to-white p-6 print:bg-none print:p-4" style={footerBorderStyle}>
-        <div className="mx-auto flex max-w-3xl flex-col items-center gap-2 text-center text-sm font-bold print:text-black" style={{ color: textColor }}>
+      <footer className="relative z-10 mt-auto bg-gradient-to-r from-gray-50/80 to-white p-6 print:bg-none print:p-4" style={{ ...footerBorderStyle, color: textColor }}>
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-2 text-center text-sm font-bold print:text-black" style={{ color: textColor, fontFamily: bodyFontFamily }}>
           {contact.addressLine ? (
             <p className="flex items-start justify-center gap-1.5">
               <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: accentColor }} />
