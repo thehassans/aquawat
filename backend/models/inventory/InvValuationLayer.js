@@ -5,6 +5,7 @@ import { installNoDeleteGuard } from '../../services/inventory/appendOnly.js';
 const schema = new mongoose.Schema({
   ...tenantFields,
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+  variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant', default: null },
   quantity: { ...decimalField, default: '0' },
   quantityNum: { ...decimal128Field },
   unitCost: { ...decimalField, default: '0' },
@@ -24,6 +25,7 @@ const schema = new mongoose.Schema({
 }, { timestamps: true });
 
 schema.index({ tenantId: 1, productId: 1, createdAt: 1 });
+schema.index({ tenantId: 1, productId: 1, variantId: 1, createdAt: 1 });
 schema.index({ tenantId: 1, moveId: 1 });
 schema.index({ tenantId: 1, landedCostId: 1 });
 

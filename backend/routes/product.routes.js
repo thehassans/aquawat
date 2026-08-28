@@ -217,19 +217,46 @@ router.post('/export', checkPermission('inventory', 'read'), async (req, res) =>
 router.get('/lookup', checkPermission('inventory', 'read'), async (req, res) => {
   try {
     const { barcode, sku, qrCode } = req.query;
-    
+
+    const InvProductVariant = (await import('../models/inventory/InvProductVariant.js')).default;
+    const code = barcode || sku || qrCode;
+    if (!code) return res.status(400).json({ error: 'Provide barcode, sku, or qrCode' });
+
+    const variant = await InvProductVariant.findOne({
+      tenantId: req.user.tenantId,
+      active: true,
+      $or: [
+        ...(barcode ? [{ barcode }] : []),
+        ...(sku ? [{ sku }] : []),
+        ...(qrCode ? [{ barcode: qrCode }, { sku: qrCode }] : []),
+      ],
+    }).select('_id productId name sku barcode').lean();
+
+    if (variant?.productId) {
+      const product = await Product.findOne({ _id: variant.productId, ...req.tenantFilter })
+        .populate('stocks.warehouseId', 'nameEn nameAr code');
+      if (product) {
+        const normalized = normalizeProductForClient(enrichInventory(product.toObject ? product.toObject() : product));
+        return res.json({
+          ...normalized,
+          variantId: variant._id,
+          variantName: variant.name,
+          variantSku: variant.sku,
+        });
+      }
+    }
+
     let query = { ...req.tenantFilter };
     if (barcode) query.barcode = barcode;
     else if (sku) query.sku = sku;
     else if (qrCode) query.qrCode = qrCode;
-    else return res.status(400).json({ error: 'Provide barcode, sku, or qrCode' });
-    
+
     const product = await Product.findOne(query).populate('stocks.warehouseId', 'nameEn nameAr code');
-    
+
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
     }
-    
+
     res.json(normalizeProductForClient(enrichInventory(product.toObject ? product.toObject() : product)));
   } catch (error) {
     res.status(500).json({ error: error.message });

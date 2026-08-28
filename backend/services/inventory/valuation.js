@@ -76,18 +76,22 @@ export function computeAverageCost({ qtyBefore, oldAvg, incomingQty, unitCost })
   return before.mul(D(oldAvg)).plus(incoming.mul(cost)).div(after);
 }
 
-async function currentInternalQty(tenantId, productId, session) {
+async function currentInternalQty(tenantId, productId, session, { variantId } = {}) {
   const internalLocs = await InvLocation.find({
     tenantId,
     usage: 'internal',
     active: true,
   }).select('_id').session(session).lean();
   const ids = internalLocs.map((l) => l._id);
-  const quants = await InvQuant.find({
+  const quantFilter = {
     tenantId,
     productId,
     locationId: { $in: ids },
-  }).session(session).lean();
+  };
+  if (variantId != null && variantId !== '') {
+    quantFilter.variantId = toObjectId(variantId);
+  }
+  const quants = await InvQuant.find(quantFilter).session(session).lean();
 
   let qty = D(0);
   for (const q of quants) qty = qty.plus(D(q.quantity));
@@ -103,6 +107,7 @@ async function currentInternalQty(tenantId, productId, session) {
 export async function createValuationForMove(session, {
   tenantId,
   productId,
+  variantId = null,
   quantity,
   moveId,
   direction,
@@ -113,6 +118,7 @@ export async function createValuationForMove(session, {
   if (evaluationEnabled === false) return null;
 
   const tid = toObjectId(tenantId);
+  const vid = variantId ? toObjectId(variantId) : null;
   const ctx = await loadCostContext(productId, session);
 
   // Manual valuation: still write layers for reporting, skip journal later
@@ -129,6 +135,7 @@ export async function createValuationForMove(session, {
     const [layer] = await InvValuationLayer.create([{
       tenantId: tid,
       productId,
+      variantId: vid,
       quantity: decStr(qty),
       unitCost: decStr(unitCost),
       value: decStr(value),
@@ -141,7 +148,7 @@ export async function createValuationForMove(session, {
     if (ctx.costMethod === 'average') {
       // AVCO: (qty_before * avg + incoming_qty * unit_cost) / qty_after
       // Quant delta already applied, so currentInternalQty includes this receipt.
-      const qtyAfter = await currentInternalQty(tid, productId, session);
+      const qtyAfter = await currentInternalQty(tid, productId, session, { variantId: vid });
       const qtyBefore = qtyAfter.minus(qty);
       const newAvg = computeAverageCost({
         qtyBefore,
@@ -165,6 +172,7 @@ export async function createValuationForMove(session, {
     const [layer] = await InvValuationLayer.create([{
       tenantId: tid,
       productId,
+      variantId: vid,
       quantity: decStr(qty.neg()),
       unitCost: decStr(unitCost),
       value: decStr(value),
@@ -177,11 +185,18 @@ export async function createValuationForMove(session, {
   }
 
   // FIFO
-  const layers = await InvValuationLayer.find({
+  const layerFilter = {
     tenantId: tid,
     productId,
     remainingQty: { $ne: '0' },
-  }).sort({ createdAt: 1, _id: 1 }).session(session);
+  };
+  if (vid) {
+    layerFilter.variantId = vid;
+  } else {
+    layerFilter.$or = [{ variantId: null }, { variantId: { $exists: false } }];
+  }
+  const layers = await InvValuationLayer.find(layerFilter)
+    .sort({ createdAt: 1, _id: 1 }).session(session);
 
   const { totalCost, updates } = consumeFifoLayers(layers, qty, ctx.standardPrice);
   for (const u of updates) {
@@ -196,6 +211,7 @@ export async function createValuationForMove(session, {
   const [outLayer] = await InvValuationLayer.create([{
     tenantId: tid,
     productId,
+    variantId: vid,
     quantity: decStr(qty.neg()),
     unitCost: decStr(unitCost),
     value: decStr(totalCost.neg()),
@@ -208,13 +224,20 @@ export async function createValuationForMove(session, {
   return { layer: outLayer, direction: 'out', valuationMode: ctx.valuationMode };
 }
 
-export async function productInventoryValue(tenantId, productId) {
+export async function productInventoryValue(tenantId, productId, { variantId } = {}) {
   const tid = toObjectId(tenantId);
+  const vid = variantId ? toObjectId(variantId) : null;
   const ctx = await loadCostContext(productId, null);
-  const qty = await currentInternalQty(tid, productId, null);
+  const qty = await currentInternalQty(tid, productId, null, { variantId: vid });
 
   if (ctx.costMethod === 'fifo') {
-    const layers = await InvValuationLayer.find({ tenantId: tid, productId }).lean();
+    const layerFilter = { tenantId: tid, productId };
+    if (vid) {
+      layerFilter.variantId = vid;
+    } else {
+      layerFilter.$or = [{ variantId: null }, { variantId: { $exists: false } }];
+    }
+    const layers = await InvValuationLayer.find(layerFilter).lean();
     const remaining = layers.reduce((s, l) => D(s).plus(D(l.remainingValue || 0)), D(0));
     return { qty: decStr(qty), value: decStr(remaining), costMethod: 'fifo' };
   }

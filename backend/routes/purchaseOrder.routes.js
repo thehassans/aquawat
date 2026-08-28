@@ -14,7 +14,7 @@ import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { saveUploadBuffer, readUploadBuffer } from '../utils/objectStorage.js';
 import { normalizeProductType } from '../utils/productType.js';
 import { confirmGrnReceive, generateGrnNumber, ensureDraftGrnForApprovedPo, PurchasesValidationError, upsertDraftLandedCostForPo } from '../services/purchasesWorkflow.js';
-import { computePurchaseLineTotals, buildPoReceivingLedger, round2 } from '../services/purchasesLogic.js';
+import { computePurchaseLineTotals, buildPoReceivingLedger, round2, matchPurchaseLine } from '../services/purchasesLogic.js';
 import { nextDailyDocNumber } from '../services/inventory/sequence.js';
 
 const router = express.Router();

@@ -84,6 +84,15 @@ function idOf(value) {
   return String(value);
 }
 
+/** Match PO/GRN line by productId, preferring variantId when provided. */
+export function matchPurchaseLine(row, { productId, variantId } = {}) {
+  if (String(row?.productId || '') !== String(productId || '')) return false;
+  const wantVariant = variantId ? String(variantId) : '';
+  const rowVariant = row?.variantId ? String(row.variantId) : '';
+  if (wantVariant) return rowVariant === wantVariant;
+  return true;
+}
+
 function nameSet(values) {
   return new Set(
     (Array.isArray(values) ? values : [])
@@ -98,6 +107,7 @@ export function buildPoReceivingLedger({ lineItems = [], grns = [] } = {}) {
     return {
       index,
       productId: idOf(product || li?.productId),
+      variantId: idOf(li?.variantId),
       sku: product?.sku || '',
       productName: product?.nameEn || li?.manualName || li?.description || '',
       productNameAr: product?.nameAr || li?.manualName || li?.description || '',
@@ -132,10 +142,12 @@ export function buildPoReceivingLedger({ lineItems = [], grns = [] } = {}) {
         status: grn.status,
       };
       const pid = idOf(line.productId);
+      const vid = idOf(line.variantId);
       const pname = String(line.productName || '').trim().toLowerCase();
       const match = lines.find((row) =>
-        (pid && row.productId && pid === String(row.productId))
-        || (pname && row.names.has(pname))
+        matchPurchaseLine(row, { productId: pid, variantId: vid })
+        || ((pid && row.productId && pid === String(row.productId) && !vid && !row.variantId)
+          || (pname && row.names.has(pname)))
       );
       if (!match) {
         unmatched.push(event);

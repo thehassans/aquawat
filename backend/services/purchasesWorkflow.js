@@ -12,6 +12,7 @@ import {
   applyGrnReceiveToPoLines,
   applyReturnToReceivedLines,
   allocateLandedCosts,
+  matchPurchaseLine,
   nextDocumentNumber,
   stockDeltaForLine,
   toNumber,
@@ -181,6 +182,13 @@ async function postLineStock({ tenantId, warehouseId, line, direction }) {
   const delta = stockDeltaForLine({ productType, quantity: qty, direction });
   if (!delta || !line.productId) return { kind: 'skip' };
 
+  const { assertStockMoveVariant } = await import('./inventory/variantGuard.js');
+  await assertStockMoveVariant(tenantId, {
+    productId: line.productId,
+    variantId: line.variantId || null,
+    allowAutoSingle: true,
+  });
+
   const found = await findCatalogProduct(tenantId, line.productId);
   if (!found) {
     throw new PurchasesValidationError(`Product not found: ${line.productName || line.productId}`, 'PRODUCT_NOT_FOUND');
@@ -252,7 +260,10 @@ export async function reversePurchaseOrderReceive({ tenantFilter, purchaseOrderI
   for (const line of receiveLines || []) {
     const qty = toNumber(line.quantityReceived ?? line.quantity, 0);
     if (qty <= 0) continue;
-    const target = (order.lineItems || []).find((li) => String(li.productId || '') === String(line.productId || ''));
+    const target = (order.lineItems || []).find((li) => matchPurchaseLine(li, {
+      productId: line.productId,
+      variantId: line.variantId,
+    }));
     if (!target) continue;
     target.quantityReceived = Math.max(0, round2(toNumber(target.quantityReceived) - qty));
   }
@@ -300,13 +311,23 @@ export async function confirmGrnReceive({ tenantFilter, user, grn, warehouseId }
           const unitCost = line.costPrice != null && line.costPrice !== ''
             ? String(line.costPrice)
             : (line.unitCost != null ? String(line.unitCost) : undefined);
+          const { assertStockMoveVariant } = await import('./inventory/variantGuard.js');
+          const resolvedVariantId = await assertStockMoveVariant(user.tenantId, {
+            productId: line.productId,
+            variantId: line.variantId || null,
+            allowAutoSingle: true,
+          });
           const moveFilter = {
             tenantId: user.tenantId,
             transferId: linked._id,
             productId: line.productId,
             state: { $nin: ['done', 'cancelled'] },
           };
-          if (line.variantId) moveFilter.variantId = line.variantId;
+          if (resolvedVariantId) {
+            moveFilter.variantId = resolvedVariantId;
+          } else {
+            moveFilter.$or = [{ variantId: null }, { variantId: { $exists: false } }];
+          }
           const move = await InvMove.findOne(moveFilter);
           if (move) {
             if (unitCost != null) move.unitCost = unitCost;
@@ -420,7 +441,10 @@ export async function confirmPurchaseReturn({ tenantFilter, user, purchaseReturn
       purchaseReturn.lines
     );
     for (const line of grn.lines || []) {
-      const updated = result.lines.find((row) => String(row.productId || '') === String(line.productId || ''));
+      const updated = result.lines.find((row) => matchPurchaseLine(row, {
+        productId: line.productId,
+        variantId: line.variantId,
+      }));
       if (updated) line.quantityReturned = updated.quantityReturned;
     }
     await grn.save();
@@ -432,6 +456,7 @@ export async function confirmPurchaseReturn({ tenantFilter, user, purchaseReturn
       const result = applyReturnToReceivedLines(
         (order.lineItems || []).map((li) => ({
           productId: li.productId,
+          variantId: li.variantId,
           productType: li.productType,
           quantityReceived: li.quantityReceived,
           quantityReturned: li.quantityReturned,
@@ -439,7 +464,10 @@ export async function confirmPurchaseReturn({ tenantFilter, user, purchaseReturn
         purchaseReturn.lines
       );
       for (const line of order.lineItems || []) {
-        const updated = result.lines.find((row) => String(row.productId || '') === String(line.productId || ''));
+        const updated = result.lines.find((row) => matchPurchaseLine(row, {
+          productId: line.productId,
+          variantId: line.variantId,
+        }));
         if (updated) line.quantityReturned = updated.quantityReturned;
       }
       await order.save();

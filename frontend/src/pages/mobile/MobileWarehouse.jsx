@@ -9,6 +9,23 @@ import { asInvList } from '../../lib/invList'
 import { formatInvError } from '../../lib/invError'
 import BarcodeScanner from '../../components/ui/BarcodeScanner'
 
+function matchTransferMove(moves, product) {
+  return (moves || []).find((m) => {
+    const pid = String(m.productId?._id || m.productId)
+    if (pid !== String(product._id)) return false
+    if (product.variantId) {
+      return String(m.variantId?._id || m.variantId || '') === String(product.variantId)
+    }
+    return true
+  })
+}
+
+function moveLineLabel(m) {
+  const base = m.productId?.nameEn || m.productId?.sku || '—'
+  const variant = m.variantId?.name
+  return variant ? `${base} · ${variant}` : base
+}
+
 function MobileShell({ children, title, backTo = '/m' }) {
   const { language } = useSelector((s) => s.ui)
   const ar = language === 'ar'
@@ -116,7 +133,7 @@ export function MobileReceive() {
     mutationFn: async () => {
       const product = await api.get('/products/lookup', { params: { barcode } }).then((r) => r.data)
       if (!product?._id) throw new Error(ar ? 'منتج غير موجود' : 'Product not found')
-      const move = (transfer?.moves || []).find((m) => String(m.productId?._id || m.productId) === String(product._id))
+      const move = matchTransferMove(transfer?.moves, product)
       if (!move) throw new Error(ar ? 'المنتج ليس في هذا الاستلام' : 'Product not on this receipt')
       const add = Number(qty) || 1
       const cur = Number(doneEdits[move._id] || 0)
@@ -167,7 +184,7 @@ export function MobileReceive() {
           <ul className="rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-dark-600 dark:bg-dark-800">
             {transfer.moves.map((m) => (
               <li key={m._id} className="flex items-center justify-between gap-2 border-b border-slate-50 py-2 last:border-0">
-                <span className="min-w-0 truncate">{m.productId?.nameEn || m.productId?.sku}</span>
+                <span className="min-w-0 truncate">{moveLineLabel(m)}</span>
                 <input
                   type="number"
                   className="input input-sm w-20 text-end"
@@ -229,7 +246,7 @@ export function MobilePick() {
     mutationFn: async () => {
       const product = await api.get('/products/lookup', { params: { barcode } }).then((r) => r.data)
       if (!product?._id) throw new Error(ar ? 'منتج غير موجود' : 'Product not found')
-      const move = (transfer?.moves || []).find((m) => String(m.productId?._id || m.productId) === String(product._id))
+      const move = matchTransferMove(transfer?.moves, product)
       if (!move) {
         if (navigator.vibrate) navigator.vibrate([100, 50, 100])
         throw new Error(ar ? 'المنتج لا يطابق أمر التسليم!' : 'Wrong product for this delivery!')
@@ -268,7 +285,7 @@ export function MobilePick() {
           <ul className="rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-dark-600 dark:bg-dark-800">
             {transfer.moves.map((m) => (
               <li key={m._id} className="flex items-center justify-between gap-2 border-b border-slate-50 py-2 last:border-0">
-                <span className="min-w-0 truncate">{m.productId?.nameEn || m.productId?.sku}</span>
+                <span className="min-w-0 truncate">{moveLineLabel(m)}</span>
                 <input
                   type="number"
                   className="input input-sm w-20 text-end"
@@ -307,6 +324,7 @@ export function MobileCount() {
       if (!product?._id) throw new Error(ar ? 'منتج غير موجود' : 'Product not found')
       await api.post('/stock/physical-inventory/set', {
         productId: product._id,
+        variantId: product.variantId || undefined,
         locationId,
         countedQuantity: Number(counted),
       })

@@ -264,6 +264,7 @@ export async function validateScrap(scrapId, tenantId, userId = null) {
         const val = await createValuationForMove(session, {
           tenantId: tid,
           productId: scrap.productId,
+          variantId: scrap.variantId || null,
           quantity: qty,
           moveId: move._id,
           direction: 'out',

@@ -14,6 +14,7 @@ import {
   summarizeOpenPo,
   assertDelayedLines,
   buildPoReceivingLedger,
+  matchPurchaseLine,
 } from '../services/purchasesLogic.js';
 
 const poLines = () => ([
@@ -154,4 +155,39 @@ test('PO receiving ledger keeps a reason and note per delayed line', () => {
   assert.equal(ledger.lines[0].delayedEvents[0].delayReason, 'Harmoz');
   assert.equal(ledger.lines[0].delayedEvents[0].notes, 'Waiting on next vessel');
   assert.equal(ledger.lines[1].delayedEvents[0].delayReason, 'Supplier shortage');
+});
+
+test('PO receiving ledger matches variant lines separately', () => {
+  const ledger = buildPoReceivingLedger({
+    lineItems: [
+      { productId: { _id: 'p1', nameEn: 'Shirt' }, variantId: 'v-red', quantityOrdered: 5, quantityReceived: 0 },
+      { productId: { _id: 'p1', nameEn: 'Shirt' }, variantId: 'v-blue', quantityOrdered: 3, quantityReceived: 0 },
+    ],
+    grns: [{
+      _id: 'grn1',
+      grnNumber: 'GRN-2',
+      status: 'received',
+      lines: [
+        { productId: 'p1', variantId: 'v-red', productName: 'Shirt Red', quantityReceived: 2, isDelayed: false },
+        { productId: 'p1', variantId: 'v-blue', productName: 'Shirt Blue', quantityReceived: 1, isDelayed: false },
+      ],
+    }],
+  });
+  assert.equal(ledger.lines[0].variantId, 'v-red');
+  assert.equal(ledger.lines[0].receivedEvents.length, 1);
+  assert.equal(ledger.lines[0].receivedEvents[0].quantityReceived, 2);
+  assert.equal(ledger.lines[1].variantId, 'v-blue');
+  assert.equal(ledger.lines[1].receivedEvents.length, 1);
+  assert.equal(ledger.lines[1].receivedEvents[0].quantityReceived, 1);
+});
+
+test('matchPurchaseLine prefers variant when both sides specify it', () => {
+  assert.equal(matchPurchaseLine(
+    { productId: 'p1', variantId: 'v1' },
+    { productId: 'p1', variantId: 'v1' },
+  ), true);
+  assert.equal(matchPurchaseLine(
+    { productId: 'p1', variantId: 'v1' },
+    { productId: 'p1', variantId: 'v2' },
+  ), false);
 });

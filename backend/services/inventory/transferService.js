@@ -526,6 +526,7 @@ export async function validateTransfer(tenantId, transferId, {
               const val = await createValuationForMove(session, {
                 tenantId: tid,
                 productId: line.productId,
+                variantId: move.variantId || line.variantId || null,
                 quantity: decStr(qty),
                 moveId: move._id,
                 direction,

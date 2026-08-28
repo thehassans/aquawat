@@ -205,19 +205,25 @@ export async function reverseDocumentViaEngine({
 
   if (existing && existing.state === 'done') {
     const wizardLines = (lines || []).map((line, idx) => {
-      // map to move ids from existing transfer if possible — quantity-based return
       return {
         moveId: null,
         quantity: toQty(line.quantityReceived ?? line.quantityReturned ?? line.quantity),
         productId: line.productId,
+        variantId: line.variantId || null,
       };
     }).filter((l) => l.quantity > 0);
 
-    // Build return from done transfer
     const { getReturnWizard } = await import('./returns.js');
     const wiz = await getReturnWizard(tid, existing._id);
     const retLines = (wiz.lines || []).map((l) => {
-      const match = wizardLines.find((w) => String(w.productId) === String(l.productId?._id || l.productId));
+      const match = wizardLines.find((w) => {
+        const pid = String(w.productId);
+        const lip = String(l.productId?._id || l.productId);
+        if (pid !== lip) return false;
+        const wv = w.variantId ? String(w.variantId) : '';
+        const lv = l.variantId ? String(l.variantId?._id || l.variantId) : '';
+        return wv ? wv === lv : true;
+      });
       return {
         moveId: l.moveId,
         quantity: match ? Math.min(match.quantity, toQty(l.quantityDone)) : l.quantityDone,
@@ -270,6 +276,7 @@ export async function postPosSaleViaEngine({
     direction: 'out',
     lines: (lines || []).map((l) => ({
       productId: l.productId,
+      variantId: l.variantId || undefined,
       quantity: l.quantity,
       productType: l.productType || 'goods',
     })),
