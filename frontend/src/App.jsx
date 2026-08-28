@@ -759,31 +759,31 @@ function App() {
           <Route path="sales/orders" element={<SalesOrdersPage />} />
           <Route path="sales/orders/new" element={<SalesOrderCreatePage />} />
           <Route path="sales/orders/:id" element={<SalesOrderViewPage />} />
+          <Route path="sales/configuration" element={<SalesConfigurationLayout />}>
+            <Route index element={<Navigate to="settings" replace />} />
+            <Route path="settings" element={<SalesSettingsPage />} />
+            <Route path="teams" element={<SalesTeamsPage />} />
+            <Route path="tags" element={<SalesTagsPage />} />
+            <Route path="activity-types" element={<ActivityTypesPage />} />
+            <Route path="activity-plans" element={<ActivityPlansPage />} />
+            <Route path="pricelists" element={<PricelistsPage />} />
+            <Route path="promotions" element={<PromotionsPage />} />
+            <Route path="quotation-templates" element={<QuotationTemplatesPage />} />
+            <Route path="payment-providers" element={<PaymentProvidersPage />} />
+            <Route path="payment-methods" element={<PaymentMethodsPage />} />
+            <Route path="payment-transactions" element={<PaymentTransactionsPage />} />
+            <Route path="carrier-connectors" element={<CarrierConnectorsPage />} />
+          </Route>
+          <Route path="sales/reporting" element={<SalesReportingLayout />}>
+            <Route index element={<Navigate to="analysis" replace />} />
+            <Route path="analysis" element={<SalesAnalysisPage />} />
+            <Route path="matrix" element={<SalesMatrixReportPage />} />
+            <Route path="salespeople" element={<SalespeopleReportPage />} />
+            <Route path="products" element={<ProductsReportPage />} />
+            <Route path="customers" element={<CustomersReportPage />} />
+          </Route>
         </Route>
-        <Route path="sales/configuration" element={<SalesConfigurationLayout />}>
-          <Route index element={<Navigate to="settings" replace />} />
-          <Route path="settings" element={<SalesSettingsPage />} />
-          <Route path="teams" element={<SalesTeamsPage />} />
-          <Route path="tags" element={<SalesTagsPage />} />
-          <Route path="activity-types" element={<ActivityTypesPage />} />
-          <Route path="activity-plans" element={<ActivityPlansPage />} />
-          <Route path="pricelists" element={<PricelistsPage />} />
-          <Route path="promotions" element={<PromotionsPage />} />
-          <Route path="quotation-templates" element={<QuotationTemplatesPage />} />
-          <Route path="payment-providers" element={<PaymentProvidersPage />} />
-          <Route path="payment-methods" element={<PaymentMethodsPage />} />
-          <Route path="payment-transactions" element={<PaymentTransactionsPage />} />
-          <Route path="carrier-connectors" element={<CarrierConnectorsPage />} />
-        </Route>
-        <Route path="sales/reporting" element={<SalesReportingLayout />}>
-          <Route index element={<Navigate to="analysis" replace />} />
-          <Route path="analysis" element={<SalesAnalysisPage />} />
-          <Route path="matrix" element={<SalesMatrixReportPage />} />
-          <Route path="salespeople" element={<SalespeopleReportPage />} />
-          <Route path="products" element={<ProductsReportPage />} />
-          <Route path="customers" element={<CustomersReportPage />} />
-        </Route>
-        <Route path="sales" element={<Navigate to="/app/dashboard/invoices" replace />} />
+        <Route path="sales" element={<Navigate to="/app/dashboard/sales/orders" replace />} />
         <Route path="contacts" element={<Contacts />} />
         <Route path="calendar" element={<Calendar />} />
         <Route path="customers" element={<CustomersLayout />}>

@@ -257,11 +257,18 @@ export const userHasPermission = (user, module, action) => {
   if (!user) return false;
   if (user.role === 'super_admin' || user.role === 'admin') return true;
   if (typeof user.hasPermission === 'function') {
-    return user.hasPermission(module, action);
+    if (user.hasPermission(module, action)) return true;
+    // Sales module is exposed under the invoicing nav for most tenants
+    if (module === 'sales' && user.hasPermission('invoicing', action)) return true;
   }
   const permissions = Array.isArray(user.permissions) ? user.permissions : [];
   const perm = permissions.find((p) => p.module === module);
-  return Boolean(perm && Array.isArray(perm.actions) && perm.actions.includes(action));
+  if (Boolean(perm && Array.isArray(perm.actions) && perm.actions.includes(action))) return true;
+  if (module === 'sales') {
+    const inv = permissions.find((p) => p.module === 'invoicing');
+    return Boolean(inv && Array.isArray(inv.actions) && inv.actions.includes(action));
+  }
+  return false;
 };
 
 export const checkPermission = (module, action) => {
@@ -273,6 +280,22 @@ export const checkPermission = (module, action) => {
     if (!userHasPermission(req.user, module, action)) {
       return res.status(403).json({ 
         error: `Not authorized to ${action} in ${module} module` 
+      });
+    }
+    next();
+  };
+};
+
+/** Allow access if the user has any of the listed module/action pairs. */
+export const checkAnyPermission = (pairs = []) => {
+  return (req, res, next) => {
+    if (req.user.role === 'super_admin' || req.user.role === 'admin') {
+      return next();
+    }
+    const ok = pairs.some(([module, action]) => userHasPermission(req.user, module, action));
+    if (!ok) {
+      return res.status(403).json({
+        error: 'Not authorized for this sales / supply-chain action',
       });
     }
     next();

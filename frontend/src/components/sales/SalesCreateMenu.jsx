@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSelector } from 'react-redux'
-import { ChevronDown, FileClock, FileText, Package, Plus, ShoppingCart } from 'lucide-react'
+import { ChevronDown, FileClock, FileText, Package, Plus, Receipt, ShoppingCart } from 'lucide-react'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import { PortalDropdown } from '../../pages/inventory/PortalDropdown'
 import { isSaudiTenant } from '../../lib/saudiTenant'
@@ -16,9 +16,18 @@ function buildCreateItems({ businessTypes, isAr, isSaudi, hideQuotations }) {
 
   const items = [
     {
+      id: 'sales-order',
+      href: '/app/dashboard/sales/orders/new',
+      icon: ShoppingCart,
+      labelEn: 'Sales order',
+      labelAr: 'أمر بيع',
+      hintEn: 'Quote → confirm → deliver → invoice',
+      hintAr: 'عرض ← تأكيد ← تسليم ← فاتورة',
+    },
+    {
       id: 'sell',
       href: '/app/dashboard/invoices/new/sell',
-      icon: ShoppingCart,
+      icon: Receipt,
       labelEn: 'Sales invoice',
       labelAr: 'فاتورة مبيعات',
       hintEn: isSaudi ? 'B2B / B2C with ZATCA QR' : 'B2B / B2C tax invoice',

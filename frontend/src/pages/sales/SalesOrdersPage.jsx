@@ -1,78 +1,227 @@
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { Plus } from 'lucide-react'
+import { Eye, Plus, Search, ShoppingCart } from 'lucide-react'
 import api from '../../lib/api'
 import {
+  chipFilterClass,
+  docLinkClass,
+  emptyStateClass,
+  fieldControlClass,
+  filterBarClass,
   ghostActionClass,
+  kpiCardClass,
   listShellClass,
   pageSubtitleClass,
   pageTitleClass,
+  primaryActionClass,
+  rowActionPrimaryClass,
+  rowActionsWrapClass,
   salesTableClass,
   salesTdClass,
   salesThClass,
   salesTrClass,
-  docLinkClass,
-  emptyStateClass,
+  sectionEyebrowClass,
+  softChipClass,
+  soStatusChipClass,
+  soStatusLabel,
 } from './salesUi'
+
+const STATUS_FILTERS = [
+  { id: 'all', en: 'All', ar: 'الكل' },
+  { id: 'draft', en: 'Draft', ar: 'مسودة' },
+  { id: 'sent', en: 'Sent', ar: 'مُرسل' },
+  { id: 'approved', en: 'Confirmed', ar: 'مؤكد' },
+  { id: 'delivered', en: 'Delivered', ar: 'مُسلَّم' },
+  { id: 'cancelled', en: 'Cancelled', ar: 'ملغى' },
+]
 
 export default function SalesOrdersPage() {
   const { language } = useSelector((s) => s.ui)
   const isAr = language === 'ar'
+  const [q, setQ] = useState('')
+  const [status, setStatus] = useState('all')
 
   const { data, isLoading } = useQuery({
     queryKey: ['sales-orders'],
     queryFn: async () => {
-      const { data: res } = await api.get('/purchase-orders', { params: { flow: 'sell', limit: 100 } })
+      const { data: res } = await api.get('/purchase-orders', { params: { flow: 'sell', limit: 200 } })
       return res.purchaseOrders || res.items || res || []
     },
   })
 
-  const rows = Array.isArray(data) ? data : []
+  const rows = useMemo(() => {
+    const list = Array.isArray(data) ? data : []
+    const needle = q.trim().toLowerCase()
+    return list.filter((row) => {
+      if (status === 'approved') {
+        const confirmed = ['approved', 'partially_delivered', 'delivered'].includes(row.status) || row.isLocked
+        if (!confirmed || row.status === 'cancelled') return false
+      } else if (status === 'delivered') {
+        if (!['delivered', 'partially_delivered'].includes(row.status)) return false
+      } else if (status !== 'all' && row.status !== status) {
+        return false
+      }
+      if (!needle) return true
+      const hay = [
+        row.poNumber,
+        row.customerName,
+        row.customerId?.name,
+        row.customerId?.nameEn,
+        row.status,
+        row.incoterm,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return hay.includes(needle)
+    })
+  }, [data, q, status])
+
+  const kpis = useMemo(() => {
+    const list = Array.isArray(data) ? data : []
+    const draft = list.filter((r) => r.status === 'draft').length
+    const confirmed = list.filter((r) => ['approved', 'partially_delivered', 'delivered'].includes(r.status) || r.isLocked).length
+    const revenue = list
+      .filter((r) => r.status !== 'cancelled')
+      .reduce((s, r) => s + Number(r.grandTotal || 0), 0)
+    return { total: list.length, draft, confirmed, revenue }
+  }, [data])
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
+          <p className={sectionEyebrowClass}>{isAr ? 'دورة الطلب إلى النقد' : 'Order-to-cash'}</p>
           <h1 className={pageTitleClass}>{isAr ? 'أوامر البيع' : 'Sales Orders'}</h1>
           <p className={pageSubtitleClass}>
-            {isAr ? 'طلبات البيع المؤكدة والتسليم والفوترة' : 'Confirmed sell orders, delivery, and invoicing'}
+            {isAr
+              ? 'مسودة ← إرسال ← تأكيد ← تسليم ← فوترة'
+              : 'Draft → Sent → Confirmed → Delivery → Invoice'}
           </p>
         </div>
-        <Link to="/app/dashboard/sales/orders/new" className={ghostActionClass}>
+        <Link to="/app/dashboard/sales/orders/new" className={primaryActionClass}>
           <Plus className="h-3.5 w-3.5" />
           {isAr ? 'أمر بيع جديد' : 'New sales order'}
         </Link>
       </div>
-      <div className={listShellClass}>
-        <table className={salesTableClass}>
-          <thead>
-            <tr>
-              <th className={salesThClass}>{isAr ? 'الرقم' : 'Number'}</th>
-              <th className={salesThClass}>{isAr ? 'الحالة' : 'Status'}</th>
-              <th className={salesThClass}>{isAr ? 'الإجمالي' : 'Total'}</th>
-              <th className={salesThClass}>{isAr ? 'التاريخ' : 'Date'}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr><td colSpan={4} className={salesTdClass}>…</td></tr>
-            ) : rows.length === 0 ? (
-              <tr><td colSpan={4} className={`${salesTdClass} ${emptyStateClass}`}>{isAr ? 'لا توجد أوامر بيع' : 'No sales orders yet'}</td></tr>
-            ) : rows.map((row) => (
-              <tr key={row._id} className={salesTrClass}>
-                <td className={salesTdClass}>
-                  <Link to={`/app/dashboard/sales/orders/${row._id}`} className={docLinkClass}>
-                    {row.poNumber || row._id}
-                  </Link>
-                </td>
-                <td className={salesTdClass}>{row.status}</td>
-                <td className={salesTdClass}>{Number(row.grandTotal || 0).toFixed(2)} {row.currency || 'SAR'}</td>
-                <td className={salesTdClass}>{row.orderDate ? new Date(row.orderDate).toLocaleDateString() : '—'}</td>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className={kpiCardClass}>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{isAr ? 'الإجمالي' : 'Orders'}</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-white">{kpis.total}</p>
+        </div>
+        <div className={kpiCardClass}>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{isAr ? 'مسودات' : 'Drafts'}</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-white">{kpis.draft}</p>
+        </div>
+        <div className={kpiCardClass}>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{isAr ? 'مؤكدة' : 'Confirmed'}</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">{kpis.confirmed}</p>
+        </div>
+        <div className={kpiCardClass}>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{isAr ? 'قيمة الأوامر' : 'Pipeline value'}</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-white">{kpis.revenue.toFixed(0)} <span className="text-sm font-semibold text-slate-400">SAR</span></p>
+        </div>
+      </div>
+
+      <div className={filterBarClass}>
+        <div className="relative">
+          <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            className={`${fieldControlClass} ps-10`}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={isAr ? 'بحث برقم الأمر أو العميل…' : 'Search order number or customer…'}
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {STATUS_FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              className={chipFilterClass(status === f.id)}
+              onClick={() => setStatus(f.id)}
+            >
+              {isAr ? f.ar : f.en}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className={`${listShellClass} flex min-h-0 flex-1 flex-col`}>
+        <div className="flex-1 overflow-auto">
+          <table className={salesTableClass}>
+            <thead>
+              <tr>
+                <th className={salesThClass}>{isAr ? 'الرقم' : 'Number'}</th>
+                <th className={salesThClass}>{isAr ? 'العميل' : 'Customer'}</th>
+                <th className={salesThClass}>{isAr ? 'الحالة' : 'Status'}</th>
+                <th className={salesThClass}>Incoterm</th>
+                <th className={`${salesThClass} text-end`}>{isAr ? 'الإجمالي' : 'Total'}</th>
+                <th className={salesThClass}>{isAr ? 'التاريخ' : 'Date'}</th>
+                <th className={`${salesThClass} w-16`}isAr ? '' : ''}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={7} className={salesTdClass}>…</td></tr>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className={`${salesTdClass} ${emptyStateClass}`}>
+                    <div className="mx-auto flex max-w-sm flex-col items-center gap-3">
+                      <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-white/10">
+                        <ShoppingCart className="h-5 w-5" />
+                      </span>
+                      <p>{isAr ? 'لا توجد أوامر بيع بعد' : 'No sales orders yet'}</p>
+                      <Link to="/app/dashboard/sales/orders/new" className={ghostActionClass}>
+                        <Plus className="h-3.5 w-3.5" />
+                        {isAr ? 'إنشاء أول أمر' : 'Create your first order'}
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              ) : rows.map((row) => (
+                <tr key={row._id} className={salesTrClass}>
+                  <td className={salesTdClass}>
+                    <Link to={`/app/dashboard/sales/orders/${row._id}`} className={docLinkClass}>
+                      {row.poNumber || row._id}
+                    </Link>
+                    {row.isLocked ? <span className={`${softChipClass} ms-2`}>Locked</span> : null}
+                  </td>
+                  <td className={salesTdClass}>
+                    {row.customerId?.nameEn || row.customerId?.name || row.customerName || '—'}
+                  </td>
+                  <td className={salesTdClass}>
+                    <span className={soStatusChipClass(row.status, row.isLocked)}>
+                      {soStatusLabel(row.status, row.isLocked, isAr)}
+                    </span>
+                  </td>
+                  <td className={salesTdClass}>{row.incoterm || '—'}</td>
+                  <td className={`${salesTdClass} text-end font-semibold tabular-nums`}>
+                    {Number(row.grandTotal || 0).toFixed(2)}{' '}
+                    <span className="text-xs font-medium text-slate-400">{row.currency || 'SAR'}</span>
+                  </td>
+                  <td className={salesTdClass}>
+                    {row.orderDate ? new Date(row.orderDate).toLocaleDateString() : '—'}
+                  </td>
+                  <td className={salesTdClass}>
+                    <div className={rowActionsWrapClass}>
+                      <Link
+                        to={`/app/dashboard/sales/orders/${row._id}`}
+                        className={rowActionPrimaryClass}
+                        title={isAr ? 'عرض' : 'Open'}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )

@@ -10,7 +10,7 @@ import PurchaseReturn from '../models/PurchaseReturn.js';
 import LandedCost from '../models/LandedCost.js';
 import Invoice from '../models/Invoice.js';
 import Tenant from '../models/Tenant.js';
-import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
+import { protect, tenantFilter, checkPermission, checkAnyPermission, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { saveUploadBuffer, readUploadBuffer } from '../utils/objectStorage.js';
 import { normalizeProductType } from '../utils/productType.js';
@@ -89,7 +89,25 @@ async function generatePoNumber(tenantId) {
   return nextDailyDocNumber(tenantId, 'PO', { padding: 3 });
 }
 
-router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
+const sellOrSupply = (action) => checkAnyPermission([
+  ['supply_chain', action],
+  ['sales', action],
+  // Invoicing tenants often lack a dedicated "approve" action — allow update/create as confirm.
+  ...(action === 'approve'
+    ? [['supply_chain', 'update'], ['sales', 'update'], ['sales', 'create']]
+    : []),
+]);
+
+function gateSellOrSupply(action) {
+  return (req, res, next) => {
+    if (req.query.flow === 'sell' || req.body?.flow === 'sell') {
+      return sellOrSupply(action)(req, res, next);
+    }
+    return checkPermission('supply_chain', action)(req, res, next);
+  };
+}
+
+router.get('/', gateSellOrSupply('read'), async (req, res) => {
   try {
     const { page = 1, limit = 25, status, supplierId, warehouseId, search, startDate, endDate, receivable, flow } = req.query;
     
@@ -359,7 +377,7 @@ router.get('/reports', checkPermission('supply_chain', 'read'), async (req, res)
   }
 });
 
-router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => {
+router.get('/:id', sellOrSupply('read'), async (req, res) => {
   try {
     const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter })
       .populate('supplierId', 'supplierCode name nameEn nameAr phone email vatNumber crNumber address contactPerson')
@@ -399,7 +417,7 @@ router.get('/:id', checkPermission('supply_chain', 'read'), async (req, res) => 
   }
 });
 
-router.post('/', checkTrialLimits('purchaseOrders'), checkPermission('supply_chain', 'create'), async (req, res) => {
+router.post('/', checkTrialLimits('purchaseOrders'), gateSellOrSupply('create'), async (req, res) => {
   try {
     if (!req.user.tenantId) {
       return res.status(400).json({ error: 'No tenant associated with user' });
@@ -600,7 +618,7 @@ router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) =
   }
 });
 
-router.post('/:id/approve', checkPermission('supply_chain', 'approve'), async (req, res) => {
+router.post('/:id/approve', sellOrSupply('approve'), async (req, res) => {
   try {
     const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!order) {
@@ -708,7 +726,7 @@ router.post('/:id/approve', checkPermission('supply_chain', 'approve'), async (r
   }
 });
 
-router.post('/:id/send', checkPermission('supply_chain', 'update'), async (req, res) => {
+router.post('/:id/send', sellOrSupply('update'), async (req, res) => {
   try {
     const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!order) {
@@ -1121,7 +1139,7 @@ router.post('/:id/payment', checkPermission('supply_chain', 'update'), vendorBil
 });
 
 /** Create down-payment invoice from sell order (virtual product line, no stock impact) */
-router.post('/:id/down-payment-invoice', checkPermission('supply_chain', 'create'), async (req, res) => {
+router.post('/:id/down-payment-invoice', sellOrSupply('create'), async (req, res) => {
   try {
     const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter, flow: 'sell' });
     if (!order) return res.status(404).json({ error: 'Sales order not found' });

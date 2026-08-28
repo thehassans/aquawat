@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useSelector } from 'react-redux'
-import { FileText, Menu, X } from 'lucide-react'
+import { Menu, ShoppingCart, X } from 'lucide-react'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
-import { salesTabClass, salesPageShellClass } from './salesUi'
+import { salesTabClass, salesPageShellClass, sectionEyebrowClass } from './salesUi'
 import SalesCreateMenu from '../../components/sales/SalesCreateMenu'
 
 export default function SalesLayout() {
@@ -16,11 +16,11 @@ export default function SalesLayout() {
   const isAr = language === 'ar'
 
   const tabs = [
-    { id: 'invoices', href: '/app/dashboard/invoices', labelEn: 'Invoices', labelAr: 'الفواتير' },
+    { id: 'orders', href: '/app/dashboard/sales/orders', labelEn: 'Sales Orders', labelAr: 'أوامر البيع' },
     ...(hideQuotations
       ? []
       : [{ id: 'quotations', href: '/app/dashboard/quotations', labelEn: 'Quotations', labelAr: 'عروض الأسعار' }]),
-    { id: 'orders', href: '/app/dashboard/sales/orders', labelEn: 'Sales Orders', labelAr: 'أوامر البيع' },
+    { id: 'invoices', href: '/app/dashboard/invoices', labelEn: 'Invoices', labelAr: 'الفواتير' },
     { id: 'configuration', href: '/app/dashboard/sales/configuration', labelEn: 'Configuration', labelAr: 'الإعدادات' },
     { id: 'reporting', href: '/app/dashboard/sales/reporting', labelEn: 'Reporting', labelAr: 'التقارير' },
   ]
@@ -39,18 +39,26 @@ export default function SalesLayout() {
 
   return (
     <div className={salesPageShellClass}>
-      <div className="relative z-[30] border-b border-slate-200/90 bg-white dark:border-dark-600 dark:bg-dark-900">
-        <div className="flex flex-wrap items-end justify-between gap-3 px-4 pb-0 pt-3 sm:px-6">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-[radial-gradient(ellipse_at_top,_rgba(20,184,166,0.12),_transparent_55%),linear-gradient(180deg,rgba(248,250,252,0.9),transparent)] dark:bg-[radial-gradient(ellipse_at_top,_rgba(20,184,166,0.08),_transparent_55%),linear-gradient(180deg,rgba(15,23,42,0.55),transparent)]"
+      />
+
+      <div className="relative z-[30] border-b border-slate-200/90 bg-white/90 backdrop-blur-md dark:border-dark-600 dark:bg-dark-900/90">
+        <div className="flex flex-wrap items-end justify-between gap-3 px-4 pb-0 pt-4 sm:px-6">
           <div className="flex items-center gap-3 pb-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-200">
-              <FileText className="h-5 w-5" strokeWidth={1.75} />
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-900 to-slate-700 text-white shadow-[0_12px_30px_-16px_rgba(15,23,42,0.7)] dark:from-teal-500 dark:to-teal-700">
+              <ShoppingCart className="h-5 w-5" strokeWidth={1.75} />
             </div>
             <div>
-              <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
-                {isAr ? 'المبيعات' : 'Sales'}
+              <p className={sectionEyebrowClass}>{isAr ? 'محرك المبيعات والتوريد' : 'Sales & Fulfillment'}</p>
+              <h1 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">
+                {isAr ? 'المبيعات' : 'Maqder Sales'}
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                {isAr ? 'فواتير وعروض أسعار' : 'Invoices and quotations'}
+                {isAr
+                  ? 'عروض ← أوامر ← تسليم ← فوترة ZATCA'
+                  : 'Quotes → Orders → Delivery → ZATCA invoicing'}
               </p>
             </div>
           </div>
@@ -84,6 +92,9 @@ export default function SalesLayout() {
 
         {mobileOpen && (
           <div className="border-t border-slate-100 px-4 py-3 lg:hidden dark:border-dark-600">
+            <div className="mb-2">
+              <SalesCreateMenu language={language} labelEn="Create" labelAr="إنشاء" className="btn-sm w-full justify-center" />
+            </div>
             <nav className="flex flex-col gap-1">
               {tabs.map((tab) => {
                 const active = isActiveTab(tab.href)
@@ -105,7 +116,8 @@ export default function SalesLayout() {
           </div>
         )}
       </div>
-      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+
+      <div className="relative z-[1] flex-1 overflow-y-auto px-4 py-6 sm:px-6">
         <Outlet />
       </div>
     </div>
