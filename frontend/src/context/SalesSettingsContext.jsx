@@ -48,6 +48,7 @@ export function SalesSettingsProvider({ children }) {
       lockConfirmedSales: data?.lock_confirmed_sales !== false,
       enableSaleWarnings: data?.enable_sale_warnings !== false,
       enableProforma: data?.enable_proforma !== false,
+      showMarginsByDefault: data?.show_margins_by_default === true || data?.raw?.showMarginsByDefault === true,
     }),
     [data, isLoading, refetch],
   )

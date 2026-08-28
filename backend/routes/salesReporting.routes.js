@@ -1,10 +1,10 @@
 import express from 'express';
 import Invoice from '../models/Invoice.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
-import DeliveryNote from '../models/DeliveryNote.js';
 import SalesTeam from '../models/sales/SalesTeam.js';
 import Partner from '../models/Partner.js';
 import Product from '../models/Product.js';
+import { getDeliveredQuantities } from '../services/sales/invoicingPolicy.js';
 import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -182,14 +182,7 @@ router.get('/delivered-qty/:purchaseOrderId', checkPermission('sales', 'read'), 
     const po = await PurchaseOrder.findOne({ _id: req.params.purchaseOrderId, ...req.tenantFilter, flow: 'sell' }).lean();
     if (!po) return res.status(404).json({ error: 'Sales order not found' });
 
-    const notes = await DeliveryNote.find({ ...req.tenantFilter, purchaseOrderId: po._id, status: 'done' }).select('lines').lean();
-    const delivered = new Map();
-    for (const dn of notes) {
-      for (const line of dn.lines || []) {
-        const key = `${line.productId}:${line.variantId || ''}`;
-        delivered.set(key, (delivered.get(key) || 0) + Number(line.quantity || 0));
-      }
-    }
+    const delivered = await getDeliveredQuantities(req.tenantId || po.tenantId, po._id);
 
     res.json({ purchaseOrderId: po._id, delivered: Object.fromEntries(delivered) });
   } catch (e) {
