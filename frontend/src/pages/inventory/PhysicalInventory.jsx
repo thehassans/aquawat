@@ -63,6 +63,26 @@ function downloadCsv(filename, headers, rows) {
   URL.revokeObjectURL(url)
 }
 
+function playScanError() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext
+    if (!Ctx) return
+    const ctx = new Ctx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'square'
+    osc.frequency.value = 220
+    gain.gain.value = 0.08
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.start()
+    osc.stop(ctx.currentTime + 0.15)
+    osc.onended = () => ctx.close()
+  } catch {
+    /* optional feedback */
+  }
+}
+
 export default function PhysicalInventory() {
   const { language } = useSelector((s) => s.ui)
   const ar = language === 'ar'
@@ -498,6 +518,7 @@ export default function PhysicalInventory() {
         return api.get('/products/lookup', { params: { sku: q } }).then((r) => r.data)
       })
       if (!product?._id) {
+        playScanError()
         toast.error(ar ? 'غير موجود' : 'Not found')
         return
       }
@@ -515,6 +536,7 @@ export default function PhysicalInventory() {
       })
     } catch (e) {
       if (isVariantPickCancelled(e)) return
+      playScanError()
       toast.error(ar ? 'غير موجود' : 'Not found')
     }
   }

@@ -174,9 +174,6 @@ export default function PrintBarcodeLabelsModal({
               ))}
             </select>
           </div>
-          <button type="button" className="btn btn-secondary btn-sm" disabled={!rows.length} onClick={setAllOnHand}>
-            {ar ? 'تعيين حسب المخزون' : 'Set to On-Hand Qty'}
-          </button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto">
@@ -194,7 +191,19 @@ export default function PrintBarcodeLabelsModal({
                   <th className="w-28 px-3 py-2 text-start">SKU</th>
                   <th className="w-36 px-3 py-2 text-start">{ar ? 'الباركود' : 'Barcode'}</th>
                   <th className="w-24 px-3 py-2 text-end">{ar ? 'المخزون' : 'On hand'}</th>
-                  <th className="w-28 px-3 py-2 text-end">{ar ? 'عدد الملصقات' : 'Labels to print'}</th>
+                  <th className="w-28 px-3 py-2 text-end">
+                    <div className="flex flex-col items-end gap-1">
+                      <span>{ar ? 'عدد الملصقات' : 'Labels to print'}</span>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-xs whitespace-nowrap"
+                        disabled={!rows.length}
+                        onClick={setAllOnHand}
+                      >
+                        {ar ? 'تعيين حسب المخزون' : 'Set to On-Hand Qty'}
+                      </button>
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-dark-700">

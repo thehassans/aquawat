@@ -7,6 +7,7 @@ export default function ResponsiveDataList({
   renderCard,
   empty = null,
   className = '',
+  mobileToolbar = null,
   children,
 }) {
   const list = Array.isArray(items) ? items : []
@@ -15,6 +16,7 @@ export default function ResponsiveDataList({
   return (
     <div className={className}>
       <div className="md:hidden space-y-3">
+        {mobileToolbar}
         {!hasItems && empty}
         {hasItems && list.map((item, index) => renderCard(item, index))}
       </div>

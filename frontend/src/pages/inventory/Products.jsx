@@ -86,7 +86,13 @@ export default function Products() {
   const [selected, setSelected] = useState(() => new Set())
   const [labelModalOpen, setLabelModalOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const masterCheckboxRef = useRef(null)
+  const masterCheckboxRefs = useRef([])
+
+  const bindMasterCheckbox = (el) => {
+    if (el && !masterCheckboxRefs.current.includes(el)) {
+      masterCheckboxRefs.current.push(el)
+    }
+  }
 
   const columnDefs = useMemo(() => PRODUCT_COL_DEFS, [])
   const { visible, toggle } = useColumnVisibility('maqder-inv-product-cols', columnDefs)
@@ -210,9 +216,9 @@ export default function Products() {
   const somePageSelected = pageIds.some((id) => selected.has(id)) && !allPageSelected
 
   useEffect(() => {
-    if (masterCheckboxRef.current) {
-      masterCheckboxRef.current.indeterminate = somePageSelected
-    }
+    masterCheckboxRefs.current.forEach((el) => {
+      if (el) el.indeterminate = somePageSelected
+    })
   }, [somePageSelected])
 
   const toggleRow = (id) => {
@@ -239,9 +245,7 @@ export default function Products() {
     try {
       let rows
       if (selectedRowIds.length > 0) {
-        const res = await api.get('/products', {
-          params: { ids: selectedRowIds.join(','), limit: Math.min(500, selectedRowIds.length), page: 1 },
-        })
+        const res = await api.post('/products/export', { ids: selectedRowIds })
         rows = res.data?.products || []
       } else {
         rows = await getExportRows()
@@ -426,6 +430,25 @@ export default function Products() {
         ) : (
           <ResponsiveDataList
             items={products}
+            mobileToolbar={
+              products.length > 0 ? (
+                <div className="mb-2 flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={allPageSelected}
+                    ref={bindMasterCheckbox}
+                    onChange={toggleAllPage}
+                    disabled={!pageIds.length}
+                    aria-label={isAr ? 'تحديد الكل' : 'Select all'}
+                  />
+                  <span className="text-xs text-slate-500">
+                    {selectedRowIds.length
+                      ? (isAr ? `${selectedRowIds.length} محدد` : `${selectedRowIds.length} selected`)
+                      : (isAr ? 'تحديد الصفحة' : 'Select page')}
+                  </span>
+                </div>
+              ) : null
+            }
             empty={
               <div className="px-6 py-16 text-center">
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
@@ -441,41 +464,53 @@ export default function Products() {
               const hm = healthMeta[health] || healthMeta.in_stock
               const tracked = isStockTrackedProductType(product.productType)
               const type = normalizeProductType(product.productType)
+              const rowId = String(product._id)
               return (
                 <div key={product._id} className="rounded-2xl border border-slate-100 bg-white p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-slate-900">
-                        <Link to={`/app/dashboard/inventory/products/${product._id}`} className="hover:text-emerald-800 hover:underline">
-                          {isAr ? product.nameAr || product.nameEn : product.nameEn}
-                        </Link>
-                      </p>
-                      <p className="font-mono text-xs text-emerald-700">{product.productId || '—'}</p>
-                      <p className="font-mono text-xs text-slate-400">{product.sku}</p>
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      className="mt-1 shrink-0"
+                      checked={selected.has(rowId)}
+                      onChange={() => toggleRow(rowId)}
+                      aria-label={isAr ? 'تحديد' : 'Select row'}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-slate-900">
+                            <Link to={`/app/dashboard/inventory/products/${product._id}`} className="hover:text-emerald-800 hover:underline">
+                              {isAr ? product.nameAr || product.nameEn : product.nameEn}
+                            </Link>
+                          </p>
+                          <p className="font-mono text-xs text-emerald-700">{product.productId || '—'}</p>
+                          <p className="font-mono text-xs text-slate-400">{product.sku}</p>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${productTypeBadgeClass(type)}`}>
+                          {formatProductTypeLabel(type, language)}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex items-center justify-between text-sm">
+                        {(inv.aggregatedFromVariants || (product.variantCount || 0) > 0) ? (
+                          <button
+                            type="button"
+                            className={`font-semibold hover:underline ${tracked ? qtyClass(health) : 'text-slate-500'}`}
+                            onClick={() => goToVariantStock(product)}
+                          >
+                            {tracked ? `${(inv.available ?? product.totalStock) || 0} ${product.unitOfMeasure || 'EA'}` : (isAr ? 'بدون مخزون' : 'No stock')}
+                          </button>
+                        ) : (
+                          <span className={`font-semibold ${tracked ? qtyClass(health) : 'text-slate-500'}`}>
+                            {tracked ? `${(inv.available ?? product.totalStock) || 0} ${product.unitOfMeasure || 'EA'}` : (isAr ? 'بدون مخزون' : 'No stock')}
+                          </span>
+                        )}
+                        <Money value={product.sellingPrice} />
+                      </div>
+                      {tracked ? (
+                        <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${hm.className}`}>{isAr ? hm.ar : hm.en}</span>
+                      ) : null}
                     </div>
-                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${productTypeBadgeClass(type)}`}>
-                      {formatProductTypeLabel(type, language)}
-                    </span>
                   </div>
-                  <div className="mt-3 flex items-center justify-between text-sm">
-                    {(inv.aggregatedFromVariants || (product.variantCount || 0) > 0) ? (
-                      <button
-                        type="button"
-                        className={`font-semibold hover:underline ${tracked ? qtyClass(health) : 'text-slate-500'}`}
-                        onClick={() => goToVariantStock(product)}
-                      >
-                        {tracked ? `${(inv.available ?? product.totalStock) || 0} ${product.unitOfMeasure || 'EA'}` : (isAr ? 'بدون مخزون' : 'No stock')}
-                      </button>
-                    ) : (
-                      <span className={`font-semibold ${tracked ? qtyClass(health) : 'text-slate-500'}`}>
-                        {tracked ? `${(inv.available ?? product.totalStock) || 0} ${product.unitOfMeasure || 'EA'}` : (isAr ? 'بدون مخزون' : 'No stock')}
-                      </span>
-                    )}
-                    <Money value={product.sellingPrice} />
-                  </div>
-                  {tracked ? (
-                    <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${hm.className}`}>{isAr ? hm.ar : hm.en}</span>
-                  ) : null}
                 </div>
               )
             }}
@@ -484,9 +519,9 @@ export default function Products() {
               <table className={`${invTableClass} table-fixed w-full`}>
                 <thead>
                   <tr className="border-b border-slate-100 text-start text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                    <th className="w-10 px-3 py-3">
+                    <th className="w-10 px-2 py-3">
                       <input
-                        ref={masterCheckboxRef}
+                        ref={bindMasterCheckbox}
                         type="checkbox"
                         checked={allPageSelected}
                         onChange={toggleAllPage}
@@ -516,7 +551,7 @@ export default function Products() {
                     const rowId = String(product._id)
                     return (
                       <tr key={product._id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/70">
-                        <td className="px-3 py-3.5">
+                        <td className="px-2 py-3.5">
                           <input
                             type="checkbox"
                             checked={selected.has(rowId)}
