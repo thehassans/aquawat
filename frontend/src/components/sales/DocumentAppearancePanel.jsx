@@ -141,10 +141,21 @@ export default function DocumentAppearancePanel({
 
       <div className={`${sectionCardClass} !p-4`}>
         <p className={`${sectionEyebrowClass} mb-3`}>{isAr ? 'معاينة حية' : 'Live preview'}</p>
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-dark-600 dark:bg-dark-900">
-          <div className="origin-top scale-[0.42] sm:scale-50" style={{ width: '238%', maxHeight: 420 }}>
-            {previewTenant ? <LetterheadChrome tenant={previewTenant} /> : null}
-          </div>
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100/80 p-2 dark:border-dark-600 dark:bg-dark-900">
+          {!previewTenant ? (
+            <div className="flex h-48 items-center justify-center text-xs text-slate-400">
+              {isAr ? 'جاري التحميل…' : 'Loading…'}
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-sm dark:border-dark-600">
+              <LetterheadChrome
+                tenant={previewTenant}
+                compact
+                bilingual
+                className="!max-w-none"
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
