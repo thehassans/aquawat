@@ -7,13 +7,13 @@ export const fieldLabelClass =
   'mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200'
 
 export const fieldControlClass =
-  'w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 dark:border-dark-500 dark:bg-dark-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-teal-400'
+  'w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-900/10 dark:border-dark-500 dark:bg-dark-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-400'
 
 export const sectionCardClass =
   'rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_12px_40px_-28px_rgba(15,23,42,0.35)] sm:p-6 dark:border-dark-600 dark:bg-dark-800'
 
 export const sectionEyebrowClass =
-  'text-[11px] font-bold uppercase tracking-[0.18em] text-teal-700 dark:text-teal-300'
+  'text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400'
 
 export const sectionTitleClass =
   'mt-1 text-xl font-semibold tracking-[-0.02em] text-slate-950 dark:text-white'
@@ -75,19 +75,19 @@ export const salesThClass =
   'sticky top-0 z-[1] px-4 py-3 text-start text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 bg-slate-50/95 border-b border-slate-200/90 backdrop-blur-sm dark:bg-dark-800/95 dark:text-slate-400 dark:border-dark-600'
 
 export const salesTdClass =
-  'px-4 py-4 border-b border-slate-100 align-middle dark:border-dark-700'
+  'px-4 py-3.5 border-b border-slate-200/70 align-middle dark:border-dark-600/80'
 
 export const salesTrClass =
   'bg-white transition-colors hover:bg-slate-50/70 dark:bg-dark-800 dark:hover:bg-dark-700/35'
 
 export const docLinkClass =
-  'inline-flex items-center gap-2 font-mono text-sm font-semibold text-slate-900 transition hover:text-teal-700 dark:text-white dark:hover:text-teal-300'
+  'inline-flex items-center gap-2 font-mono text-sm font-semibold text-slate-900 transition hover:text-slate-600 dark:text-white dark:hover:text-slate-300'
 
 export const rowActionBtnClass =
   'inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white'
 
 export const rowActionPrimaryClass =
-  'inline-flex h-8 w-8 items-center justify-center rounded-lg text-teal-700 transition hover:bg-teal-50 hover:text-teal-800 disabled:opacity-40 dark:text-teal-300 dark:hover:bg-teal-950/30'
+  'inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white'
 
 export const rowActionDangerClass =
   'inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-500 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40 dark:text-red-400 dark:hover:bg-red-950/30'
@@ -116,7 +116,7 @@ export const paginationBarClass =
   'flex flex-col items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row dark:border-dark-700'
 
 export const kpiCardClass =
-  'rounded-2xl border border-slate-200/90 bg-gradient-to-br from-white to-slate-50/80 p-4 shadow-[0_8px_30px_-24px_rgba(15,23,42,0.28)] dark:border-dark-600 dark:from-dark-800 dark:to-dark-800'
+  'rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-dark-600 dark:bg-dark-800'
 
 /** Blueprint SO state machine display (maps internal statuses) */
 export const SO_STATUS_META = {

@@ -248,7 +248,7 @@ export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, bus
           excludeBusinessTypes: ['khayyat'],
           activePrefixes: ['/app/dashboard/invoices', '/app/dashboard/quotations', '/app/dashboard/sales/orders', '/app/dashboard/sales/configuration', '/app/dashboard/sales/reporting', '/app/dashboard/sales'],
           children: [
-            { path: '/app/dashboard/sales/orders', label: language === 'ar' ? 'أوامر البيع' : 'Sales Orders', perm: { module: 'invoicing', action: 'read' } },
+            { path: '/app/dashboard/sales/orders', label: language === 'ar' ? 'الطلبات' : 'Orders', perm: { module: 'invoicing', action: 'read' } },
             { path: '/app/dashboard/quotations', label: language === 'ar' ? 'عروض الأسعار' : 'Quotations', perm: { module: 'invoicing', action: 'read' }, excludeBusinessTypes: ['bakala'] },
             { path: '/app/dashboard/invoices', label: language === 'ar' ? 'الفواتير' : 'Invoices', perm: { module: 'invoicing', action: 'read' } },
             { path: '/app/dashboard/sales/configuration', label: language === 'ar' ? 'إعدادات المبيعات' : 'Configuration', perm: { module: 'invoicing', action: 'read' } },

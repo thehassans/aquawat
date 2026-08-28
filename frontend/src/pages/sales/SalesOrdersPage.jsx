@@ -13,7 +13,6 @@ import {
   ghostActionClass,
   kpiCardClass,
   listShellClass,
-  pageSubtitleClass,
   pageTitleClass,
   primaryActionClass,
   rowActionPrimaryClass,
@@ -22,7 +21,6 @@ import {
   salesTdClass,
   salesThClass,
   salesTrClass,
-  sectionEyebrowClass,
   softChipClass,
   soStatusChipClass,
   soStatusLabel,
@@ -36,6 +34,16 @@ const STATUS_FILTERS = [
   { id: 'delivered', en: 'Delivered', ar: 'مُسلَّم' },
   { id: 'cancelled', en: 'Cancelled', ar: 'ملغى' },
 ]
+
+function KpiValue({ value, suffix }) {
+  const empty = value === 0 || value === '0'
+  return (
+    <p className={`mt-1.5 text-2xl font-semibold tracking-tight tabular-nums ${empty ? 'text-slate-300 dark:text-slate-600' : 'text-slate-900 dark:text-white'}`}>
+      {empty ? '—' : value}
+      {!empty && suffix ? <span className="ms-1 text-sm font-medium text-slate-400">{suffix}</span> : null}
+    </p>
+  )
+}
 
 export default function SalesOrdersPage() {
   const { language } = useSelector((s) => s.ui)
@@ -92,37 +100,29 @@ export default function SalesOrdersPage() {
   return (
     <div className="flex min-h-0 flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className={sectionEyebrowClass}>{isAr ? 'دورة الطلب إلى النقد' : 'Order-to-cash'}</p>
-          <h1 className={pageTitleClass}>{isAr ? 'أوامر البيع' : 'Sales Orders'}</h1>
-          <p className={pageSubtitleClass}>
-            {isAr
-              ? 'مسودة ← إرسال ← تأكيد ← تسليم ← فوترة'
-              : 'Draft → Sent → Confirmed → Delivery → Invoice'}
-          </p>
-        </div>
+        <h1 className={pageTitleClass}>{isAr ? 'الطلبات' : 'Orders'}</h1>
         <Link to="/app/dashboard/sales/orders/new" className={primaryActionClass}>
           <Plus className="h-3.5 w-3.5" />
-          {isAr ? 'أمر بيع جديد' : 'New sales order'}
+          {isAr ? 'طلب جديد' : 'New order'}
         </Link>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className={kpiCardClass}>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{isAr ? 'الإجمالي' : 'Orders'}</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-white">{kpis.total}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{isAr ? 'الإجمالي' : 'Orders'}</p>
+          <KpiValue value={kpis.total} />
         </div>
         <div className={kpiCardClass}>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{isAr ? 'مسودات' : 'Drafts'}</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-white">{kpis.draft}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{isAr ? 'مسودات' : 'Drafts'}</p>
+          <KpiValue value={kpis.draft} />
         </div>
         <div className={kpiCardClass}>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{isAr ? 'مؤكدة' : 'Confirmed'}</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">{kpis.confirmed}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{isAr ? 'مؤكدة' : 'Confirmed'}</p>
+          <KpiValue value={kpis.confirmed} />
         </div>
         <div className={kpiCardClass}>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{isAr ? 'قيمة الأوامر' : 'Pipeline value'}</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-white">{kpis.revenue.toFixed(0)} <span className="text-sm font-semibold text-slate-400">SAR</span></p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{isAr ? 'القيمة' : 'Pipeline'}</p>
+          <KpiValue value={kpis.revenue ? Math.round(kpis.revenue) : 0} suffix="SAR" />
         </div>
       </div>
 
@@ -133,7 +133,7 @@ export default function SalesOrdersPage() {
             className={`${fieldControlClass} ps-10`}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={isAr ? 'بحث برقم الأمر أو العميل…' : 'Search order number or customer…'}
+            placeholder={isAr ? 'بحث برقم الطلب أو العميل…' : 'Search number or customer…'}
           />
         </div>
         <div className="flex flex-wrap gap-2">
@@ -171,13 +171,13 @@ export default function SalesOrdersPage() {
                 <tr>
                   <td colSpan={7} className={`${salesTdClass} ${emptyStateClass}`}>
                     <div className="mx-auto flex max-w-sm flex-col items-center gap-3">
-                      <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-white/10">
-                        <ShoppingCart className="h-5 w-5" />
+                      <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200/90 bg-white text-slate-400 dark:border-white/10 dark:bg-dark-800">
+                        <ShoppingCart className="h-5 w-5" strokeWidth={1.75} />
                       </span>
-                      <p>{isAr ? 'لا توجد أوامر بيع بعد' : 'No sales orders yet'}</p>
+                      <p>{isAr ? 'لا توجد طلبات بعد' : 'No orders yet'}</p>
                       <Link to="/app/dashboard/sales/orders/new" className={ghostActionClass}>
                         <Plus className="h-3.5 w-3.5" />
-                        {isAr ? 'إنشاء أول أمر' : 'Create your first order'}
+                        {isAr ? 'إنشاء طلب' : 'New order'}
                       </Link>
                     </div>
                   </td>

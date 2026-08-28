@@ -16,7 +16,7 @@ export default function SalesLayout() {
   const isAr = language === 'ar'
 
   const tabs = [
-    { id: 'orders', href: '/app/dashboard/sales/orders', labelEn: 'Sales Orders', labelAr: 'أوامر البيع' },
+    { id: 'orders', href: '/app/dashboard/sales/orders', labelEn: 'Orders', labelAr: 'الطلبات' },
     ...(hideQuotations
       ? []
       : [{ id: 'quotations', href: '/app/dashboard/quotations', labelEn: 'Quotations', labelAr: 'عروض الأسعار' }]),
@@ -41,7 +41,7 @@ export default function SalesLayout() {
     <div className={salesPageShellClass}>
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-[radial-gradient(ellipse_at_top,_rgba(20,184,166,0.12),_transparent_55%),linear-gradient(180deg,rgba(248,250,252,0.9),transparent)] dark:bg-[radial-gradient(ellipse_at_top,_rgba(20,184,166,0.08),_transparent_55%),linear-gradient(180deg,rgba(15,23,42,0.55),transparent)]"
+        className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-[radial-gradient(ellipse_at_top,_rgba(15,23,42,0.06),_transparent_55%),linear-gradient(180deg,rgba(248,250,252,0.95),transparent)] dark:bg-[radial-gradient(ellipse_at_top,_rgba(255,255,255,0.04),_transparent_55%),linear-gradient(180deg,rgba(15,23,42,0.55),transparent)]"
       />
 
       <div className="relative z-[30] border-b border-slate-200/90 bg-white/90 backdrop-blur-md dark:border-dark-600 dark:bg-dark-900/90">
@@ -55,11 +55,6 @@ export default function SalesLayout() {
               <h1 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">
                 {isAr ? 'المبيعات' : 'Maqder Sales'}
               </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {isAr
-                  ? 'عروض ← أوامر ← تسليم ← فوترة ZATCA'
-                  : 'Quotes → Orders → Delivery → ZATCA invoicing'}
-              </p>
             </div>
           </div>
 

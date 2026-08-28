@@ -17,21 +17,25 @@ import {
   fieldControlClass,
   fieldLabelClass,
   ghostActionClass,
-  pageSubtitleClass,
   pageTitleClass,
+  primaryActionClass,
+  salesTableClass,
+  salesTdClass,
+  salesThClass,
+  salesTrClass,
   sectionCardClass,
 } from './salesUi'
 
-const emptyLine = () => ({
+const emptyLine = (taxRate = 15) => ({
   productId: '',
   variantId: '',
   manualName: '',
   productType: 'goods',
-  quantityOrdered: 1,
-  unitCost: 0,
-  costPrice: 0,
-  taxRate: 15,
-  discountPercent: 0,
+  quantityOrdered: '',
+  unitCost: '',
+  costPrice: '',
+  taxRate,
+  discountPercent: '',
   uomId: '',
   packagingId: '',
   packagingQty: 1,
@@ -45,6 +49,8 @@ function lineMarginPct(line) {
   return ((price - cost) / price) * 100
 }
 
+const numInputClass = `${fieldControlClass} text-end tabular-nums`
+
 export default function SalesOrderCreatePage() {
   const navigate = useNavigate()
   const { language } = useSelector((s) => s.ui)
@@ -52,12 +58,13 @@ export default function SalesOrderCreatePage() {
   const isAr = language === 'ar'
   const { showMarginsByDefault } = useSalesSettings()
   const displayMargin = canViewSalesMargin(user) && !!showMarginsByDefault
+  const defaultTax = Number(tenant?.settings?.taxRate ?? 15)
 
   const [customer, setCustomer] = useState(null)
   const [warehouseId, setWarehouseId] = useState('')
   const [warehouseOpt, setWarehouseOpt] = useState(null)
   const [incoterm, setIncoterm] = useState('EXW')
-  const [lines, setLines] = useState([emptyLine()])
+  const [lines, setLines] = useState([emptyLine(defaultTax)])
 
   const { data: settings } = useQuery({
     queryKey: ['sales-settings'],
@@ -136,16 +143,25 @@ export default function SalesOrderCreatePage() {
     setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)))
   }
 
+  const colCount = displayMargin ? 10 : 9
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <button type="button" className={backBtnClass} onClick={() => navigate('/app/dashboard/sales/orders')}>
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <div>
-          <h1 className={pageTitleClass}>{isAr ? 'أمر بيع جديد' : 'New sales order'}</h1>
-          <p className={pageSubtitleClass}>{isAr ? 'عميل، مخزن، بنود، Incoterm' : 'Customer, warehouse, lines, and incoterm'}</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button type="button" className={backBtnClass} onClick={() => navigate('/app/dashboard/sales/orders')}>
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <h1 className={pageTitleClass}>{isAr ? 'أمر جديد' : 'New order'}</h1>
         </div>
+        <button
+          type="button"
+          className={`${primaryActionClass} !px-4 !py-2.5 !text-sm disabled:opacity-40`}
+          disabled={!customer?._id || save.isPending}
+          onClick={() => save.mutate()}
+        >
+          {save.isPending ? '…' : (isAr ? 'حفظ' : 'Create')}
+        </button>
       </div>
 
       <div className={`${sectionCardClass} space-y-4`}>
@@ -184,37 +200,59 @@ export default function SalesOrderCreatePage() {
         </div>
       </div>
 
-      <div className={`${sectionCardClass} space-y-3`}>
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold">{isAr ? 'البنود' : 'Order lines'}</h2>
-          <button type="button" className={ghostActionClass} onClick={() => setLines((p) => [...p, emptyLine()])}>
+      <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
+        <div className="flex items-center justify-between border-b border-slate-200/90 px-5 py-3.5 dark:border-dark-600">
+          <h2 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white">
+            {isAr ? 'البنود' : 'Lines'}
+          </h2>
+          <button type="button" className={ghostActionClass} onClick={() => setLines((p) => [...p, emptyLine(defaultTax)])}>
             <Plus className="h-3.5 w-3.5" /> {isAr ? 'سطر' : 'Add line'}
           </button>
         </div>
-        {lines.map((line, idx) => (
-          <SoLineRow
-            key={idx}
-            line={line}
-            idx={idx}
-            isAr={isAr}
-            uoms={uoms}
-            displayMargin={displayMargin}
-            canRemove={lines.length > 1}
-            fetchProducts={fetchProducts}
-            onChange={(patch) => updateLine(idx, patch)}
-            onRemove={() => setLines((p) => p.filter((_, i) => i !== idx))}
-          />
-        ))}
+        <div className="overflow-x-auto">
+          <table className={`${salesTableClass} min-w-[920px]`}>
+            <thead>
+              <tr>
+                <th className={`${salesThClass} w-[28%]`}>{isAr ? 'المنتج' : 'Product'}</th>
+                <th className={`${salesThClass} w-[12%]`}>{isAr ? 'المتغير' : 'Variant'}</th>
+                <th className={`${salesThClass} w-[8%]`}>{isAr ? 'الوحدة' : 'UoM'}</th>
+                <th className={`${salesThClass} w-[10%]`}>{isAr ? 'التعبئة' : 'Pack'}</th>
+                <th className={`${salesThClass} w-[8%] text-end`}>{isAr ? 'الكمية' : 'Qty'}</th>
+                <th className={`${salesThClass} w-[10%] text-end`}>{isAr ? 'السعر' : 'Price'}</th>
+                <th className={`${salesThClass} w-[8%] text-end`}>{isAr ? 'خصم %' : 'Disc %'}</th>
+                <th className={`${salesThClass} w-[8%] text-end`}>{isAr ? 'ضريبة %' : 'Tax %'}</th>
+                {displayMargin ? (
+                  <th className={`${salesThClass} w-[8%] text-end`}>{isAr ? 'هامش' : 'Margin'}</th>
+                ) : null}
+                <th className={`${salesThClass} w-12`} />
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((line, idx) => (
+                <SoLineRow
+                  key={idx}
+                  line={line}
+                  idx={idx}
+                  isAr={isAr}
+                  uoms={uoms}
+                  displayMargin={displayMargin}
+                  canRemove={lines.length > 1}
+                  fetchProducts={fetchProducts}
+                  onChange={(patch) => updateLine(idx, patch)}
+                  onRemove={() => setLines((p) => p.filter((_, i) => i !== idx))}
+                />
+              ))}
+              {lines.length === 0 ? (
+                <tr>
+                  <td colSpan={colCount} className={`${salesTdClass} text-center text-slate-400`}>
+                    {isAr ? 'لا توجد بنود' : 'No lines'}
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </div>
-
-      <button
-        type="button"
-        className="btn btn-primary"
-        disabled={!customer?._id || save.isPending}
-        onClick={() => save.mutate()}
-      >
-        {save.isPending ? '…' : (isAr ? 'حفظ أمر البيع' : 'Create sales order')}
-      </button>
     </div>
   )
 }
@@ -230,8 +268,8 @@ function SoLineRow({ line, idx, isAr, uoms, displayMargin, canRemove, fetchProdu
   const margin = lineMarginPct(line)
 
   return (
-    <div className="grid gap-2 rounded-xl border border-slate-200 p-3 dark:border-dark-600 sm:grid-cols-12">
-      <div className="sm:col-span-3">
+    <tr className={salesTrClass}>
+      <td className={`${salesTdClass} !py-2.5`}>
         <AsyncCombobox
           value={line.productId}
           selectedOption={line.product}
@@ -239,41 +277,41 @@ function SoLineRow({ line, idx, isAr, uoms, displayMargin, canRemove, fetchProdu
             productId: id || '',
             product: opt,
             manualName: opt?.name || '',
-            unitCost: opt?.salePrice ?? line.unitCost,
-            costPrice: opt?.costPrice ?? 0,
+            unitCost: opt?.salePrice != null && Number(opt.salePrice) > 0 ? opt.salePrice : '',
+            costPrice: opt?.costPrice ?? '',
             productType: opt?.productType || 'goods',
             taxRate: opt?.taxRate ?? line.taxRate,
             uomId: opt?.uomId || '',
             packagingId: '',
             packagingQty: 1,
             variantId: '',
+            quantityOrdered: line.quantityOrdered === '' ? 1 : line.quantityOrdered,
           })}
           fetchOptions={fetchProducts}
           queryKeyPrefix={`so-prod-${idx}`}
           placeholder={isAr ? 'بحث المنتج…' : 'Search product…'}
         />
-      </div>
-      <div className="sm:col-span-2">
+      </td>
+      <td className={`${salesTdClass} !py-2.5`}>
         <VariantLineSelect
           productId={line.productId}
           value={line.variantId}
           onChange={(vid) => onChange({ variantId: vid || '' })}
         />
-      </div>
-      <div className="sm:col-span-1">
+      </td>
+      <td className={`${salesTdClass} !py-2.5`}>
         <select
           className={fieldControlClass}
           value={line.uomId || ''}
           onChange={(e) => onChange({ uomId: e.target.value })}
-          title={isAr ? 'وحدة القياس' : 'UoM'}
         >
-          <option value="">{line.product?.uomLabel || (isAr ? 'وحدة' : 'UoM')}</option>
+          <option value="">{line.product?.uomLabel || '—'}</option>
           {uoms.map((u) => (
             <option key={u._id} value={u._id}>{isAr && u.nameAr ? u.nameAr : u.name}</option>
           ))}
         </select>
-      </div>
-      <div className="sm:col-span-1">
+      </td>
+      <td className={`${salesTdClass} !py-2.5`}>
         <select
           className={fieldControlClass}
           value={line.packagingId || ''}
@@ -283,41 +321,75 @@ function SoLineRow({ line, idx, isAr, uoms, displayMargin, canRemove, fetchProdu
             const pack = packs.find((p) => String(p._id) === String(id))
             onChange({ packagingId: id, packagingQty: Number(pack?.qty) || 1 })
           }}
-          title={isAr ? 'التعبئة' : 'Packaging'}
         >
-          <option value="">{isAr ? 'تعبئة' : 'Pack'}</option>
+          <option value="">—</option>
           {packs.map((p) => (
             <option key={p._id} value={p._id}>{p.name} (×{p.qty})</option>
           ))}
         </select>
-      </div>
-      <div className="sm:col-span-1">
-        <input type="number" min={0} className={fieldControlClass} value={line.quantityOrdered} onChange={(e) => onChange({ quantityOrdered: e.target.value })} placeholder="Qty" />
-      </div>
-      <div className="sm:col-span-1">
-        <input type="number" min={0} className={fieldControlClass} value={line.unitCost} onChange={(e) => onChange({ unitCost: e.target.value })} placeholder="Price" />
-      </div>
-      <div className="sm:col-span-1">
-        <input type="number" min={0} max={100} className={fieldControlClass} value={line.discountPercent} onChange={(e) => onChange({ discountPercent: e.target.value })} placeholder="% Disc" />
-      </div>
-      <div className="sm:col-span-1">
-        <input type="number" className={fieldControlClass} value={line.taxRate} onChange={(e) => onChange({ taxRate: e.target.value })} placeholder="Tax%" />
-      </div>
+      </td>
+      <td className={`${salesTdClass} !py-2.5`}>
+        <input
+          type="number"
+          min={0}
+          className={numInputClass}
+          value={line.quantityOrdered}
+          onChange={(e) => onChange({ quantityOrdered: e.target.value })}
+          placeholder="0"
+        />
+      </td>
+      <td className={`${salesTdClass} !py-2.5`}>
+        <input
+          type="number"
+          min={0}
+          step="0.01"
+          className={numInputClass}
+          value={line.unitCost}
+          onChange={(e) => onChange({ unitCost: e.target.value })}
+          placeholder="0.00"
+        />
+      </td>
+      <td className={`${salesTdClass} !py-2.5`}>
+        <input
+          type="number"
+          min={0}
+          max={100}
+          className={numInputClass}
+          value={line.discountPercent}
+          onChange={(e) => onChange({ discountPercent: e.target.value })}
+          placeholder="—"
+        />
+      </td>
+      <td className={`${salesTdClass} !py-2.5`}>
+        <input
+          type="number"
+          min={0}
+          className={numInputClass}
+          value={line.taxRate}
+          onChange={(e) => onChange({ taxRate: e.target.value })}
+          placeholder="0"
+        />
+      </td>
       {displayMargin ? (
-        <div className="flex items-center justify-end sm:col-span-1">
+        <td className={`${salesTdClass} !py-2.5 text-end`}>
           <span
-            className={`text-xs font-semibold tabular-nums ${margin != null && margin < 0 ? 'text-red-600' : 'text-emerald-700 dark:text-emerald-400'}`}
-            title={isAr ? 'هامش الربح %' : 'Margin %'}
+            className={`text-xs font-semibold tabular-nums ${margin != null && margin < 0 ? 'text-red-600' : 'text-slate-600 dark:text-slate-300'}`}
           >
             {margin == null ? '—' : `${margin.toFixed(1)}%`}
           </span>
-        </div>
+        </td>
       ) : null}
-      <div className="flex items-center sm:col-span-1">
-        <button type="button" className="text-red-500" disabled={!canRemove} onClick={onRemove}>
+      <td className={`${salesTdClass} !py-2.5`}>
+        <button
+          type="button"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-30 dark:hover:bg-red-950/30"
+          disabled={!canRemove}
+          onClick={onRemove}
+          aria-label={isAr ? 'حذف' : 'Remove'}
+        >
           <Trash2 className="h-4 w-4" />
         </button>
-      </div>
-    </div>
+      </td>
+    </tr>
   )
 }

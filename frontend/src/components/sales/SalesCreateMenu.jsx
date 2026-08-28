@@ -15,18 +15,18 @@ function buildCreateItems({ businessTypes, hideQuotations }) {
 
   const items = [
     {
-      id: 'sales-order',
-      href: '/app/dashboard/sales/orders/new',
-      icon: ShoppingCart,
-      labelEn: 'Sales order',
-      labelAr: 'أمر بيع',
-    },
-    {
       id: 'sell',
       href: '/app/dashboard/invoices/new/sell',
       icon: Receipt,
       labelEn: 'Sales invoice',
       labelAr: 'فاتورة مبيعات',
+    },
+    {
+      id: 'sales-order',
+      href: '/app/dashboard/sales/orders/new',
+      icon: ShoppingCart,
+      labelEn: 'Order',
+      labelAr: 'طلب',
     },
   ]
 
