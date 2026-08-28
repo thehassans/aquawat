@@ -2356,7 +2356,7 @@ router.post('/:id/sign', checkPermission('invoicing', 'approve'), async (req, re
     afterInvoiceWrite(invoice, { userId: req.user._id });
 
     let digitalDelivery = { sent: false };
-    if (['approved', 'paid', 'partially_paid'].includes(invoice.status)) {
+    if (['paid', 'partially_paid', 'approved'].includes(invoice.status)) {
       digitalDelivery = await deliverDigitalProductsByEmail(invoice, {
         language: req.tenant?.settings?.language,
       });

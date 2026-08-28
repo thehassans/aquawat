@@ -385,6 +385,41 @@ router.get('/sale-warnings', checkPermission('sales', 'read'), async (req, res) 
   }
 });
 
+/** UoMs for SO line selection (sales-scoped; avoids inventory permission gate) */
+router.get('/uoms', checkPermission('sales', 'read'), async (req, res) => {
+  try {
+    const InvUom = (await import('../models/inventory/InvUom.js')).default;
+    const rows = await InvUom.find({ ...req.tenantFilter, active: { $ne: false } })
+      .select('name nameAr factor categoryId')
+      .sort({ name: 1 })
+      .lean();
+    res.json({ items: rows });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/** Product packagings for SO lines (empty when packaging module disabled) */
+router.get('/product-packagings', checkPermission('sales', 'read'), async (req, res) => {
+  try {
+    const productId = req.query.productId;
+    if (!productId) return res.json({ items: [] });
+    const InvProductPackaging = (await import('../models/inventory/InvProductPackaging.js')).default;
+    const rows = await InvProductPackaging.find({
+      ...req.tenantFilter,
+      productId,
+      active: { $ne: false },
+      salesOk: { $ne: false },
+    })
+      .select('name qty barcode')
+      .sort({ name: 1 })
+      .lean();
+    res.json({ items: rows });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 /** Smart-button counts for a sell order (deliveries + invoices) */
 router.get('/orders/:id/smart-buttons', checkPermission('sales', 'read'), async (req, res) => {
   try {

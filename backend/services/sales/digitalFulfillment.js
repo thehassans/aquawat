@@ -8,8 +8,12 @@ import logger from '../../utils/logger.js';
  */
 export async function deliverDigitalProductsByEmail(invoice, { language = 'en' } = {}) {
   if (!invoice || invoice.flow !== 'sell') return { sent: false, reason: 'not_sell' };
-  if (!['approved', 'paid', 'partially_paid', 'signed'].includes(String(invoice.status || ''))) {
-    return { sent: false, reason: 'not_validated' };
+  const status = String(invoice.status || '');
+  const paymentStatus = String(invoice.paymentStatus || '');
+  // Blueprint Phase 5.3: fire on PAID (also honor partially_paid for installment digital goods)
+  const paidEnough = ['paid', 'partially_paid'].includes(paymentStatus) || ['paid', 'partially_paid'].includes(status);
+  if (!paidEnough) {
+    return { sent: false, reason: 'not_paid' };
   }
 
   const buyerEmail = invoice.buyer?.contactEmail || invoice.buyer?.email;

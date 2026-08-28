@@ -8,6 +8,7 @@ import Quotation from '../models/Quotation.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import Invoice from '../models/Invoice.js';
 import Tenant from '../models/Tenant.js';
+import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -207,10 +208,18 @@ router.get('/documents', protectPortal, async (req, res) => {
   }
 });
 
-/** Admin: invite portal user for a partner */
-router.post('/invite', async (req, res) => {
+/** Admin: invite portal user for a partner (staff auth required) */
+router.post('/invite', protect, tenantFilter, requireTenantFilter, checkPermission('sales', 'create'), async (req, res) => {
   try {
-    const { tenantId, partnerId, email, name } = req.body;
+    const tenantId = req.user.tenantId;
+    const { partnerId, email, name } = req.body || {};
+    if (!partnerId || !email) {
+      return res.status(400).json({ error: 'partnerId and email are required' });
+    }
+
+    const partner = await Partner.findOne({ _id: partnerId, tenantId }).select('_id').lean();
+    if (!partner) return res.status(404).json({ error: 'Partner not found' });
+
     const token = randomBytes(32).toString('hex');
     const expires = new Date();
     expires.setDate(expires.getDate() + 7);
@@ -220,7 +229,7 @@ router.post('/invite', async (req, res) => {
       {
         tenantId,
         partnerId,
-        email,
+        email: String(email).toLowerCase(),
         name: name || '',
         password: randomBytes(16).toString('hex'),
         accessSource: 'invitation',

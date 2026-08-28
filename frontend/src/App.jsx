@@ -89,6 +89,7 @@ const PaymentTransactionsPage = lazy(() => import('./pages/sales/configuration/P
 const CarrierConnectorsPage = lazy(() => import('./pages/sales/configuration/CarrierConnectorsPage'))
 const SalesReportingLayout = lazy(() => import('./pages/sales/reporting/SalesReportingLayout'))
 const SalesAnalysisPage = lazy(() => import('./pages/sales/reporting/SalesAnalysisPage'))
+const SalesMatrixReportPage = lazy(() => import('./pages/sales/reporting/SalesMatrixReportPage'))
 const SalespeopleReportPage = lazy(() => import('./pages/sales/reporting/SalespeopleReportPage'))
 const ProductsReportPage = lazy(() => import('./pages/sales/reporting/ProductsReportPage'))
 const CustomersReportPage = lazy(() => import('./pages/sales/reporting/CustomersReportPage'))
@@ -777,6 +778,7 @@ function App() {
         <Route path="sales/reporting" element={<SalesReportingLayout />}>
           <Route index element={<Navigate to="analysis" replace />} />
           <Route path="analysis" element={<SalesAnalysisPage />} />
+          <Route path="matrix" element={<SalesMatrixReportPage />} />
           <Route path="salespeople" element={<SalespeopleReportPage />} />
           <Route path="products" element={<ProductsReportPage />} />
           <Route path="customers" element={<CustomersReportPage />} />

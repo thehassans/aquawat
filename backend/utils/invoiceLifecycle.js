@@ -49,5 +49,9 @@ export function afterInvoiceWrite(invoice, { userId, created = false, previousPa
   }
   if (invoice.paymentStatus === 'paid' && previousPaymentStatus !== 'paid') {
     emitPlatformEvent('invoice_paid', props);
+    // Fire-and-forget digital product email on PAID transition (Phase 5.3)
+    import('../services/sales/digitalFulfillment.js')
+      .then(({ deliverDigitalProductsByEmail }) => deliverDigitalProductsByEmail(invoice))
+      .catch((err) => logger.warn(`[invoiceLifecycle] digital fulfillment: ${err.message}`));
   }
 }

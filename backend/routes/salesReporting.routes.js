@@ -94,8 +94,106 @@ router.get('/analysis', checkPermission('sales', 'read'), async (req, res) => {
       }
     }
 
-    const rows = [...buckets.values()].sort((a, b) => b[measure] - a[measure]);
-    res.json({ from, to, groupBy, measure, rows });
+    res.json({
+      from,
+      to,
+      groupBy,
+      measure,
+      rows: [...buckets.values()].sort((a, b) => b[measure] - a[measure]),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * Matrix / pivot report — rows × columns of a single measure.
+ * Query: row=salesperson|customer|product|category  col=month|week|day|…  measure=…
+ */
+router.get('/matrix', checkPermission('sales', 'read'), async (req, res) => {
+  try {
+    const { from, to } = parseRange(req.query);
+    const rowDim = req.query.row || 'salesperson';
+    const colDim = req.query.col || 'month';
+    const measure = req.query.measure || 'untaxedTotal';
+
+    const invoices = await Invoice.find({
+      ...req.tenantFilter,
+      invoiceType: 'sell',
+      status: { $in: ['approved', 'signed', 'paid', 'partially_paid'] },
+      invoiceDate: { $gte: from, $lte: to },
+    }).select('invoiceDate customerId salespersonId lineItems lines subtotal grandTotal').lean();
+
+    const dimLabel = (dim, inv, line) => {
+      if (dim === 'salesperson') return String(inv.salespersonId || 'unassigned');
+      if (dim === 'customer') return String(inv.customerId || 'walk-in');
+      if (dim === 'product') return line.productName || String(line.productId || 'manual');
+      if (dim === 'category') return String(line.categoryName || line.categoryId || 'uncategorized');
+      if (dim === 'variant') return String(line.variantSku || line.variantId || line.productName || 'no-variant');
+      if (dim === 'month') return groupKey(inv.invoiceDate, 'month');
+      if (dim === 'week') return groupKey(inv.invoiceDate, 'week');
+      if (dim === 'day') return groupKey(inv.invoiceDate, 'day');
+      return groupKey(inv.invoiceDate, 'month');
+    };
+
+    const measureValue = (line) => {
+      const qty = Number(line.quantity || 0);
+      const lineTotal = Number(line.lineTotal || (line.unitPrice || 0) * qty || 0);
+      const cost = Number(line.unitCost || line.costPrice || 0) * qty;
+      if (measure === 'margin') return lineTotal - cost;
+      if (measure === 'qtyOrdered' || measure === 'qtyInvoiced') return qty;
+      if (measure === 'totalSales') return Number(line.lineTotalWithTax || lineTotal);
+      return lineTotal;
+    };
+
+    const cells = new Map();
+    const rowSet = new Set();
+    const colSet = new Set();
+
+    for (const inv of invoices) {
+      const lines = inv.lineItems || inv.lines || [];
+      if (!lines.length && (['salesperson', 'customer', 'month', 'week', 'day'].includes(rowDim)
+        || ['salesperson', 'customer', 'month', 'week', 'day'].includes(colDim))) {
+        const r = dimLabel(rowDim, inv, {});
+        const c = dimLabel(colDim, inv, {});
+        rowSet.add(r);
+        colSet.add(c);
+        const key = `${r}||${c}`;
+        const headerVal = measure === 'qtyInvoiced' || measure === 'qtyOrdered' ? 0 : Number(inv.subtotal || inv.grandTotal || 0);
+        cells.set(key, (cells.get(key) || 0) + headerVal);
+        continue;
+      }
+      for (const line of lines) {
+        const r = dimLabel(rowDim, inv, line);
+        const c = dimLabel(colDim, inv, line);
+        rowSet.add(r);
+        colSet.add(c);
+        const key = `${r}||${c}`;
+        cells.set(key, (cells.get(key) || 0) + measureValue(line));
+      }
+    }
+
+    const rows = [...rowSet].sort();
+    const cols = [...colSet].sort();
+    const matrix = rows.map((r) => ({
+      row: r,
+      values: Object.fromEntries(cols.map((c) => [c, Number((cells.get(`${r}||${c}`) || 0).toFixed(2))])),
+      total: Number(cols.reduce((s, c) => s + (cells.get(`${r}||${c}`) || 0), 0).toFixed(2)),
+    }));
+
+    res.json({
+      from,
+      to,
+      row: rowDim,
+      col: colDim,
+      measure,
+      rows,
+      cols,
+      matrix,
+      colTotals: Object.fromEntries(
+        cols.map((c) => [c, Number(rows.reduce((s, r) => s + (cells.get(`${r}||${c}`) || 0), 0).toFixed(2))]),
+      ),
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

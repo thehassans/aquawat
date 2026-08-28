@@ -17,6 +17,7 @@ export const SALES_CONFIG_SECTIONS = [
 
 export const SALES_REPORT_SECTIONS = [
   { id: 'analysis', href: '/app/dashboard/sales/reporting/analysis', label: 'Sales Analysis', labelAr: 'تحليل المبيعات' },
+  { id: 'matrix', href: '/app/dashboard/sales/reporting/matrix', label: 'Matrix', labelAr: 'مصفوفة' },
   { id: 'salespeople', href: '/app/dashboard/sales/reporting/salespeople', label: 'Salespeople', labelAr: 'مندوبي المبيعات' },
   { id: 'products', href: '/app/dashboard/sales/reporting/products', label: 'Products', labelAr: 'المنتجات' },
   { id: 'customers', href: '/app/dashboard/sales/reporting/customers', label: 'Customers', labelAr: 'العملاء' },
