@@ -143,6 +143,7 @@ export function OperationTypeForm() {
     defaultDestLocationId: '',
     reservationMethod: 'atConfirm',
     createBackorder: 'ask',
+    requireSignature: false,
     active: true,
   })
 
@@ -173,6 +174,7 @@ export function OperationTypeForm() {
         defaultDestLocationId: existing.defaultDestLocationId || '',
         reservationMethod: existing.reservationMethod || 'atConfirm',
         createBackorder: existing.createBackorder || 'ask',
+        requireSignature: !!existing.requireSignature,
         active: existing.active !== false,
       })
     }
@@ -287,6 +289,28 @@ export function OperationTypeForm() {
             <option value="never">never</option>
           </select>
         </div>
+        {(form.code === 'outgoing' || existing?.code === 'outgoing') && (
+          <div className="md:col-span-2">
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200/90 px-4 py-3 dark:border-dark-600">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-600/20"
+                checked={!!form.requireSignature}
+                onChange={(e) => setForm({ ...form, requireSignature: e.target.checked })}
+              />
+              <span>
+                <span className="block text-sm font-semibold text-slate-900 dark:text-white">
+                  {language === 'ar' ? 'يتطلب توقيعاً' : 'Require Signature'}
+                </span>
+                <span className="mt-0.5 block text-xs text-slate-500">
+                  {language === 'ar'
+                    ? 'عند الاعتماد، يُطلب إثبات تسليم (توقيع المستلم) قبل إكمال أمر التسليم.'
+                    : 'On Validate, capture recipient Proof of Delivery before completing the delivery order.'}
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
         {isEdit && (
           <div className="flex items-center gap-2 md:col-span-2">
             <input type="checkbox" id="ot-active" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />

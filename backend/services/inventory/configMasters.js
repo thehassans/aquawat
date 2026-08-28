@@ -203,6 +203,7 @@ export async function createOperationType(tenantId, userId, body) {
     createBackorder: body.createBackorder || 'ask',
     allowExtraProducts: !!body.allowExtraProducts,
     requireFullValidation: !!body.requireFullValidation,
+    requireSignature: !!body.requireSignature,
     useCreateLots: !!body.useCreateLots,
     useExistingLots: !!body.useExistingLots,
     showDetailedOperations: !!body.showDetailedOperations,
@@ -235,7 +236,7 @@ export async function updateOperationType(tenantId, userId, id, body) {
   const allowed = [
     'name', 'nameAr', 'code', 'defaultSourceLocationId', 'defaultDestLocationId',
     'returnOperationTypeId', 'reservationMethod', 'reservationDaysBefore', 'createBackorder',
-    'allowExtraProducts', 'requireFullValidation', 'useCreateLots', 'useExistingLots',
+    'allowExtraProducts', 'requireFullValidation', 'requireSignature', 'useCreateLots', 'useExistingLots',
     'showDetailedOperations', 'printLabelOnValidate', 'barcode', 'cardColor', 'active',
   ];
   for (const k of allowed) {

@@ -17,6 +17,7 @@ import { DeliveryHeader, DeliveryActionBar } from './DeliveryHeader'
 import { DeliveryFormFields } from './DeliveryFormFields'
 import { DeliveryDraftLines, DeliveryLineItems } from './DeliveryLineItems'
 import ReverseTransferModal from '../returns/ReverseTransferModal'
+import CaptureSignatureModal from '../../../components/inventory/CaptureSignatureModal'
 import { inventoryPathForOpCode } from '../returns/returnPaths'
 import { useReturnedPartner } from '../useReturnedPartner'
 import { isVariantPickCancelled, useForceVariantPick } from '../../../lib/useForceVariantPick'
@@ -124,6 +125,8 @@ export default function DeliveryForm() {
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [doneEdits, setDoneEdits] = useState({})
   const [returnOpen, setReturnOpen] = useState(false)
+  const [signatureOpen, setSignatureOpen] = useState(false)
+  const [pendingValidateBody, setPendingValidateBody] = useState(null)
 
   useReturnedPartner({
     role: 'customer',
@@ -229,7 +232,14 @@ export default function DeliveryForm() {
       qc.invalidateQueries({ queryKey: ['products'] })
       qc.invalidateQueries({ queryKey: ['stock-report'] })
     },
-    onError: (e) => toast.error(formatInvError(e, language)),
+    onError: (e) => {
+      const code = e?.response?.data?.error?.code || e?.response?.data?.code
+      if (code === 'SIGNATURE_REQUIRED') {
+        setSignatureOpen(true)
+        return
+      }
+      toast.error(formatInvError(e, language))
+    },
   })
 
   const setLines = (next) => setValue('lines', next, { shouldDirty: true, shouldValidate: false })
@@ -424,20 +434,33 @@ export default function DeliveryForm() {
       }
     }
 
+    const body = { immediate: true, createBackorder, moveQuantities }
+
+    // Intercept: open signature modal instead of hard-blocking with a toast
     if (hintsSignatureRequired()) {
-      toast.error(ar ? 'التوقيع مطلوب قبل الاعتماد' : 'Signature required before validate')
+      setPendingValidateBody(body)
+      setSignatureOpen(true)
       return
     }
 
-    actionMut.mutate({
-      action: 'validate',
-      body: { immediate: true, createBackorder, moveQuantities },
-    })
+    actionMut.mutate({ action: 'validate', body })
   }
 
   const hintsSignatureRequired = () => {
     const hints = transfer?.settingsHints
-    return !!(hints?.signatureRequired) && !transfer?.signature
+    const otRequires = !!transfer?.operationTypeId?.requireSignature
+    return !!(hints?.signatureRequired || otRequires) && !transfer?.signature
+  }
+
+  const onSignAndValidate = ({ signature, signedBy }) => {
+    const body = {
+      ...(pendingValidateBody || { immediate: true, createBackorder: false }),
+      signature,
+      signedBy,
+    }
+    setSignatureOpen(false)
+    setPendingValidateBody(null)
+    actionMut.mutate({ action: 'validate', body })
   }
 
   const onCancelTransfer = () => {
@@ -671,8 +694,51 @@ export default function DeliveryForm() {
               {transfer.note}
             </div>
           ) : null}
+
+          {transfer?.signature && String(transfer.signature).startsWith('data:image') ? (
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-4 dark:border-dark-600 dark:bg-dark-900/40">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                {ar ? 'إثبات التسليم' : 'Proof of Delivery'}
+              </p>
+              <div className="mt-3 flex flex-wrap items-end gap-4">
+                <img
+                  src={transfer.signature}
+                  alt="signature"
+                  className="max-h-24 max-w-[240px] rounded-lg border border-slate-200 bg-white dark:border-dark-500"
+                />
+                <div className="text-sm">
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">
+                    {transfer.signedBy || '—'}
+                  </p>
+                  {transfer.signedOn ? (
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {new Date(transfer.signedOn).toLocaleString()}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
+
+      <CaptureSignatureModal
+        open={signatureOpen}
+        onClose={() => {
+          setSignatureOpen(false)
+          setPendingValidateBody(null)
+        }}
+        onConfirm={onSignAndValidate}
+        language={language}
+        pending={actionMut.isPending}
+        defaultName={
+          transfer?.partner
+            ? (ar && transfer.partner.nameAr
+              ? transfer.partner.nameAr
+              : (transfer.partner.name || transfer.partner.nameEn || ''))
+            : ''
+        }
+      />
 
       <ReverseTransferModal
         open={returnOpen}

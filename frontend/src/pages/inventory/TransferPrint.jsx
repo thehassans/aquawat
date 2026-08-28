@@ -182,6 +182,8 @@ export function TransferPrintButton({ transfer, code, settingsHints, buttonLabel
   .qr-wrap { text-align: center; }
   .qr-cap { font-size: 9px; color: #64748b; margin-top: 4px; }
   .foot { margin-top: 24px; display: flex; justify-content: space-between; align-items: end; font-size: 12px; color: #475569; gap: 16px; }
+  .pod { margin-top: 20px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
+  .pod img { max-width: 220px; max-height: 80px; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; display: block; }
   .linked { margin-top: 6px; font-size: 11px; color: #64748b; }
   @media print { body { margin: 12mm; } .noprint { display: none; } }
 </style>
@@ -220,7 +222,14 @@ export function TransferPrintButton({ transfer, code, settingsHints, buttonLabel
   <div class="foot">
     <div>
       <div>Origin: ${escapeHtml(transfer?.origin || '—')}</div>
-      <div>Signature: ${transfer?.signature ? '✓' : '____________'}</div>
+      ${transfer?.signature && String(transfer.signature).startsWith('data:image')
+        ? `<div class="pod">
+            <div style="font-size:11px;color:#64748b;margin-bottom:4px">Proof of Delivery / إثبات التسليم</div>
+            <img src="${escapeHtml(transfer.signature)}" alt="signature" />
+            <div style="margin-top:6px">Signed by / الموقّع: <strong>${escapeHtml(transfer.signedBy || '—')}</strong></div>
+            ${transfer.signedOn ? `<div style="font-size:10px;color:#94a3b8">${escapeHtml(new Date(transfer.signedOn).toLocaleString())}</div>` : ''}
+          </div>`
+        : `<div>Signature: ${transfer?.signature ? '✓' : '____________'}</div>`}
       ${transfer?.carrierId || transfer?.shippingCost || transfer?.trackingReference
         ? `<div class="linked">Carrier: ${escapeHtml(transfer?.carrierId?.name || '—')} · Ship: ${escapeHtml(String(transfer?.shippingCost ?? '—'))} · Track: ${escapeHtml(transfer?.trackingReference || '—')}</div>`
         : ''}

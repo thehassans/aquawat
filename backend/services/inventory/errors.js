@@ -74,6 +74,11 @@ export const INV_ERROR_CODES = Object.freeze({
     message: 'This transfer is locked by another validate or already completed. Wait a moment and refresh.',
     messageAr: 'هذا التحويل مقفل بتحقق آخر أو مكتمل. انتظر قليلاً ثم حدّث الصفحة.',
   },
+  SIGNATURE_REQUIRED: {
+    status: 400,
+    message: 'A recipient signature is required before validating this delivery. Capture the signature and try again.',
+    messageAr: 'توقيع المستلم مطلوب قبل اعتماد هذا التسليم. التقط التوقيع ثم أعد المحاولة.',
+  },
   VALIDATION: {
     status: 400,
     message: 'Invalid input. Check the highlighted fields and try again.',

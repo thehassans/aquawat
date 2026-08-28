@@ -224,7 +224,14 @@ function transferDocHtml({ tenant, transfer, lines, layout, lang, showPrices }) 
     <tbody>${rows}</tbody>
   </table>
   <div class="sigs">
-    <div class="sig">${lang === 'ar' ? 'استلم / جهّز' : 'Received / Picked'}</div>
+    ${transfer.signature && String(transfer.signature).startsWith('data:image')
+      ? `<div class="sig" style="border:none">
+          <div style="font-size:11px;color:#64748b;margin-bottom:6px">${lang === 'ar' ? 'إثبات التسليم' : 'Proof of Delivery'}</div>
+          <img src="${esc(transfer.signature)}" alt="signature" style="max-width:220px;max-height:80px;display:block;border:1px solid #e2e8f0;border-radius:6px;background:#fff" />
+          <div style="margin-top:6px;font-size:12px">${lang === 'ar' ? 'الموقّع' : 'Signed by'}: <strong>${esc(transfer.signedBy || '—')}</strong></div>
+          ${transfer.signedOn ? `<div style="font-size:10px;color:#94a3b8">${esc(new Date(transfer.signedOn).toLocaleString())}</div>` : ''}
+        </div>`
+      : `<div class="sig">${lang === 'ar' ? 'استلم / جهّز' : 'Received / Picked'}</div>`}
     <div class="sig">${lang === 'ar' ? 'راجع' : 'Checked by'}</div>
   </div>
   <div class="footer"><span>${esc(transfer.origin || '')}</span><span>${new Date().toISOString().slice(0, 10)}</span></div>

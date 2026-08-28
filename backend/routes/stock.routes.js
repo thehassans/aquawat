@@ -927,7 +927,11 @@ router.get('/transfers/:id', checkPermission('inventory', 'read'), async (req, r
       settingsHints: {
         multiLocations: settings.groupStockMultiLocations !== false,
         barcode: !!settings.groupStockBarcode,
-        signatureRequired: !!(settings.signatureOnDelivery || settings.groupStockSignDelivery),
+        signatureRequired: !!(
+          transfer.operationTypeId?.requireSignature
+          || settings.signatureOnDelivery
+          || settings.groupStockSignDelivery
+        ),
         partnerWarnings: !!settings.groupStockWarning,
         showDetailedOps: !!transfer.operationTypeId?.showDetailedOperations,
         lotsEnabled: !!(settings.groupProductionLot || settings.groupStockTrackingLot),
@@ -1097,6 +1101,8 @@ router.post('/transfers/:id/validate', checkPermission('inventory', 'update'), v
       moveQuantities: Array.isArray(req.validatedBody.moveQuantities)
         ? req.validatedBody.moveQuantities
         : undefined,
+      signature: req.validatedBody.signature || req.body.signature || null,
+      signedBy: req.validatedBody.signedBy || req.body.signedBy || null,
     });
     let payload = done?.toObject ? done.toObject() : done;
     if (payload?.state === 'done') {

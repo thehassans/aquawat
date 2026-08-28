@@ -200,6 +200,8 @@ export async function validateTransfer(tenantId, transferId, {
   createBackorder = null,
   immediate = false,
   moveQuantities = null,
+  signature = null,
+  signedBy = null,
 } = {}) {
   return runWithTransaction(async (session) => {
     const tid = toObjectId(tenantId);
@@ -231,7 +233,17 @@ export async function validateTransfer(tenantId, transferId, {
         messageAr: 'لا يمكن الاعتماد — الفترة المحاسبية مقفلة لهذا التاريخ',
       });
 
-      if (signatureRequired(settings) && opType?.code === 'outgoing' && !transfer.signature) {
+      if (signature != null && String(signature).trim()) {
+        transfer.signature = String(signature).trim();
+        transfer.signedBy = signedBy ? String(signedBy).trim() : transfer.signedBy;
+        transfer.signedOn = new Date();
+        await transfer.save({ session });
+      }
+
+      const needsSignature = opType?.code === 'outgoing' && (
+        !!opType?.requireSignature || signatureRequired(settings)
+      );
+      if (needsSignature && !transfer.signature) {
         throw new InventoryValidationError('Signature required on delivery', 'SIGNATURE_REQUIRED');
       }
 

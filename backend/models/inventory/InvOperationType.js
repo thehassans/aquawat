@@ -25,6 +25,8 @@ const schema = new mongoose.Schema({
   createBackorder: { type: String, enum: ['ask', 'always', 'never'], default: 'ask' },
   allowExtraProducts: { type: Boolean, default: false },
   requireFullValidation: { type: Boolean, default: false },
+  /** When true (outgoing), Validate requires a captured delivery signature */
+  requireSignature: { type: Boolean, default: false },
   useCreateLots: { type: Boolean, default: false },
   useExistingLots: { type: Boolean, default: false },
   showDetailedOperations: { type: Boolean, default: false },
