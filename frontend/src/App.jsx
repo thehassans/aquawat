@@ -268,6 +268,7 @@ const CustomerList = lazy(() => import('./pages/customers/CustomerList'))
 const CustomerForm = lazy(() => import('./pages/customers/CustomerForm'))
 const CustomerStatement = lazy(() => import('./pages/customers/CustomerStatement'))
 const CustomersLayout = lazy(() => import('./pages/customers/CustomersLayout'))
+import { PartnerHubRedirect } from './components/inventory/PartnerHubRedirect'
 const Users = lazy(() => import('./pages/Users'))
 const SuperAdminDashboard = lazy(() => import('./pages/super-admin/SuperAdminDashboard'))
 const PosSessions = lazy(() => import('./pages/super-admin/PosSessions'))
@@ -727,7 +728,7 @@ function App() {
         <Route path="contacts" element={<Contacts />} />
         <Route path="calendar" element={<Calendar />} />
         <Route path="customers" element={<CustomersLayout />}>
-          <Route index element={<CustomerList />} />
+          <Route index element={<PartnerHubRedirect types="customer"><CustomerList /></PartnerHubRedirect>} />
           <Route path="statement" element={<CustomerStatement />} />
           <Route path="new" element={<CustomerForm />} />
           <Route path=":id/statement" element={<CustomerStatement />} />
@@ -918,7 +919,7 @@ function App() {
           <Route path="delivery-methods" element={<DeliveryMethodsPage />} />
           <Route path="shipping-connectors" element={<Navigate to="/app/dashboard/inventory/delivery-methods" replace />} />
         </Route>
-        <Route path="suppliers" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><Suppliers /></BusinessTypeRoute>} />
+        <Route path="suppliers" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><PartnerHubRedirect types="supplier"><Suppliers /></PartnerHubRedirect></BusinessTypeRoute>} />
         <Route path="suppliers/new" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><SupplierForm /></BusinessTypeRoute>} />
         <Route path="suppliers/:id" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><SupplierDashboard /></BusinessTypeRoute>} />
         <Route path="suppliers/:id/edit" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><SupplierForm /></BusinessTypeRoute>} />

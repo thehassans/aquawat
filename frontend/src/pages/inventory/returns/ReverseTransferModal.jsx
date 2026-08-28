@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import api from '../../../lib/api'
 import { asInvList } from '../../../lib/invList'
 import { formatInvError } from '../../../lib/invError'
+import { invTableWrapClass, invTableClass } from '../inventoryUi'
 import { locationOptionLabel, formatLocationLabel } from '../receipts/locationLabel'
 import {
   defaultReturnDestinationId,
@@ -263,8 +264,8 @@ export default function ReverseTransferModal({
                     {ar ? 'لا توجد بنود للإرجاع' : 'No lines left to return'}
                   </p>
                 ) : (
-                  <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-                    <table className="w-full min-w-[520px] text-sm">
+                  <div className={invTableWrapClass}>
+                    <table className={`${invTableClass} min-w-[520px]`}>
                       <thead className="bg-slate-50/90 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:bg-dark-900/50">
                         <tr>
                           <th className="min-w-[180px] px-3 py-2.5 text-start">{ar ? 'المنتج / المتغير' : 'Product & Variant'}</th>

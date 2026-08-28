@@ -1,7 +1,7 @@
 import { Plus, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import ProductChooser from '../../../components/inventory/ProductChooser'
-import { StatusChip } from '../inventoryUi'
+import { StatusChip, invTableWrapClass, invTableClass } from '../inventoryUi'
 import { ReceiptQuickAdd } from './ReceiptQuickAdd'
 
 /** Draft (create) lines grid */
@@ -54,7 +54,7 @@ export function ReceiptDraftLines({
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto overflow-y-visible rounded-2xl border border-slate-200/80 dark:border-dark-600">
+        <div className={`${invTableWrapClass} overflow-y-visible`}>
           <div className="min-w-[520px]">
             <div className="hidden grid-cols-[minmax(0,1fr)_minmax(5.5rem,8rem)_2.25rem] gap-2 border-b border-slate-100 px-3.5 py-2 text-[10px] font-medium uppercase tracking-[0.16em] text-slate-400 dark:border-dark-600 sm:grid">
               <span className="min-w-[150px]">{ar ? 'المنتج' : 'Product'}</span>
@@ -171,8 +171,8 @@ export function ReceiptLineItems({
         />
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-        <table className="w-full min-w-[640px] text-sm">
+      <div className={invTableWrapClass}>
+        <table className={`${invTableClass} min-w-[640px]`}>
           <thead className="bg-slate-50/90 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:bg-dark-900/50">
             <tr>
               <th className="min-w-[150px] px-3 py-2.5 text-start">{ar ? 'المنتج' : 'Product'}</th>

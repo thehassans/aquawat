@@ -301,7 +301,7 @@ async function qrDataUrl(text) {
 }
 
 /** Linear barcode PNG (EAN-13 when digits fit, otherwise Code 128). */
-async function linearBarcodeDataUrl(raw) {
+export async function linearBarcodeDataUrl(raw) {
   const text = String(raw || '').trim();
   if (!text) return '';
   try {

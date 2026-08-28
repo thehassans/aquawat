@@ -25,7 +25,26 @@ export default function Suppliers() {
 
   const { data: response, isLoading: loadingSuppliers } = useQuery({
     queryKey: ['suppliers', { page }],
-    queryFn: () => api.get('/suppliers', { params: { page, limit: 50, isActive: 'all' } }).then((res) => res.data)
+    queryFn: async () => {
+      const res = await api.get('/contacts', {
+        params: { types: 'supplier', page, limit: 50, isActive: 'all' },
+      })
+      const contacts = res.data?.contacts || []
+      return {
+        suppliers: contacts
+          .filter((c) => c.entityType === 'supplier')
+          .map((c) => ({
+            _id: c.entityId,
+            nameEn: c.displayName,
+            nameAr: c.displayNameAr,
+            name: c.displayName,
+            code: c.code,
+            phone: c.phone,
+            email: c.email,
+          })),
+        pagination: res.data?.pagination,
+      }
+    },
   })
 
   const { data: financials } = useQuery({

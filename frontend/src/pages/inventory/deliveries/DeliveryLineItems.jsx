@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { StatusChip } from '../inventoryUi'
+import { StatusChip, invTableWrapClass, invTableClass } from '../inventoryUi'
 import { ReceiptDraftLines } from '../receipts/ReceiptLineItems'
 import { ReceiptQuickAdd } from '../receipts/ReceiptQuickAdd'
 
@@ -52,8 +52,8 @@ export function DeliveryLineItems({
         />
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-        <table className="w-full min-w-[720px] text-sm">
+      <div className={invTableWrapClass}>
+        <table className={`${invTableClass} min-w-[720px]`}>
           <thead className="bg-slate-50/90 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:bg-dark-900/50">
             <tr>
               <th className="min-w-[150px] px-3 py-2.5 text-start">{ar ? 'المنتج' : 'Product'}</th>
