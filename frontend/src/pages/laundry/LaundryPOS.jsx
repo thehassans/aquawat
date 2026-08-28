@@ -20,6 +20,7 @@ import { toast } from 'react-hot-toast'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
 import CardPaymentModal from '../../components/pos/CardPaymentModal'
 import { getThermalPrinterSettings, printThermalElement } from '../../lib/thermalPrinter'
+import { resolvePosTaxRate } from '../../lib/resolvePosTaxRate'
 
 export default function LaundryPOS() {
   const dispatch = useDispatch()
@@ -156,7 +157,9 @@ export default function LaundryPOS() {
           billingType: item.billingType,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          taxRate: item.product ? (item.product.taxRate || 15) : (item.service?.taxRate || 15),
+          taxRate: item.product
+            ? resolvePosTaxRate(item.product, tenant)
+            : resolvePosTaxRate(item.service || {}, tenant),
           subtotal: item.subtotal,
           taxAmount: item.taxAmount,
           total: item.total,
@@ -581,7 +584,9 @@ export default function LaundryPOS() {
                         billingType: item.billingType,
                         quantity: item.quantity,
                         unitPrice: item.unitPrice,
-                        taxRate: item.product ? (item.product.taxRate || 15) : (item.service?.taxRate || 15),
+                        taxRate: item.product
+            ? resolvePosTaxRate(item.product, tenant)
+            : resolvePosTaxRate(item.service || {}, tenant),
                         subtotal: item.subtotal,
                         taxAmount: item.taxAmount,
                         total: item.total,

@@ -796,17 +796,53 @@ router.post('/work-orders/:id/issue-materials', protect, async (req, res) => {
     if (!workOrder) return res.status(404).json({ error: 'Work Order not found' });
 
     let actualMatCost = 0;
+    const { isInvEngineEnabled } = await import('../services/inventory/legacyAdapter.js');
+    const invOn = await isInvEngineEnabled(req.user.tenantId);
 
-    for (const mat of workOrder.issuedMaterials) {
-      mat.issuedQty = mat.requiredQty;
-      mat.issuedAt = new Date();
-      
-      // Deduct raw material stock
-      const rawProd = await Product.findById(mat.productId);
-      if (rawProd) {
-        rawProd.stockQuantity = Math.max(0, (rawProd.stockQuantity || 0) - mat.issuedQty);
-        await rawProd.save();
-        actualMatCost += (rawProd.costPrice || 0) * mat.issuedQty;
+    if (invOn) {
+      let warehouseId = workOrder.warehouseId;
+      if (!warehouseId) {
+        const wh = await Warehouse.findOne({ tenantId: req.user.tenantId, isActive: true }).select('_id').lean();
+        warehouseId = wh?._id;
+      }
+      if (!warehouseId) {
+        return res.status(400).json({ error: 'Warehouse required for inventory kitting' });
+      }
+
+      const { manufactureKitComponents } = await import('../services/inventory/posManufacturing.js');
+      await manufactureKitComponents(req.user.tenantId, req.user._id, {
+        warehouseId,
+        origin: `MES-WO:${workOrder.orderNumber}`,
+        note: `Kitting ${workOrder.orderNumber}`,
+        components: (workOrder.issuedMaterials || []).map((m) => ({
+          productId: m.productId,
+          variantId: m.variantId || undefined,
+          requiredQty: m.requiredQty,
+        })),
+      });
+
+      const { loadCostContext } = await import('../services/inventory/valuation.js');
+      for (const mat of workOrder.issuedMaterials) {
+        mat.issuedQty = mat.requiredQty;
+        mat.issuedAt = new Date();
+        const ctx = await loadCostContext(mat.productId, null, { variantId: mat.variantId || null });
+        actualMatCost += Number(ctx.standardPrice || 0) * mat.issuedQty;
+      }
+    } else {
+      const { loadCostContext } = await import('../services/inventory/valuation.js');
+      for (const mat of workOrder.issuedMaterials) {
+        mat.issuedQty = mat.requiredQty;
+        mat.issuedAt = new Date();
+
+        const ctx = await loadCostContext(mat.productId, null, { variantId: mat.variantId || null });
+        const unitCost = Number(ctx.standardPrice || 0);
+
+        const rawProd = await Product.findById(mat.productId);
+        if (rawProd) {
+          rawProd.stockQuantity = Math.max(0, (rawProd.stockQuantity || 0) - mat.issuedQty);
+          await rawProd.save();
+          actualMatCost += unitCost * mat.issuedQty;
+        }
       }
     }
 
@@ -1013,11 +1049,31 @@ router.post('/qa/inspections', protect, async (req, res) => {
       workOrder.wipStage = 'finished_goods_transfer';
       await workOrder.save();
 
-      // Increment finished goods stock
-      const finishedProd = await Product.findById(workOrder.productId);
-      if (finishedProd) {
-        finishedProd.stockQuantity = (finishedProd.stockQuantity || 0) + (workOrder.quantityProduced || workOrder.quantityPlanned);
-        await finishedProd.save();
+      const qty = workOrder.quantityProduced || workOrder.quantityPlanned;
+      const { isInvEngineEnabled } = await import('../services/inventory/legacyAdapter.js');
+      if (await isInvEngineEnabled(req.user.tenantId)) {
+        let warehouseId = workOrder.warehouseId;
+        if (!warehouseId) {
+          const wh = await Warehouse.findOne({ tenantId: req.user.tenantId, isActive: true }).select('_id').lean();
+          warehouseId = wh?._id;
+        }
+        if (warehouseId) {
+          const { manufactureReceiveFinished } = await import('../services/inventory/posManufacturing.js');
+          await manufactureReceiveFinished(req.user.tenantId, req.user._id, {
+            warehouseId,
+            finishedProductId: workOrder.productId,
+            finishedVariantId: workOrder.variantId || undefined,
+            finishedQty: qty,
+            origin: `MES-WO:${workOrder.orderNumber}:FG`,
+            note: `Finished goods ${workOrder.orderNumber}`,
+          });
+        }
+      } else {
+        const finishedProd = await Product.findById(workOrder.productId);
+        if (finishedProd) {
+          finishedProd.stockQuantity = (finishedProd.stockQuantity || 0) + qty;
+          await finishedProd.save();
+        }
       }
     }
 

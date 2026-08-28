@@ -12,8 +12,12 @@ import { loadCostContext, persistAvcoStandardPrice } from './valuation.js';
 import { runWithTransaction } from './reserve.js';
 import { InventoryValidationError } from './errors.js';
 
+export function landedCostLineKey(productId, variantId = null) {
+  return `${String(productId)}|${variantId ? String(variantId) : ''}`;
+}
+
 /**
- * Pure split of cost lines across products.
+ * Pure split of cost lines across products (optionally per variant).
  * @returns {Map<string, import('decimal.js').default>}
  */
 export function splitLandedCostAmounts(products, costLines) {
@@ -45,14 +49,14 @@ export function splitLandedCostAmounts(products, costLines) {
     if (totalW.lte(0)) {
       const each = price.div(products.length || 1);
       for (const p of products) {
-        const key = String(p.productId);
+        const key = p.lineKey || landedCostLineKey(p.productId, p.variantId);
         adjustments.set(key, (adjustments.get(key) || D(0)).plus(each));
       }
       continue;
     }
 
     products.forEach((p, i) => {
-      const key = String(p.productId);
+      const key = p.lineKey || landedCostLineKey(p.productId, p.variantId);
       const share = price.mul(weights[i]).div(totalW);
       adjustments.set(key, (adjustments.get(key) || D(0)).plus(share));
     });
@@ -108,11 +112,13 @@ export async function computeLandedCost(tenantId, landedCostId) {
     state: 'done',
   }).lean();
 
-  const byProduct = new Map();
+  const byLine = new Map();
   for (const m of moves) {
-    const key = String(m.productId);
-    const prev = byProduct.get(key) || {
+    const key = landedCostLineKey(m.productId, m.variantId);
+    const prev = byLine.get(key) || {
       productId: m.productId,
+      variantId: m.variantId || null,
+      lineKey: key,
       quantity: D(0),
       weight: D(0),
       volume: D(0),
@@ -136,15 +142,17 @@ export async function computeLandedCost(tenantId, landedCostId) {
       .mul(D(product?.dimensions?.height || 0));
     prev.volume = prev.volume.plus(vol.mul(qty));
     prev.cost = prev.cost.plus(D(ctx.standardPrice).mul(qty));
-    byProduct.set(key, prev);
+    byLine.set(key, prev);
   }
 
-  const products = [...byProduct.values()];
+  const products = [...byLine.values()];
   if (!products.length) throw new InventoryValidationError('No product moves on selected transfers', 'NO_MOVES');
 
   const adjustments = splitLandedCostAmounts(
     products.map((p) => ({
       productId: String(p.productId),
+      variantId: p.variantId || null,
+      lineKey: p.lineKey,
       quantity: p.quantity,
       weight: p.weight,
       volume: p.volume,
@@ -154,10 +162,12 @@ export async function computeLandedCost(tenantId, landedCostId) {
   );
 
   lc.valuationAdjustmentLines = products.map((p) => {
-    const additional = adjustments.get(String(p.productId)) || D(0);
+    const key = p.lineKey || landedCostLineKey(p.productId, p.variantId);
+    const additional = adjustments.get(key) || D(0);
     const unit = p.quantity.gt(0) ? additional.div(p.quantity) : D(0);
     return {
       productId: p.productId,
+      variantId: p.variantId || null,
       additionalCost: decStr(additional),
       quantity: decStr(p.quantity),
       unitCostAdditional: decStr(unit),
@@ -189,13 +199,15 @@ export async function validateLandedCost(tenantId, landedCostId, userId = null) 
       const additional = D(adj.additionalCost);
       if (decIsZero(additional)) continue;
 
-      const ctx = await loadCostContext(adj.productId, session);
+      const ctx = await loadCostContext(adj.productId, session, { variantId: adj.variantId || null });
       const qty = D(adj.quantity);
       const unitAdd = qty.gt(0) ? additional.div(qty) : D(0);
+      const vid = adj.variantId ? toObjectId(adj.variantId) : null;
 
       const [layer] = await InvValuationLayer.create([{
         tenantId: tid,
         productId: adj.productId,
+        variantId: vid,
         quantity: '0',
         unitCost: decStr(unitAdd),
         value: decStr(additional),
@@ -208,11 +220,18 @@ export async function validateLandedCost(tenantId, landedCostId, userId = null) 
       adj.valuationLayerId = layer._id;
 
       if (ctx.costMethod === 'fifo') {
-        const layers = await InvValuationLayer.find({
+        const layerFilter = {
           tenantId: tid,
           productId: adj.productId,
           remainingQty: { $ne: '0' },
-        }).sort({ createdAt: 1 }).session(session);
+        };
+        if (vid) {
+          layerFilter.variantId = vid;
+        } else {
+          layerFilter.$or = [{ variantId: null }, { variantId: { $exists: false } }];
+        }
+        const layers = await InvValuationLayer.find(layerFilter)
+          .sort({ createdAt: 1 }).session(session);
 
         const totalRemQty = layers.reduce((s, l) => D(s).plus(D(l.remainingQty)), D(0));
         if (totalRemQty.gt(0)) {

@@ -28,6 +28,7 @@ import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import InvoiceLivePreview from '../../components/invoices/InvoiceLivePreview'
 import { printInvoiceSnapshot, downloadInvoicePdf } from '../../lib/invoicePdf'
+import { resolvePosTaxRate } from '../../lib/resolvePosTaxRate'
 
 /**
  * Furniture POS 
@@ -147,7 +148,8 @@ export default function FurniturePOS() {
     })
     const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0)
     const taxableBase = Math.max(0, subtotal - discountAmount)
-    const totalTax = vatApplicable ? Math.round(taxableBase * 0.15 * 100) / 100 : 0
+    const vatRate = resolvePosTaxRate({}, tenant) / 100
+    const totalTax = vatApplicable ? Math.round(taxableBase * vatRate * 100) / 100 : 0
     const grandTotal = Math.round((taxableBase + totalTax) * 100) / 100
     return { lines, subtotal, totalTax, grandTotal, discountAmount }
   })()

@@ -13,6 +13,7 @@ const costLineSchema = new mongoose.Schema({
 
 const valuationAdjustmentSchema = new mongoose.Schema({
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+  variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant', default: null },
   additionalCost: { ...decimalField, default: '0' },
   quantity: { ...decimalField, default: '0' },
   unitCostAdditional: { ...decimalField, default: '0' },

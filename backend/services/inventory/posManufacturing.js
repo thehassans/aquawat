@@ -153,6 +153,118 @@ export async function manufactureConsumeProduce(tenantId, userId, body) {
 }
 
 /**
+ * MES kitting: move components Stock → Production (consume only).
+ */
+export async function manufactureKitComponents(tenantId, userId, body) {
+  const tid = toObjectId(tenantId);
+  const wh = await ensureWh(tid, userId, body.warehouseId);
+  const production = await InvLocation.findOne({
+    tenantId: tid,
+    usage: 'production',
+    active: { $ne: false },
+  }).sort({ completePath: 1 });
+  if (!production) {
+    throw new InventoryValidationError('Production location missing — bootstrap inventory', 'LOCATIONS_REQUIRED');
+  }
+
+  const opType = await InvOperationType.findOne({
+    tenantId: tid,
+    warehouseId: wh._id,
+    code: 'manufacturing',
+    active: true,
+  });
+  if (!opType) {
+    throw new InventoryValidationError(
+      'Manufacturing operation type missing — bootstrap warehouse',
+      'OP_TYPE_NOT_FOUND',
+    );
+  }
+
+  const components = body.components || [];
+  if (!components.length) {
+    throw new InventoryValidationError('Component lines required', 'LINES_REQUIRED');
+  }
+
+  const transfer = await createTransfer(tid, {
+    operationTypeId: opType._id,
+    sourceLocationId: wh.stockLocationId,
+    destLocationId: production._id,
+    origin: body.origin || 'MES-kitting',
+    note: body.note,
+    lines: components.map((l) => ({
+      productId: l.productId,
+      demandQty: l.qty ?? l.quantity ?? l.demandQty ?? l.requiredQty,
+      variantId: l.variantId || undefined,
+      uomId: l.uomId || undefined,
+    })),
+  }, userId);
+  await confirmTransfer(tid, transfer._id, userId);
+  return validateTransfer(tid, transfer._id, {
+    userId,
+    immediate: true,
+    createBackorder: false,
+  });
+}
+
+/**
+ * MES completion: move finished goods Production → Stock (produce only).
+ */
+export async function manufactureReceiveFinished(tenantId, userId, body) {
+  const tid = toObjectId(tenantId);
+  const wh = await ensureWh(tid, userId, body.warehouseId);
+  const production = await InvLocation.findOne({
+    tenantId: tid,
+    usage: 'production',
+    active: { $ne: false },
+  }).sort({ completePath: 1 });
+  if (!production) {
+    throw new InventoryValidationError('Production location missing — bootstrap inventory', 'LOCATIONS_REQUIRED');
+  }
+
+  const opType = await InvOperationType.findOne({
+    tenantId: tid,
+    warehouseId: wh._id,
+    code: 'manufacturing',
+    active: true,
+  });
+  if (!opType) {
+    throw new InventoryValidationError(
+      'Manufacturing operation type missing — bootstrap warehouse',
+      'OP_TYPE_NOT_FOUND',
+    );
+  }
+
+  if (!body.finishedProductId || body.finishedQty == null || body.finishedQty === '') {
+    throw new InventoryValidationError('Finished product and qty required', 'LINES_REQUIRED');
+  }
+
+  const resolvedVariantId = await assertStockMoveVariant(tid, {
+    productId: body.finishedProductId,
+    variantId: body.finishedVariantId || body.variantId,
+    allowAutoSingle: true,
+  });
+
+  const transfer = await createTransfer(tid, {
+    operationTypeId: opType._id,
+    sourceLocationId: production._id,
+    destLocationId: wh.stockLocationId,
+    origin: body.origin || 'MES-finished',
+    note: body.note,
+    lines: [{
+      productId: body.finishedProductId,
+      demandQty: body.finishedQty,
+      variantId: resolvedVariantId || undefined,
+    }],
+  }, userId);
+  await confirmTransfer(tid, transfer._id, userId);
+  return validateTransfer(tid, transfer._id, {
+    userId,
+    immediate: true,
+    createBackorder: false,
+  });
+}
+
+/**
  * After an MO consume transfer validates, receive finished goods into stock.
  * Idempotent — keyed by MO-produce:{consumeTransferId}.
  */

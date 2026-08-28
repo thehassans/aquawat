@@ -27,6 +27,7 @@ import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import InvoiceLivePreview from '../../components/invoices/InvoiceLivePreview'
 import { printInvoiceSnapshot, downloadInvoicePdf } from '../../lib/invoicePdf'
+import { resolvePosTaxRate } from '../../lib/resolvePosTaxRate'
 
 /**
  * Boutique POS — Ladies Boutique & Dress Rental
@@ -214,7 +215,8 @@ export default function BoutiquePOS() {
     const itemTotalDeposit = lines.reduce((s, l) => s + l.deposit, 0)
     const totalDeposit = securityDepositAmount > 0 ? securityDepositAmount : itemTotalDeposit
     const taxableBase = Math.max(0, rentalSubtotal - discountAmount)
-    const totalTax = vatApplicable ? Math.round(taxableBase * 0.15 * 100) / 100 : 0
+    const vatRate = resolvePosTaxRate({}, tenant) / 100
+    const totalTax = vatApplicable ? Math.round(taxableBase * vatRate * 100) / 100 : 0
     const grandTotal = Math.round((taxableBase + totalTax + totalDeposit) * 100) / 100
     const pendingAmount = Math.max(0, Math.round((grandTotal - (amountPaid || 0)) * 100) / 100)
     return { lines, rentalSubtotal, itemTotalDeposit, totalDeposit, totalTax, grandTotal, pendingAmount, discountAmount }

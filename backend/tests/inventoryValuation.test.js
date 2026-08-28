@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { D, decStr } from '../utils/decimal.js';
 import { consumeFifoLayers, computeAverageCost } from '../services/inventory/valuation.js';
-import { splitLandedCostAmounts } from '../services/inventory/landedCost.js';
+import { splitLandedCostAmounts, landedCostLineKey } from '../services/inventory/landedCost.js';
 import {
   buildValuationJournalLines,
   buildLandedCostJournalLines,
@@ -74,8 +74,21 @@ test('landed cost split by quantity', () => {
   const map = splitLandedCostAmounts(products, [
     { price: '100', splitMethod: 'byQuantity' },
   ]);
-  assert.equal(decStr(map.get('p1')), '25');
-  assert.equal(decStr(map.get('p2')), '75');
+  assert.equal(decStr(map.get('p1|')), '25');
+  assert.equal(decStr(map.get('p2|')), '75');
+});
+
+test('landed cost split keeps variants on separate lines', () => {
+  const products = [
+    { productId: 'p1', variantId: 'v1', lineKey: 'p1|v1', quantity: D(5), weight: D(0), volume: D(0), cost: D(0) },
+    { productId: 'p1', variantId: 'v2', lineKey: 'p1|v2', quantity: D(15), weight: D(0), volume: D(0), cost: D(0) },
+  ];
+  const map = splitLandedCostAmounts(products, [
+    { price: '100', splitMethod: 'byQuantity' },
+  ]);
+  assert.equal(decStr(map.get('p1|v1')), '25');
+  assert.equal(decStr(map.get('p1|v2')), '75');
+  assert.equal(landedCostLineKey('p1', 'v1'), 'p1|v1');
 });
 
 test('valuation journal in/out balanced', () => {
