@@ -137,6 +137,7 @@ export default function PartnerForm() {
         country: tenantCountry || 'SA',
         buildingNumber: '',
         additionalNumber: '',
+        shortAddress: '',
       },
       notes: '',
       isActive: true,
@@ -223,6 +224,7 @@ export default function PartnerForm() {
         country: existing.address?.country || tenantCountry || 'SA',
         buildingNumber: existing.address?.buildingNumber || '',
         additionalNumber: existing.address?.additionalNumber || '',
+        shortAddress: existing.address?.shortAddress || '',
       },
       notes: existing.notes || '',
       isActive: existing.isActive !== false,
@@ -627,9 +629,19 @@ export default function PartnerForm() {
               <div className="border-t border-slate-100 pt-5 dark:border-white/[0.06]">
                 <div className="mb-3 flex items-center gap-2 text-slate-800 dark:text-slate-200">
                   <MapPin className="h-4 w-4 opacity-60" />
-                  <span className="text-sm font-semibold">{ar ? 'العنوان (زاتكا)' : 'Address (ZATCA)'}</span>
+                  <span className="text-sm font-semibold">
+                    {tenantCountry === 'SA'
+                      ? (ar ? 'العنوان الوطني (SPL)' : 'National address (SPL)')
+                      : (ar ? 'العنوان' : 'Address')}
+                  </span>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
+                  {tenantCountry === 'SA' ? (
+                    <label>
+                      <span className={fieldLabelClass}>{ar ? 'العنوان المختصر' : 'Short address'}</span>
+                      <input className={fieldControlClass} placeholder="RRRD2929" maxLength={8} {...register('address.shortAddress')} />
+                    </label>
+                  ) : null}
                   <label>
                     <span className={fieldLabelClass}>{ar ? 'رقم المبنى' : 'Building no.'}</span>
                     <input className={fieldControlClass} {...register('address.buildingNumber')} />
@@ -639,7 +651,7 @@ export default function PartnerForm() {
                     <input className={fieldControlClass} {...register('address.street')} />
                   </label>
                   <label>
-                    <span className={fieldLabelClass}>{ar ? 'الحي / المنطقة' : 'District'}</span>
+                    <span className={fieldLabelClass}>{ar ? 'الحي' : 'District'}</span>
                     <input className={fieldControlClass} {...register('address.district')} />
                   </label>
                   <label>
@@ -650,10 +662,12 @@ export default function PartnerForm() {
                     <span className={fieldLabelClass}>{ar ? 'الرمز البريدي' : 'Postal code'}</span>
                     <input className={fieldControlClass} {...register('address.postalCode')} />
                   </label>
-                  <label>
-                    <span className={fieldLabelClass}>{ar ? 'الرقم الإضافي' : 'Additional no.'}</span>
-                    <input className={fieldControlClass} {...register('address.additionalNumber')} />
-                  </label>
+                  {tenantCountry === 'SA' ? (
+                    <label>
+                      <span className={fieldLabelClass}>{ar ? 'الرقم الإضافي' : 'Additional no.'}</span>
+                      <input className={fieldControlClass} {...register('address.additionalNumber')} />
+                    </label>
+                  ) : null}
                   <label>
                     <span className={fieldLabelClass}>{ar ? 'الدولة' : 'Country'}</span>
                     <input className={fieldControlClass} {...register('address.country')} />

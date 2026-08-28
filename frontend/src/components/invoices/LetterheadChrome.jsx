@@ -116,7 +116,7 @@ export default function LetterheadChrome({
           <div className="min-w-0 w-full text-left">
             {showEn ? (
               <>
-                <h1 className={`font-bold leading-tight print:text-black ${compact ? 'min-h-0' : 'min-h-16'}`} style={{ fontSize: `${headingFontSize}px`, color: textColor, fontFamily: headingFontFamily }}>
+                <h1 className={`font-bold leading-tight ${compact ? 'min-h-0' : 'min-h-16'}`} style={{ fontSize: `${headingFontSize}px`, color: textColor, fontFamily: headingFontFamily }}>
                   {isSingleLine ? (
                     <span className="block whitespace-nowrap">{contact.companyEn || '—'}</span>
                   ) : (
@@ -149,7 +149,7 @@ export default function LetterheadChrome({
           <div className={`min-w-0 w-full ${isBangla ? 'text-right' : 'text-right font-[\'Almarai\']'}`} dir={isBangla ? 'ltr' : 'rtl'}>
             {showSec ? (
               <>
-                <h1 className={`w-full font-bold leading-tight print:text-black ${compact ? 'min-h-0' : 'min-h-16'} ${!isBangla ? "font-['Almarai']" : ''}`} style={{ fontSize: `${headingFontSize}px`, color: textColor, fontFamily: isBangla ? headingFontFamily : undefined }}>
+                <h1 className={`w-full font-bold leading-tight ${compact ? 'min-h-0' : 'min-h-16'} ${!isBangla ? "font-['Almarai']" : ''}`} style={{ fontSize: `${headingFontSize}px`, color: textColor, fontFamily: isBangla ? headingFontFamily : undefined }}>
                   {isSingleLine ? (
                     <span className="block whitespace-nowrap">{contact.companyAr || contact.companyEn}</span>
                   ) : (
@@ -177,7 +177,7 @@ export default function LetterheadChrome({
         className={`relative z-10 mt-auto bg-gradient-to-r from-gray-50/80 to-white print:bg-none print:p-4 ${compact ? 'p-3' : 'p-6'}`}
         style={{ ...footerBorderStyle, color: textColor }}
       >
-        <div className={`mx-auto flex max-w-3xl flex-col items-center gap-2 text-center font-bold print:text-black ${compact ? 'text-xs' : 'text-sm'}`} style={{ color: textColor, fontFamily: bodyFontFamily }}>
+        <div className={`mx-auto flex max-w-3xl flex-col items-center gap-2 text-center font-bold ${compact ? 'text-xs' : 'text-sm'}`} style={{ color: textColor, fontFamily: bodyFontFamily }}>
           {contact.addressLine ? (
             <p className="flex items-start justify-center gap-1.5">
               <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: accentColor }} />

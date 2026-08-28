@@ -78,6 +78,7 @@ const partySchema = new mongoose.Schema({
     country: { type: String, default: 'SA' },
     buildingNumber: { type: String },
     additionalNumber: { type: String },
+    shortAddress: { type: String },
   },
   contactPhone: { type: String },
   contactEmail: { type: String },

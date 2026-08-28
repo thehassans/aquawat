@@ -105,7 +105,8 @@ const partySchema = new mongoose.Schema({
     postalCode: { type: String },
     country: { type: String, default: 'SA' },
     buildingNumber: { type: String },
-    additionalNumber: { type: String }
+    additionalNumber: { type: String },
+    shortAddress: { type: String },
   },
   contactPhone: { type: String },
   contactEmail: { type: String }

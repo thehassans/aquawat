@@ -241,13 +241,14 @@ export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, bus
       items: [
         { path: '/app/dashboard', icon: LayoutDashboard, label: language === 'ar' ? 'لوحة التحكم' : 'Dashboard', end: true, excludeBusinessTypes: ['khayyat', 'gym'] },
         {
-          path: '/app/dashboard/sales/orders',
+          path: '/app/dashboard/sales',
           icon: ShoppingCart,
           label: language === 'ar' ? 'المبيعات' : 'Sales',
           perm: { module: 'invoicing', action: 'read' },
           excludeBusinessTypes: ['khayyat'],
           activePrefixes: ['/app/dashboard/invoices', '/app/dashboard/quotations', '/app/dashboard/sales/orders', '/app/dashboard/sales/configuration', '/app/dashboard/sales/reporting', '/app/dashboard/sales'],
           children: [
+            { path: '/app/dashboard/sales', label: language === 'ar' ? 'نظرة عامة' : 'Overview', perm: { module: 'invoicing', action: 'read' } },
             { path: '/app/dashboard/sales/orders', label: language === 'ar' ? 'الطلبات' : 'Orders', perm: { module: 'invoicing', action: 'read' } },
             { path: '/app/dashboard/quotations', label: language === 'ar' ? 'عروض الأسعار' : 'Quotations', perm: { module: 'invoicing', action: 'read' }, excludeBusinessTypes: ['bakala'] },
             { path: '/app/dashboard/invoices', label: language === 'ar' ? 'الفواتير' : 'Invoices', perm: { module: 'invoicing', action: 'read' } },

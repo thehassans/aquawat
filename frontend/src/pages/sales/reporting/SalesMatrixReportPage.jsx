@@ -18,14 +18,16 @@ const DIMS = [
   { value: 'customer', label: 'Customer', labelAr: 'عميل' },
   { value: 'product', label: 'Product', labelAr: 'منتج' },
   { value: 'category', label: 'Category', labelAr: 'فئة' },
+  { value: 'transactionType', label: 'B2B / B2C', labelAr: 'B2B / B2C' },
+  { value: 'businessContext', label: 'Context', labelAr: 'السياق' },
   { value: 'month', label: 'Month', labelAr: 'شهر' },
   { value: 'week', label: 'Week', labelAr: 'أسبوع' },
   { value: 'day', label: 'Day', labelAr: 'يوم' },
 ]
 
 const MEASURES = [
-  { value: 'untaxedTotal', label: 'Untaxed total' },
   { value: 'totalSales', label: 'Total sales' },
+  { value: 'untaxedTotal', label: 'Untaxed total' },
   { value: 'margin', label: 'Margin' },
   { value: 'qtyInvoiced', label: 'Qty invoiced' },
 ]
@@ -36,7 +38,7 @@ export default function SalesMatrixReportPage() {
   const [preset, setPreset] = useState('365d')
   const [row, setRow] = useState('salesperson')
   const [col, setCol] = useState('month')
-  const [measure, setMeasure] = useState('untaxedTotal')
+  const [measure, setMeasure] = useState('totalSales')
 
   const { data, isLoading } = useQuery({
     queryKey: ['sales-matrix', preset, row, col, measure],
@@ -90,6 +92,10 @@ export default function SalesMatrixReportPage() {
           </select>
         </div>
       </div>
+
+      <p className="text-xs text-slate-500">
+        {isLoading ? '…' : `${data?.invoiceCount ?? 0} ${isAr ? 'فاتورة بيع' : 'sales invoices'}`}
+      </p>
 
       <div className={sectionCardClass}>
         <h2 className="mb-3 text-lg font-semibold">{isAr ? 'تقرير مصفوفة' : 'Matrix report'}</h2>

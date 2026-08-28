@@ -16,6 +16,7 @@ export default function SalesLayout() {
   const isAr = language === 'ar'
 
   const tabs = [
+    { id: 'overview', href: '/app/dashboard/sales', labelEn: 'Overview', labelAr: 'نظرة عامة', exact: true },
     { id: 'orders', href: '/app/dashboard/sales/orders', labelEn: 'Orders', labelAr: 'الطلبات' },
     ...(hideQuotations
       ? []
@@ -29,7 +30,11 @@ export default function SalesLayout() {
     setMobileOpen(false)
   }, [location.pathname, location.search])
 
-  const isActiveTab = (href) => {
+  const isActiveTab = (tab) => {
+    const href = tab.href
+    if (tab.exact) {
+      return location.pathname === href || location.pathname === `${href}/`
+    }
     if (href.includes('/quotations')) return location.pathname.includes('/quotations')
     if (href.includes('/sales/orders')) return location.pathname.includes('/sales/orders')
     if (href.includes('/sales/configuration')) return location.pathname.includes('/sales/configuration')
@@ -74,7 +79,7 @@ export default function SalesLayout() {
 
             <nav className="hidden items-center gap-1 lg:flex">
               {tabs.map((tab) => {
-                const active = isActiveTab(tab.href)
+                const active = isActiveTab(tab)
                 return (
                   <Link key={tab.id} to={tab.href} className={salesTabClass(active)}>
                     {isAr ? tab.labelAr : tab.labelEn}
@@ -92,7 +97,7 @@ export default function SalesLayout() {
             </div>
             <nav className="flex flex-col gap-1">
               {tabs.map((tab) => {
-                const active = isActiveTab(tab.href)
+                const active = isActiveTab(tab)
                 return (
                   <Link
                     key={tab.id}

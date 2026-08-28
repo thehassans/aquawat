@@ -1366,13 +1366,13 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
 
     doc.setTextColor(100)
     doc.text(shape(`${txt(a.k)}:`), leftColX, metaY, { align })
-    doc.setTextColor(15, 23, 42)
+    doc.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b)
     doc.text(shape(txt(a.v)), leftColX, metaY + 12, { align })
 
     if (b) {
       doc.setTextColor(100)
       doc.text(shape(`${txt(b.k)}:`), rightColX, metaY, { align: isRtl ? 'left' : 'right' })
-      doc.setTextColor(15, 23, 42)
+      doc.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b)
       doc.text(shape(txt(b.v)), rightColX, metaY + 12, { align: isRtl ? 'left' : 'right' })
     }
 
@@ -1414,7 +1414,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     doc.text(shape(label), tx, y + 18, { align })
 
     setHeadingFont(Math.max(bodyFontSize + 1, 10), 'bold')
-    doc.setTextColor(15, 23, 42)
+    doc.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b)
     doc.text(nameLines, tx, y + 36, { align, maxWidth: boxW - partyPad * 2 })
 
     setBodyFont(Math.max(bodyFontSize - 1, 8), 'bold')
@@ -1493,7 +1493,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   }
 
   setHeadingFont(Math.max(bodyFontSize + 1, 11), 'bold')
-  doc.setTextColor(15, 23, 42)
+  doc.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b)
   doc.text(shape(toBilingualBlock('Items', 'البنود')), isRtl ? contentRightEdge : contentLeft, y, { align })
   y += 14
 
@@ -1633,7 +1633,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
         doc.text(descLines, textX, descY, { align: isRtl ? 'right' : 'left', maxWidth })
 
         doc.setFontSize(nameFontSize)
-        doc.setTextColor(15, 23, 42)
+        doc.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b)
       }
     },
     didDrawPage: () => {
@@ -1788,7 +1788,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     doc.setLineWidth(0.6)
     doc.line(sigX, sigY + sigH + 6, sigX + sigW, sigY + sigH + 6)
     setBodyFont(8, 'bold')
-    doc.setTextColor(15, 23, 42)
+    doc.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b)
     const signLabel = invoice?.authorizedPersonName
       ? toBilingualText(invoice.authorizedPersonName, invoice.authorizedPersonNameAr)
       : toBilingualText('Authorized Signature', 'المفوض بالتوقيع')

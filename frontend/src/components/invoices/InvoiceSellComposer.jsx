@@ -29,7 +29,7 @@ import ProductTypeToggle from '../ui/ProductTypeToggle'
 import RichTextNoteField from './RichTextNoteField'
 import MarqueeEventFields from '../marquee/MarqueeEventFields'
 import { isAppAccessValid } from '../../lib/appStoreTrial'
-import { isPakistanTenant, getTaxLabel, getTaxIdLabel, getTenantCountryCode, showArabicFields as isArabicTenantMarket } from '../../lib/saudiTenant'
+import { isPakistanTenant, isSaudiTenant, getTaxLabel, getTaxIdLabel, getTenantCountryCode, showArabicFields as isArabicTenantMarket } from '../../lib/saudiTenant'
 import { LineRelationSuggestions } from '../inventory/ProductRelationSuggestions'
 import VariantLineSelect from '../inventory/VariantLineSelect'
 import PartnerCombobox from '../inventory/PartnerCombobox'
@@ -87,7 +87,7 @@ const idOf = (value) => {
 
 const getEmptyBuyerAddress = (tenant) => ({
   street: '', streetAr: '', district: '', districtAr: '', city: '', cityAr: '',
-  postalCode: '', country: getTenantCountryCode(tenant), buildingNumber: '', additionalNumber: '',
+  postalCode: '', country: getTenantCountryCode(tenant), buildingNumber: '', additionalNumber: '', shortAddress: '',
 })
 
 const mapSellLineItems = (invoice, tenant) => {
@@ -242,6 +242,7 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
       country: invoice?.buyer?.address?.country || getTenantCountryCode(tenant),
       buildingNumber: invoice?.buyer?.address?.buildingNumber || '',
       additionalNumber: invoice?.buyer?.address?.additionalNumber || '',
+      shortAddress: invoice?.buyer?.address?.shortAddress || '',
     },
   },
   travelDetails: sanitizeTravelDetails(invoice?.travelDetails || { passengerTitle: 'mr', layoverStay: '', hasReturnDate: false, segments: [{ from: '', to: '' }], passengers: [] }),
@@ -642,6 +643,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     setValue('buyer.address.country', customer.address?.country || getTenantCountryCode(tenant))
     setValue('buyer.address.buildingNumber', customer.address?.buildingNumber || '')
     setValue('buyer.address.additionalNumber', customer.address?.additionalNumber || '')
+    setValue('buyer.address.shortAddress', customer.address?.shortAddress || '')
     setValue('buyer.contactPhone', customer.phone || customer.mobile || getValues('buyer.contactPhone') || '')
     setValue('buyer.contactEmail', customer.email || getValues('buyer.contactEmail') || '')
   }
@@ -1308,58 +1310,59 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <div className={`mt-2 ${bilingualPairGridClass}`} dir="ltr">
                     <div>
                       <FieldLabel en={isPk ? "NTN / STRN" : "VAT Number"} ar="الرقم الضريبي" />
-                      <input {...register('buyer.vatNumber')} className={`mt-1.5 ${fieldControlClass}`} />
+                      <input {...register('buyer.vatNumber')} className={compactFieldClass} />
                     </div>
                     <div>
                       <FieldLabel en="CR Number" ar="السجل التجاري" />
-                      <input {...register('buyer.crNumber')} className={`mt-1.5 ${fieldControlClass}`} />
+                      <input {...register('buyer.crNumber')} className={compactFieldClass} />
                     </div>
-                    <div>
-                      <FieldLabel en="City" ar="المدينة" />
-                      <input {...register('buyer.address.city')} className={`mt-1.5 ${fieldControlClass}`} />
-                    </div>
-                    {showArabicFields ? (
-                      <div>
-                        <FieldLabel en="City (Arabic)" ar="المدينة بالعربية" />
-                        <input {...register('buyer.address.cityAr')} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" />
-                      </div>
-                    ) : null}
-                    <div>
-                      <FieldLabel en="District" ar="الحي" />
-                      <input {...register('buyer.address.district')} className={`mt-1.5 ${fieldControlClass}`} />
-                    </div>
-                    {showArabicFields ? (
-                      <div>
-                        <FieldLabel en="District (Arabic)" ar="الحي بالعربية" />
-                        <input {...register('buyer.address.districtAr')} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" />
-                      </div>
-                    ) : null}
-                    <div>
-                      <FieldLabel en="Street" ar="الشارع" />
-                      <input {...register('buyer.address.street')} className={`mt-1.5 ${fieldControlClass}`} />
-                    </div>
-                    {showArabicFields ? (
-                      <div>
-                        <FieldLabel en="Street (Arabic)" ar="الشارع بالعربية" />
-                        <input {...register('buyer.address.streetAr')} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" />
-                      </div>
-                    ) : null}
-                    <div>
-                      <FieldLabel en="Postal Code" ar="الرمز البريدي" />
-                      <input {...register('buyer.address.postalCode')} className={`mt-1.5 ${fieldControlClass}`} />
-                    </div>
-                    <div>
-                      <FieldLabel en="Country" ar="الدولة" />
-                      <input {...register('buyer.address.country')} className={`mt-1.5 ${fieldControlClass}`} placeholder={getTenantCountryCode(tenant)} />
-                    </div>
-                    <div>
-                      <FieldLabel en="Building Number" ar="رقم المبنى" />
-                      <input {...register('buyer.address.buildingNumber')} className={`mt-1.5 ${fieldControlClass}`} />
-                    </div>
-                    <div>
-                      <FieldLabel en="Additional Number" ar="الرقم الإضافي" />
-                      <input {...register('buyer.address.additionalNumber')} className={`mt-1.5 ${fieldControlClass}`} />
-                    </div>
+                    {isSaudiTenant(tenant) ? (
+                      <>
+                        <div>
+                          <FieldLabel en="Short Address" ar="العنوان الوطني المختصر" />
+                          <input {...register('buyer.address.shortAddress')} className={compactFieldClass} placeholder="RRRD2929" maxLength={8} />
+                        </div>
+                        <div>
+                          <FieldLabel en="Building No." ar="رقم المبنى" />
+                          <input {...register('buyer.address.buildingNumber')} className={compactFieldClass} />
+                        </div>
+                        <div>
+                          <FieldLabel en="Street" ar="الشارع" />
+                          <input {...register('buyer.address.street')} className={compactFieldClass} />
+                        </div>
+                        <div>
+                          <FieldLabel en="District" ar="الحي" />
+                          <input {...register('buyer.address.district')} className={compactFieldClass} />
+                        </div>
+                        <div>
+                          <FieldLabel en="City" ar="المدينة" />
+                          <input {...register('buyer.address.city')} className={compactFieldClass} />
+                        </div>
+                        <div>
+                          <FieldLabel en="Postal Code" ar="الرمز البريدي" />
+                          <input {...register('buyer.address.postalCode')} className={compactFieldClass} />
+                        </div>
+                        <div>
+                          <FieldLabel en="Country" ar="الدولة" />
+                          <input {...register('buyer.address.country')} className={compactFieldClass} placeholder="SA" />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <FieldLabel en="City" ar="المدينة" />
+                          <input {...register('buyer.address.city')} className={compactFieldClass} />
+                        </div>
+                        <div>
+                          <FieldLabel en="Street" ar="الشارع" />
+                          <input {...register('buyer.address.street')} className={compactFieldClass} />
+                        </div>
+                        <div>
+                          <FieldLabel en="Country" ar="الدولة" />
+                          <input {...register('buyer.address.country')} className={compactFieldClass} placeholder={getTenantCountryCode(tenant)} />
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </>
@@ -1392,6 +1395,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 <input type="hidden" {...register('buyer.address.country')} />
                 <input type="hidden" {...register('buyer.address.buildingNumber')} />
                 <input type="hidden" {...register('buyer.address.additionalNumber')} />
+                <input type="hidden" {...register('buyer.address.shortAddress')} />
               </div>
             ) : (
               <div className={bilingualPairGridClass} dir="ltr">
@@ -1421,44 +1425,74 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <FieldLabel en="CR Number" ar="السجل التجاري" />
                   <input {...register('buyer.crNumber')} className={compactFieldClass} />
                 </div>
-                <div>
-                  <FieldLabel en="City" ar="المدينة" />
-                  <input {...register('buyer.address.city')} className={compactFieldClass} />
-                </div>
-                {showArabicFields ? (
-                  <div>
-                    <FieldLabel en="City (Arabic)" ar="المدينة بالعربية" />
-                    <input {...register('buyer.address.cityAr')} className={compactFieldClass} dir="rtl" />
-                  </div>
-                ) : null}
-                <div>
-                  <FieldLabel en="District" ar="الحي" />
-                  <input {...register('buyer.address.district')} className={compactFieldClass} />
-                </div>
-                {showArabicFields ? (
-                  <div>
-                    <FieldLabel en="District (Arabic)" ar="الحي بالعربية" />
-                    <input {...register('buyer.address.districtAr')} className={compactFieldClass} dir="rtl" />
-                  </div>
-                ) : null}
-                <div>
-                  <FieldLabel en="Street" ar="الشارع" />
-                  <input {...register('buyer.address.street')} className={compactFieldClass} />
-                </div>
-                {showArabicFields ? (
-                  <div>
-                    <FieldLabel en="Street (Arabic)" ar="الشارع بالعربية" />
-                    <input {...register('buyer.address.streetAr')} className={compactFieldClass} dir="rtl" />
-                  </div>
-                ) : null}
-                <div>
-                  <FieldLabel en="Postal Code" ar="الرمز البريدي" />
-                  <input {...register('buyer.address.postalCode')} className={compactFieldClass} />
-                </div>
-                <div>
-                  <FieldLabel en="Country" ar="الدولة" />
-                  <input {...register('buyer.address.country')} className={compactFieldClass} placeholder={getTenantCountryCode(tenant)} />
-                </div>
+                {isSaudiTenant(tenant) ? (
+                  <>
+                    <div>
+                      <FieldLabel en="Short Address" ar="العنوان الوطني المختصر" />
+                      <input {...register('buyer.address.shortAddress')} className={compactFieldClass} placeholder="RRRD2929" maxLength={8} />
+                    </div>
+                    <div>
+                      <FieldLabel en="Building No." ar="رقم المبنى" />
+                      <input {...register('buyer.address.buildingNumber')} className={compactFieldClass} />
+                    </div>
+                    <div>
+                      <FieldLabel en="Street" ar="الشارع" />
+                      <input {...register('buyer.address.street')} className={compactFieldClass} />
+                    </div>
+                    <div>
+                      <FieldLabel en="District" ar="الحي" />
+                      <input {...register('buyer.address.district')} className={compactFieldClass} />
+                    </div>
+                    <div>
+                      <FieldLabel en="City" ar="المدينة" />
+                      <input {...register('buyer.address.city')} className={compactFieldClass} />
+                    </div>
+                    <div>
+                      <FieldLabel en="Postal Code" ar="الرمز البريدي" />
+                      <input {...register('buyer.address.postalCode')} className={compactFieldClass} />
+                    </div>
+                    <div>
+                      <FieldLabel en="Additional No." ar="الرقم الإضافي" />
+                      <input {...register('buyer.address.additionalNumber')} className={compactFieldClass} />
+                    </div>
+                    <div>
+                      <FieldLabel en="Country" ar="الدولة" />
+                      <input {...register('buyer.address.country')} className={compactFieldClass} placeholder="SA" />
+                    </div>
+                    <input type="hidden" {...register('buyer.address.cityAr')} />
+                    <input type="hidden" {...register('buyer.address.districtAr')} />
+                    <input type="hidden" {...register('buyer.address.streetAr')} />
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <FieldLabel en="City" ar="المدينة" />
+                      <input {...register('buyer.address.city')} className={compactFieldClass} />
+                    </div>
+                    <div>
+                      <FieldLabel en="Street" ar="الشارع" />
+                      <input {...register('buyer.address.street')} className={compactFieldClass} />
+                    </div>
+                    <div>
+                      <FieldLabel en="District" ar="الحي" />
+                      <input {...register('buyer.address.district')} className={compactFieldClass} />
+                    </div>
+                    <div>
+                      <FieldLabel en="Postal / ZIP" ar="الرمز البريدي" />
+                      <input {...register('buyer.address.postalCode')} className={compactFieldClass} />
+                    </div>
+                    <div>
+                      <FieldLabel en="Country" ar="الدولة" />
+                      <input {...register('buyer.address.country')} className={compactFieldClass} placeholder={getTenantCountryCode(tenant)} />
+                    </div>
+                    <input type="hidden" {...register('buyer.address.buildingNumber')} />
+                    <input type="hidden" {...register('buyer.address.additionalNumber')} />
+                    <input type="hidden" {...register('buyer.address.shortAddress')} />
+                    <input type="hidden" {...register('buyer.address.cityAr')} />
+                    <input type="hidden" {...register('buyer.address.districtAr')} />
+                    <input type="hidden" {...register('buyer.address.streetAr')} />
+                  </>
+                )}
               </div>
             )}
           </div>

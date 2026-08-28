@@ -171,8 +171,8 @@ export const getInvoiceBranding = (tenant, language = 'en', businessContext = 't
     vision2030LogoSrc: invoiceBranding?.vision2030Logo || DEFAULT_VISION_2030_LOGO,
     vatNumber: business?.vatNumber || '',
     crNumber: business?.crNumber || '',
-    primaryColor: '#0F172A',
-    secondaryColor: '#334155',
+    primaryColor: normalizeHexColor(invoiceBranding?.letterheadTextColor, '#0F172A'),
+    secondaryColor: normalizeHexColor(invoiceBranding?.letterheadAccentColor, '#334155'),
     typography,
   }
 }
@@ -183,10 +183,15 @@ export const getLetterheadContact = (tenant, invoice) => {
   const business = tenant?.business || {}
   const seller = invoice?.seller || {}
   const address = seller.address || business.address || {}
+  const shortAddress =
+    address.shortAddress ||
+    business?.nationalAddress?.shortAddress ||
+    ''
   const addressLine = [
-    address.buildingNumber,
+    shortAddress,
+    address.buildingNumber || business?.nationalAddress?.buildingNo,
     address.street,
-    address.district,
+    address.district || business?.nationalAddress?.neighborhood,
     address.city,
     address.postalCode,
     address.country,
@@ -194,6 +199,7 @@ export const getLetterheadContact = (tenant, invoice) => {
   const hasArabicAddress = Boolean(address.streetAr || address.districtAr || address.cityAr)
   const addressAr = hasArabicAddress
     ? [
+      shortAddress,
       address.buildingNumber,
       address.streetAr || address.street,
       address.districtAr || address.district,

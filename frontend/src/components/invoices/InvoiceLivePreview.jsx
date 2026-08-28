@@ -683,7 +683,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
     backgroundColor: '#F8FAFC',
   }
   const mutedText = 'text-slate-500'
-  const titleText = 'text-slate-900'
+  const titleText = 'font-semibold'
   const bilingualFontFamily = resolvedSecondaryLanguage === 'ur'
     ? '"Noto Nastaliq Urdu", "InvoiceAlmarai", "Almarai", Arial, Helvetica, sans-serif'
     : resolvedSecondaryLanguage === 'bn'
@@ -692,9 +692,11 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
   const shellStyle = {
     fontFamily: bilingual ? bilingualFontFamily : getInvoiceCssFontFamily(typography.bodyFontFamily),
     fontSize: `${typography.bodyFontSize || 12}px`,
+    color: invoiceBranding.primaryColor || '#0F172A',
   }
   const headingStyle = {
     fontFamily: bilingual ? bilingualFontFamily : getInvoiceCssFontFamily(typography.headingFontFamily),
+    color: invoiceBranding.primaryColor || '#0F172A',
   }
   const companyHeadingStyle = {
     ...headingStyle,

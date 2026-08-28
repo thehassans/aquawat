@@ -68,6 +68,8 @@ const partnerSchema = new mongoose.Schema({
     country: { type: String, default: 'SA' },
     buildingNumber: String,
     additionalNumber: String,
+    /** SPL Saudi short national address code (e.g. RRRD2929) */
+    shortAddress: String,
   },
 
   contactPerson: {

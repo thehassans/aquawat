@@ -101,7 +101,7 @@ export default function DocumentAppearancePanel({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <ColorField
-            label={isAr ? 'لون نص الترويسة والتذييل' : 'Heading & footer text color'}
+            label={isAr ? 'لون نص الفاتورة' : 'Invoice text color'}
             value={appearance.letterheadTextColor}
             onChange={(v) => set('letterheadTextColor', v)}
           />

@@ -71,6 +71,7 @@ const Performance = lazy(() => import('./pages/hr/Performance'))
 const HRReports = lazy(() => import('./pages/hr/HRReports'))
 const ExpenseClaims = lazy(() => import('./pages/hr/ExpenseClaims'))
 const SalesLayout = lazy(() => import('./pages/sales/SalesLayout'))
+const SalesHomePage = lazy(() => import('./pages/sales/SalesHomePage'))
 const SalesOrdersPage = lazy(() => import('./pages/sales/SalesOrdersPage'))
 const SalesOrderCreatePage = lazy(() => import('./pages/sales/SalesOrderCreatePage'))
 const SalesOrderViewPage = lazy(() => import('./pages/sales/SalesOrderViewPage'))
@@ -756,6 +757,7 @@ function App() {
           <Route path="quotations/new" element={<QuotationCreatePage />} />
           <Route path="quotations/:id/edit" element={<QuotationEditPage />} />
           <Route path="quotations/:id" element={<QuotationView />} />
+          <Route path="sales" element={<SalesHomePage />} />
           <Route path="sales/orders" element={<SalesOrdersPage />} />
           <Route path="sales/orders/new" element={<SalesOrderCreatePage />} />
           <Route path="sales/orders/:id" element={<SalesOrderViewPage />} />
@@ -783,7 +785,6 @@ function App() {
             <Route path="customers" element={<CustomersReportPage />} />
           </Route>
         </Route>
-        <Route path="sales" element={<Navigate to="/app/dashboard/sales/orders" replace />} />
         <Route path="contacts" element={<Contacts />} />
         <Route path="calendar" element={<Calendar />} />
         <Route path="customers" element={<CustomersLayout />}>
