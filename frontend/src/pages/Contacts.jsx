@@ -14,7 +14,6 @@ import {
   avatarClass,
   contactTabClass,
   contactsEyebrowClass,
-  contactsSubtitleClass,
   contactsTableClass,
   contactsTdClass,
   contactsThClass,
@@ -256,13 +255,6 @@ export default function Contacts() {
           <h1 className={contactsTitleClass}>
             {isAr ? 'جهات الاتصال' : 'Contacts'}
           </h1>
-          <p className={contactsSubtitleClass}>
-            {partnerHub
-              ? (isAr
-                ? 'دليل موحّد للعملاء والموردين والموظفين — محاسبة وضريبة وزاتكا'
-                : 'Unified partners registry — accounting, tax, and ZATCA-ready addresses')
-              : (isAr ? 'دليل موحّد للعملاء والموردين والموظفين.' : 'One book for customers, suppliers, employees, and WhatsApp.')}
-          </p>
         </div>
         <div className="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
           {partnerHub ? (

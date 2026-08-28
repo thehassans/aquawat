@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { Briefcase, Building2, ChevronDown, Plus, UserRound } from 'lucide-react'
 import { PortalDropdown } from '../../pages/inventory/PortalDropdown'
 import { buildFullFormUrl } from '../../lib/partnerDefaults'
-import { outlinedBtnClass } from '../../pages/contacts/contactsUi'
 
 function buildCreateItems({ returnTo, showEmployee }) {
   const items = [
@@ -13,8 +12,6 @@ function buildCreateItems({ returnTo, showEmployee }) {
       icon: Building2,
       labelEn: 'Customer',
       labelAr: 'عميل',
-      hintEn: 'Sales invoices, quotations & receivables',
-      hintAr: 'فواتير المبيعات وعروض الأسعار والذمم المدينة',
     },
     {
       id: 'vendor',
@@ -22,8 +19,6 @@ function buildCreateItems({ returnTo, showEmployee }) {
       icon: Briefcase,
       labelEn: 'Vendor',
       labelAr: 'مورد',
-      hintEn: 'Purchase bills, POs & payables',
-      hintAr: 'فواتير المشتريات وأوامر الشراء والذمم الدائنة',
     },
     {
       id: 'individual',
@@ -31,8 +26,6 @@ function buildCreateItems({ returnTo, showEmployee }) {
       icon: UserRound,
       labelEn: 'Individual',
       labelAr: 'فرد',
-      hintEn: 'Contact person or B2C partner',
-      hintAr: 'شخص أو عميل فردي — يمكن ربطه بشركة',
     },
   ]
 
@@ -43,18 +36,13 @@ function buildCreateItems({ returnTo, showEmployee }) {
       icon: UserRound,
       labelEn: 'Employee',
       labelAr: 'موظف',
-      hintEn: 'Staff partner for HR & payroll',
-      hintAr: 'شريك موظف للموارد البشرية والرواتب',
     })
   }
 
   return items
 }
 
-/**
- * Ultra-minimal Create control — quiet outlined trigger; options live in a
- * right-aligned portal dropdown (never a standalone primary CTA).
- */
+/** Ultra-minimal Create — quiet text trigger; options only, no hints. */
 export default function ContactsCreateMenu({
   language = 'en',
   returnTo = '/app/dashboard/contacts?types=customer,supplier',
@@ -75,7 +63,7 @@ export default function ContactsCreateMenu({
       <button
         ref={btnRef}
         type="button"
-        className={`${outlinedBtnClass} ${className}`}
+        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-dark-700 dark:hover:text-white ${className}`}
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((v) => !v)}
@@ -85,10 +73,7 @@ export default function ContactsCreateMenu({
         <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition ${open ? 'rotate-180' : ''}`} />
       </button>
       <PortalDropdown open={open} onClose={() => setOpen(false)} anchorRef={btnRef} align="end">
-        <div className="min-w-[16.5rem] py-1">
-          <div className="px-3 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-            {isAr ? 'شريك جديد' : 'New partner'}
-          </div>
+        <div className="min-w-[11rem] py-1">
           {items.map((item) => {
             const Icon = item.icon
             return (
@@ -97,19 +82,10 @@ export default function ContactsCreateMenu({
                 to={item.href}
                 role="menuitem"
                 onClick={() => setOpen(false)}
-                className="flex items-start gap-3 px-3 py-2.5 transition hover:bg-slate-50 dark:hover:bg-dark-700"
+                className="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-dark-700"
               >
-                <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-200">
-                  <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium text-slate-900 dark:text-white">
-                    {isAr ? item.labelAr : item.labelEn}
-                  </span>
-                  <span className="mt-0.5 block text-xs leading-snug text-slate-500 dark:text-slate-400">
-                    {isAr ? item.hintAr : item.hintEn}
-                  </span>
-                </span>
+                <Icon className="h-3.5 w-3.5 shrink-0 text-slate-400" strokeWidth={1.75} />
+                <span className="font-medium">{isAr ? item.labelAr : item.labelEn}</span>
               </Link>
             )
           })}
