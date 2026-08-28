@@ -228,11 +228,30 @@ router.put('/:id', checkPermission('inventory', 'update'), async (req, res) => {
       req.body,
       { new: true, runValidators: true }
     );
-    
+
     if (!warehouse) {
       return res.status(404).json({ error: 'Warehouse not found' });
     }
-    
+
+    const logisticsTouched = [
+      'receptionSteps',
+      'deliverySteps',
+      'buyToResupply',
+      'manufactureToResupply',
+      'resupplyFromWarehouseIds',
+    ].some((key) => Object.prototype.hasOwnProperty.call(req.body, key));
+
+    if (warehouse.engineBootstrappedAt && logisticsTouched) {
+      try {
+        const { recomputeWarehouseRoutes } = await import('../services/inventory/warehouseSteps.js');
+        await recomputeWarehouseRoutes(warehouse._id, req.user.tenantId, req.user._id);
+        const refreshed = await Warehouse.findById(warehouse._id);
+        return res.json(refreshed || warehouse);
+      } catch (recomputeErr) {
+        console.error('[warehouse] recompute on update failed', recomputeErr);
+      }
+    }
+
     res.json(warehouse);
   } catch (error) {
     res.status(500).json({ error: error.message });

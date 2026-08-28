@@ -67,6 +67,21 @@ async function upsertOpType(session, tid, userId, wh, def) {
   return ot;
 }
 
+function stepLocationNeeds(reception, delivery) {
+  const needed = new Set(['stock']);
+  if (reception === 'two' || reception === 'three') needed.add('input');
+  if (reception === 'three') needed.add('qc');
+  if (delivery === 'pickShip' || delivery === 'pickPackShip') needed.add('output');
+  if (delivery === 'pickPackShip') needed.add('pack');
+  return needed;
+}
+
+async function syncStepLocationActive(session, loc, active) {
+  if (!loc || loc.active === active) return;
+  loc.active = active;
+  await loc.save({ session });
+}
+
 async function upsertRouteRule(session, tid, userId, {
   routeName,
   warehouseId,
@@ -169,6 +184,15 @@ export async function recomputeWarehouseRoutes(warehouseId, tenantId, userId = n
     const pack = await upsertChild(session, tid, userId, view, 'Packing', 'التعبئة', 'internal', wh._id);
     const output = await upsertChild(session, tid, userId, view, 'Output', 'المخرج', 'internal', wh._id);
 
+    const reception = wh.receptionSteps || 'one';
+    const delivery = wh.deliverySteps || 'ship';
+    const needed = stepLocationNeeds(reception, delivery);
+    await syncStepLocationActive(session, stock, true);
+    await syncStepLocationActive(session, input, needed.has('input'));
+    await syncStepLocationActive(session, qc, needed.has('qc'));
+    await syncStepLocationActive(session, pack, needed.has('pack'));
+    await syncStepLocationActive(session, output, needed.has('output'));
+
     await InvOperationType.updateMany(
       {
         tenantId: tid,
@@ -206,9 +230,6 @@ export async function recomputeWarehouseRoutes(warehouseId, tenantId, userId = n
       warehouseId: wh._id,
       code: 'outgoing',
     }).session(session);
-
-    const reception = wh.receptionSteps || 'one';
-    const delivery = wh.deliverySteps || 'ship';
 
     // Reception
     if (receiptOt && vendor) {
@@ -438,9 +459,59 @@ export async function recomputeWarehouseRoutes(warehouseId, tenantId, userId = n
         destLocationId: stock._id,
         sequence: 10,
       });
+    } else {
+      await InvRoute.updateMany(
+        { tenantId: tid, warehouseIds: wh._id, name: `Buy ${code}` },
+        { $set: { active: false } },
+        { session },
+      );
+    }
+
+    // Manufacture route (Production → Stock)
+    const production = await InvLocation.findOne({
+      tenantId: tid,
+      usage: 'production',
+      completePath: /\/Production$/,
+    }).session(session);
+
+    if (wh.manufactureToResupply && stock && production) {
+      await upsertRouteRule(session, tid, userId, {
+        routeName: `Manufacture ${code}`,
+        warehouseId: wh._id,
+        ruleName: 'Production → Stock',
+        action: 'manufacture',
+        operationTypeId: null,
+        sourceLocationId: production._id,
+        destLocationId: stock._id,
+        sequence: 12,
+      });
+    } else {
+      await InvRoute.updateMany(
+        { tenantId: tid, warehouseIds: wh._id, name: `Manufacture ${code}` },
+        { $set: { active: false } },
+        { session },
+      );
     }
 
     // Inter-warehouse resupply routes
+    const activeResupplyIds = new Set((wh.resupplyFromWarehouseIds || []).map(String));
+    const existingResupplyRoutes = await InvRoute.find({
+      tenantId: tid,
+      name: { $regex: `^Resupply ${code} from ` },
+    }).session(session);
+    for (const route of existingResupplyRoutes) {
+      const supplierId = String(route.supplierWarehouseId || '');
+      if (!activeResupplyIds.has(supplierId)) {
+        route.active = false;
+        await route.save({ session });
+        await InvRule.updateMany(
+          { tenantId: tid, routeId: route._id },
+          { $set: { active: false } },
+          { session },
+        );
+      }
+    }
+
     for (const supplierWhId of wh.resupplyFromWarehouseIds || []) {
       const supplierWh = await Warehouse.findOne({ _id: supplierWhId, tenantId: tid }).session(session);
       if (!supplierWh?.stockLocationId || !stock) continue;

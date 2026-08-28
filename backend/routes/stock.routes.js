@@ -2792,7 +2792,7 @@ router.post('/putaway/resolve', checkPermission('inventory', 'read'), async (req
 router.post('/warehouses/:id/recompute-routes', checkPermission('inventory', 'update'), async (req, res) => {
   try {
     if (req.body.receptionSteps || req.body.deliverySteps || req.body.buyToResupply != null
-      || req.body.resupplyFromWarehouseIds) {
+      || req.body.manufactureToResupply != null || req.body.resupplyFromWarehouseIds) {
       await Warehouse.findOneAndUpdate(
         { _id: req.params.id, tenantId: req.user.tenantId },
         {
@@ -2800,6 +2800,7 @@ router.post('/warehouses/:id/recompute-routes', checkPermission('inventory', 'up
             ...(req.body.receptionSteps && { receptionSteps: req.body.receptionSteps }),
             ...(req.body.deliverySteps && { deliverySteps: req.body.deliverySteps }),
             ...(req.body.buyToResupply != null && { buyToResupply: req.body.buyToResupply }),
+            ...(req.body.manufactureToResupply != null && { manufactureToResupply: req.body.manufactureToResupply }),
             ...(req.body.resupplyFromWarehouseIds && { resupplyFromWarehouseIds: req.body.resupplyFromWarehouseIds }),
           },
         },

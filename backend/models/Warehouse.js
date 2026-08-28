@@ -6,6 +6,7 @@ const warehouseSchema = new mongoose.Schema({
   code: { type: String, required: true },
   nameEn: { type: String, required: true },
   nameAr: { type: String },
+  /** @deprecated Legacy label — physical warehouses only; virtual/returns belong in Locations */
   type: {
     type: String,
     enum: ['main', 'branch', 'distribution', 'returns', 'virtual'],
@@ -59,6 +60,7 @@ const warehouseSchema = new mongoose.Schema({
   receptionSteps: { type: String, enum: ['one', 'two', 'three'], default: 'one' },
   deliverySteps: { type: String, enum: ['ship', 'pickShip', 'pickPackShip'], default: 'ship' },
   buyToResupply: { type: Boolean, default: true },
+  manufactureToResupply: { type: Boolean, default: false },
   resupplyFromWarehouseIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' }],
   engineBootstrappedAt: { type: Date },
   
