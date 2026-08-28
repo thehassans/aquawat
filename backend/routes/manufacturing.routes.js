@@ -662,6 +662,7 @@ router.post('/work-orders', protect, async (req, res) => {
   try {
     const {
       productId,
+      variantId,
       bomId,
       routingId,
       salesOrderId,
@@ -694,6 +695,7 @@ router.post('/work-orders', protect, async (req, res) => {
     // Prepare Kitting Transfer Slips
     const issuedMaterials = (bom.components || []).map((c) => ({
       productId: c.productId?._id || c.productId,
+      variantId: c.variantId || null,
       requiredQty: Number((c.quantity * quantityPlanned * (1 + (c.scrapAllowancePercent || 0) / 100)).toFixed(2)),
       issuedQty: 0,
       uom: c.uom || 'PCS',
@@ -705,6 +707,7 @@ router.post('/work-orders', protect, async (req, res) => {
       orderNumber,
       salesOrderId: salesOrderId || null,
       productId,
+      variantId: variantId || null,
       bomId,
       bomVersion: bom.version,
       routingId: effectiveRoutingId || null,

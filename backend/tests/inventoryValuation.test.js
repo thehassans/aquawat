@@ -59,6 +59,13 @@ test('AVCO after partial consume uses remaining on-hand', () => {
   assert.equal(decStr(avg), '13.625');
 });
 
+test('resolveStandardPrice prefers variant standardPrice over template cost', async () => {
+  const { resolveStandardPrice } = await import('../services/inventory/valuation.js');
+  assert.equal(resolveStandardPrice({ costPrice: 10 }, { standardPrice: 14 }), '14');
+  assert.equal(resolveStandardPrice({ costPrice: 10 }, null), '10');
+  assert.equal(resolveStandardPrice({ averageLandedCost: 9 }, {}), '9');
+});
+
 test('landed cost split by quantity', () => {
   const products = [
     { productId: 'p1', quantity: D(10), weight: D(0), volume: D(0), cost: D(0) },

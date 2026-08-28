@@ -126,6 +126,7 @@ const workOrderSchema = new mongoose.Schema({
   salesOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', default: null },
   salesOrderNumber: { type: String, default: '' },
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+  variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant', default: null },
   bomId: { type: mongoose.Schema.Types.ObjectId, ref: 'ManufacturingBOM', required: true },
   bomVersion: { type: String, default: '1.0' },
   routingId: { type: mongoose.Schema.Types.ObjectId, ref: 'ManufacturingRouting' },
@@ -176,6 +177,7 @@ const workOrderSchema = new mongoose.Schema({
   },
   issuedMaterials: [{
     productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+    variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant', default: null },
     requiredQty: { type: Number, default: 0 },
     issuedQty: { type: Number, default: 0 },
     uom: { type: String, default: 'PCS' },

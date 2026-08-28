@@ -520,9 +520,17 @@ export async function validateTransfer(tenantId, transferId, {
             try {
               const { createValuationForMove } = await import('./valuation.js');
               const direction = destInternal && !srcInternal ? 'in' : 'out';
-              const unitCost = move.unitCost != null && move.unitCost !== ''
+              let unitCost = move.unitCost != null && move.unitCost !== ''
                 ? move.unitCost
                 : (product?.costPrice != null ? String(product.costPrice) : undefined);
+              const moveVariantId = move.variantId || line.variantId || null;
+              if ((unitCost == null || unitCost === '') && moveVariantId) {
+                const InvProductVariant = (await import('../../models/inventory/InvProductVariant.js')).default;
+                const variant = await InvProductVariant.findById(moveVariantId).select('standardPrice').lean();
+                if (variant?.standardPrice != null && variant.standardPrice !== '') {
+                  unitCost = String(variant.standardPrice);
+                }
+              }
               const val = await createValuationForMove(session, {
                 tenantId: tid,
                 productId: line.productId,

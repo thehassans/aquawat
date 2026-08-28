@@ -414,6 +414,7 @@ export async function updateVariant(tenantId, id, userId, body) {
   if (body.sku != null) doc.sku = String(body.sku).trim() || undefined;
   if (body.barcode != null) doc.barcode = String(body.barcode).trim() || undefined;
   if (body.extraPrice != null) doc.extraPrice = Number(body.extraPrice) || 0;
+  if (body.standardPrice != null) doc.standardPrice = Number(body.standardPrice) || 0;
   if (body.imageUrl != null) doc.imageUrl = body.imageUrl || undefined;
   if (body.imageThumbUrl != null) doc.imageThumbUrl = body.imageThumbUrl || undefined;
   if (body.active != null) doc.active = !!body.active;

@@ -3,6 +3,7 @@ import InvValuationLayer from '../../models/inventory/InvValuationLayer.js';
 import InvProductCategory from '../../models/inventory/InvProductCategory.js';
 import InvQuant from '../../models/inventory/InvQuant.js';
 import InvLocation from '../../models/inventory/InvLocation.js';
+import InvProductVariant from '../../models/inventory/InvProductVariant.js';
 import Product from '../../models/Product.js';
 import { toObjectId } from '../../models/inventory/common.js';
 import { InventoryValidationError } from './errors.js';
@@ -47,19 +48,47 @@ export function consumeFifoLayers(layers, qtyToConsume, standardPriceFallback = 
   return { totalCost, need, updates };
 }
 
-export async function loadCostContext(productId, session = null) {
+/** Prefer variant standardPrice when set; otherwise template cost. */
+export function resolveStandardPrice(product, variant) {
+  if (variant?.standardPrice != null && variant.standardPrice !== '') {
+    return String(variant.standardPrice);
+  }
+  return String(product?.costPrice ?? product?.averageLandedCost ?? 0);
+}
+
+export async function loadCostContext(productId, session = null, { variantId } = {}) {
   const product = await Product.findById(productId).session(session || null);
   if (!product) throw new InventoryValidationError('Product not found', 'PRODUCT_NOT_FOUND');
   const category = product.categoryId
     ? await InvProductCategory.findById(product.categoryId).session(session || null)
     : null;
+  let variant = null;
+  if (variantId != null && variantId !== '') {
+    variant = await InvProductVariant.findOne({
+      _id: toObjectId(variantId),
+      productId,
+    }).session(session || null);
+  }
   return {
     product,
+    variant,
     category,
     costMethod: category?.costingMethod || 'average',
     valuationMode: category?.valuationMode || 'automated',
-    standardPrice: String(product.costPrice ?? product.averageLandedCost ?? 0),
+    standardPrice: resolveStandardPrice(product, variant),
   };
+}
+
+export async function persistAvcoStandardPrice(ctx, newAvg, session) {
+  const avgNum = Number(decStr(newAvg));
+  if (!Number.isFinite(avgNum)) return;
+  if (ctx.variant) {
+    ctx.variant.standardPrice = avgNum;
+    await ctx.variant.save({ session });
+  } else {
+    ctx.product.costPrice = avgNum;
+    await ctx.product.save({ session });
+  }
 }
 
 /**
@@ -119,7 +148,7 @@ export async function createValuationForMove(session, {
 
   const tid = toObjectId(tenantId);
   const vid = variantId ? toObjectId(variantId) : null;
-  const ctx = await loadCostContext(productId, session);
+  const ctx = await loadCostContext(productId, session, { variantId: vid });
 
   // Manual valuation: still write layers for reporting, skip journal later
   const qty = D(quantity);
@@ -156,10 +185,7 @@ export async function createValuationForMove(session, {
         incomingQty: qty,
         unitCost,
       });
-      ctx.product.costPrice = Number(decStr(newAvg));
-      if (Number.isFinite(ctx.product.costPrice)) {
-        await ctx.product.save({ session });
-      }
+      await persistAvcoStandardPrice(ctx, newAvg, session);
     }
 
     return { layer, direction: 'in', valuationMode: ctx.valuationMode };
@@ -227,7 +253,7 @@ export async function createValuationForMove(session, {
 export async function productInventoryValue(tenantId, productId, { variantId } = {}) {
   const tid = toObjectId(tenantId);
   const vid = variantId ? toObjectId(variantId) : null;
-  const ctx = await loadCostContext(productId, null);
+  const ctx = await loadCostContext(productId, null, { variantId: vid });
   const qty = await currentInternalQty(tid, productId, null, { variantId: vid });
 
   if (ctx.costMethod === 'fifo') {

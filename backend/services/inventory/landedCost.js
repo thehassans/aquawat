@@ -8,7 +8,7 @@ import {
 import Product from '../../models/Product.js';
 import { toObjectId } from '../../models/inventory/common.js';
 import { nextSequenceName, ensureSequence } from './sequence.js';
-import { loadCostContext } from './valuation.js';
+import { loadCostContext, persistAvcoStandardPrice } from './valuation.js';
 import { runWithTransaction } from './reserve.js';
 import { InventoryValidationError } from './errors.js';
 
@@ -122,7 +122,7 @@ export async function computeLandedCost(tenantId, landedCostId) {
     prev.quantity = prev.quantity.plus(qty);
 
     const product = await Product.findById(m.productId).lean();
-    const ctx = await loadCostContext(m.productId, null);
+    const ctx = await loadCostContext(m.productId, null, { variantId: m.variantId || null });
     if (ctx.valuationMode !== 'automated' || !['fifo', 'average'].includes(ctx.costMethod)) {
       throw new InventoryValidationError(
         `Landed costs require automated FIFO/AVCO. Blocked: ${product?.nameEn || m.productId}`,
@@ -224,8 +224,7 @@ export async function validateLandedCost(tenantId, landedCostId, userId = null) 
         }
       } else if (ctx.costMethod === 'average') {
         const old = D(ctx.standardPrice || 0);
-        ctx.product.costPrice = Number(decStr(old.plus(unitAdd)));
-        await ctx.product.save({ session });
+        await persistAvcoStandardPrice(ctx, old.plus(unitAdd), session);
       }
     }
 

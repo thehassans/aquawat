@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -160,6 +161,27 @@ export default function Manufacturing() {
 
   return (
     <div className="space-y-8 pb-20">
+      <div className="rounded-2xl border border-primary-200 bg-primary-50/80 px-5 py-4 dark:border-primary-800/40 dark:bg-primary-950/30">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-primary-900 dark:text-primary-100">
+              {language === 'ar' ? 'أوامر التصنيع والمخزون' : 'Inventory manufacturing orders'}
+            </p>
+            <p className="mt-1 text-xs text-primary-700/90 dark:text-primary-200/80">
+              {language === 'ar'
+                ? 'لإنتاج البضائع مع متغيرات SKU ومزامنة المخزون، استخدم أوامر التصنيع في المخزون.'
+                : 'For finished goods with variant SKUs and live stock moves, use Inventory MO.'}
+            </p>
+          </div>
+          <Link
+            to="/app/dashboard/inventory/manufacturing/new"
+            className="btn btn-primary btn-sm shrink-0 inline-flex items-center gap-2"
+          >
+            {language === 'ar' ? 'أمر تصنيع جديد' : 'New inventory MO'}
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      </div>
       {/* ─── Hero Header ─── */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-amber-950 via-slate-900 to-orange-950 p-8 sm:p-10 text-white shadow-2xl border border-amber-500/20">
         <div className="absolute top-0 right-0 -mt-10 -mr-10 w-80 h-80 bg-orange-500/20 rounded-full blur-3xl pointer-events-none" />

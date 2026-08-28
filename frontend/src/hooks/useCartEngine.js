@@ -1,26 +1,36 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { resolvePosTaxRate, cartItemsMatch, posCartLineKey } from '../lib/resolvePosTaxRate';
 
 export const useCartEngine = () => {
   const [rawCartItems, setRawCartItems] = useState([]);
 
-  const addItem = useCallback((product) => {
+  const addItem = useCallback((product, { tenant } = {}) => {
     setRawCartItems(prev => {
-      const existing = prev.find(item => item.productId === product._id || item.primaryBarcode === product.primaryBarcode);
+      const incoming = {
+        ...product,
+        productId: product.productId || product._id,
+        variantId: product.variantId || null,
+        variantName: product.variantName || null,
+      };
+      const existing = prev.find(item => cartItemsMatch(item, incoming));
       if (existing) {
-        return prev.map(item => 
-          item.productId === product._id || item.primaryBarcode === product.primaryBarcode
+        return prev.map(item =>
+          cartItemsMatch(item, incoming)
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       }
       return [...prev, {
-        productId: product._id,
-        productName: product.name,
+        lineKey: posCartLineKey(incoming),
+        productId: incoming.productId,
+        variantId: incoming.variantId,
+        variantName: incoming.variantName,
+        productName: product.name || product.productName,
         productNameAr: product.nameAr || product.name,
         primaryBarcode: product.primaryBarcode,
         quantity: 1,
         unitPrice: product.retailPrice,
-        taxRate: product.taxRate || 15,
+        taxRate: resolvePosTaxRate(product, tenant),
         promo: product.mixAndMatchPromo,
         requiresPrescription: !!product.requiresPrescription,
         isControlled: !!product.isControlled,
@@ -28,18 +38,21 @@ export const useCartEngine = () => {
     });
   }, []);
 
-  const addWeightedItem = useCallback((product, weightKg) => {
+  const addWeightedItem = useCallback((product, weightKg, { tenant } = {}) => {
     const qty = Number(weightKg);
     if (!product || !qty || qty <= 0) return;
+    const productId = product.productId || product._id;
     setRawCartItems(prev => [...prev, {
-      lineId: `w_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      productId: product._id,
+      lineKey: `w_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      productId,
+      variantId: product.variantId || null,
+      variantName: product.variantName || null,
       productName: product.name,
       productNameAr: product.nameAr || product.name,
       primaryBarcode: product.primaryBarcode,
       quantity: qty,
       unitPrice: product.retailPrice,
-      taxRate: product.taxRate || 15,
+      taxRate: resolvePosTaxRate(product, tenant),
       isWeighed: true,
       weightLabel: `${qty.toFixed(3)} KG`
     }]);

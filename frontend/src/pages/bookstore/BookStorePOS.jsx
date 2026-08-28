@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { generateZatcaQrValue } from '../../lib/zatcaQr';
 import { generateFbrQrValue } from '../../lib/fbrQr';
 import { getThermalPrinterSettings, getBodyWidthCss, getPageCss } from '../../lib/thermalPrinter';
+import { resolvePosTaxRate } from '../../lib/resolvePosTaxRate';
 
 function BookStorePosSessions({ onSessionVerified }) {
   const { tenant } = useSelector(state => state.auth);
@@ -126,10 +127,11 @@ export default function BookStorePOS() {
 
   const addItem = useCallback((product) => {
     setCartItems(prev => {
-      const existing = prev.find(item => item.productId === product._id || item.primaryBarcode === product.primaryBarcode);
+      const lineKey = `${product._id}:${product.variantId || ''}`;
+      const existing = prev.find(item => `${item.productId}:${item.variantId || ''}` === lineKey);
       if (existing) {
         return prev.map(item =>
-          item.productId === product._id || item.primaryBarcode === product.primaryBarcode
+          `${item.productId}:${item.variantId || ''}` === lineKey
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
@@ -137,6 +139,8 @@ export default function BookStorePOS() {
       const price = product.discountPrice > 0 ? product.discountPrice : product.retailPrice;
       return [...prev, {
         productId: product._id,
+        variantId: product.variantId || null,
+        variantName: product.variantName || null,
         productName: product.name,
         productNameAr: product.nameAr || product.name,
         primaryBarcode: product.primaryBarcode,
@@ -147,7 +151,7 @@ export default function BookStorePOS() {
         productType: product.productType || 'book',
         quantity: 1,
         unitPrice: price,
-        taxRate: product.taxRate || 15,
+        taxRate: resolvePosTaxRate(product, tenant),
       }];
     });
 
@@ -197,7 +201,7 @@ export default function BookStorePOS() {
                     isBundleItem: true,
                     quantity: qty,
                     unitPrice: itemPrice,
-                    taxRate: prod.taxRate || 15,
+                    taxRate: resolvePosTaxRate(prod, tenant),
                   }];
                 }
               }
@@ -208,7 +212,7 @@ export default function BookStorePOS() {
         })
         .catch(() => {});
     }
-  }, []);
+  }, [tenant]);
 
   useEffect(() => {
     if (seriesSuggestion) {

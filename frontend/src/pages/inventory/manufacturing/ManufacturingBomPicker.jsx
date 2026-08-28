@@ -47,6 +47,7 @@ export function ManufacturingBomPicker({
   onFinishedChange,
   finishedVariantId,
   onFinishedVariantChange,
+  onFinishedNeedsVariantChange,
   onBomLines,
 }) {
   const [busy, setBusy] = useState(false)
@@ -57,12 +58,14 @@ export function ManufacturingBomPicker({
     if (!productId) {
       setFinishedVariants([])
       setFinishedNeedsVariant(false)
+      onFinishedNeedsVariantChange?.(false)
       onFinishedVariantChange?.(null)
       return
     }
     const resolved = await resolveComponentVariants(productId)
     setFinishedVariants(resolved.variants || [])
     setFinishedNeedsVariant(resolved.needsVariant)
+    onFinishedNeedsVariantChange?.(resolved.needsVariant)
     if (resolved.variantId) {
       onFinishedVariantChange?.(resolved.variantId)
     } else if (resolved.needsVariant) {
@@ -70,7 +73,7 @@ export function ManufacturingBomPicker({
     } else {
       onFinishedVariantChange?.(null)
     }
-  }, [onFinishedVariantChange])
+  }, [onFinishedVariantChange, onFinishedNeedsVariantChange])
 
   useEffect(() => {
     if (selectedFinished?._id) {
@@ -78,8 +81,16 @@ export function ManufacturingBomPicker({
     } else {
       setFinishedVariants([])
       setFinishedNeedsVariant(false)
+      onFinishedNeedsVariantChange?.(false)
     }
-  }, [selectedFinished?._id, loadFinishedVariants])
+  }, [selectedFinished?._id, loadFinishedVariants, onFinishedNeedsVariantChange])
+
+  useEffect(() => {
+    if (!selectedFinished?._id) return
+    if (finishedNeedsVariant && !finishedVariantId) return
+    loadBom(selectedFinished)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFinished?._id, finishedVariantId, finishedNeedsVariant])
 
   const fetchFinished = useCallback(async (q) => {
     const list = await api.get('/products', {
@@ -196,7 +207,6 @@ export function ManufacturingBomPicker({
             onChange={(_id, opt) => {
               onFinishedChange?.(opt)
               onFinishedVariantChange?.(null)
-              if (opt) loadBom(opt)
             }}
           />
         </div>

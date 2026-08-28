@@ -134,6 +134,7 @@ export default function ManufacturingForm() {
   const [selectedPartner, setSelectedPartner] = useState(null)
   const [finishedGood, setFinishedGood] = useState(null)
   const [finishedVariantId, setFinishedVariantId] = useState(null)
+  const [finishedNeedsVariant, setFinishedNeedsVariant] = useState(false)
   const [finishedGoodLabel, setFinishedGoodLabel] = useState('')
   const [produceQty, setProduceQty] = useState('1')
 
@@ -374,6 +375,10 @@ export default function ManufacturingForm() {
         return
       }
     }
+    if (finishedGood && finishedNeedsVariant && !finishedVariantId) {
+      toast.error(ar ? 'اختر متغير المنتج النهائي' : 'Select finished-good variant')
+      return
+    }
     createMut.mutate({
       operationTypeId: values.operationTypeId,
       partnerId: values.partnerId || undefined,
@@ -609,6 +614,7 @@ export default function ManufacturingForm() {
             onFinishedChange={setFinishedGood}
             finishedVariantId={finishedVariantId}
             onFinishedVariantChange={setFinishedVariantId}
+            onFinishedNeedsVariantChange={setFinishedNeedsVariant}
             onBomLines={(bomLines) => setLines(bomLines)}
           />
           <DeliveryDraftLines

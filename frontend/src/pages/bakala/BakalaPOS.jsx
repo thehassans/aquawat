@@ -17,6 +17,7 @@ import { getThermalPrinterSettings, getBodyWidthCss, getPageCss } from '../../li
 import { isAndroidPos, isAndroidDevice, detectBridge, isWebUsbSupported, isWebSerialSupported, printText as androidPrintText, openCashDrawer as androidOpenCashDrawer, openCashDrawerViaRaw, openCashDrawerViaWebUSB, openCashDrawerViaSerial, openCashDrawerViaSystemPrint, printViaSystemPrint, buildReceiptHtml } from '../../lib/androidPosPrinter';
 import { PosRelationStrip, buildRelationsBySource } from '../../components/inventory/ProductRelationSuggestions';
 import { asInvList } from '../../lib/invList';
+import { resolvePosTaxRate } from '../../lib/resolvePosTaxRate';
 import { useQuery } from '@tanstack/react-query';
 
 // ─── Memoized single product card — only re-renders if this specific product changes ───
@@ -134,7 +135,7 @@ export default function BakalaPOS() {
 
   const addPosItem = (item) => {
     if (!item) return;
-    addItem(item);
+    addItem(item, { tenant });
     const tid = item.productId ? String(item.productId) : null;
     setLastSuggestTradingId(tid);
   };
@@ -651,6 +652,29 @@ export default function BakalaPOS() {
       }
     }
     
+    // 1b. Variant barcode (inventory engine)
+    try {
+      const variants = await api.get('/stock/variants', { params: { q: term, limit: 5 } })
+        .then((r) => r.data?.items || r.data || []);
+      const list = Array.isArray(variants) ? variants : [];
+      const hit = list.find((v) => v.barcode === term || v.sku === term);
+      if (hit?.productId) {
+        const tradingId = typeof hit.productId === 'object' ? hit.productId._id : hit.productId;
+        const bakalaMatch = allProducts.find((p) => p.productId && String(p.productId) === String(tradingId));
+        if (bakalaMatch) {
+          addPosItem({
+            ...bakalaMatch,
+            variantId: String(hit._id),
+            variantName: hit.name || '',
+          });
+          setSearchTerm('');
+          return;
+        }
+      }
+    } catch {
+      /* variant lookup optional */
+    }
+
     // 2. Check for Exact Match
     const exactMatch = allProducts.find(p => p.primaryBarcode === term || p.barcodes?.includes(term));
     
@@ -669,7 +693,7 @@ export default function BakalaPOS() {
           name: `Item ${term}`,
           primaryBarcode: term,
           retailPrice: 15.0,
-          taxRate: 15
+          taxRate: resolvePosTaxRate({}, tenant),
         });
         setSearchTerm('');
       }
