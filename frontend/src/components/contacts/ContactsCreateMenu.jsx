@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom'
 import { Briefcase, Building2, ChevronDown, Plus, UserRound } from 'lucide-react'
 import { PortalDropdown } from '../../pages/inventory/PortalDropdown'
 import { buildFullFormUrl } from '../../lib/partnerDefaults'
-import { primaryBtnClass } from '../../pages/contacts/contactsUi'
+import { outlinedBtnClass } from '../../pages/contacts/contactsUi'
 
-function buildCreateItems({ returnTo, showEmployee, isAr }) {
+function buildCreateItems({ returnTo, showEmployee }) {
   const items = [
     {
       id: 'customer',
@@ -51,6 +51,10 @@ function buildCreateItems({ returnTo, showEmployee, isAr }) {
   return items
 }
 
+/**
+ * Ultra-minimal Create control — quiet outlined trigger; options live in a
+ * right-aligned portal dropdown (never a standalone primary CTA).
+ */
 export default function ContactsCreateMenu({
   language = 'en',
   returnTo = '/app/dashboard/contacts?types=customer,supplier',
@@ -60,28 +64,29 @@ export default function ContactsCreateMenu({
   const btnRef = useRef(null)
   const [open, setOpen] = useState(false)
   const isAr = language === 'ar'
-  const items = buildCreateItems({ returnTo, showEmployee, isAr })
+  const items = buildCreateItems({ returnTo, showEmployee })
 
   useEffect(() => {
     setOpen(false)
   }, [language, returnTo])
 
   return (
-    <div className="relative">
+    <div className="relative shrink-0">
       <button
         ref={btnRef}
         type="button"
-        className={`${primaryBtnClass} ${className}`}
+        className={`${outlinedBtnClass} ${className}`}
         aria-expanded={open}
+        aria-haspopup="menu"
         onClick={() => setOpen((v) => !v)}
       >
-        <Plus className="h-4 w-4" />
-        {isAr ? 'إنشاء' : 'Create'}
-        <ChevronDown className={`h-4 w-4 transition ${open ? 'rotate-180' : ''}`} />
+        <Plus className="h-4 w-4" strokeWidth={1.75} />
+        <span>{isAr ? 'إنشاء' : 'Create'}</span>
+        <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition ${open ? 'rotate-180' : ''}`} />
       </button>
       <PortalDropdown open={open} onClose={() => setOpen(false)} anchorRef={btnRef} align="end">
-        <div className="min-w-[17rem] py-1">
-          <div className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+        <div className="min-w-[16.5rem] py-1">
+          <div className="px-3 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
             {isAr ? 'شريك جديد' : 'New partner'}
           </div>
           {items.map((item) => {
@@ -90,14 +95,15 @@ export default function ContactsCreateMenu({
               <Link
                 key={item.id}
                 to={item.href}
+                role="menuitem"
                 onClick={() => setOpen(false)}
                 className="flex items-start gap-3 px-3 py-2.5 transition hover:bg-slate-50 dark:hover:bg-dark-700"
               >
-                <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-200">
-                  <Icon className="h-4 w-4" strokeWidth={1.75} />
+                <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-200">
+                  <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-slate-900 dark:text-white">
+                  <span className="block text-sm font-medium text-slate-900 dark:text-white">
                     {isAr ? item.labelAr : item.labelEn}
                   </span>
                   <span className="mt-0.5 block text-xs leading-snug text-slate-500 dark:text-slate-400">

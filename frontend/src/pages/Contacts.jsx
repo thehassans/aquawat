@@ -264,12 +264,7 @@ export default function Contacts() {
               : (isAr ? 'دليل موحّد للعملاء والموردين والموظفين.' : 'One book for customers, suppliers, employees, and WhatsApp.')}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ContactsCreateMenu
-            language={language}
-            returnTo={returnTo}
-            showEmployee={partnerHub || !typesParam}
-          />
+        <div className="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
           {partnerHub ? (
             <>
               <button
@@ -303,6 +298,11 @@ export default function Contacts() {
               disabled={isLoading || rows.length === 0}
             />
           )}
+          <ContactsCreateMenu
+            language={language}
+            returnTo={returnTo}
+            showEmployee={partnerHub || !typesParam}
+          />
         </div>
       </div>
 
