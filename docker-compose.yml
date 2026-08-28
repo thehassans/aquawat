@@ -193,9 +193,6 @@ services:
       PUBLIC_RATE_LIMIT_MAX: "1000"
       CLUSTER_WORKERS: "2"
       ALLOW_LOCAL_UPLOADS: "true"
-      REQUIRE_OBJECT_STORAGE: "false"
-      API_MAX_PAGE_LIMIT: "100"
-      REDIS_MEMORY_ALERT_PCT: "85"
       LOG_CONSOLE: "true"              # Forward logs to Docker log driver
     depends_on:
       mongo:
@@ -289,7 +286,7 @@ services:
     restart: unless-stopped
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy     # Wait for backend healthcheck to pass
     networks:
       - maqder_net
     # Public 8080 is held by `edge` so visitors see the updating page

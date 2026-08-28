@@ -50,10 +50,9 @@ export function validateProductionEnv({ logger = console } = {}) {
     const hasS3 = Boolean(
       process.env.S3_BUCKET && process.env.S3_ACCESS_KEY && process.env.S3_SECRET_KEY
     );
-    const allowLocalUploads = process.env.ALLOW_LOCAL_UPLOADS === 'true';
     if (!hasS3) {
-      if (allowLocalUploads) {
-        // Explicit single-node uploads — do not warn on every boot.
+      if (process.env.ALLOW_LOCAL_UPLOADS === 'true') {
+        // Explicit single-node uploads — ALLOW_LOCAL_UPLOADS wins over REQUIRE_OBJECT_STORAGE.
       } else if (process.env.REQUIRE_OBJECT_STORAGE === 'true') {
         errors.push(
           'S3_BUCKET/S3_ACCESS_KEY/S3_SECRET_KEY required when REQUIRE_OBJECT_STORAGE=true'

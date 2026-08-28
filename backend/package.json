@@ -23,8 +23,7 @@
     "bench:inventory-perf": "node scripts/benchInventoryPerf.js",
     "cleanup:ecommerce": "node scripts/removeEcommerceTenantData.mjs",
     "worker:whatsapp": "node workers/whatsappWorker.js",
-    "worker:pdf": "node workers/invoicePdfWorker.js",
-    "worker:cron": "node workers/cronWorker.js"
+    "worker:pdf": "node workers/invoicePdfWorker.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1107.0",

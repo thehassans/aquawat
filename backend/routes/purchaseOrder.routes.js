@@ -10,7 +10,6 @@ import PurchaseReturn from '../models/PurchaseReturn.js';
 import LandedCost from '../models/LandedCost.js';
 import Invoice from '../models/Invoice.js';
 import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
-import { cachedTenantStats } from '../utils/statsCache.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { saveUploadBuffer, readUploadBuffer } from '../utils/objectStorage.js';
 import { normalizeProductType } from '../utils/productType.js';
@@ -160,8 +159,7 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
 
 router.get('/stats', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
-    const payload = await cachedTenantStats(req, 'purchase-orders', async () => {
-      const stats = await PurchaseOrder.aggregate([
+    const stats = await PurchaseOrder.aggregate([
       { $match: castTenantFilter(req.tenantFilter) },
       {
         $facet: {
@@ -193,10 +191,7 @@ router.get('/stats', checkPermission('supply_chain', 'read'), async (req, res) =
       }
     ]);
 
-    return stats[0] || {};
-    });
-
-    res.json(payload);
+    res.json(stats[0] || {});
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

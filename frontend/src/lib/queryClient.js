@@ -2,6 +2,15 @@ import { QueryClient, keepPreviousData } from '@tanstack/react-query'
 
 const MINUTE = 60 * 1000
 
+/** Per-resource stale times — stats/dashboard change slowly; lists refresh sooner. */
+function staleTimeForQuery(queryKey) {
+  const root = Array.isArray(queryKey) ? String(queryKey[0] || '') : ''
+  if (root.includes('stats') || root === 'dashboard') return 2 * MINUTE
+  if (root.includes('settings') || root === 'tenant' || root === 'me') return 10 * MINUTE
+  if (root.includes('contacts') || root.includes('products') || root.includes('invoices')) return 90 * 1000
+  return 3 * MINUTE
+}
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -24,34 +33,13 @@ export const queryClient = new QueryClient({
         return Math.min(1000 * 2 ** attemptIndex, 8000)
       },
     },
-    mutations: {
-      retry: 0,
-    },
   },
 })
 
-/** Stats / dashboard — slow-changing aggregates. */
-for (const key of [
-  'dashboard',
-  'contacts-stats',
-  'products-stats',
-  'invoices-stats',
-  'employees-stats',
-  'expenses-stats',
-  'customers-stats',
-  'crm-stats',
-  'mrp-stats',
-  'purchase-orders-stats',
-]) {
-  queryClient.setQueryDefaults([key], { staleTime: 2 * MINUTE, gcTime: 15 * MINUTE })
-}
+queryClient.setQueryDefaults([], {
+  queries: {
+    staleTime: (query) => staleTimeForQuery(query.queryKey),
+  },
+})
 
-/** Reference data — tenant settings, profile. */
-for (const key of ['tenant', 'me', 'system-settings']) {
-  queryClient.setQueryDefaults([key], { staleTime: 10 * MINUTE, gcTime: 30 * MINUTE })
-}
-
-/** High-churn lists — shorter stale window. */
-for (const key of ['contacts', 'products', 'invoices', 'employees', 'expenses']) {
-  queryClient.setQueryDefaults([key], { staleTime: 90 * 1000, gcTime: 10 * MINUTE })
-}
+export { staleTimeForQuery }

@@ -6,6 +6,7 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import cron from 'node-cron';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -143,8 +144,15 @@ import bomRoutes from './routes/bom.routes.js';
 import gymRoutes from './routes/gym.routes.js';
 import calendarRoutes from './routes/calendar.routes.js';
 
-import paginationCap from './middleware/paginationCap.js';
-import { startCronJobs } from './services/cronScheduler.js';
+import { checkIqamaExpiry } from './jobs/iqamaChecker.js';
+import { processScheduledReports } from './jobs/reportScheduleJob.js';
+import { syncZatcaInvoices } from './jobs/zatcaSync.js';
+import { fetchImapEmails } from './jobs/imapFetcher.js';
+import { startBoutiqueReminderJobs } from './jobs/boutiqueReminderJob.js';
+import { checkRestaurantAutoStatus } from './jobs/restaurantAutoStatusJob.js';
+import { markOverdueInvoices } from './jobs/invoiceOverdueJob.js';
+import { processQueue as processZatcaQueue } from './services/zatcaQueueProcessor.js';
+import { runZatcaMonitoring, runCertExpiryCheck } from './jobs/zatcaMonitoringJob.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import requestTimeout from './middleware/requestTimeout.js';
 import responseTime from './middleware/responseTime.js';
@@ -152,7 +160,7 @@ import { etag } from './middleware/httpCache.js';
 import { gateSensitiveUploads } from './middleware/uploadsAccess.js';
 import { mongoSanitize } from './middleware/mongoSanitize.js';
 import { csrfCookieGuard } from './middleware/csrfOrigin.js';
-import { isRedisReady, getRedisMemoryInfo } from './lib/redis.js';
+import { isRedisReady, cacheSet, cacheSetNx } from './lib/redis.js';
 import { makeRateLimitStore } from './utils/hybridRateLimitStore.js';
 import logger from './utils/logger.js';
 import User from './models/User.js';
@@ -169,6 +177,7 @@ import { startInvoicePdfWorker } from './services/invoicePdfQueue.js';
 import { ensureAtlasSearchIndex } from './utils/invoiceSearch.js';
 import { backfillMissingTrackTokens } from './models/khayyat/KhayyatStitching.js';
 import { sloSnapshot } from './utils/sloMetrics.js';
+import { evaluateSloAndAlert } from './jobs/sloAlertJob.js';
 
 dotenv.config();
 applySecretFiles();
@@ -208,7 +217,15 @@ const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/zatca-erp
 const databaseReadyState = () => mongoose.connection.readyState;
 const isDatabaseReady = () => databaseReadyState() === 1;
 let reconnectTimer = null;
+let jobsStarted = false;
 let databaseConnectionPromise = null;
+
+// Cron leadership — CRON_WORKER=0 never runs jobs (PM2 API workers).
+// CRON_WORKER=1 or development always run. Otherwise Redis NX election.
+const WORKER_ID = Number(process.env.WORKER_ID || 1);
+const CRON_WORKER_ENV = process.env.CRON_WORKER;
+const DISABLE_CRON = CRON_WORKER_ENV === '0';
+const FORCE_CRON_WORKER = CRON_WORKER_ENV === '1' || process.env.NODE_ENV === 'development';
 
 const seedSuperAdmin = async () => {
   try {
@@ -241,6 +258,106 @@ const seedSuperAdmin = async () => {
     }
   } catch (err) {
     logger.error('Auto-seed super admin error:', err.message);
+  }
+};
+
+const startJobs = async () => {
+  if (jobsStarted) {
+    return;
+  }
+
+  if (DISABLE_CRON) {
+    logger.info(`[server] Worker ${WORKER_ID} — skipping cron jobs (CRON_WORKER=0)`);
+    return;
+  }
+
+  let shouldRun = FORCE_CRON_WORKER;
+  if (!shouldRun) {
+    const acquired = await cacheSetNx('cron:leader', { workerId: WORKER_ID, at: Date.now() }, 90);
+    if (acquired) {
+      shouldRun = true;
+      setInterval(() => {
+        cacheSet('cron:leader', { workerId: WORKER_ID, at: Date.now() }, 90).catch(() => {});
+      }, 30_000).unref();
+    } else if (!isRedisReady() && WORKER_ID === 1) {
+      // Redis unavailable — fall back to classic worker #1 ownership
+      shouldRun = true;
+    } else {
+      logger.info(`[server] Worker ${WORKER_ID} — skipping cron jobs (another leader holds lock)`);
+      setInterval(async () => {
+        if (jobsStarted) return;
+        const got = await cacheSetNx('cron:leader', { workerId: WORKER_ID, at: Date.now() }, 90);
+        if (got) startJobs();
+      }, 60_000).unref();
+      return;
+    }
+  }
+
+  if (!shouldRun) {
+    return;
+  }
+
+  jobsStarted = true;
+  logger.info(`[server] Worker ${WORKER_ID} — starting cron jobs`);
+
+  cron.schedule('0 8 * * *', () => {
+    logger.info('Running Iqama expiry check...');
+    checkIqamaExpiry();
+  });
+
+  cron.schedule('0 */6 * * *', () => {
+    logger.info('Running ZATCA B2C invoice sync...');
+    syncZatcaInvoices();
+  });
+
+  cron.schedule('*/2 * * * *', async () => {
+    logger.info('Running ZATCA queue processor...');
+    await processZatcaQueue(25);
+  });
+
+  cron.schedule('0 2 * * *', async () => {
+    logger.info('Running ZATCA nightly monitoring (chain + QR + certs)...');
+    await runZatcaMonitoring();
+  });
+
+  cron.schedule('0 8 * * *', async () => {
+    logger.info('Running ZATCA certificate expiry check...');
+    await runCertExpiryCheck();
+  });
+
+  cron.schedule('*/15 * * * *', async () => {
+    logger.info('Running scheduled reports job...');
+    await processScheduledReports();
+  });
+
+  cron.schedule('* * * * *', async () => {
+    await fetchImapEmails();
+  });
+
+  // Boutique rental reminders & overdue alerts
+  startBoutiqueReminderJobs();
+
+  // Restaurant auto open/close based on time
+  cron.schedule('* * * * *', async () => {
+    await checkRestaurantAutoStatus();
+  });
+
+  cron.schedule('5 0 * * *', async () => {
+    logger.info('Marking overdue invoices (Asia/Riyadh)...');
+    await markOverdueInvoices();
+  }, { timezone: 'Asia/Riyadh' });
+
+  cron.schedule('*/2 * * * *', async () => {
+    await evaluateSloAndAlert({
+      dbReady: isDatabaseReady(),
+      redisReady: isRedisReady(),
+      redisRequired: process.env.REDIS_ENABLED !== 'false',
+    });
+  });
+
+  if (process.env.STOCK_SCHEDULER_CRON === '1') {
+    const { startInventoryScheduler } = await import('./jobs/inventoryScheduler.js');
+    startInventoryScheduler();
   }
 };
 
@@ -333,7 +450,7 @@ const connectToDatabase = async () => {
       } catch (tokenErr) {
         logger.warn(`[khayyat] trackToken backfill failed: ${tokenErr.message}`);
       }
-      startCronJobs({ dbReady: isDatabaseReady });
+      startJobs();
     })
     .catch((err) => {
       logger.error('MongoDB connection error:', err);
@@ -585,7 +702,6 @@ app.use(csrfCookieGuard);
 
 // Strip Mongo operator keys ($…) from body/query/params (express-mongo-sanitize not installed)
 app.use(mongoSanitize);
-app.use(paginationCap);
 
 app.locals.waitForDatabaseReady = waitForDatabaseReady;
 
@@ -605,13 +721,10 @@ app.get('/api/health/live', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-app.get('/api/health/ready', async (req, res) => {
+app.get('/api/health/ready', (req, res) => {
   const redisRequired = process.env.REDIS_ENABLED !== 'false';
   const redisReady = isRedisReady();
   const dbReady = isDatabaseReady();
-  const redisMemory = await getRedisMemoryInfo();
-  const memoryAlertPct = Number(process.env.REDIS_MEMORY_ALERT_PCT || 85);
-  const redisMemoryHigh = redisMemory?.usedPercent != null && redisMemory.usedPercent >= memoryAlertPct;
 
   if (!dbReady || (redisRequired && !redisReady)) {
     return res.status(503).json({
@@ -623,15 +736,13 @@ app.get('/api/health/ready', async (req, res) => {
       redis: {
         enabled: redisRequired,
         ready: redisReady,
-        memory: redisMemory,
-        memoryAlert: redisMemoryHigh,
       },
       timestamp: new Date().toISOString()
     });
   }
 
   return res.json({
-    status: redisMemoryHigh ? 'DEGRADED' : 'READY',
+    status: 'READY',
     database: {
       readyState: databaseReadyState(),
       connected: true,
@@ -639,9 +750,6 @@ app.get('/api/health/ready', async (req, res) => {
     redis: {
       enabled: redisRequired,
       ready: redisReady,
-      memory: redisMemory,
-      memoryAlert: redisMemoryHigh,
-      memoryAlertThresholdPct: memoryAlertPct,
     },
     slo: sloSnapshot(),
     timestamp: new Date().toISOString()

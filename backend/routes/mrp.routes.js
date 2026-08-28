@@ -3,7 +3,6 @@ import Product from '../models/Product.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import Supplier from '../models/Supplier.js';
 import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
-import { cachedTenantStats } from '../utils/statsCache.js';
 
 const router = express.Router();
 
@@ -356,9 +355,7 @@ router.post('/bom-plan', checkPermission('mrp', 'read'), async (req, res) => {
 router.get('/stats', checkPermission('mrp', 'read'), async (req, res) => {
   try {
     const { search, multiplier = 2 } = req.query;
-    const suffix = `${search || ''}:${multiplier}`;
 
-    const payload = await cachedTenantStats(req, 'mrp', async () => {
     const mult = Math.max(1, safeNumber(multiplier, 2));
 
     const productQuery = { ...req.tenantFilter, isActive: true };
@@ -416,7 +413,7 @@ router.get('/stats', checkPermission('mrp', 'read'), async (req, res) => {
 
     const categories = Array.from(byCategory.values()).sort((a, b) => b.estimatedCost - a.estimatedCost);
 
-    return {
+    res.json({
       totals: {
         suggestions: suggestionsCount,
         recommendedQty: totalRecommendedQty,
@@ -424,10 +421,7 @@ router.get('/stats', checkPermission('mrp', 'read'), async (req, res) => {
         incomingQty: totalIncomingQty
       },
       byCategory: categories.slice(0, 12)
-    };
-    }, { querySuffix: suffix, ttlSeconds: 120, fetchTimeoutMs: 20_000 });
-
-    res.json(payload);
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -3894,22 +3894,6 @@ router.post('/print', checkPermission('inventory', 'read'), stockHeavyLimiter, a
     }
 
     const layout = req.body.layout;
-    const pdfPayload = {
-      layout,
-      transferId: req.body.transferId,
-      transferIds: req.body.transferIds,
-      locationIds: req.body.locationIds,
-      productIds: req.body.productIds,
-      lotIds: req.body.lotIds,
-      packageIds: req.body.packageIds,
-      copies: req.body.copies,
-      labelPreset: req.body.labelPreset,
-      labelItems: req.body.labelItems || [],
-      filters: req.body.filters || {},
-      lang: req.body.lang || 'ar',
-      showPrices: !!req.body.showPrices,
-    };
-
     const printJob = await InvPrintJob.create({
       tenantId: toObjectId(req.user.tenantId),
       userId: req.user._id,
@@ -3925,29 +3909,22 @@ router.post('/print', checkPermission('inventory', 'read'), stockHeavyLimiter, a
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     }).catch(() => null);
 
-    const useAsyncQueue = req.body.async === true
-      || req.query.async === '1'
-      || process.env.PDF_WORKER_DEDICATED === 'true';
-
-    if (useAsyncQueue) {
-      const { enqueueInventoryPrint } = await import('../services/inventoryPrintQueue.js');
-      const queueJobId = await enqueueInventoryPrint({
-        tenantId: req.user.tenantId,
-        printJobId: printJob?._id,
-        payload: pdfPayload,
-      }).catch(() => null);
-
-      if (queueJobId) {
-        return res.status(202).json({
-          status: 'queued',
-          printJobId: printJob?._id ? String(printJob._id) : null,
-          queueJobId: String(queueJobId),
-        });
-      }
-    }
-
     try {
-      const buf = await renderInventoryPdf(req.user.tenantId, pdfPayload);
+      const buf = await renderInventoryPdf(req.user.tenantId, {
+        layout,
+        transferId: req.body.transferId,
+        transferIds: req.body.transferIds,
+        locationIds: req.body.locationIds,
+        productIds: req.body.productIds,
+        lotIds: req.body.lotIds,
+        packageIds: req.body.packageIds,
+        copies: req.body.copies,
+        labelPreset: req.body.labelPreset,
+        labelItems: req.body.labelItems || [],
+        filters: req.body.filters || {},
+        lang: req.body.lang || 'ar',
+        showPrices: !!req.body.showPrices,
+      });
       if (printJob?._id) {
         await InvPrintJob.updateOne(
           { _id: printJob._id },

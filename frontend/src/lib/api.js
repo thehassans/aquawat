@@ -57,29 +57,6 @@ const getApiErrorMessage = (error) => {
 const API_CACHE_TTL_MS = 30 * 60 * 1000 // 30 minutes
 const API_CACHE_MAX_ENTRIES = 200
 
-/** Never persist sensitive GET responses in IndexedDB (PII / finance / HR). */
-const IDB_CACHE_BLOCKLIST = [
-  '/contacts',
-  '/partners',
-  '/customers',
-  '/suppliers',
-  '/employees',
-  '/users',
-  '/payroll',
-  '/hr/',
-  '/accounting',
-  '/expenses',
-  '/expense-claims',
-  '/invoices',
-  '/zatca',
-  '/auth/',
-]
-
-const isIdbCacheBlocked = (url = '') => {
-  const path = String(url).split('?')[0]
-  return IDB_CACHE_BLOCKLIST.some((prefix) => path.includes(prefix))
-}
-
 const api = axios.create({
   baseURL: apiBaseUrl,
   timeout: 30000,
@@ -103,7 +80,7 @@ const readApiCacheEntry = async (cacheKey) => {
 }
 
 const resolveStaleCacheResponse = async (config, { allowExpired = false } = {}) => {
-  if (!config || config.method !== 'get' || isIdbCacheBlocked(config.url)) return null
+  if (!config || config.method !== 'get' || config.url?.includes('/auth/')) return null
   const cacheKey = buildGetCacheKey(config)
   const cached = await readApiCacheEntry(cacheKey)
   if (!cached?.data) return null
@@ -192,7 +169,7 @@ const isOfflineMutationAllowed = (url = '') => {
 
 // Asynchronous non-blocking background cache write (0ms latency penalty on requests)
 const backgroundCacheResponse = (config, data) => {
-  if (!config || config.method !== 'get' || isIdbCacheBlocked(config.url)) return
+  if (!config || config.method !== 'get' || config.url?.includes('/auth/')) return
   setTimeout(async () => {
     try {
       const db = await initDb()

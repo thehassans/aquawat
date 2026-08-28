@@ -44,30 +44,20 @@ async function processPrintJob({ tenantId, printJobId, payload }) {
   const { renderInventoryPdf } = await import('./inventory/invPrint.js');
   const InvPrintJob = (await import('../models/inventory/InvPrintJob.js')).default;
 
-  try {
-    const buf = await renderInventoryPdf(tenantId, payload);
-    if (printJobId) {
-      await InvPrintJob.updateOne(
-        { _id: printJobId },
-        {
-          $set: {
-            status: 'done',
-            filename: `${payload.layout || 'document'}.pdf`,
-            bytes: buf.length,
-          },
+  const buf = await renderInventoryPdf(tenantId, payload);
+  if (printJobId) {
+    await InvPrintJob.updateOne(
+      { _id: printJobId },
+      {
+        $set: {
+          status: 'done',
+          filename: `${payload.layout || 'document'}.pdf`,
+          bytes: buf.length,
         },
-      ).catch(() => {});
-    }
-    return { bytes: buf.length };
-  } catch (err) {
-    if (printJobId) {
-      await InvPrintJob.updateOne(
-        { _id: printJobId },
-        { $set: { status: 'failed', error: err.message || String(err) } },
-      ).catch(() => {});
-    }
-    throw err;
+      },
+    ).catch(() => {});
   }
+  return { bytes: buf.length };
 }
 
 /** Enqueue inventory PDF generation (BullMQ). Returns job id or null. */
@@ -90,16 +80,8 @@ export function startInventoryPrintWorker() {
         concurrency: Number(process.env.INVENTORY_PRINT_CONCURRENCY || 1),
       },
     );
-    printWorker.on('failed', async (job, err) => {
+    printWorker.on('failed', (job, err) => {
       logger.warn(`[inventoryPrint] job ${job?.id} failed: ${err.message}`);
-      const printJobId = job?.data?.printJobId;
-      if (printJobId) {
-        const InvPrintJob = (await import('../models/inventory/InvPrintJob.js')).default;
-        await InvPrintJob.updateOne(
-          { _id: printJobId },
-          { $set: { status: 'failed', error: err.message || String(err) } },
-        ).catch(() => {});
-      }
     });
     logger.info('[inventoryPrint] BullMQ worker listening');
   } catch (error) {
