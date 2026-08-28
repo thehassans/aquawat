@@ -7,7 +7,7 @@ import { Plus } from 'lucide-react'
 import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
-import { StatusChip } from './inventoryUi'
+import { StatusChip, invTableWrapClass } from './inventoryUi'
 import { formatInvError } from '../../lib/invError'
 import ReverseTransferModal from './returns/ReverseTransferModal'
 import { inventoryPathForOpCode } from './returns/returnPaths'
@@ -96,7 +96,7 @@ export function PackagesPage() {
       {isLoading ? <div className="text-sm text-slate-500">…</div> : !list.length ? (
         <EmptyState title={ar ? 'لا طرود' : 'No packages'} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+        <div className={invTableWrapClass}>
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
@@ -149,7 +149,7 @@ export function ReturnsPage() {
       {isLoading ? <div className="text-sm text-slate-500">…</div> : !rows.length ? (
         <EmptyState title={ar ? 'لا تحويلات مكتملة' : 'No done transfers'} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+        <div className={invTableWrapClass}>
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
@@ -239,7 +239,7 @@ export function ReferencesPage() {
       {isLoading ? <div className="text-sm text-slate-500">…</div> : !items.length ? (
         <EmptyState title={ar ? 'لا مجموعات بعد' : 'No procurement groups yet'} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+        <div className={invTableWrapClass}>
           <table className="w-full min-w-[800px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>
@@ -448,7 +448,7 @@ export function DeliveryMethodsPage() {
       {isLoading ? <div className="text-sm text-slate-500">…</div> : !items.length ? (
         <EmptyState title={ar ? 'لا طرق بعد' : 'No delivery methods'} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+        <div className={invTableWrapClass}>
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>

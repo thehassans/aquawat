@@ -7,6 +7,7 @@ import api from '../../lib/api'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
+import { invTableWrapClass } from './inventoryUi'
 
 export default function LotsList() {
   const { language } = useSelector((s) => s.ui)
@@ -38,7 +39,7 @@ export default function LotsList() {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+      <div className={invTableWrapClass}>
         <table className="w-full min-w-[640px] text-sm">
           <thead className="border-b border-slate-100 bg-slate-50/80 text-xs uppercase text-slate-500 dark:border-dark-600">
             <tr>

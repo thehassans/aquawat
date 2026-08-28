@@ -60,7 +60,7 @@ export default function DemoWelcome() {
       icon: Users,
       title: isArabic ? 'الشركاء' : 'Partners',
       body: isArabic ? 'أضف عملاء وموردين من دليل موحّد.' : 'Add customers and suppliers from one partner book.',
-      to: '/app/dashboard/contacts?types=customer,supplier',
+      to: '/app/dashboard/customers/new?role=customer&returnTo=/app/dashboard/contacts?types=customer,supplier',
     },
     {
       icon: BarChart3,

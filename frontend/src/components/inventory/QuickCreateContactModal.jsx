@@ -60,20 +60,20 @@ export default function QuickCreateContactModal({
   }, [open, busy, onClose])
 
   const fetchCompanies = async (q) => {
-    if (isVendor) {
-      const data = await api.get('/suppliers', {
-        params: { search: q, limit: 15, isActive: true },
-      }).then((r) => r.data)
-      const list = data?.suppliers || data?.data || (Array.isArray(data) ? data : [])
-      return (list || [])
-        .filter((s) => (s.type || 'company') !== 'individual')
-        .map((s) => ({
-          ...s,
-          name: s.nameEn || s.name || s.nameAr || '—',
-        }))
-    }
-    const rows = await api.get('/customers/search', { params: { q } }).then((r) => r.data || [])
-    return (Array.isArray(rows) ? rows : []).filter((c) => (c.type || 'business') !== 'individual')
+    const data = await api.get('/contacts', {
+      params: { search: q, types: isVendor ? 'supplier' : 'customer', limit: 15, isActive: true },
+    }).then((r) => r.data)
+    const list = data?.contacts || []
+    return list
+      .filter((c) => c.entityType === (isVendor ? 'supplier' : 'customer'))
+      .map((c) => ({
+        _id: c.entityId,
+        name: c.displayName || '—',
+        nameEn: c.displayName,
+        nameAr: c.displayNameAr,
+        type: 'company',
+        code: c.code,
+      }))
   }
 
   const goFullForm = () => {

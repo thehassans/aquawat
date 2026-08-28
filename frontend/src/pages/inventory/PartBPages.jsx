@@ -17,6 +17,7 @@ import {
   formatReportQty,
   formatTurns,
 } from '../../lib/reportFormat'
+import { invTableWrapClass } from './inventoryUi'
 
 export function CountPlansPage() {
   const { language } = useSelector((s) => s.ui)
@@ -219,7 +220,7 @@ export function DemandSuggestionsPage() {
       ) : !rows.length ? (
         <EmptyState title={ar ? 'لا قواعد' : 'No reorder rules'} description={ar ? 'أضف قواعد إعادة الطلب أولاً' : 'Add reorder rules first'} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-dark-600">
+        <div className={invTableWrapClass}>
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-xs uppercase dark:bg-dark-800">
               <tr>

@@ -9,6 +9,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import Money from '../../components/ui/Money'
 import { formatInvError } from '../../lib/invError'
+import { invTableWrapClass } from './inventoryUi'
 
 export function VariantsPage() {
   const { language } = useSelector((s) => s.ui)
@@ -186,7 +187,7 @@ export function VariantsPage() {
       {isLoading ? <div className="text-sm text-slate-500">…</div> : !variants.length ? (
         <EmptyState title={ar ? 'لا متغيرات' : 'No variants'} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+        <div className={invTableWrapClass}>
           <table className="min-w-[960px] w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>

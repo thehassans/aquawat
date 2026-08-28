@@ -10,6 +10,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import ImportExportDialog, { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import { isFullInventoryAccounting } from '../../lib/inventoryAccountingMode'
 import { formatInvError } from '../../lib/invError'
+import { invTableWrapClass, invTableClass } from './inventoryUi'
 
 const categoryAccountLabel = (row, language) => {
   if (!row) return '—'
@@ -91,8 +92,8 @@ export function OperationTypesPage() {
       loading={isLoading}
       empty={!rows.length ? <EmptyState title={language === 'ar' ? 'لا أنواع' : 'No operation types'} /> : null}
     >
-      <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-        <table className="w-full min-w-[720px] text-sm">
+      <div className={invTableWrapClass}>
+        <table className={`${invTableClass} min-w-[720px]`}>
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
             <tr>
               <th className="min-w-[150px] px-3 py-2">{language === 'ar' ? 'الاسم' : 'Name'}</th>
@@ -472,8 +473,8 @@ export function ProductCategoriesPage() {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
-        <table className="w-full min-w-[720px] text-sm">
+      <div className={invTableWrapClass}>
+        <table className={`${invTableClass} min-w-[720px]`}>
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
             <tr>
               <th className="w-10 px-3 py-2">

@@ -9,6 +9,7 @@ import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import PartnerCombobox from '../../components/inventory/PartnerCombobox'
 import { formatInvError } from '../../lib/invError'
+import { invTableWrapClass } from './inventoryUi'
 
 const TYPE_LABEL = {
   waiting_past_deadline: { en: 'Waiting past deadline', ar: 'متأخر عن الموعد' },
@@ -152,7 +153,7 @@ export default function ExceptionsQueuePage() {
       ) : !items.length ? (
         <EmptyState title={ar ? 'لا استثناءات' : 'No exceptions'} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+        <div className={invTableWrapClass}>
           <table className="w-full min-w-[900px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>

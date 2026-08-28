@@ -6,7 +6,7 @@ import { Plus } from 'lucide-react'
 import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
-import { StatusChip } from './inventoryUi'
+import { StatusChip, invTableWrapClass } from './inventoryUi'
 import { formatInvError } from '../../lib/invError'
 
 export function QualityPointsPage() {
@@ -89,7 +89,7 @@ export function QualityPointsPage() {
           description={ar ? 'فعّل الجودة من الإعدادات أولاً' : 'Enable Quality checks in Settings first'}
         />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+        <div className={invTableWrapClass}>
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>

@@ -1206,7 +1206,7 @@ export default function Dashboard() {
                   <h3 className="text-base font-bold text-gray-900 dark:text-white">
                     {isAr ? 'أحدث العملاء' : 'Recent Customers'}
                   </h3>
-                  <Link to="/customers" className="text-xs text-primary-600 hover:text-primary-700 font-bold flex items-center gap-1">
+                  <Link to="/app/dashboard/contacts?types=customer" className="text-xs text-primary-600 hover:text-primary-700 font-bold flex items-center gap-1">
                     {isAr ? 'عرض الكل' : 'View All'}
                     <ArrowUpRight className="w-3.5 h-3.5" />
                   </Link>
@@ -1216,7 +1216,7 @@ export default function Dashboard() {
                     <div className="p-8 text-center text-gray-500 dark:text-gray-400 text-sm">
                       <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
                       <p>{isAr ? 'لا يوجد عملاء بعد' : 'No customers yet'}</p>
-                      <Link to="/customers/new" className="text-primary-600 text-xs font-bold mt-2 inline-block">
+                      <Link to="/app/dashboard/customers/new?role=customer&returnTo=/app/dashboard/contacts?types=customer" className="text-primary-600 text-xs font-bold mt-2 inline-block">
                         {isAr ? '+ إضافة أول عميل' : '+ Add first customer'}
                       </Link>
                     </div>

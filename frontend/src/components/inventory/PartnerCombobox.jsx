@@ -26,18 +26,26 @@ export default function PartnerCombobox({
   const [quickName, setQuickName] = useState('')
 
   const fetchOptions = useCallback(async (q) => {
-    if (isVendor) {
-      const data = await api.get('/suppliers', {
-        params: { search: q, limit: 15, isActive: true },
-      }).then((r) => r.data)
-      const list = data?.suppliers || data?.data || (Array.isArray(data) ? data : [])
-      return (list || []).map((s) => ({
-        ...s,
-        name: s.nameEn || s.name || s.nameAr || '—',
+    const types = isVendor ? 'supplier' : 'customer'
+    const data = await api.get('/contacts', {
+      params: { search: q, types, limit: 15, isActive: true },
+    }).then((r) => r.data)
+    const list = data?.contacts || []
+    return list
+      .filter((c) => c.entityType === (isVendor ? 'supplier' : 'customer'))
+      .map((c) => ({
+        _id: c.entityId,
+        name: c.displayName || '—',
+        nameEn: c.displayName,
+        nameAr: c.displayNameAr,
+        customerCode: isVendor ? undefined : c.code,
+        code: c.code,
+        vatNumber: c.vatNumber,
+        taxNumber: c.vatNumber,
+        phone: c.phone,
+        mobile: c.phone,
+        email: c.email,
       }))
-    }
-    const rows = await api.get('/customers/search', { params: { q } }).then((r) => r.data || [])
-    return Array.isArray(rows) ? rows : []
   }, [isVendor])
 
   const goAdvanced = (term) => {

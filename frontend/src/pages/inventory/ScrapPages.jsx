@@ -8,7 +8,7 @@ import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import { formatInvError } from '../../lib/invError'
 import ProductChooser from '../../components/inventory/ProductChooser'
-import { StatusChip } from './inventoryUi'
+import { StatusChip, invTableWrapClass } from './inventoryUi'
 import EmptyState from '../../components/ui/EmptyState'
 
 export function ScrapList() {
@@ -98,7 +98,7 @@ export function ScrapList() {
           placeholder={ar ? 'بحث بالمرجع أو المنتج…' : 'Search reference or product…'}
         />
       </div>
-      <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+      <div className={invTableWrapClass}>
         <table className="w-full min-w-[980px] text-sm">
           <thead className="border-b border-slate-100 bg-slate-50/80 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:border-dark-600">
             <tr>

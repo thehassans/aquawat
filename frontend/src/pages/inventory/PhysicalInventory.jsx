@@ -502,15 +502,36 @@ export default function PhysicalInventory() {
     if (!q) return
     try {
       const variants = await api.get('/stock/variants', { params: { q, limit: 8 } }).then((r) => r.data?.items || r.data || [])
-      const hit = (Array.isArray(variants) ? variants : []).find(
+      const variantList = Array.isArray(variants) ? variants : []
+      const exactHits = variantList.filter(
         (v) => String(v.barcode || '') === q || String(v.sku || '') === q,
       )
-      if (hit) {
+      if (exactHits.length === 1) {
+        const hit = exactHits[0]
         const productId = typeof hit.productId === 'object' ? hit.productId?._id : hit.productId
         await addOrIncrement({
           productId,
           variantId: hit._id,
           name: hit.name,
+        })
+        return
+      }
+      if (exactHits.length > 1) {
+        const hit = exactHits[0]
+        const productId = typeof hit.productId === 'object' ? hit.productId?._id : hit.productId
+        const resolved = await resolvePick({
+          kind: 'variant',
+          productId,
+          variantId: hit._id,
+          variantName: hit.name,
+          productName: typeof hit.productId === 'object' ? (hit.productId?.nameEn || hit.productId?.name) : undefined,
+          name: hit.name,
+          sku: hit.sku,
+        })
+        await addOrIncrement({
+          productId: resolved.productId,
+          variantId: resolved.variantId,
+          name: resolved.variantName || resolved.productName || hit.name,
         })
         return
       }

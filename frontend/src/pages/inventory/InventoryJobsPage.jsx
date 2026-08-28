@@ -7,6 +7,7 @@ import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
 import { formatInvError } from '../../lib/invError'
+import { invTableWrapClass } from './inventoryUi'
 
 const TYPE_LABEL = {
   integrity: { en: 'Integrity', ar: 'سلامة البيانات' },
@@ -101,7 +102,7 @@ export default function InventoryJobsPage() {
           description={ar ? 'شغّل المجدول من قائمة العمليات' : 'Run the scheduler from Operations'}
         />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+        <div className={invTableWrapClass}>
           <table className="w-full min-w-[880px] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>

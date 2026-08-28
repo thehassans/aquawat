@@ -8,6 +8,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import { ReportShell, ReportTableFrame, REPORT_THEAD, REPORT_TABS, useReportFilters, exportCsv } from './ReportShell'
 import ImportExportDialog from '../../components/inventory/ImportExportDialog'
 import { formatInvError } from '../../lib/invError'
+import { invTableWrapClass } from './inventoryUi'
 import { formatReportQty } from '../../lib/reportFormat'
 
 const QUANT_STATUSES = ['available', 'quarantine', 'damaged', 'on_hold', 'expired']
@@ -288,7 +289,7 @@ export function ExpiryAtRiskPage() {
           {!lines.length ? (
             <EmptyState title={ar ? 'لا دفعات منتهية قريباً' : 'No lots expiring soon'} />
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+            <div className={invTableWrapClass}>
               <table className="w-full min-w-[720px] text-sm">
                 <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-dark-800">
                   <tr>
@@ -395,7 +396,7 @@ export function ReceptionReportPage() {
           {!items.length ? (
             <EmptyState title={ar ? 'لا استلامات في الفترة' : 'No receipts in period'} />
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+            <div className={invTableWrapClass}>
               <table className="w-full min-w-[720px] text-sm">
                 <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-dark-800">
                   <tr>
@@ -456,7 +457,7 @@ export function ForecastPage() {
       ) : !items.length ? (
         <EmptyState title={language === 'ar' ? 'لا بيانات' : 'No forecast rows'} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-dark-600">
+        <div className={invTableWrapClass}>
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-dark-800">
               <tr>

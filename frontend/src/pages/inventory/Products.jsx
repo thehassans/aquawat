@@ -211,9 +211,13 @@ export default function Products() {
   const products = data?.products || []
   const pagination = data?.pagination
   const pageIds = useMemo(() => products.map((p) => String(p._id)), [products])
-  const selectedRowIds = useMemo(() => pageIds.filter((id) => selected.has(id)), [pageIds, selected])
+  const selectedIds = useMemo(() => [...selected], [selected])
+  const selectedOnPageCount = useMemo(
+    () => pageIds.filter((id) => selected.has(id)).length,
+    [pageIds, selected],
+  )
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id))
-  const somePageSelected = pageIds.some((id) => selected.has(id)) && !allPageSelected
+  const somePageSelected = selectedOnPageCount > 0 && !allPageSelected
 
   useEffect(() => {
     masterCheckboxRefs.current.forEach((el) => {
@@ -244,8 +248,8 @@ export default function Products() {
     setExporting(true)
     try {
       let rows
-      if (selectedRowIds.length > 0) {
-        const res = await api.post('/products/export', { ids: selectedRowIds })
+      if (selectedIds.length > 0) {
+        const res = await api.post('/products/export', { ids: selectedIds })
         rows = res.data?.products || []
       } else {
         rows = await getExportRows()
@@ -308,27 +312,36 @@ export default function Products() {
           <button
             type="button"
             className={OUTLINED_BTN}
-            disabled={selectedRowIds.length === 0}
+            disabled={selectedIds.length === 0}
             onClick={() => setLabelModalOpen(true)}
           >
             <Printer className="h-4 w-4" />
-            {selectedRowIds.length
-              ? (isAr ? `ملصقات (${selectedRowIds.length})` : `Labels (${selectedRowIds.length})`)
+            {selectedIds.length
+              ? (isAr ? `ملصقات (${selectedIds.length})` : `Labels (${selectedIds.length})`)
               : (isAr ? 'ملصقات' : 'Labels')}
           </button>
           <button
             type="button"
             className={OUTLINED_BTN}
-            disabled={isLoading || exporting || (!selectedRowIds.length && !products.length)}
+            disabled={isLoading || exporting || (!selectedIds.length && !products.length)}
             onClick={handleExport}
           >
             <Download className="h-4 w-4" />
             {exporting
               ? '…'
-              : selectedRowIds.length
-                ? (isAr ? `تصدير (${selectedRowIds.length})` : `Export (${selectedRowIds.length})`)
+              : selectedIds.length
+                ? (isAr ? `تصدير (${selectedIds.length})` : `Export (${selectedIds.length})`)
                 : (isAr ? 'تصدير' : 'Export')}
           </button>
+          {selectedIds.length > 0 && (
+            <button
+              type="button"
+              className={OUTLINED_BTN}
+              onClick={() => setSelected(new Set())}
+            >
+              {isAr ? `مسح (${selectedIds.length})` : `Clear (${selectedIds.length})`}
+            </button>
+          )}
           <Link to="/app/dashboard/inventory/products/new" className="inline-flex items-center gap-2 rounded-xl bg-[#1a3d28] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#244d33]">
             <Plus className="h-4 w-4" />
             {isAr ? 'إضافة صنف' : 'Add SKU'}
@@ -442,8 +455,8 @@ export default function Products() {
                     aria-label={isAr ? 'تحديد الكل' : 'Select all'}
                   />
                   <span className="text-xs text-slate-500">
-                    {selectedRowIds.length
-                      ? (isAr ? `${selectedRowIds.length} محدد` : `${selectedRowIds.length} selected`)
+                    {selectedIds.length
+                      ? (isAr ? `${selectedIds.length} محدد` : `${selectedIds.length} selected`)
                       : (isAr ? 'تحديد الصفحة' : 'Select page')}
                   </span>
                 </div>
@@ -718,7 +731,7 @@ export default function Products() {
       <PrintBarcodeLabelsModal
         open={labelModalOpen}
         onClose={() => setLabelModalOpen(false)}
-        productIds={selectedRowIds}
+        productIds={selectedIds}
         ar={isAr}
         language={language}
       />
