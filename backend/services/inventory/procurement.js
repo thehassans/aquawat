@@ -101,6 +101,7 @@ export async function onBuyProcurement(ctx) {
     currency: 'SAR',
     lineItems: [{
       productId: product._id,
+      variantId: ctx.variantId || null,
       manualName: product.nameEn || product.sku || String(ctx.productId),
       description: `Stock replenishment (${ctx.ruleId || 'buy'})`,
       productType: 'goods',
@@ -298,6 +299,7 @@ export async function findApplicableRule(tenantId, productId, locationId, { pref
 export async function runProcurement({
   tenantId,
   productId,
+  variantId,
   qty,
   locationId,
   dateDeadline,
@@ -322,6 +324,7 @@ export async function runProcurement({
     return onBuyProcurement({
       tenantId: tid,
       productId,
+      variantId,
       qty,
       locationId,
       warehouseId,
@@ -336,6 +339,7 @@ export async function runProcurement({
     return onManufactureProcurement({
       tenantId: tid,
       productId,
+      variantId,
       qty,
       locationId,
       warehouseId,

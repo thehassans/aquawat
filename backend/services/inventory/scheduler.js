@@ -24,6 +24,7 @@ export async function listReplenishment(tenantId, { warehouseId, permanentOnly }
 
   const orderpoints = await InvReorderRule.find(filter)
     .populate('productId', 'nameEn nameAr sku')
+    .populate('variantId', 'name sku')
     .populate('locationId', 'completePath name')
     .populate('warehouseId', 'name code')
     .populate('routeId', 'name')
@@ -32,7 +33,11 @@ export async function listReplenishment(tenantId, { warehouseId, permanentOnly }
   const rows = [];
   for (const op of orderpoints) {
     const pid = op.productId?._id || op.productId;
-    const fc = await computeForecast(tid, pid, { warehouseId: op.warehouseId?._id || op.warehouseId });
+    const vid = op.variantId?._id || op.variantId || null;
+    const fc = await computeForecast(tid, pid, {
+      warehouseId: op.warehouseId?._id || op.warehouseId,
+      variantId: vid,
+    });
     const toOrder = D(fc.forecasted).lt(D(op.minQty))
       ? roundToMultiple(D(op.maxQty).minus(D(fc.forecasted)), op.qtyMultiple)
       : '0';
@@ -50,7 +55,12 @@ export async function listReplenishment(tenantId, { warehouseId, permanentOnly }
     return rows;
   }
 
-  const covered = new Set(orderpoints.map((o) => `${o.productId?._id || o.productId}:${o.warehouseId?._id || o.warehouseId}`));
+  const covered = new Set(orderpoints.map((o) => {
+    const pid = o.productId?._id || o.productId;
+    const wid = o.warehouseId?._id || o.warehouseId;
+    const vid = o.variantId?._id || o.variantId || '';
+    return `${pid}:${wid}:${vid}`;
+  }));
   const warehouses = warehouseId
     ? [await Warehouse.findOne({ _id: warehouseId, tenantId: tid }).lean()]
     : await Warehouse.find({ tenantId: tid, isActive: true }).lean();
@@ -157,7 +167,7 @@ export async function snoozeReorderRule(tenantId, id, { until, preset } = {}) {
 }
 
 export async function orderOnce(tenantId, userId, {
-  productId, locationId, qty, routeId, warehouseId, preferredVendorId,
+  productId, locationId, qty, routeId, warehouseId, preferredVendorId, variantId,
 } = {}) {
   if (!productId || !locationId || !qty) {
     throw new InventoryValidationError('productId, locationId, qty required', 'MISSING_FIELDS');
@@ -167,6 +177,7 @@ export async function orderOnce(tenantId, userId, {
   return runProcurement({
     tenantId,
     productId,
+    variantId,
     qty,
     locationId,
     dateDeadline: deadline,
@@ -258,7 +269,11 @@ export async function runScheduler(tenantId, {
     for (const op of orderpoints) {
       rulesEvaluated += 1;
       try {
-        const fc = await computeForecast(tid, op.productId, { warehouseId: op.warehouseId });
+        const vid = op.variantId || null;
+        const fc = await computeForecast(tid, op.productId, {
+          warehouseId: op.warehouseId,
+          variantId: vid,
+        });
         if (!D(fc.forecasted).lt(D(op.minQty))) continue;
         const qty = roundToMultiple(D(op.maxQty).minus(D(fc.forecasted)), op.qtyMultiple);
         if (!D(qty).gt(0)) continue;
@@ -269,6 +284,7 @@ export async function runScheduler(tenantId, {
         await runProcurement({
           tenantId: tid,
           productId: op.productId,
+          variantId: vid,
           qty,
           locationId: op.locationId,
           dateDeadline: deadline,

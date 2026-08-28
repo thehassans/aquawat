@@ -190,11 +190,12 @@ export const IE_MODELS = {
   reorder_rules: {
     label: 'Reordering Rules',
     importable: true,
-    defaultExport: ['product_sku', 'location_path', 'minQty', 'maxQty', 'qtyMultiple', 'trigger', 'active'],
+    defaultExport: ['product_sku', 'variant_sku', 'location_path', 'minQty', 'maxQty', 'qtyMultiple', 'trigger', 'active'],
     fields: [
       { key: 'id', label: 'id', group: 'Identity', importable: true },
       { key: 'product', label: 'Product', group: 'General', importable: false },
       { key: 'product_sku', label: 'SKU', group: 'General', importable: true, required: true },
+      { key: 'variant_sku', label: 'Variant SKU', group: 'General', importable: true },
       { key: 'warehouse', label: 'Warehouse', group: 'Inventory', importable: false },
       { key: 'location_path', label: 'Location', group: 'Inventory', importable: true },
       { key: 'minQty', label: 'Min Qty', group: 'Inventory', importable: true, type: 'decimal' },
@@ -380,12 +381,13 @@ export const IE_MODELS = {
     label: 'Physical Inventory',
     importable: true,
     defaultExport: [
-      'location', 'product_sku', 'product_name', 'uom', 'lot', 'package', 'on_hand', 'counted_qty', 'difference', 'scheduled_date', 'warehouse',
+      'location', 'product_sku', 'variant_sku', 'product_name', 'uom', 'lot', 'package', 'on_hand', 'counted_qty', 'difference', 'scheduled_date', 'warehouse',
     ],
     fields: [
       { key: 'location', label: 'Location', group: 'Inventory', importable: true },
       { key: 'warehouse', label: 'Warehouse', group: 'Inventory', importable: false },
       { key: 'product_sku', label: 'SKU', group: 'Identity', importable: true, required: true },
+      { key: 'variant_sku', label: 'Variant SKU', group: 'Identity', importable: true },
       { key: 'product_name', label: 'Product', group: 'General', importable: false },
       { key: 'uom', label: 'UoM', group: 'Inventory', importable: false },
       { key: 'lot', label: 'Lot', group: 'Inventory', importable: true },

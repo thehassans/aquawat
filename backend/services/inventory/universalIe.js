@@ -321,12 +321,14 @@ async function loadExportRows(tenantId, model, filters = {}) {
     case 'reorder_rules': {
       const rows = await InvReorderRule.find({ tenantId: tid })
         .populate('productId', 'sku')
+        .populate('variantId', 'sku')
         .populate('locationId', 'completePath')
         .limit(limit)
         .lean();
       return rows.map((r) => ({
         id: String(r._id),
         product_sku: r.productId?.sku || '',
+        variant_sku: r.variantId?.sku || '',
         location_path: r.locationId?.completePath || '',
         minQty: r.minQty,
         maxQty: r.maxQty,
@@ -1179,6 +1181,7 @@ async function importOneMaster(tid, userId, model, row, dryRun) {
 
   if (model === 'reorder_rules') {
     const sku = String(row.product_sku || '').trim();
+    const variantSku = String(row.variant_sku || '').trim();
     const locPath = String(row.location_path || row.location || '').trim();
     if (!sku || !locPath) {
       const e = new Error('product_sku and location_path required');
@@ -1195,18 +1198,40 @@ async function importOneMaster(tid, userId, model, row, dryRun) {
       e.field = !product ? 'product_sku' : 'location_path';
       throw e;
     }
-    let doc = await InvReorderRule.findOne({
+    let variantId = null;
+    if (variantSku) {
+      const variant = await InvProductVariant.findOne({
+        tenantId: tid,
+        productId: product._id,
+        sku: variantSku,
+        active: true,
+      }).select('_id').lean();
+      if (!variant) {
+        const e = new Error('variant not found');
+        e.field = 'variant_sku';
+        throw e;
+      }
+      variantId = variant._id;
+    }
+    const ruleQuery = {
       tenantId: tid,
       productId: product._id,
       locationId: location._id,
-    });
-    if (dryRun) return { action: doc ? 'update' : 'create', product_sku: sku };
+    };
+    if (variantId) {
+      ruleQuery.variantId = variantId;
+    } else {
+      ruleQuery.$or = [{ variantId: null }, { variantId: { $exists: false } }];
+    }
+    let doc = await InvReorderRule.findOne(ruleQuery);
+    if (dryRun) return { action: doc ? 'update' : 'create', product_sku: sku, variant_sku: variantSku || undefined };
     const payload = {
       minQty: row.minQty ?? doc?.minQty ?? '0',
       maxQty: row.maxQty ?? doc?.maxQty ?? '0',
       qtyMultiple: row.qtyMultiple ?? doc?.qtyMultiple ?? '1',
       trigger: row.trigger || doc?.trigger || 'auto',
       active: row.active != null ? String(row.active).toLowerCase() !== 'false' : true,
+      variantId,
     };
     if (doc) {
       Object.assign(doc, payload);

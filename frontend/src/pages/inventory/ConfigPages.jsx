@@ -475,7 +475,7 @@ export function ProductCategoriesPage() {
       </div>
 
       <div className={invTableWrapClass}>
-        <table className={`${invTableClass} min-w-[720px]`}>
+        <table className={`${invTableClass} min-w-[820px]`}>
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-dark-800">
             <tr>
               <th className="w-10 px-3 py-2">
@@ -486,6 +486,7 @@ export function ProductCategoriesPage() {
                 />
               </th>
               <th className="min-w-[150px] px-3 py-2">{ar ? 'فئة المنتج' : 'Product Category'}</th>
+              <th className="min-w-[100px] px-3 py-2 text-right">{ar ? 'المنتجات' : 'Products'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
@@ -504,6 +505,19 @@ export function ProductCategoriesPage() {
                   <div className="text-[11px] text-slate-400">
                     {c.costingMethod} · {c.valuationMode}
                   </div>
+                </td>
+                <td className="px-3 py-2.5 text-right">
+                  {(c.productCount || 0) > 0 ? (
+                    <Link
+                      to={`/app/dashboard/inventory/products?categoryId=${c._id}`}
+                      className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium tabular-nums text-slate-700 hover:bg-primary-50 hover:text-primary-700 dark:bg-dark-700 dark:text-slate-200 dark:hover:bg-primary-950/40 dark:hover:text-primary-300"
+                      title={ar ? 'عرض المنتجات في هذه الفئة' : 'View products in this category'}
+                    >
+                      {c.productCount}
+                    </Link>
+                  ) : (
+                    <span className="text-xs tabular-nums text-slate-300">0</span>
+                  )}
                 </td>
               </tr>
             ))}
@@ -553,6 +567,12 @@ export function ProductCategoryForm() {
     queryKey: ['inv-product-category', id],
     queryFn: () => api.get(`/stock/product-categories/${id}`).then((r) => r.data),
     enabled: isEdit,
+  })
+  const { data: productsPreview, isLoading: productsPreviewLoading } = useQuery({
+    queryKey: ['inv-product-category-products', id],
+    queryFn: () => api.get(`/stock/product-categories/${id}/products-preview`, { params: { limit: 12 } }).then((r) => r.data),
+    enabled: isEdit,
+    staleTime: 30_000,
   })
   const { data: cats } = useQuery({
     queryKey: ['inv-product-categories'],
@@ -853,6 +873,68 @@ export function ProductCategoryForm() {
           </div>
         )}
       </div>
+
+      {isEdit && (
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-dark-600 dark:bg-dark-800/40">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                {language === 'ar' ? 'معاينة المنتجات' : 'Products preview'}
+              </h3>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {language === 'ar'
+                  ? 'المنتجات المعيّنة مباشرةً لهذه الفئة'
+                  : 'Products directly assigned to this category'}
+              </p>
+            </div>
+            {(productsPreview?.productCount || 0) > 0 && (
+              <Link
+                to={`/app/dashboard/inventory/products?categoryId=${id}`}
+                className="btn btn-secondary btn-sm"
+              >
+                {language === 'ar'
+                  ? `عرض الكل (${productsPreview.productCount})`
+                  : `View all (${productsPreview.productCount})`}
+              </Link>
+            )}
+          </div>
+          {productsPreviewLoading ? (
+            <div className="mt-3 text-sm text-slate-500">…</div>
+          ) : (productsPreview?.productCount || 0) === 0 ? (
+            <p className="mt-3 text-sm text-slate-400">
+              {language === 'ar' ? 'لا منتجات في هذه الفئة بعد' : 'No products in this category yet'}
+            </p>
+          ) : (
+            <ul className="mt-3 divide-y divide-slate-100 rounded-lg border border-slate-100 bg-white dark:divide-dark-700 dark:border-dark-600 dark:bg-dark-900">
+              {(productsPreview.products || []).map((p) => (
+                <li key={p._id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                  <Link
+                    to={`/app/dashboard/inventory/products/${p._id}/edit`}
+                    className="min-w-0 truncate font-medium text-primary-700 hover:underline dark:text-primary-300"
+                  >
+                    {language === 'ar' && p.nameAr ? p.nameAr : (p.nameEn || p.sku || '—')}
+                  </Link>
+                  <div className="flex shrink-0 items-center gap-2 text-xs text-slate-400">
+                    {p.sku && <span className="font-mono">{p.sku}</span>}
+                    {p.isActive === false && (
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] uppercase dark:bg-dark-700">
+                        {language === 'ar' ? 'غير نشط' : 'Inactive'}
+                      </span>
+                    )}
+                  </div>
+                </li>
+              ))}
+              {productsPreview.productCount > (productsPreview.products || []).length && (
+                <li className="px-3 py-2 text-xs text-slate-400">
+                  {language === 'ar'
+                    ? `+ ${productsPreview.productCount - productsPreview.products.length} منتجات أخرى`
+                    : `+ ${productsPreview.productCount - productsPreview.products.length} more products`}
+                </li>
+              )}
+            </ul>
+          )}
+        </div>
+      )}
 
       {isEdit && form.costingMethod !== existing?.costingMethod && (
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-sm dark:border-amber-900/50 dark:bg-amber-950/30">

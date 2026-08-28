@@ -315,7 +315,7 @@ export function ScrapForm() {
       return
     }
     for (const l of validLines) {
-      if ((l.variants || []).length > 1 && !l.variantId) {
+      if ((l.variants || []).length > 0 && !l.variantId) {
         toast.error(ar ? 'اختر المتغير' : 'Select a variant')
         return
       }

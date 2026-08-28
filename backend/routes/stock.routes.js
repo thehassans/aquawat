@@ -93,6 +93,8 @@ import {
   updateProductCategory,
   deleteProductCategory,
   duplicateProductCategory,
+  getCategoryProductCounts,
+  getCategoryProductsPreview,
 } from '../services/inventory/configMasters.js';
 import {
   updateInvSettings,
@@ -697,25 +699,29 @@ router.get('/product-categories', checkPermission('inventory', 'read'), async (r
   try {
     // Ensure Journal schema is registered for stockJournalId populate
     void Journal;
+    const cats = await InvProductCategory.find({ ...req.tenantFilter })
+      .populate('incomeAccountId', 'code name nameAr')
+      .populate('expenseAccountId', 'code name nameAr')
+      .populate('priceDifferenceAccountId', 'code name nameAr')
+      .populate('stockValuationAccountId', 'code name nameAr')
+      .populate({ path: 'stockJournalId', select: 'code name nameAr type', options: { strictPopulate: false } })
+      .populate('stockInputAccountId', 'code name nameAr')
+      .populate('stockOutputAccountId', 'code name nameAr')
+      .sort({ completePath: 1 })
+      .lean();
+    const countMap = await getCategoryProductCounts(req.user.tenantId);
     return sendList(
       res,
-      await InvProductCategory.find({ ...req.tenantFilter })
-        .populate('incomeAccountId', 'code name nameAr')
-        .populate('expenseAccountId', 'code name nameAr')
-        .populate('priceDifferenceAccountId', 'code name nameAr')
-        .populate('stockValuationAccountId', 'code name nameAr')
-        .populate({ path: 'stockJournalId', select: 'code name nameAr type', options: { strictPopulate: false } })
-        .populate('stockInputAccountId', 'code name nameAr')
-        .populate('stockOutputAccountId', 'code name nameAr')
-        .sort({ completePath: 1 })
-        .lean(),
+      cats.map((c) => ({ ...c, productCount: countMap.get(String(c._id)) || 0 })),
     );
   } catch (err) {
     // Fallback without journal populate if COA/journal refs are broken
     try {
+      const cats = await InvProductCategory.find({ ...req.tenantFilter }).sort({ completePath: 1 }).lean();
+      const countMap = await getCategoryProductCounts(req.user.tenantId);
       return sendList(
         res,
-        await InvProductCategory.find({ ...req.tenantFilter }).sort({ completePath: 1 }).lean(),
+        cats.map((c) => ({ ...c, productCount: countMap.get(String(c._id)) || 0 })),
       );
     } catch (err2) {
       handleInventoryError(res, err2);
@@ -743,7 +749,15 @@ router.get('/product-categories/popular', checkPermission('inventory', 'read'), 
     }
     const cats = await InvProductCategory.find({ ...req.tenantFilter, _id: { $in: ids } }).lean();
     const byId = new Map(cats.map((c) => [String(c._id), c]));
-    return sendList(res, ids.map((id) => byId.get(String(id))).filter(Boolean));
+    const countById = new Map(rows.map((r) => [String(r._id), r.n]));
+    return sendList(
+      res,
+      ids.map((id) => {
+        const cat = byId.get(String(id));
+        if (!cat) return null;
+        return { ...cat, productCount: countById.get(String(id)) || 0 };
+      }).filter(Boolean),
+    );
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -761,7 +775,20 @@ router.get('/product-categories/:id', checkPermission('inventory', 'read'), asyn
       .populate('stockOutputAccountId', 'code name nameAr')
       .lean();
     if (!cat) return res.status(404).json({ error: 'Category not found' });
-    res.json(cat);
+    const countMap = await getCategoryProductCounts(req.user.tenantId, [cat._id]);
+    res.json({ ...cat, productCount: countMap.get(String(cat._id)) || 0 });
+  } catch (err) {
+    handleInventoryError(res, err);
+  }
+});
+
+router.get('/product-categories/:id/products-preview', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const cat = await InvProductCategory.findOne({ _id: req.params.id, ...req.tenantFilter }).select('_id name completePath').lean();
+    if (!cat) return res.status(404).json({ error: 'Category not found' });
+    res.json(await getCategoryProductsPreview(req.user.tenantId, req.params.id, {
+      limit: req.query.limit,
+    }));
   } catch (err) {
     handleInventoryError(res, err);
   }
@@ -2601,6 +2628,7 @@ router.post('/procurement/run', checkPermission('inventory', 'create'), async (r
     const result = await runProcurement({
       tenantId: req.user.tenantId,
       productId: req.body.productId,
+      variantId: req.body.variantId,
       qty: req.body.qty,
       locationId: req.body.locationId,
       dateDeadline: req.body.dateDeadline,

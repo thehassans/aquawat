@@ -17,7 +17,10 @@ function calcToOrder(maxQty, forecasted) {
 }
 
 function rowKey(row) {
-  return String(row._id || `${row.productId?._id || row.productId}-${row.locationId?._id || row.locationId}`)
+  const pid = row.productId?._id || row.productId
+  const lid = row.locationId?._id || row.locationId
+  const vid = row.variantId?._id || row.variantId || ''
+  return String(row._id || `${pid}-${lid}-${vid}`)
 }
 
 /**
@@ -68,6 +71,7 @@ export default function ReplenishmentWorksheet() {
     mutationFn: (row) =>
       api.post('/stock/replenishment/order', {
         productId: row.productId?._id || row.productId,
+        variantId: row.variantId?._id || row.variantId || undefined,
         locationId: row.locationId?._id || row.locationId,
         warehouseId: row.warehouseId?._id || row.warehouseId,
         qty: Number(row._toOrder) || 0,
@@ -143,6 +147,7 @@ export default function ReplenishmentWorksheet() {
             <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
               {rows.map((row) => {
                 const name = row.productId?.nameEn || row.productId?.sku || '—'
+                const variantName = row.variantId?.name || row.variantId?.sku
                 const loc = row.locationId?.completePath || row.locationId?.name
                   || row.warehouseId?.name || row.warehouseId?.code || '—'
                 const forecast = Number(row.qtyForecast)
@@ -151,6 +156,9 @@ export default function ReplenishmentWorksheet() {
                   <tr key={row._key} className={row.snoozed ? 'opacity-50' : ''}>
                     <td className="px-3 py-2.5">
                       <div className="font-medium text-slate-900 dark:text-white">{name}</div>
+                      {variantName && (
+                        <div className="text-xs text-primary-600 dark:text-primary-400">{variantName}</div>
+                      )}
                       <div className="text-xs text-slate-400">{loc}</div>
                       <div className="text-[10px] uppercase tracking-wide text-slate-400">
                         {row.kind === 'virtual' ? (ar ? 'افتراضي' : 'Virtual') : (ar ? 'قاعدة' : 'Rule')}

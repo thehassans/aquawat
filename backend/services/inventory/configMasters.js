@@ -350,6 +350,37 @@ export async function updateProductCategory(tenantId, userId, id, body) {
   return cat;
 }
 
+/** Map categoryId → product count for a tenant. */
+export async function getCategoryProductCounts(tenantId, categoryIds = null) {
+  const tid = toObjectId(tenantId);
+  const Product = (await import('../../models/Product.js')).default;
+  const match = { tenantId: tid, categoryId: { $ne: null } };
+  if (Array.isArray(categoryIds) && categoryIds.length) {
+    match.categoryId = { $in: categoryIds.map((id) => toObjectId(id)) };
+  }
+  const rows = await Product.aggregate([
+    { $match: match },
+    { $group: { _id: '$categoryId', productCount: { $sum: 1 } } },
+  ]);
+  return new Map(rows.map((r) => [String(r._id), r.productCount]));
+}
+
+/** Sample products assigned to a category (for UI preview). */
+export async function getCategoryProductsPreview(tenantId, categoryId, { limit = 12 } = {}) {
+  const tid = toObjectId(tenantId);
+  const cid = toObjectId(categoryId);
+  const Product = (await import('../../models/Product.js')).default;
+  const [productCount, products] = await Promise.all([
+    Product.countDocuments({ tenantId: tid, categoryId: cid }),
+    Product.find({ tenantId: tid, categoryId: cid })
+      .select('nameEn nameAr sku isActive trackInventory')
+      .sort({ nameEn: 1, sku: 1 })
+      .limit(Math.min(Math.max(Number(limit) || 12, 1), 50))
+      .lean(),
+  ]);
+  return { productCount, products };
+}
+
 /**
  * Delete category — blocked when it has children or products.
  */

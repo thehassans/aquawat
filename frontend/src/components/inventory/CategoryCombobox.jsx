@@ -64,6 +64,12 @@ export default function CategoryCombobox({
 
   const depthOf = (c) => Math.max(0, String(c.completePath || '').split('/').length - 1)
 
+  const countLabel = (c) => {
+    const n = Number(c.productCount) || 0
+    if (!n) return null
+    return ar ? `${n} منتج` : `${n} product${n === 1 ? '' : 's'}`
+  }
+
   const createMut = useMutation({
     mutationFn: (name) => api.post('/stock/product-categories', {
       name,
@@ -125,6 +131,12 @@ export default function CategoryCombobox({
           {(ar ? 'التكلفة' : 'Costing')}: {selected.costingMethod || 'average'}
           {' · '}
           {(ar ? 'التقييم' : 'Valuation')}: {selected.valuationMode || 'automated'}
+          {(selected.productCount || 0) > 0 && (
+            <>
+              {' · '}
+              {(ar ? 'المنتجات' : 'Products')}: {selected.productCount}
+            </>
+          )}
         </p>
       )}
       {catsError && (
@@ -161,10 +173,15 @@ export default function CategoryCombobox({
               <li key={`pop-${c._id}`}>
                 <button
                   type="button"
-                  className="w-full truncate px-3 py-1.5 text-start hover:bg-slate-50 dark:hover:bg-dark-700"
+                  className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-start hover:bg-slate-50 dark:hover:bg-dark-700"
                   onClick={() => { onChange?.(c._id, c); setOpen(false) }}
                 >
-                  {c.completePath || c.name}
+                  <span className="truncate">{c.completePath || c.name}</span>
+                  {countLabel(c) && (
+                    <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] tabular-nums text-slate-500 dark:bg-dark-700">
+                      {c.productCount}
+                    </span>
+                  )}
                 </button>
               </li>
             ))}
@@ -172,13 +189,18 @@ export default function CategoryCombobox({
               <li key={c._id}>
                 <button
                   type="button"
-                  className={`w-full truncate px-3 py-1.5 text-start hover:bg-slate-50 dark:hover:bg-dark-700 ${
+                  className={`flex w-full items-center justify-between gap-2 truncate px-3 py-1.5 text-start hover:bg-slate-50 dark:hover:bg-dark-700 ${
                     String(c._id) === String(value) ? 'bg-primary-50 dark:bg-primary-950/30' : ''
                   }`}
                   style={{ paddingInlineStart: `${12 + depthOf(c) * 12}px` }}
                   onClick={() => { onChange?.(c._id, c); setOpen(false) }}
                 >
-                  {c.completePath || c.name}
+                  <span className="truncate">{c.completePath || c.name}</span>
+                  {countLabel(c) && (
+                    <span className="me-2 shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] tabular-nums text-slate-500 dark:bg-dark-700">
+                      {c.productCount}
+                    </span>
+                  )}
                 </button>
               </li>
             ))}

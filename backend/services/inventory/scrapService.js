@@ -13,6 +13,7 @@ import { getDefaultUom } from './bootstrap.js';
 import { InventoryValidationError } from './errors.js';
 import { computeMoveDoneChecksum, computeMoveLineDoneChecksum } from './doneChecksum.js';
 import { getInvSettings } from './settingsService.js';
+import { assertStockMoveVariant } from './variantGuard.js';
 
 async function resolveScrapLocation(tid, scrapLocationId) {
   if (scrapLocationId) {
@@ -57,12 +58,17 @@ async function buildScrapDoc(tid, userId, body, scrapLocationId, defaultUom) {
     if (!variant) throw new InventoryValidationError('Variant not found', 'VARIANT_NOT_FOUND');
   }
 
+  const resolvedVariantId = await assertStockMoveVariant(tid, {
+    productId: product._id,
+    variantId: body.variantId || null,
+  });
+
   const name = await nextSequenceName(tid, 'SCR');
   return {
     tenantId: tid,
     name,
     productId: product._id,
-    variantId: body.variantId || null,
+    variantId: resolvedVariantId,
     uomId,
     quantity: decStr(body.quantity),
     lotId: body.lotId || null,
@@ -149,6 +155,12 @@ export async function validateScrap(scrapId, tenantId, userId = null) {
     const settings = await getInvSettings(tid);
     const product = await Product.findById(scrap.productId).session(session);
     if (!product) throw new InventoryValidationError('Product not found', 'PRODUCT_NOT_FOUND');
+
+    scrap.variantId = await assertStockMoveVariant(tid, {
+      productId: scrap.productId,
+      variantId: scrap.variantId || null,
+      session,
+    });
 
     const qty = decStr(scrap.quantity);
     if (!decIsPositive(qty)) {
