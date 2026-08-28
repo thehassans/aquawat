@@ -1,11 +1,20 @@
-import { useState, useCallback, useMemo } from 'react';
-import { useSelector } from 'react-redux';
-import { Printer } from 'lucide-react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { useMutation } from '@tanstack/react-query';
+import { Printer, Settings2 } from 'lucide-react';
 import debounce from 'lodash.debounce';
+import toast from 'react-hot-toast';
 import { autoTranslateText } from '../lib/builtInTranslator';
 import { getInvoiceSecondaryLanguage } from '../lib/invoiceLanguage';
 import { isPakistanTenant, isBangladeshTenant } from '../lib/saudiTenant';
 import LetterheadChrome from '../components/invoices/LetterheadChrome';
+import DocumentAppearancePanel, {
+  appearancePayload,
+  applyAppearanceToTenant,
+  buildAppearanceFromTenant,
+} from '../components/sales/DocumentAppearancePanel';
+import { updateTenant } from '../store/slices/authSlice';
+import api from '../lib/api';
 
 const REGION_LOCALES = {
   ur: {
@@ -62,16 +71,16 @@ const REGION_LOCALES = {
 };
 
 export default function Letterhead() {
+  const dispatch = useDispatch();
   const { tenant } = useSelector((state) => state.auth);
   const uiLanguage = useSelector((state) => state.ui.language);
+  const isAr = uiLanguage === 'ar';
 
-  // Determine secondary locale for letterhead
   const secondaryCode = useMemo(() => {
     const sec = getInvoiceSecondaryLanguage(tenant);
     if (sec === 'ur' || isPakistanTenant(tenant)) return 'ur';
     if (sec === 'bn' || isBangladeshTenant(tenant)) return 'bn';
     if (sec === 'ar') return 'ar';
-    // Default fallback
     if (isPakistanTenant(tenant)) return 'ur';
     if (isBangladeshTenant(tenant)) return 'bn';
     return 'ar';
@@ -79,10 +88,12 @@ export default function Letterhead() {
 
   const locale = REGION_LOCALES[secondaryCode] || REGION_LOCALES.ar;
 
-  const [outputLang, setOutputLang] = useState(() => 'both'); // 'en', 'sec', 'both'
+  const [outputLang, setOutputLang] = useState(() => 'both');
   const [contentEn, setContentEn] = useState('');
   const [contentSec, setContentSec] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [showSettings, setShowSettings] = useState(false);
+  const [appearance, setAppearance] = useState(() => buildAppearanceFromTenant(tenant));
 
   const [recipientEn, setRecipientEn] = useState('');
   const [recipientSec, setRecipientSec] = useState('');
@@ -94,6 +105,35 @@ export default function Letterhead() {
   const [senderNameSec, setSenderNameSec] = useState('');
   const [senderTitleEn, setSenderTitleEn] = useState('');
   const [senderTitleSec, setSenderTitleSec] = useState('');
+
+  useEffect(() => {
+    if (tenant) setAppearance(buildAppearanceFromTenant(tenant));
+  }, [tenant]);
+
+  const previewTenant = useMemo(
+    () => applyAppearanceToTenant(tenant, appearance),
+    [tenant, appearance],
+  );
+
+  const saveAppearance = useMutation({
+    mutationFn: async () => {
+      const res = await api.put('/tenants/current', {
+        settings: {
+          ...(tenant?.settings || {}),
+          invoiceBranding: {
+            ...(tenant?.settings?.invoiceBranding || {}),
+            ...appearancePayload(appearance),
+          },
+        },
+      });
+      return res.data;
+    },
+    onSuccess: (next) => {
+      toast.success(isAr ? 'تم حفظ إعدادات الترويسة' : 'Letterhead settings saved');
+      if (next) dispatch(updateTenant(next));
+    },
+    onError: (e) => toast.error(e?.response?.data?.error || e.message),
+  });
 
   const translateText = (text, targetLang) => {
     if (!text?.trim()) return '';
@@ -133,36 +173,66 @@ export default function Letterhead() {
           body { margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
       `}</style>
-      {/* Controls (Hidden when printing) */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 print:hidden">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {uiLanguage === 'ar' ? 'منشئ الخطابات' : 'Letterhead Generator'}
+            {isAr ? 'منشئ الخطابات' : 'Letterhead Generator'}
           </h1>
           <p className="text-gray-500 mt-1">
-            {uiLanguage === 'ar' ? 'إنشاء وطباعة خطابات رسمية' : 'Create and print official company letters'}
+            {isAr ? 'إنشاء وطباعة خطابات رسمية' : 'Create and print official company letters'}
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setShowSettings((v) => !v)}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3.5 py-2 text-sm font-semibold text-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:bg-slate-50 dark:border-white/10 dark:bg-dark-800 dark:text-slate-100"
+          >
+            <Settings2 className="h-4 w-4 text-slate-500" strokeWidth={1.75} />
+            {isAr ? 'إعدادات الترويسة' : 'Letterhead settings'}
+          </button>
           <select
             value={outputLang}
             onChange={(e) => setOutputLang(e.target.value)}
             className="select"
           >
-            <option value="en">{uiLanguage === 'ar' ? 'إنجليزي فقط' : 'English Only'}</option>
-            <option value="sec">{uiLanguage === 'ar' ? locale.labelOnly : locale.labelOnlyEn}</option>
-            <option value="both">{uiLanguage === 'ar' ? locale.labelBoth : locale.labelBothEn}</option>
+            <option value="en">{isAr ? 'إنجليزي فقط' : 'English Only'}</option>
+            <option value="sec">{isAr ? locale.labelOnly : locale.labelOnlyEn}</option>
+            <option value="both">{isAr ? locale.labelBoth : locale.labelBothEn}</option>
           </select>
           <button onClick={handlePrint} className="btn btn-primary">
             <Printer className="w-4 h-4" />
-            {uiLanguage === 'ar' ? 'طباعة' : 'Print'}
+            {isAr ? 'طباعة' : 'Print'}
           </button>
         </div>
       </div>
 
-      {/* The Letter Paper */}
+      {showSettings ? (
+        <div className="space-y-4 print:hidden">
+          <div className="flex justify-end">
+            <button
+              type="button"
+              disabled={saveAppearance.isPending}
+              onClick={() => saveAppearance.mutate()}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:bg-slate-50 disabled:opacity-40 dark:border-white/10 dark:bg-dark-800 dark:text-slate-100"
+            >
+              {saveAppearance.isPending ? '…' : (isAr ? 'حفظ إعدادات الترويسة' : 'Save letterhead settings')}
+            </button>
+          </div>
+          <DocumentAppearancePanel
+            isAr={isAr}
+            appearance={appearance}
+            onChange={setAppearance}
+            previewTenant={previewTenant}
+            showTaglines
+            titleEn="Letterhead appearance"
+            titleAr="مظهر الترويسة"
+          />
+        </div>
+      ) : null}
+
       <LetterheadChrome
-        tenant={tenant}
+        tenant={previewTenant || tenant}
         outputLang={outputLang === 'sec' ? 'secondary' : outputLang}
         className="rounded-xl border border-gray-200 shadow-lg print:m-0 print:border-none print:p-0 print:shadow-none dark:bg-white"
       >

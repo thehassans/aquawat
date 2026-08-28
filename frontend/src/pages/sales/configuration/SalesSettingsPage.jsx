@@ -3,10 +3,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDispatch, useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
 import api from '../../../lib/api'
-import LetterheadChrome from '../../../components/invoices/LetterheadChrome'
-import { INVOICE_FONT_OPTIONS, getInvoiceTypography } from '../../../lib/invoiceBranding'
 import { updateTenant } from '../../../store/slices/authSlice'
 import { INCOTERMS } from '../salesConfig.menu'
+import DocumentAppearancePanel, {
+  appearancePayload,
+  applyAppearanceToTenant,
+  buildAppearanceFromTenant,
+} from '../../../components/sales/DocumentAppearancePanel'
 import {
   fieldControlClass,
   fieldLabelClass,
@@ -19,71 +22,10 @@ const TABS = [
   { id: 'general', en: 'General', ar: 'عام' },
   { id: 'invoice', en: 'Invoice', ar: 'الفاتورة' },
   { id: 'quotation', en: 'Quotation', ar: 'عرض السعر' },
-  { id: 'letterhead', en: 'Letterhead', ar: 'الترويسة' },
 ]
 
-const defaultLetterhead = (tenant) => {
-  const b = tenant?.settings?.invoiceBranding || {}
-  const typography = getInvoiceTypography(tenant)
-  return {
-    logoSize: b.logoSize ?? 112,
-    headingSize: b.headingSize ?? 24,
-    crVatSize: b.crVatSize ?? 14,
-    singleLineHeading: !!b.singleLineHeading,
-    headerTextEn: b.headerTextEn || '',
-    headerTextAr: b.headerTextAr || '',
-    footerTextEn: b.footerTextEn || '',
-    footerTextAr: b.footerTextAr || '',
-    letterheadTextColor: b.letterheadTextColor || '#0F172A',
-    letterheadAccentColor: b.letterheadAccentColor || '#0F172A',
-    bodyFontFamily: typography.bodyFontFamily,
-    headingFontFamily: typography.headingFontFamily,
-    bodyFontSize: typography.bodyFontSize,
-    headingFontSize: typography.headingFontSize,
-  }
-}
-
-function ColorField({ label, value, onChange }) {
-  return (
-    <div>
-      <label className={fieldLabelClass}>{label}</label>
-      <div className="mt-1.5 flex items-center gap-3">
-        <input
-          type="color"
-          value={value || '#0F172A'}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-11 w-14 cursor-pointer rounded-xl border border-slate-200 bg-white p-1 dark:border-dark-500"
-        />
-        <input
-          type="text"
-          value={value || ''}
-          onChange={(e) => onChange(e.target.value.toUpperCase())}
-          className={`${fieldControlClass} font-mono uppercase`}
-          maxLength={7}
-        />
-      </div>
-    </div>
-  )
-}
-
-function RangeField({ label, value, min, max, suffix, onChange }) {
-  return (
-    <div>
-      <div className="mb-1.5 flex items-center justify-between gap-3">
-        <label className={`${fieldLabelClass} mb-0`}>{label}</label>
-        <span className="text-xs font-semibold tabular-nums text-slate-500">{value}{suffix || ''}</span>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-slate-900 dark:accent-white"
-      />
-    </div>
-  )
-}
+const saveBtnClass =
+  'inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-40 dark:border-white/10 dark:bg-dark-800 dark:text-slate-100 dark:hover:bg-dark-700'
 
 export default function SalesSettingsPage() {
   const dispatch = useDispatch()
@@ -93,7 +35,15 @@ export default function SalesSettingsPage() {
   const qc = useQueryClient()
   const [tab, setTab] = useState('general')
   const [form, setForm] = useState({})
-  const [letterhead, setLetterhead] = useState(() => defaultLetterhead(tenant))
+  const [appearance, setAppearance] = useState(() => buildAppearanceFromTenant(tenant))
+  const [signatory, setSignatory] = useState({
+    presetAuthorizedPersonName: '',
+    presetAuthorizedPersonNameAr: '',
+    presetAuthorizedPersonDesignation: '',
+    presetAuthorizedPersonDesignationAr: '',
+    presetSignature: null,
+    presetStamp: null,
+  })
 
   const { data } = useQuery({
     queryKey: ['sales-settings'],
@@ -110,69 +60,50 @@ export default function SalesSettingsPage() {
   }, [data])
 
   useEffect(() => {
-    if (tenantFresh) setLetterhead(defaultLetterhead(tenantFresh))
+    if (!tenantFresh) return
+    setAppearance(buildAppearanceFromTenant(tenantFresh))
+    const b = tenantFresh.settings?.invoiceBranding || {}
+    setSignatory({
+      presetAuthorizedPersonName: b.presetAuthorizedPersonName || '',
+      presetAuthorizedPersonNameAr: b.presetAuthorizedPersonNameAr || '',
+      presetAuthorizedPersonDesignation: b.presetAuthorizedPersonDesignation || '',
+      presetAuthorizedPersonDesignationAr: b.presetAuthorizedPersonDesignationAr || '',
+      presetSignature: b.presetSignature || b.signatureImage || null,
+      presetStamp: b.presetStamp || b.stampImage || null,
+    })
   }, [tenantFresh])
 
   const set = (key, val) => setForm((p) => ({ ...p, [key]: val }))
-  const setLh = (key, val) => setLetterhead((p) => ({ ...p, [key]: val }))
+  const setSig = (key, val) => setSignatory((p) => ({ ...p, [key]: val }))
 
-  const previewTenant = useMemo(() => {
-    const base = tenantFresh || tenant
-    if (!base) return null
-    return {
-      ...base,
-      settings: {
-        ...base.settings,
-        invoiceBranding: {
-          ...(base.settings?.invoiceBranding || {}),
-          logoSize: letterhead.logoSize,
-          headingSize: letterhead.headingSize,
-          crVatSize: letterhead.crVatSize,
-          singleLineHeading: letterhead.singleLineHeading,
-          headerTextEn: letterhead.headerTextEn,
-          headerTextAr: letterhead.headerTextAr,
-          footerTextEn: letterhead.footerTextEn,
-          footerTextAr: letterhead.footerTextAr,
-          letterheadTextColor: letterhead.letterheadTextColor,
-          letterheadAccentColor: letterhead.letterheadAccentColor,
-          typography: {
-            bodyFontFamily: letterhead.bodyFontFamily,
-            headingFontFamily: letterhead.headingFontFamily,
-            bodyFontSize: letterhead.bodyFontSize,
-            headingFontSize: letterhead.headingFontSize,
-          },
-        },
-      },
-    }
-  }, [tenant, tenantFresh, letterhead])
+  const previewTenant = useMemo(
+    () => applyAppearanceToTenant(tenantFresh || tenant, appearance),
+    [tenant, tenantFresh, appearance],
+  )
+
+  const readImage = (file, onDone) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => onDone(reader.result)
+    reader.readAsDataURL(file)
+  }
 
   const save = useMutation({
     mutationFn: async () => {
+      const base = tenantFresh || tenant
       const [salesRes, tenantRes] = await Promise.all([
         api.patch('/sales/settings', form),
         api.put('/tenants/current', {
           settings: {
-            ...(tenantFresh?.settings || tenant?.settings || {}),
+            ...(base?.settings || {}),
             termsAndConditions: form.invoiceDefaultTerms ?? '',
             notes: form.invoiceDefaultNotes ?? '',
             invoiceBranding: {
-              ...((tenantFresh || tenant)?.settings?.invoiceBranding || {}),
-              logoSize: letterhead.logoSize,
-              headingSize: letterhead.headingSize,
-              crVatSize: letterhead.crVatSize,
-              singleLineHeading: letterhead.singleLineHeading,
-              headerTextEn: letterhead.headerTextEn,
-              headerTextAr: letterhead.headerTextAr,
-              footerTextEn: letterhead.footerTextEn,
-              footerTextAr: letterhead.footerTextAr,
-              letterheadTextColor: letterhead.letterheadTextColor,
-              letterheadAccentColor: letterhead.letterheadAccentColor,
-              typography: {
-                bodyFontFamily: letterhead.bodyFontFamily,
-                headingFontFamily: letterhead.headingFontFamily,
-                bodyFontSize: letterhead.bodyFontSize,
-                headingFontSize: letterhead.headingFontSize,
-              },
+              ...(base?.settings?.invoiceBranding || {}),
+              ...appearancePayload(appearance),
+              ...signatory,
+              termsAndConditions: form.invoiceDefaultTerms ?? '',
+              defaultNotes: form.invoiceDefaultNotes ?? '',
             },
           },
         }),
@@ -199,18 +130,8 @@ export default function SalesSettingsPage() {
           <h2 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">
             {isAr ? 'إعدادات المبيعات' : 'Sales settings'}
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {isAr
-              ? 'الفواتير، عروض الأسعار، والترويسة — خطوط وألوان وأحجام الشعار'
-              : 'Invoices, quotations, and letterhead — fonts, colors, and logo scale'}
-          </p>
         </div>
-        <button
-          type="button"
-          disabled={save.isPending}
-          onClick={() => save.mutate()}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-40 dark:border-white/10 dark:bg-dark-800 dark:text-slate-100 dark:hover:bg-dark-700"
-        >
+        <button type="button" disabled={save.isPending} onClick={() => save.mutate()} className={saveBtnClass}>
           {save.isPending ? '…' : (isAr ? 'حفظ الكل' : 'Save all')}
         </button>
       </div>
@@ -269,7 +190,7 @@ export default function SalesSettingsPage() {
       ) : null}
 
       {tab === 'invoice' ? (
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div className={`${sectionCardClass} grid gap-4 sm:grid-cols-2`}>
             <div>
               <label className={fieldLabelClass}>{isAr ? 'سياسة الفوترة' : 'Invoicing policy'}</label>
@@ -284,154 +205,103 @@ export default function SalesSettingsPage() {
             </label>
             <div className="sm:col-span-2">
               <label className={fieldLabelClass}>{isAr ? 'الشروط والأحكام الافتراضية' : 'Default terms & conditions'}</label>
-              <textarea
-                rows={4}
-                className={fieldControlClass}
-                value={form.invoiceDefaultTerms || ''}
-                onChange={(e) => set('invoiceDefaultTerms', e.target.value)}
-                placeholder={isAr ? 'تظهر تلقائياً في فواتير المبيعات…' : 'Prefills on sales invoices…'}
-              />
+              <textarea rows={4} className={fieldControlClass} value={form.invoiceDefaultTerms || ''} onChange={(e) => set('invoiceDefaultTerms', e.target.value)} />
             </div>
             <div className="sm:col-span-2">
               <label className={fieldLabelClass}>{isAr ? 'الملاحظات الافتراضية' : 'Default notes'}</label>
-              <textarea
-                rows={3}
-                className={fieldControlClass}
-                value={form.invoiceDefaultNotes || ''}
-                onChange={(e) => set('invoiceDefaultNotes', e.target.value)}
-              />
+              <textarea rows={3} className={fieldControlClass} value={form.invoiceDefaultNotes || ''} onChange={(e) => set('invoiceDefaultNotes', e.target.value)} />
             </div>
           </div>
-          <p className="text-xs text-slate-500">
-            {isAr
-              ? 'مظهر الترويسة والخطوط يُدار من تبويب Letterhead ويُطبَّق على الفواتير وعروض الأسعار.'
-              : 'Letterhead look & fonts are managed in the Letterhead tab and apply to invoices and quotations.'}
-          </p>
+
+          <div className={`${sectionCardClass} grid gap-4 sm:grid-cols-2`}>
+            <div>
+              <p className={sectionEyebrowClass}>{isAr ? 'التوقيع' : 'Signatory'}</p>
+              <h3 className="mt-1 text-base font-semibold text-slate-900 dark:text-white">
+                {isAr ? 'المفوّض والختم الافتراضي' : 'Default authorized person & stamp'}
+              </h3>
+            </div>
+            <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={fieldLabelClass}>{isAr ? 'الاسم (EN)' : 'Name (EN)'}</label>
+                <input className={fieldControlClass} value={signatory.presetAuthorizedPersonName} onChange={(e) => setSig('presetAuthorizedPersonName', e.target.value)} />
+              </div>
+              <div>
+                <label className={fieldLabelClass}>{isAr ? 'الاسم (AR)' : 'Name (AR)'}</label>
+                <input className={fieldControlClass} dir="rtl" value={signatory.presetAuthorizedPersonNameAr} onChange={(e) => setSig('presetAuthorizedPersonNameAr', e.target.value)} />
+              </div>
+              <div>
+                <label className={fieldLabelClass}>{isAr ? 'المسمى (EN)' : 'Designation (EN)'}</label>
+                <input className={fieldControlClass} value={signatory.presetAuthorizedPersonDesignation} onChange={(e) => setSig('presetAuthorizedPersonDesignation', e.target.value)} />
+              </div>
+              <div>
+                <label className={fieldLabelClass}>{isAr ? 'المسمى (AR)' : 'Designation (AR)'}</label>
+                <input className={fieldControlClass} dir="rtl" value={signatory.presetAuthorizedPersonDesignationAr} onChange={(e) => setSig('presetAuthorizedPersonDesignationAr', e.target.value)} />
+              </div>
+              <div>
+                <label className={fieldLabelClass}>{isAr ? 'التوقيع' : 'Signature'}</label>
+                <div className="mt-1.5 flex items-center gap-3">
+                  <input type="file" accept="image/*" className="hidden" id="sales-sig-upload" onChange={(e) => readImage(e.target.files?.[0], (r) => setSig('presetSignature', r))} />
+                  <label htmlFor="sales-sig-upload" className={saveBtnClass}>{isAr ? 'رفع' : 'Upload'}</label>
+                  {signatory.presetSignature ? (
+                    <button type="button" className="text-xs text-slate-500 underline" onClick={() => setSig('presetSignature', null)}>{isAr ? 'إزالة' : 'Remove'}</button>
+                  ) : null}
+                </div>
+                {signatory.presetSignature ? <img src={signatory.presetSignature} alt="" className="mt-2 h-12 object-contain" /> : null}
+              </div>
+              <div>
+                <label className={fieldLabelClass}>{isAr ? 'الختم' : 'Stamp'}</label>
+                <div className="mt-1.5 flex items-center gap-3">
+                  <input type="file" accept="image/*" className="hidden" id="sales-stamp-upload" onChange={(e) => readImage(e.target.files?.[0], (r) => setSig('presetStamp', r))} />
+                  <label htmlFor="sales-stamp-upload" className={saveBtnClass}>{isAr ? 'رفع' : 'Upload'}</label>
+                  {signatory.presetStamp ? (
+                    <button type="button" className="text-xs text-slate-500 underline" onClick={() => setSig('presetStamp', null)}>{isAr ? 'إزالة' : 'Remove'}</button>
+                  ) : null}
+                </div>
+                {signatory.presetStamp ? <img src={signatory.presetStamp} alt="" className="mt-2 h-12 object-contain" /> : null}
+              </div>
+            </div>
+          </div>
+
+          <DocumentAppearancePanel
+            isAr={isAr}
+            appearance={appearance}
+            onChange={setAppearance}
+            previewTenant={previewTenant}
+            titleEn="Invoice appearance"
+            titleAr="مظهر الفاتورة"
+          />
         </div>
       ) : null}
 
       {tab === 'quotation' ? (
-        <div className={`${sectionCardClass} grid gap-4 sm:grid-cols-2`}>
-          <div>
-            <label className={fieldLabelClass}>{isAr ? 'صلاحية العرض (أيام)' : 'Quotation validity (days)'}</label>
-            <input type="number" min={1} max={365} className={fieldControlClass} value={form.quotationValidityDays ?? 30} onChange={(e) => set('quotationValidityDays', Number(e.target.value))} />
-          </div>
-          <label className={`${checkClass} self-end`}>
-            <input type="checkbox" checked={!!form.quotationAutoSendOnCreate} onChange={(e) => set('quotationAutoSendOnCreate', e.target.checked)} />
-            {isAr ? 'إرسال تلقائي بعد الإنشاء' : 'Mark Sent automatically on create'}
-          </label>
-          <div className="sm:col-span-2">
-            <label className={fieldLabelClass}>{isAr ? 'شروط عرض السعر الافتراضية' : 'Default quotation terms'}</label>
-            <textarea
-              rows={4}
-              className={fieldControlClass}
-              value={form.quotationDefaultTerms || ''}
-              onChange={(e) => set('quotationDefaultTerms', e.target.value)}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className={fieldLabelClass}>{isAr ? 'ملاحظات العرض الافتراضية' : 'Default quotation notes'}</label>
-            <textarea
-              rows={3}
-              className={fieldControlClass}
-              value={form.quotationDefaultNotes || ''}
-              onChange={(e) => set('quotationDefaultNotes', e.target.value)}
-            />
-          </div>
-        </div>
-      ) : null}
-
-      {tab === 'letterhead' ? (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.9fr)]">
-          <div className="space-y-4">
-            <div className={`${sectionCardClass} space-y-5`}>
-              <div>
-                <p className={sectionEyebrowClass}>{isAr ? 'الطباعة' : 'Typography'}</p>
-                <h3 className="mt-1 text-base font-semibold text-slate-900 dark:text-white">
-                  {isAr ? 'الخطوط والأحجام' : 'Fonts & sizes'}
-                </h3>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className={fieldLabelClass}>{isAr ? 'خط العناوين' : 'Heading font'}</label>
-                  <select className={fieldControlClass} value={letterhead.headingFontFamily} onChange={(e) => setLh('headingFontFamily', e.target.value)}>
-                    {INVOICE_FONT_OPTIONS.map((f) => (
-                      <option key={f.value} value={f.value}>{isAr ? f.labelAr : f.labelEn}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={fieldLabelClass}>{isAr ? 'خط النص' : 'Body font'}</label>
-                  <select className={fieldControlClass} value={letterhead.bodyFontFamily} onChange={(e) => setLh('bodyFontFamily', e.target.value)}>
-                    {INVOICE_FONT_OPTIONS.map((f) => (
-                      <option key={f.value} value={f.value}>{isAr ? f.labelAr : f.labelEn}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <RangeField label={isAr ? 'حجم اسم الشركة' : 'Company heading size'} value={letterhead.headingSize} min={12} max={48} suffix="px" onChange={(v) => setLh('headingSize', v)} />
-              <RangeField label={isAr ? 'حجم السجل / الضريبة' : 'CR / VAT text size'} value={letterhead.crVatSize} min={9} max={24} suffix="px" onChange={(v) => setLh('crVatSize', v)} />
-              <RangeField label={isAr ? 'حجم نص المحتوى' : 'Body text size'} value={letterhead.bodyFontSize} min={9} max={18} suffix="px" onChange={(v) => setLh('bodyFontSize', v)} />
-              <RangeField label={isAr ? 'ارتفاع الشعار' : 'Logo height'} value={letterhead.logoSize} min={40} max={180} suffix="px" onChange={(v) => setLh('logoSize', v)} />
-              <label className={checkClass}>
-                <input type="checkbox" checked={!!letterhead.singleLineHeading} onChange={(e) => setLh('singleLineHeading', e.target.checked)} />
-                {isAr ? 'اسم الشركة في سطر واحد' : 'Single-line company heading'}
-              </label>
+        <div className="space-y-6">
+          <div className={`${sectionCardClass} grid gap-4 sm:grid-cols-2`}>
+            <div>
+              <label className={fieldLabelClass}>{isAr ? 'صلاحية العرض (أيام)' : 'Quotation validity (days)'}</label>
+              <input type="number" min={1} max={365} className={fieldControlClass} value={form.quotationValidityDays ?? 30} onChange={(e) => set('quotationValidityDays', Number(e.target.value))} />
             </div>
-
-            <div className={`${sectionCardClass} space-y-5`}>
-              <div>
-                <p className={sectionEyebrowClass}>{isAr ? 'الألوان' : 'Colors'}</p>
-                <h3 className="mt-1 text-base font-semibold text-slate-900 dark:text-white">
-                  {isAr ? 'ترويسة وتذييل' : 'Heading & footer'}
-                </h3>
-                <p className="mt-1 text-xs text-slate-500">
-                  {isAr
-                    ? 'لون النص يطبَّق على الترويسة والتذييل معاً. لون الحدود يغيّر خط الفاصل العلوي والسفلي.'
-                    : 'Text color applies to both header and footer. Accent color drives the top and bottom rules.'}
-                </p>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <ColorField
-                  label={isAr ? 'لون نص الترويسة والتذييل' : 'Heading & footer text color'}
-                  value={letterhead.letterheadTextColor}
-                  onChange={(v) => setLh('letterheadTextColor', v)}
-                />
-                <ColorField
-                  label={isAr ? 'لون حدود الترويسة والتذييل' : 'Header & footer accent color'}
-                  value={letterhead.letterheadAccentColor}
-                  onChange={(v) => setLh('letterheadAccentColor', v)}
-                />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className={fieldLabelClass}>{isAr ? 'سطر تحت العنوان (EN)' : 'Tagline under heading (EN)'}</label>
-                  <input className={fieldControlClass} value={letterhead.headerTextEn} onChange={(e) => setLh('headerTextEn', e.target.value)} />
-                </div>
-                <div>
-                  <label className={fieldLabelClass}>{isAr ? 'سطر تحت العنوان (AR)' : 'Tagline under heading (AR)'}</label>
-                  <input className={fieldControlClass} dir="rtl" value={letterhead.headerTextAr} onChange={(e) => setLh('headerTextAr', e.target.value)} />
-                </div>
-                <div>
-                  <label className={fieldLabelClass}>{isAr ? 'سطر التذييل (EN)' : 'Footer line (EN)'}</label>
-                  <input className={fieldControlClass} value={letterhead.footerTextEn} onChange={(e) => setLh('footerTextEn', e.target.value)} />
-                </div>
-                <div>
-                  <label className={fieldLabelClass}>{isAr ? 'سطر التذييل (AR)' : 'Footer line (AR)'}</label>
-                  <input className={fieldControlClass} dir="rtl" value={letterhead.footerTextAr} onChange={(e) => setLh('footerTextAr', e.target.value)} />
-                </div>
-              </div>
+            <label className={`${checkClass} self-end`}>
+              <input type="checkbox" checked={!!form.quotationAutoSendOnCreate} onChange={(e) => set('quotationAutoSendOnCreate', e.target.checked)} />
+              {isAr ? 'إرسال تلقائي بعد الإنشاء' : 'Mark Sent automatically on create'}
+            </label>
+            <div className="sm:col-span-2">
+              <label className={fieldLabelClass}>{isAr ? 'شروط عرض السعر الافتراضية' : 'Default quotation terms'}</label>
+              <textarea rows={4} className={fieldControlClass} value={form.quotationDefaultTerms || ''} onChange={(e) => set('quotationDefaultTerms', e.target.value)} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={fieldLabelClass}>{isAr ? 'ملاحظات العرض الافتراضية' : 'Default quotation notes'}</label>
+              <textarea rows={3} className={fieldControlClass} value={form.quotationDefaultNotes || ''} onChange={(e) => set('quotationDefaultNotes', e.target.value)} />
             </div>
           </div>
 
-          <div className={`${sectionCardClass} !p-4`}>
-            <p className={`${sectionEyebrowClass} mb-3`}>{isAr ? 'معاينة حية' : 'Live preview'}</p>
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-dark-600 dark:bg-dark-900">
-              <div className="origin-top scale-[0.42] sm:scale-50" style={{ width: '238%', maxHeight: 420 }}>
-                {previewTenant ? <LetterheadChrome tenant={previewTenant} /> : null}
-              </div>
-            </div>
-          </div>
+          <DocumentAppearancePanel
+            isAr={isAr}
+            appearance={appearance}
+            onChange={setAppearance}
+            previewTenant={previewTenant}
+            titleEn="Quotation appearance"
+            titleAr="مظهر عرض السعر"
+          />
         </div>
       ) : null}
     </div>

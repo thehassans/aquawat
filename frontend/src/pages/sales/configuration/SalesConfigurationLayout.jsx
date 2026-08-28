@@ -14,9 +14,7 @@ export default function SalesConfigurationLayout() {
         <p className={sectionEyebrowClass}>{isAr ? 'البنية التحتية' : 'Phase 1 infrastructure'}</p>
         <h1 className={pageTitleClass}>{isAr ? 'إعدادات المبيعات' : 'Sales Configuration'}</h1>
         <p className={pageSubtitleClass}>
-          {isAr
-            ? 'إعدادات المستندات، الترويسة، الفرق، الأسعار والمدفوعات'
-            : 'Document settings, letterhead, teams, pricing, and payments'}
+          {isAr ? 'فرق، أسعار، مدفوعات، وإعدادات المستندات' : 'Teams, pricing, payments, and document settings'}
         </p>
       </div>
 
