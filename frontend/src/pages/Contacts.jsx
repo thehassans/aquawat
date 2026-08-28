@@ -3,9 +3,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Search, Users, Building2, Briefcase, Phone, Mail, Hash, MessageCircle, MessageSquare, ArrowUpRight, UserRound, Plus, ChevronDown } from 'lucide-react'
+import { Search, Users, Building2, Briefcase, Phone, Mail, Hash, MessageCircle, MessageSquare, ArrowUpRight, UserRound, Plus, ChevronDown, Download } from 'lucide-react'
+import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
+import { buildDefaultFileName, exportToCsv } from '../lib/export'
 import ExportMenu from '../components/ui/ExportMenu'
 import QuickCreateContactModal from '../components/inventory/QuickCreateContactModal'
 
@@ -50,6 +52,8 @@ export default function Contacts() {
   const [createOpen, setCreateOpen] = useState(false)
   const [createRole, setCreateRole] = useState('customer')
   const [createMenuOpen, setCreateMenuOpen] = useState(false)
+  const [selected, setSelected] = useState(() => new Set())
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     if (!typesParam) return
@@ -96,15 +100,59 @@ export default function Contacts() {
     })
   }, [contacts, isAr])
 
+  const selectableRows = useMemo(
+    () => rows.filter((r) => r.entityType === 'customer' || r.entityType === 'supplier'),
+    [rows],
+  )
+  const pageIds = useMemo(() => selectableRows.map((r) => r.entityId), [selectableRows])
+  const selectedIds = useMemo(() => [...selected], [selected])
+  const selectedOnPageCount = useMemo(
+    () => pageIds.filter((id) => selected.has(id)).length,
+    [pageIds, selected],
+  )
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id))
+  const somePageSelected = selectedOnPageCount > 0 && !allPageSelected
+
+  const toggleRow = (id) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleAllPage = () => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (allPageSelected) pageIds.forEach((id) => next.delete(id))
+      else pageIds.forEach((id) => next.add(id))
+      return next
+    })
+  }
+
   const exportColumns = [
     { key: 'name', label: isAr ? 'الاسم' : 'Name', value: (r) => r?.name || '' },
     { key: 'type', label: isAr ? 'النوع' : 'Type', value: (r) => (isAr ? r?.meta?.ar : r?.meta?.en) || r?.entityType || '' },
     { key: 'phone', label: isAr ? 'الهاتف' : 'Phone', value: (r) => r?.phone || '' },
     { key: 'email', label: isAr ? 'البريد' : 'Email', value: (r) => r?.email || '' },
-    { key: 'code', label: isAr ? 'الرمز' : 'Code', value: (r) => r?.code || '' },
-    { key: 'vatNumber', label: isAr ? 'الرقم الضريبي' : 'VAT', value: (r) => r?.vatNumber || '' },
+    { key: 'internalRef', label: isAr ? 'المرجع الداخلي' : 'Internal Ref', value: (r) => r?.internalRef || r?.customerCode || r?.supplierCode || r?.code || '' },
+    { key: 'vatNumber', label: isAr ? 'الرقم الضريبي' : 'Tax ID / VAT', value: (r) => r?.vatNumber || '' },
     { key: 'status', label: t('status'), value: (r) => (r?.isActive ? (isAr ? 'نشط' : 'Active') : (isAr ? 'غير نشط' : 'Inactive')) },
   ]
+
+  const mapPartnerExportRow = (p) => ({
+    name: isAr ? p.nameAr || p.nameEn || p.name : p.nameEn || p.name,
+    meta: { en: 'Partner', ar: 'شريك' },
+    entityType: p.isCustomer ? 'customer' : 'supplier',
+    phone: p.phone || p.mobile,
+    email: p.email,
+    internalRef: p.internalRef || p.customerCode || p.supplierCode,
+    customerCode: p.customerCode,
+    supplierCode: p.supplierCode,
+    vatNumber: p.vatNumber,
+    isActive: p.isActive !== false,
+  })
 
   const getExportRows = async () => {
     const limit = 200
@@ -121,6 +169,29 @@ export default function Contacts() {
       currentPage += 1
     }
     return all
+  }
+
+  const handlePartnerExport = async () => {
+    setExporting(true)
+    try {
+      let exportRows
+      if (selectedIds.length > 0) {
+        const res = await api.post('/partners/export', { ids: selectedIds })
+        exportRows = (res.data?.partners || []).map(mapPartnerExportRow)
+      } else {
+        exportRows = await getExportRows()
+      }
+      exportToCsv({
+        fileName: buildDefaultFileName(isAr ? 'جهات_الاتصال' : 'Contacts'),
+        rows: exportRows,
+        columns: exportColumns,
+      })
+      toast.success(isAr ? `تم تصدير ${exportRows.length} صف` : `Exported ${exportRows.length} rows`)
+    } catch {
+      toast.error(isAr ? 'فشل التصدير' : 'Export failed')
+    } finally {
+      setExporting(false)
+    }
   }
 
   const setTypeFilter = (next) => {
@@ -221,16 +292,39 @@ export default function Contacts() {
               </div>
             )}
           </div>
-          <ExportMenu
-            language={language}
-            t={t}
-            rows={rows}
-            getRows={getExportRows}
-            columns={exportColumns}
-            fileBaseName={isAr ? 'جهات_الاتصال' : 'Contacts'}
-            title={isAr ? 'جهات الاتصال' : 'Contacts'}
-            disabled={isLoading || rows.length === 0}
-          />
+          {partnerHub ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={isLoading || exporting || (!selectedIds.length && !rows.length)}
+                onClick={handlePartnerExport}
+              >
+                <Download className="h-4 w-4" />
+                {exporting
+                  ? (isAr ? 'جاري التصدير…' : 'Exporting…')
+                  : selectedIds.length
+                    ? (isAr ? `تصدير (${selectedIds.length})` : `Export (${selectedIds.length})`)
+                    : (isAr ? 'تصدير الكل' : 'Export all')}
+              </button>
+              {selectedIds.length > 0 && (
+                <button type="button" className="btn btn-ghost text-sm" onClick={() => setSelected(new Set())}>
+                  {isAr ? `مسح (${selectedIds.length})` : `Clear (${selectedIds.length})`}
+                </button>
+              )}
+            </div>
+          ) : (
+            <ExportMenu
+              language={language}
+              t={t}
+              rows={rows}
+              getRows={getExportRows}
+              columns={exportColumns}
+              fileBaseName={isAr ? 'جهات_الاتصال' : 'Contacts'}
+              title={isAr ? 'جهات الاتصال' : 'Contacts'}
+              disabled={isLoading || rows.length === 0}
+            />
+          )}
         </div>
       </div>
 
@@ -300,20 +394,49 @@ export default function Contacts() {
             </p>
           </div>
         ) : (
-          <table className="w-full min-w-[720px] text-sm">
+          <table className="w-full min-w-[820px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-start text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                {partnerHub && (
+                  <th className="w-10 px-3 py-3">
+                    <input
+                      type="checkbox"
+                      className="rounded border-slate-300"
+                      checked={allPageSelected}
+                      ref={(el) => { if (el) el.indeterminate = somePageSelected }}
+                      onChange={toggleAllPage}
+                      aria-label={isAr ? 'تحديد الكل' : 'Select all'}
+                    />
+                  </th>
+                )}
                 <th className="min-w-[150px] px-5 py-3 font-semibold">{isAr ? 'الاسم' : 'Name'}</th>
                 <th className="min-w-[120px] px-3 py-3 font-semibold">{isAr ? 'النوع' : 'Type'}</th>
                 <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'التواصل' : 'Reach'}</th>
-                <th className="min-w-[140px] px-3 py-3 font-semibold">{isAr ? 'الرمز / الضريبة' : 'Code / VAT'}</th>
+                <th className="min-w-[110px] px-3 py-3 font-semibold">{isAr ? 'المرجع الداخلي' : 'Internal Ref'}</th>
+                <th className="min-w-[120px] px-3 py-3 font-semibold">{isAr ? 'الرقم الضريبي' : 'Tax ID / VAT'}</th>
                 <th className="min-w-[100px] px-3 py-3 font-semibold">{t('status')}</th>
                 <th className="min-w-[80px] px-5 py-3 font-semibold" />
               </tr>
             </thead>
             <tbody>
-              {rows.map((c) => (
+              {rows.map((c) => {
+                const isSelectable = c.entityType === 'customer' || c.entityType === 'supplier'
+                const rowId = c.entityId
+                return (
                 <tr key={`${c.entityType}-${c.entityId}`} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/70">
+                  {partnerHub && (
+                    <td className="px-3 py-3.5">
+                      {isSelectable ? (
+                        <input
+                          type="checkbox"
+                          className="rounded border-slate-300"
+                          checked={selected.has(rowId)}
+                          onChange={() => toggleRow(rowId)}
+                          aria-label={isAr ? 'تحديد الصف' : 'Select row'}
+                        />
+                      ) : null}
+                    </td>
+                  )}
                   <td className="min-w-[150px] px-5 py-3.5">
                     <div className="flex items-center gap-3">
                       <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xs font-bold ${c.meta.tint}`}>
@@ -376,9 +499,16 @@ export default function Contacts() {
                       {!c.phone && !c.email && <span className="text-slate-300">—</span>}
                     </div>
                   </td>
-                  <td className="min-w-[140px] px-3 py-3.5 font-mono text-xs text-slate-500">
-                    <div className="flex items-center gap-1">{c.code ? <><Hash className="h-3 w-3" />{c.code}</> : '—'}</div>
-                    <div>{c.vatNumber || ''}</div>
+                  <td className="min-w-[110px] px-3 py-3.5 font-mono text-xs text-slate-500">
+                    {(c.internalRef || c.customerCode || c.supplierCode || c.code) ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Hash className="h-3 w-3" />
+                        {c.internalRef || c.customerCode || c.supplierCode || c.code}
+                      </span>
+                    ) : '—'}
+                  </td>
+                  <td className="min-w-[120px] px-3 py-3.5 font-mono text-xs text-slate-500">
+                    {c.vatNumber || '—'}
                   </td>
                   <td className="min-w-[100px] px-3 py-3.5">
                     <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${c.isActive ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
@@ -397,7 +527,7 @@ export default function Contacts() {
                     ) : null}
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         )}

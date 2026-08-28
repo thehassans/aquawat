@@ -108,6 +108,25 @@ const partnerSchema = new mongoose.Schema({
 
   isCustomer: { type: Boolean, default: true },
   isVendor: { type: Boolean, default: false },
+  isEmployee: { type: Boolean, default: false },
+
+  logoUrl: { type: String, default: '' },
+
+  salespersonId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
+  vendorCurrency: { type: String, default: 'SAR', trim: true },
+  salesPricelistId: { type: String, default: null, trim: true },
+
+  bankAccounts: [{
+    bankName: { type: String, trim: true },
+    accountName: { type: String, trim: true },
+    iban: { type: String, trim: true },
+    accountNumber: { type: String, trim: true },
+    isDefault: { type: Boolean, default: false },
+  }],
 
   parentCompanyId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -174,6 +193,7 @@ partnerSchema.index({ tenantId: 1, vatNumber: 1 });
 partnerSchema.index({ tenantId: 1, isActive: 1 });
 partnerSchema.index({ tenantId: 1, isCustomer: 1 });
 partnerSchema.index({ tenantId: 1, isVendor: 1 });
+partnerSchema.index({ tenantId: 1, isEmployee: 1 });
 partnerSchema.index({ tenantId: 1, isAddition: 1 });
 partnerSchema.index({ tenantId: 1, khayyatReceiptNumbers: 1 });
 partnerSchema.index(

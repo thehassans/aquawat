@@ -9,13 +9,14 @@ import {
   CreditCard,
   FileText,
   MapPin,
+  Plus,
   Save,
+  Trash2,
   User,
   Users,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
-import { fetchContactsList } from '../../lib/contactMappers'
 import { useTranslation } from '../../lib/translations'
 import AsyncCombobox from '../../components/ui/AsyncCombobox'
 import {
@@ -29,8 +30,15 @@ const TABS = [
   { id: 'general', en: 'General', ar: 'عام', icon: User },
   { id: 'sales', en: 'Sales & Purchase', ar: 'بيع وشراء', icon: Users },
   { id: 'accounting', en: 'Accounting', ar: 'محاسبة', icon: CreditCard },
-  { id: 'notes', en: 'Internal notes', ar: 'ملاحظات', icon: FileText },
 ]
+
+const emptyBankRow = () => ({
+  bankName: '',
+  accountName: '',
+  iban: '',
+  accountNumber: '',
+  isDefault: false,
+})
 
 const canvas = 'min-h-[calc(100vh-6rem)] bg-[#F9FAFB] dark:bg-dark-900'
 const card = 'rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_40px_-28px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-[#0c111a] sm:p-6'
@@ -50,13 +58,6 @@ function pathWithPartnerId(returnTo, partnerId) {
     const sep = returnTo.includes('?') ? '&' : '?'
     return `${returnTo}${sep}partnerId=${encodeURIComponent(partnerId)}`
   }
-}
-
-function splitName(full = '') {
-  const parts = String(full).trim().split(/\s+/).filter(Boolean)
-  if (!parts.length) return { firstName: '', lastName: '' }
-  if (parts.length === 1) return { firstName: parts[0], lastName: '' }
-  return { firstName: parts[0], lastName: parts.slice(1).join(' ') }
 }
 
 /**
@@ -86,22 +87,20 @@ export default function PartnerForm() {
   const emailPrefill = searchParams.get('email') || ''
   const phonePrefill = searchParams.get('phone') || ''
   const entityPrefill = searchParams.get('entity') // individual | company
-  const nameParts = splitName(namePrefill)
 
   const backPath = returnTo || (isSupplierRoute ? '/app/dashboard/suppliers' : '/app/dashboard/contacts?types=customer,supplier')
 
   const [tab, setTab] = useState('general')
   const [parentOption, setParentOption] = useState(null)
-  const [logoPreview, setLogoPreview] = useState('')
+  const [salespersonOption, setSalespersonOption] = useState(null)
+  const [logoUrl, setLogoUrl] = useState('')
+  const [bankAccounts, setBankAccounts] = useState([emptyBankRow()])
 
   const { register, handleSubmit, reset, watch, setValue, formState: { errors, isSubmitting } } = useForm({
     defaultValues: {
       entity: entityPrefill === 'individual' ? 'individual' : 'company',
-      firstName: nameParts.firstName,
-      lastName: nameParts.lastName,
-      name: namePrefill,
-      nameAr: '',
       nameEn: namePrefill,
+      nameAr: '',
       email: emailPrefill,
       phone: phonePrefill,
       mobile: '',
@@ -114,6 +113,9 @@ export default function PartnerForm() {
       payableAccountId: '',
       paymentTermsCustomer: 'net30',
       paymentTermsVendorTerm: 'net_30',
+      salespersonId: '',
+      vendorCurrency: 'SAR',
+      salesPricelistId: '',
       address: {
         street: '',
         city: '',
@@ -127,6 +129,7 @@ export default function PartnerForm() {
       isActive: true,
       isCustomer: !defaultVendor,
       isVendor: defaultVendor,
+      isEmployee: false,
     },
   })
 
@@ -136,10 +139,17 @@ export default function PartnerForm() {
   const isVendor = watch('isVendor')
   const parentCompanyId = watch('parentCompanyId')
 
-  const loadPath = isSupplierRoute ? `/suppliers/${id}` : `/customers/${id}`
   const { data: existing, isLoading } = useQuery({
-    queryKey: ['partner', id, isSupplierRoute ? 'vendor' : 'customer'],
-    queryFn: () => api.get(loadPath).then((r) => r.data),
+    queryKey: ['partner', id],
+    queryFn: async () => {
+      try {
+        return await api.get(`/partners/${id}`).then((r) => r.data)
+      } catch (err) {
+        if (err?.response?.status !== 404) throw err
+        const fallback = isSupplierRoute ? `/suppliers/${id}` : `/customers/${id}`
+        return api.get(fallback).then((r) => r.data)
+      }
+    },
     enabled: isEditing,
   })
 
@@ -173,15 +183,10 @@ export default function PartnerForm() {
   useEffect(() => {
     if (!existing) return
     const isInd = existing.type === 'individual'
-    const fullName = existing.name || existing.nameEn || ''
-    const parts = splitName(fullName)
     reset({
       entity: isInd ? 'individual' : 'company',
-      firstName: isInd ? parts.firstName : '',
-      lastName: isInd ? parts.lastName : '',
-      name: fullName,
-      nameAr: existing.nameAr || '',
       nameEn: existing.nameEn || existing.name || '',
+      nameAr: existing.nameAr || '',
       email: existing.email || '',
       phone: existing.phone || '',
       mobile: existing.mobile || '',
@@ -189,11 +194,14 @@ export default function PartnerForm() {
       vatNumber: existing.vatNumber || '',
       crNumber: existing.crNumber || '',
       parentCompanyId: existing.parentCompanyId?._id || existing.parentCompanyId || '',
-      jobTitle: existing.contactPerson?.position || existing.contactPerson?.name || '',
+      jobTitle: existing.contactPerson?.position || '',
       receivableAccountId: existing.receivableAccountId?._id || existing.receivableAccountId || '',
       payableAccountId: existing.payableAccountId?._id || existing.payableAccountId || '',
       paymentTermsCustomer: existing.paymentTermsCustomer || existing.paymentTerms || 'net30',
-      paymentTermsVendorTerm: existing.paymentTermsVendor?.term || existing.paymentTerms?.term || 'net_30',
+      paymentTermsVendorTerm: existing.paymentTermsVendor?.term || existing.paymentTermsVendorTerm || existing.paymentTerms?.term || 'net_30',
+      salespersonId: existing.salespersonId?._id || existing.salespersonId || '',
+      vendorCurrency: existing.vendorCurrency || 'SAR',
+      salesPricelistId: existing.salesPricelistId || '',
       address: {
         street: existing.address?.street || '',
         city: existing.address?.city || '',
@@ -207,6 +215,7 @@ export default function PartnerForm() {
       isActive: existing.isActive !== false,
       isCustomer: existing.isCustomer != null ? Boolean(existing.isCustomer) : !isSupplierRoute,
       isVendor: existing.isVendor != null ? Boolean(existing.isVendor) : isSupplierRoute,
+      isEmployee: Boolean(existing.isEmployee),
     })
     if (existing.parentCompanyId && typeof existing.parentCompanyId === 'object') {
       setParentOption({
@@ -214,31 +223,40 @@ export default function PartnerForm() {
         name: existing.parentCompanyId.name || existing.parentCompanyId.nameEn,
       })
     }
+    if (existing.salespersonId && typeof existing.salespersonId === 'object') {
+      const sp = existing.salespersonId
+      const label = [sp.firstName, sp.lastName].filter(Boolean).join(' ') || sp.email || '—'
+      setSalespersonOption({ ...sp, name: label })
+    }
+    if (existing.logoUrl) setLogoUrl(existing.logoUrl)
+    const banks = existing.bankAccounts?.length
+      ? existing.bankAccounts
+      : (existing.bank?.iban || existing.bank?.bankName
+        ? [{
+          bankName: existing.bank.bankName || '',
+          accountName: existing.bank.beneficiaryName || '',
+          iban: existing.bank.iban || '',
+          accountNumber: existing.bank.iban || '',
+          isDefault: true,
+        }]
+        : [emptyBankRow()])
+    setBankAccounts(banks)
   }, [existing, reset, isSupplierRoute, tenantCountry])
 
   const fetchCompanies = async (q) => {
-    const { contacts } = await fetchContactsList(api, {
-      types: 'customer,supplier',
-      search: q,
-      limit: 15,
-      isActive: true,
-    })
-    const map = new Map()
-    contacts
-      .filter((c) => c.partnerType !== 'individual')
-      .forEach((c) => {
-        const key = String(c.entityId)
-        if (!map.has(key)) {
-          map.set(key, {
-            _id: c.entityId,
-            name: c.displayName,
-            nameEn: c.displayName,
-            nameAr: c.displayNameAr,
-            type: c.partnerType,
-          })
-        }
-      })
-    return [...map.values()]
+    const res = await api.get('/partners/search', {
+      params: { q, type: 'business', limit: 15 },
+    }).catch(() => ({ data: { partners: [] } }))
+    return (res.data?.partners || []).filter((p) => String(p._id) !== String(id))
+  }
+
+  const fetchSalespeople = async (q) => {
+    const res = await api.get('/users', { params: { search: q, limit: 15, isActive: true } })
+      .catch(() => ({ data: { users: [] } }))
+    return (res.data?.users || []).map((u) => ({
+      ...u,
+      name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email,
+    }))
   }
 
   const inheritFromParent = (opt) => {
@@ -268,32 +286,25 @@ export default function PartnerForm() {
 
   const mutation = useMutation({
     mutationFn: async (raw) => {
-      const first = (raw.firstName || '').trim()
-      const last = (raw.lastName || '').trim()
-      const companyName = (raw.name || raw.nameEn || '').trim()
-      const displayName = isCompany
-        ? companyName
-        : [first, last].filter(Boolean).join(' ') || companyName
-
+      const displayName = (raw.nameEn || '').trim()
       if (!displayName) {
         throw new Error(ar ? 'الاسم مطلوب' : 'Name is required')
       }
 
-      if (raw.isVendor && isCompany) {
-        const vatCheck = validatePartnerVat(raw.vatNumber, tenantCountry)
-        if (!vatCheck.ok && String(raw.vatNumber || '').trim()) {
-          throw new Error(ar ? vatCheck.messageAr : vatCheck.message)
-        }
+      const country = raw.address?.country || tenantCountry
+      if (isCompany && raw.vatNumber) {
+        const vatCheck = validatePartnerVat(raw.vatNumber, country)
+        if (!vatCheck.ok) throw new Error(ar ? vatCheck.messageAr : vatCheck.message)
       }
 
-      const base = {
-        name: displayName,
-        nameEn: raw.nameEn || displayName,
+      const payload = {
+        entity: raw.entity,
+        nameEn: displayName,
         nameAr: raw.nameAr || '',
         email: raw.email || undefined,
         phone: raw.phone || undefined,
         mobile: raw.mobile || undefined,
-        website: isCompany ? (raw.website || undefined) : undefined,
+        website: raw.website || undefined,
         vatNumber: raw.vatNumber || undefined,
         crNumber: isCompany ? (raw.crNumber || undefined) : undefined,
         address: raw.address,
@@ -301,39 +312,27 @@ export default function PartnerForm() {
         isActive: raw.isActive !== false,
         isCustomer: Boolean(raw.isCustomer),
         isVendor: Boolean(raw.isVendor),
+        isEmployee: Boolean(raw.isEmployee),
         parentCompanyId: !isCompany && raw.parentCompanyId ? raw.parentCompanyId : null,
         receivableAccountId: raw.isCustomer ? (raw.receivableAccountId || null) : null,
         payableAccountId: raw.isVendor ? (raw.payableAccountId || null) : null,
+        paymentTerms: raw.paymentTermsCustomer || 'net30',
+        paymentTermsVendorTerm: raw.paymentTermsVendorTerm || 'net_30',
+        salespersonId: raw.salespersonId || null,
+        vendorCurrency: raw.vendorCurrency || 'SAR',
+        salesPricelistId: raw.salesPricelistId || null,
+        logoUrl: logoUrl || undefined,
+        bankAccounts: bankAccounts.filter((b) => b.bankName || b.iban || b.accountNumber),
         contactPerson: !isCompany && raw.jobTitle
           ? { name: displayName, position: raw.jobTitle, email: raw.email, phone: raw.mobile || raw.phone }
           : undefined,
       }
 
-      if (raw.isCustomer || !raw.isVendor) {
-        const customerPayload = {
-          ...base,
-          type: isCompany ? 'business' : 'individual',
-          paymentTerms: raw.paymentTermsCustomer || 'net30',
-        }
-        if (isEditing) return api.put(`/customers/${id}`, customerPayload).then((r) => r.data)
-        return api.post('/customers', customerPayload).then((r) => r.data)
-      }
-
-      const supplierPayload = {
-        ...base,
-        type: isCompany ? 'company' : 'individual',
-        nameEn: displayName,
-        paymentTerms: { term: raw.paymentTermsVendorTerm || 'net_30' },
-        code: existing?.code || existing?.supplierCode || undefined,
-      }
-      if (isEditing) return api.put(`/suppliers/${id}`, supplierPayload).then((r) => r.data)
-      return api.post('/suppliers', {
-        ...supplierPayload,
-        code: `S${Date.now().toString().slice(-7)}`,
-      }).then((r) => r.data)
+      if (isEditing) return api.put(`/partners/${id}`, payload).then((r) => r.data)
+      return api.post('/partners', payload).then((r) => r.data)
     },
     onSuccess: (res) => {
-      const partnerId = res?._id || res?.data?._id || id
+      const partnerId = res?._id || id
       queryClient.invalidateQueries({ queryKey: ['customers'] })
       queryClient.invalidateQueries({ queryKey: ['suppliers'] })
       queryClient.invalidateQueries({ queryKey: ['contacts'] })
@@ -354,13 +353,25 @@ export default function PartnerForm() {
   })
 
   const onSubmit = (data) => {
-    if (!data.isCustomer && !data.isVendor) {
-      toast.error(ar ? 'اختر دورًا واحدًا على الأقل (عميل أو مورد)' : 'Select at least one role (customer or vendor)')
+    if (!data.isCustomer && !data.isVendor && !data.isEmployee) {
+      toast.error(ar ? 'اختر دورًا واحدًا على الأقل' : 'Select at least one role')
       setTab('sales')
       return
     }
     mutation.mutate(data)
   }
+
+  const updateBankRow = (index, field, value) => {
+    setBankAccounts((rows) => rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)))
+  }
+
+  const addBankRow = () => setBankAccounts((rows) => [...rows, emptyBankRow()])
+
+  const removeBankRow = (index) => {
+    setBankAccounts((rows) => (rows.length <= 1 ? [emptyBankRow()] : rows.filter((_, i) => i !== index)))
+  }
+
+  const salespersonId = watch('salespersonId')
 
   const title = useMemo(() => {
     if (isEditing) return ar ? 'تعديل جهة الاتصال' : 'Edit contact'
@@ -451,12 +462,105 @@ export default function PartnerForm() {
                     <input type="checkbox" className="rounded border-slate-300" {...register('isVendor')} />
                     {ar ? 'مورد' : 'Vendor'}
                   </label>
+                  <label className="inline-flex items-center gap-2 text-sm text-slate-800 dark:text-slate-200">
+                    <input type="checkbox" className="rounded border-slate-300" {...register('isEmployee')} />
+                    {ar ? 'موظف' : 'Employee'}
+                  </label>
                 </div>
                 <p className="mt-1.5 text-[11px] text-slate-400">
                   {ar
                     ? 'نفس السجل يظهر في المبيعات و/أو المشتريات حسب الأدوار'
                     : 'Same record appears in sales and/or purchases based on roles'}
                 </p>
+              </div>
+            </div>
+
+            <div className="mt-5 border-t border-slate-100 pt-5 dark:border-white/[0.06]">
+              <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="sm:col-span-2">
+                    <span className={labelCls}>{ar ? 'الاسم (EN)' : 'Name (EN)'} *</span>
+                    <input className={inputCls} {...register('nameEn', { required: true })} />
+                    {errors.nameEn && <span className="mt-1 block text-xs text-rose-600">{t('required') || 'Required'}</span>}
+                  </label>
+                  <label className="sm:col-span-2">
+                    <span className={labelCls}>{ar ? 'الاسم (AR)' : 'Name (AR)'}</span>
+                    <input className={inputCls} dir="rtl" {...register('nameAr')} />
+                  </label>
+                  {!isCompany && (
+                    <label className="sm:col-span-2">
+                      <span className={labelCls}>{ar ? 'المسمى الوظيفي' : 'Job position / title'}</span>
+                      <input className={inputCls} {...register('jobTitle')} />
+                    </label>
+                  )}
+                  {!isCompany && (
+                    <div className="sm:col-span-2">
+                      <span className={labelCls}>{ar ? 'الشركة المرتبطة' : 'Related company'}</span>
+                      <AsyncCombobox
+                        value={parentCompanyId || null}
+                        selectedOption={parentOption}
+                        debounceMs={300}
+                        minChars={1}
+                        queryKeyPrefix="partner-related-company"
+                        fetchOptions={fetchCompanies}
+                        placeholder={ar ? 'ابحث عن شركة…' : 'Search company…'}
+                        noResultsText={ar ? 'لا توجد نتائج' : 'No results'}
+                        getOptionLabel={(c) => (ar && c.nameAr ? c.nameAr : c.name || c.nameEn) || '—'}
+                        getOptionSub={(c) => [c.customerCode || c.supplierCode, c.vatNumber].filter(Boolean).join(' · ')}
+                        onChange={async (pid, opt) => {
+                          setValue('parentCompanyId', pid || '')
+                          setParentOption(opt || null)
+                          if (pid) {
+                            const full = await api.get(`/partners/${pid}`).then((r) => r.data).catch(() => opt)
+                            inheritFromParent(full || opt)
+                          }
+                        }}
+                      />
+                      <p className="mt-1.5 text-[11px] text-slate-400">
+                        {ar
+                          ? 'يرث العنوان والرقم الضريبي وإعدادات المحاسبة من الشركة الأم'
+                          : 'Inherits address, tax ID, and accounting settings from the parent company'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <span className={labelCls}>{ar ? 'الشعار / الصورة' : 'Logo / avatar'}</span>
+                  <div className="flex items-center gap-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-4 dark:border-white/10 dark:bg-white/[0.03]">
+                    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-white text-sm font-bold text-slate-500 ring-1 ring-slate-200 dark:bg-dark-800 dark:ring-white/10">
+                      {logoUrl ? (
+                        <img src={logoUrl} alt="" className="h-full w-full object-cover" />
+                      ) : isCompany ? (
+                        <Building2 className="h-6 w-6" />
+                      ) : (
+                        <User className="h-6 w-6" />
+                      )}
+                    </div>
+                    <div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="block text-xs text-slate-600 file:me-3 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          if (file.size > 512000) {
+                            toast.error(ar ? 'الصورة كبيرة جداً (500KB كحد أقصى)' : 'Image too large (max 500KB)')
+                            return
+                          }
+                          const reader = new FileReader()
+                          reader.onload = () => setLogoUrl(String(reader.result || ''))
+                          reader.readAsDataURL(file)
+                        }}
+                      />
+                      {logoUrl && (
+                        <button type="button" className="mt-1 text-[11px] text-rose-600" onClick={() => setLogoUrl('')}>
+                          {ar ? 'إزالة' : 'Remove'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -482,150 +586,66 @@ export default function PartnerForm() {
 
           {tab === 'general' && (
             <div className={`${card} space-y-5`}>
-              {isCompany ? (
-                <>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="sm:col-span-2">
-                      <span className={labelCls}>{ar ? 'اسم الشركة' : 'Company name'} *</span>
-                      <input className={inputCls} {...register('name', { required: !isCompany ? false : true })} />
-                      {errors.name && <span className="mt-1 block text-xs text-rose-600">{t('required') || 'Required'}</span>}
-                    </label>
-                    {showArabic && (
-                      <label className="sm:col-span-2">
-                        <span className={labelCls}>{ar ? 'الاسم بالعربي' : 'Arabic name'}</span>
-                        <input className={inputCls} dir="rtl" {...register('nameAr')} />
-                      </label>
-                    )}
-                    <label>
-                      <span className={labelCls}>{ar ? 'البريد الأساسي' : 'Primary email'}</span>
-                      <input type="email" className={inputCls} {...register('email')} />
-                    </label>
-                    <label>
-                      <span className={labelCls}>{ar ? 'الهاتف' : 'Phone'}</span>
-                      <input className={inputCls} {...register('phone')} />
-                    </label>
-                    <label className="sm:col-span-2">
-                      <span className={labelCls}>{ar ? 'الموقع' : 'Website'}</span>
-                      <input className={inputCls} placeholder="https://" {...register('website')} />
-                    </label>
-                  </div>
-
-                  <div>
-                    <span className={labelCls}>{ar ? 'الشعار' : 'Logo'}</span>
-                    <div className="flex items-center gap-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-4 dark:border-white/10 dark:bg-white/[0.03]">
-                      <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl bg-white text-sm font-bold text-slate-500 ring-1 ring-slate-200 dark:bg-dark-800 dark:ring-white/10">
-                        {logoPreview ? (
-                          <img src={logoPreview} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          <Building2 className="h-5 w-5" />
-                        )}
-                      </div>
-                      <div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="block text-xs text-slate-600 file:me-3 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0]
-                            if (!file) return
-                            setLogoPreview(URL.createObjectURL(file))
-                          }}
-                        />
-                        <p className="mt-1 text-[11px] text-slate-400">
-                          {ar ? 'معاينة محلية — يُحفظ السجل بدون رفع إلزامي' : 'Local preview — save does not require upload'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2">
+              <div className="border-b border-slate-100 pb-5 dark:border-white/[0.06]">
+                <div className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                  {ar ? 'بيانات التواصل' : 'Contact details'}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
                   <label>
-                    <span className={labelCls}>{ar ? 'الاسم الأول' : 'First name'} *</span>
-                    <input className={inputCls} {...register('firstName', { required: true })} />
-                  </label>
-                  <label>
-                    <span className={labelCls}>{ar ? 'اسم العائلة' : 'Last name'}</span>
-                    <input className={inputCls} {...register('lastName')} />
-                  </label>
-                  <label>
-                    <span className={labelCls}>{ar ? 'البريد' : 'Email'}</span>
-                    <input type="email" className={inputCls} {...register('email')} />
+                    <span className={labelCls}>{ar ? 'الهاتف' : 'Phone'}</span>
+                    <input className={inputCls} {...register('phone')} />
                   </label>
                   <label>
                     <span className={labelCls}>{ar ? 'الجوال' : 'Mobile'}</span>
                     <input className={inputCls} {...register('mobile')} />
                   </label>
-                  <label className="sm:col-span-2">
-                    <span className={labelCls}>{ar ? 'المسمى الوظيفي' : 'Job position / title'}</span>
-                    <input className={inputCls} {...register('jobTitle')} />
+                  <label>
+                    <span className={labelCls}>{ar ? 'البريد' : 'Email'}</span>
+                    <input type="email" className={inputCls} {...register('email')} />
                   </label>
-                  <div className="sm:col-span-2">
-                    <span className={labelCls}>{ar ? 'الشركة المرتبطة' : 'Related company'}</span>
-                    <AsyncCombobox
-                      value={parentCompanyId || null}
-                      selectedOption={parentOption}
-                      debounceMs={300}
-                      minChars={1}
-                      queryKeyPrefix="partner-related-company"
-                      fetchOptions={fetchCompanies}
-                      placeholder={ar ? 'ابحث عن شركة…' : 'Search company…'}
-                      noResultsText={ar ? 'لا توجد نتائج' : 'No results'}
-                      getOptionLabel={(c) => (ar && c.nameAr ? c.nameAr : c.name || c.nameEn) || '—'}
-                      getOptionSub={(c) => [c.customerCode || c.code || c.supplierCode, c.vatNumber].filter(Boolean).join(' · ')}
-                      onChange={(pid, opt) => {
-                        setValue('parentCompanyId', pid || '')
-                        setParentOption(opt || null)
-                        if (opt) inheritFromParent(opt)
-                      }}
-                    />
-                    <p className="mt-1.5 text-[11px] text-slate-400">
-                      {ar
-                        ? 'يرث العنوان والرقم الضريبي وإعدادات المحاسبة من الشركة الأم'
-                        : 'Inherits address, tax ID, and accounting settings from the parent company'}
-                    </p>
-                  </div>
+                  {isCompany && (
+                    <label>
+                      <span className={labelCls}>{ar ? 'الموقع' : 'Website'}</span>
+                      <input className={inputCls} placeholder="https://" {...register('website')} />
+                    </label>
+                  )}
                 </div>
-              )}
+              </div>
 
               <div className="border-t border-slate-100 pt-5 dark:border-white/[0.06]">
                 <div className="mb-3 flex items-center gap-2 text-slate-800 dark:text-slate-200">
                   <MapPin className="h-4 w-4 opacity-60" />
-                  <span className="text-sm font-semibold">{ar ? 'العنوان' : 'Address & logistics'}</span>
+                  <span className="text-sm font-semibold">{ar ? 'العنوان (زاتكا)' : 'Address (ZATCA)'}</span>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <label>
+                    <span className={labelCls}>{ar ? 'رقم المبنى' : 'Building no.'}</span>
+                    <input className={inputCls} {...register('address.buildingNumber')} />
+                  </label>
                   <label className="sm:col-span-2">
-                    <span className={labelCls}>{ar ? 'الشارع' : 'Street'}</span>
+                    <span className={labelCls}>{ar ? 'اسم الشارع' : 'Street name'}</span>
                     <input className={inputCls} {...register('address.street')} />
+                  </label>
+                  <label>
+                    <span className={labelCls}>{ar ? 'الحي / المنطقة' : 'District'}</span>
+                    <input className={inputCls} {...register('address.district')} />
                   </label>
                   <label>
                     <span className={labelCls}>{ar ? 'المدينة' : 'City'}</span>
                     <input className={inputCls} {...register('address.city')} />
                   </label>
                   <label>
-                    <span className={labelCls}>{ar ? 'الحي / المنطقة' : 'District / state'}</span>
-                    <input className={inputCls} {...register('address.district')} />
+                    <span className={labelCls}>{ar ? 'الرمز البريدي' : 'Postal code'}</span>
+                    <input className={inputCls} {...register('address.postalCode')} />
                   </label>
                   <label>
-                    <span className={labelCls}>{ar ? 'الرمز البريدي' : 'ZIP / postal'}</span>
-                    <input className={inputCls} {...register('address.postalCode')} />
+                    <span className={labelCls}>{ar ? 'الرقم الإضافي' : 'Additional no.'}</span>
+                    <input className={inputCls} {...register('address.additionalNumber')} />
                   </label>
                   <label>
                     <span className={labelCls}>{ar ? 'الدولة' : 'Country'}</span>
                     <input className={inputCls} {...register('address.country')} />
                   </label>
-                  {isCompany && (
-                    <>
-                      <label>
-                        <span className={labelCls}>{ar ? 'رقم المبنى' : 'Building no.'}</span>
-                        <input className={inputCls} {...register('address.buildingNumber')} />
-                      </label>
-                      <label>
-                        <span className={labelCls}>{ar ? 'الرقم الإضافي' : 'Additional no.'}</span>
-                        <input className={inputCls} {...register('address.additionalNumber')} />
-                      </label>
-                    </>
-                  )}
                 </div>
               </div>
 
@@ -656,40 +676,83 @@ export default function PartnerForm() {
                   </div>
                 </div>
               )}
+
+              <div className="border-t border-slate-100 pt-5 dark:border-white/[0.06]">
+                <label>
+                  <span className={labelCls}>{ar ? 'ملاحظات داخلية' : 'Internal notes'}</span>
+                  <textarea className={`${inputCls} min-h-[100px]`} {...register('notes')} />
+                </label>
+              </div>
             </div>
           )}
 
           {tab === 'sales' && (
             <div className={`${card} space-y-4`}>
-              <p className="text-[13px] text-slate-500">
-                {ar
-                  ? 'شروط الدفع تظهر حسب أدوار العميل والمورد'
-                  : 'Payment terms follow the customer and vendor roles above'}
-              </p>
               {isCustomer && (
-                <label>
-                  <span className={labelCls}>{ar ? 'شروط دفع العميل' : 'Customer payment terms'}</span>
-                  <select className={inputCls} {...register('paymentTermsCustomer')}>
-                    <option value="immediate">Immediate</option>
-                    <option value="net15">Net 15</option>
-                    <option value="net30">Net 30</option>
-                    <option value="net45">Net 45</option>
-                    <option value="net60">Net 60</option>
-                    <option value="net90">Net 90</option>
-                  </select>
-                </label>
+                <>
+                  <label>
+                    <span className={labelCls}>{ar ? 'مندوب المبيعات' : 'Salesperson'}</span>
+                    <AsyncCombobox
+                      value={salespersonId || null}
+                      selectedOption={salespersonOption}
+                      debounceMs={300}
+                      minChars={0}
+                      queryKeyPrefix="partner-salesperson"
+                      fetchOptions={fetchSalespeople}
+                      placeholder={ar ? 'ابحث عن مستخدم…' : 'Search user…'}
+                      noResultsText={ar ? 'لا توجد نتائج' : 'No results'}
+                      getOptionLabel={(u) => u.name || u.email || '—'}
+                      getOptionSub={(u) => u.email || ''}
+                      onChange={(uid, opt) => {
+                        setValue('salespersonId', uid || '')
+                        setSalespersonOption(opt || null)
+                      }}
+                    />
+                  </label>
+                  <label>
+                    <span className={labelCls}>{ar ? 'شروط دفع العميل' : 'Customer payment terms'}</span>
+                    <select className={inputCls} {...register('paymentTermsCustomer')}>
+                      <option value="immediate">Immediate</option>
+                      <option value="net15">Net 15</option>
+                      <option value="net30">Net 30</option>
+                      <option value="net45">Net 45</option>
+                      <option value="net60">Net 60</option>
+                      <option value="net90">Net 90</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span className={labelCls}>{ar ? 'قائمة الأسعار' : 'Pricelist'}</span>
+                    <input
+                      className={inputCls}
+                      placeholder={ar ? 'معرف قائمة الأسعار (اختياري)' : 'Pricelist ID (optional)'}
+                      {...register('salesPricelistId')}
+                    />
+                  </label>
+                </>
               )}
               {isVendor && (
-                <label>
-                  <span className={labelCls}>{ar ? 'شروط دفع المورد' : 'Vendor payment terms'}</span>
-                  <select className={inputCls} {...register('paymentTermsVendorTerm')}>
-                    <option value="immediate">Immediate</option>
-                    <option value="net_7">Net 7</option>
-                    <option value="net_15">Net 15</option>
-                    <option value="net_30">Net 30</option>
-                    <option value="net_60">Net 60</option>
-                  </select>
-                </label>
+                <>
+                  <label>
+                    <span className={labelCls}>{ar ? 'شروط دفع المورد' : 'Vendor payment terms'}</span>
+                    <select className={inputCls} {...register('paymentTermsVendorTerm')}>
+                      <option value="immediate">Immediate</option>
+                      <option value="net_7">Net 7</option>
+                      <option value="net_15">Net 15</option>
+                      <option value="net_30">Net 30</option>
+                      <option value="net_60">Net 60</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span className={labelCls}>{ar ? 'عملة المورد' : 'Vendor currency'}</span>
+                    <select className={inputCls} {...register('vendorCurrency')}>
+                      <option value="SAR">SAR</option>
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                      <option value="GBP">GBP</option>
+                      <option value="AED">AED</option>
+                    </select>
+                  </label>
+                </>
               )}
               {!isCustomer && !isVendor && (
                 <p className="text-sm text-amber-800">{ar ? 'فعّل عميل أو مورد أعلاه' : 'Enable Customer or Vendor above'}</p>
@@ -698,7 +761,7 @@ export default function PartnerForm() {
           )}
 
           {tab === 'accounting' && (
-            <div className={`${card} space-y-4`}>
+            <div className={`${card} space-y-5`}>
               {isCustomer && (
                 <label>
                   <span className={labelCls}>{ar ? 'حسابات القبض' : 'Accounts receivable'}</span>
@@ -725,18 +788,55 @@ export default function PartnerForm() {
                   </select>
                 </label>
               )}
+
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <span className={labelCls}>{ar ? 'الحسابات البنكية' : 'Bank accounts'}</span>
+                  <button type="button" className="inline-flex items-center gap-1 text-xs font-semibold text-sky-700" onClick={addBankRow}>
+                    <Plus className="h-3.5 w-3.5" />
+                    {ar ? 'إضافة' : 'Add row'}
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {bankAccounts.map((row, index) => (
+                    <div key={index} className="grid gap-2 rounded-xl border border-slate-100 p-3 sm:grid-cols-2 dark:border-white/10">
+                      <input
+                        className={inputCls}
+                        placeholder={ar ? 'اسم البنك' : 'Bank name'}
+                        value={row.bankName}
+                        onChange={(e) => updateBankRow(index, 'bankName', e.target.value)}
+                      />
+                      <input
+                        className={inputCls}
+                        placeholder={ar ? 'اسم الحساب' : 'Account name'}
+                        value={row.accountName}
+                        onChange={(e) => updateBankRow(index, 'accountName', e.target.value)}
+                      />
+                      <input
+                        className={inputCls}
+                        placeholder="IBAN"
+                        value={row.iban}
+                        onChange={(e) => updateBankRow(index, 'iban', e.target.value)}
+                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          className={inputCls}
+                          placeholder={ar ? 'رقم الحساب' : 'Account number'}
+                          value={row.accountNumber}
+                          onChange={(e) => updateBankRow(index, 'accountNumber', e.target.value)}
+                        />
+                        <button type="button" className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600" onClick={() => removeBankRow(index)}>
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <label className="inline-flex items-center gap-2 text-sm text-slate-800">
                 <input type="checkbox" className="rounded border-slate-300" {...register('isActive')} />
                 {ar ? 'نشط' : 'Active'}
-              </label>
-            </div>
-          )}
-
-          {tab === 'notes' && (
-            <div className={card}>
-              <label>
-                <span className={labelCls}>{ar ? 'ملاحظات داخلية' : 'Internal notes'}</span>
-                <textarea className={`${inputCls} min-h-[140px]`} {...register('notes')} />
               </label>
             </div>
           )}
