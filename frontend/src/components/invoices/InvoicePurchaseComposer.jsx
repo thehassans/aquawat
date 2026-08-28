@@ -435,6 +435,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     mutationFn: (payload) => isEdit ? api.put(`/invoices/${invoiceId}`, payload) : api.post('/invoices/purchase', payload),
     onSuccess: (res) => {
       isSubmittedRef.current = true;
+      setShowPreviewModal(false)
       toast.success(isEdit ? (language === 'ar' ? 'تم تحديث فاتورة الشراء بنجاح' : 'Purchase invoice updated successfully') : (language === 'ar' ? 'تم إنشاء فاتورة الشراء بنجاح' : 'Purchase invoice created successfully'))
       queryClient.invalidateQueries(['invoices'])
       if (isEdit) {
@@ -782,35 +783,6 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <button
-          type="button"
-          onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices')}
-          className={backBtnClass}
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <div>
-          <p className={sectionEyebrowClass}>
-            {language === 'ar' ? 'المشتريات' : 'Purchases'}
-          </p>
-          <h1 className={pageTitleClass}>
-            {isEdit
-              ? (language === 'ar' ? 'تعديل فاتورة الشراء' : 'Edit purchase invoice')
-              : (selectedPoId || poIdParam)
-                ? (language === 'ar' ? 'فاتورة المورد' : 'Vendor bill')
-                : (language === 'ar' ? 'فاتورة شراء جديدة' : 'New purchase invoice')}
-          </h1>
-          <p className={pageSubtitleClass}>
-            {isEdit
-              ? (language === 'ar' ? 'حدّث بيانات الفاتورة قبل حفظ التعديلات' : 'Update the invoice details before saving your changes')
-              : (selectedPoId || poIdParam)
-                ? (language === 'ar' ? 'إصدار فاتورة مورد لطلب الشراء واستلام البضاعة' : 'Bill a vendor for the linked purchase order')
-                : (language === 'ar' ? 'إنشاء فاتورة شراء مباشرة وتحديث المخزون' : 'Create a purchase invoice and update inventory')}
-          </p>
-        </div>
-      </div>
-
       <div className="mx-auto w-full max-w-6xl space-y-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className={sectionCardClass}>
@@ -1523,27 +1495,27 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 <div className="flex justify-between text-sm"><span className="text-gray-500">{t('tax')}</span><span><Money value={totals.totalTax} /></span></div>
                 <div className="flex justify-between border-t border-gray-200 pt-2 text-lg font-bold dark:border-dark-600"><span>{t('total')}</span><span className="text-primary-600"><Money value={totals.grandTotal} /></span></div>
               </div>
-              <div className="flex gap-3">
-                <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices')} className="btn btn-secondary">{t('cancel')}</button>
-                <button type="submit" disabled={saveMutation.isPending} className="btn btn-action-dark shadow-lg">
-                  {saveMutation.isPending ? (
-                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  ) : (
-                    <>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-slate-500">
+                  {language === 'ar'
+                    ? 'اضغط معاينة لمراجعة الفاتورة قبل الحفظ'
+                    : 'Tap Preview to review before saving'}
+                </p>
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices')} className="btn btn-secondary">{t('cancel')}</button>
+                  <button type="submit" disabled={saveMutation.isPending} className="btn btn-action-dark shadow-lg inline-flex items-center gap-2">
+                    {saveMutation.isPending ? (
+                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    ) : (
                       <Eye className="w-4 h-4" />
-                      {isEdit ? (language === 'ar' ? 'معاينة وتعديل الفاتورة' : 'Preview & Update Invoice') : (language === 'ar' ? 'معاينة وحفظ الفاتورة' : 'Preview & Save Invoice')}
-                    </>
-                  )}
-                </button>
+                    )}
+                    {language === 'ar' ? 'معاينة' : 'Preview'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </form>
-
-        <div className="space-y-4">
-          <div className={sectionCardClass}><h3 className="text-base font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'المعاينة المباشرة' : 'Live Preview'}</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{language === 'ar' ? 'تعرض المعاينة شكل الطباعة النهائي تقريباً.' : 'The preview closely reflects the final printed layout.'}</p></div>
-          <InvoiceLivePreview invoice={previewInvoice} tenant={tenant} language={language} templateId={selectedTemplateId} bilingual={previewInvoice?.invoiceSubtype === 'travel_ticket' || ['travel_agency', 'trading', 'construction'].includes(previewInvoice?.businessContext)} />
-        </div>
       </div>
 
       <DocumentPreSaveModal

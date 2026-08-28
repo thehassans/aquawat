@@ -493,6 +493,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
       ? api.put(`/quotations/${quotationId}`, payload, { timeout: 120000 })
       : api.post('/quotations', payload, { timeout: 120000 }),
     onSuccess: (res) => {
+      setShowPreviewModal(false)
       toast.success(isEdit
         ? (language === 'ar' ? 'تم تحديث عرض السعر بنجاح' : 'Quotation updated successfully')
         : (language === 'ar' ? 'تم إنشاء عرض السعر بنجاح' : 'Quotation created successfully'))
@@ -688,29 +689,6 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <button
-          type="button"
-          onClick={() => navigate(isEdit ? `/app/dashboard/quotations/${quotationId}` : '/app/dashboard/quotations')}
-          className={backBtnClass}
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <div>
-          <p className={sectionEyebrowClass}>
-            {language === 'ar' ? 'عروض الأسعار' : 'Quotations'}
-          </p>
-          <h1 className={pageTitleClass}>
-            {isEdit ? (language === 'ar' ? 'تعديل عرض السعر' : 'Edit quotation') : (language === 'ar' ? 'عرض سعر جديد' : 'New quotation')}
-          </h1>
-          <p className={`${pageSubtitleClass} max-w-xl`}>
-            {language === 'ar'
-              ? 'عرض السعر على ورق رسمي مع السجل التجاري والضريبة والترويسة. نزّل PDF قابلاً للتعديل.'
-              : 'Formal letterhead quotation with company details. Preview live and download an editable PDF.'}
-          </p>
-        </div>
-      </div>
-
       <div className="mx-auto w-full max-w-6xl space-y-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className={sectionShell}>
@@ -1471,47 +1449,35 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             </div>
           </div>
 
-          <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/app/dashboard/quotations')}
-              className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-dark-800"
-            >
-              {t('cancel')}
-            </button>
-            <button
-              type="submit"
-              disabled={saveMutation.isPending}
-              className="btn btn-action-dark inline-flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-semibold sm:w-auto"
-            >
-              {saveMutation.isPending ? (
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              ) : (
-                <Eye className="h-4 w-4" />
-              )}
-              {isEdit ? (language === 'ar' ? 'معاينة وتعديل عرض السعر' : 'Preview & Update Quotation') : (language === 'ar' ? 'معاينة وحفظ عرض السعر' : 'Preview & Save Quotation')}
-            </button>
-          </div>
-        </form>
-
-        <div className="space-y-4">
-          <div className={`${sectionShell} !p-4`}>
-            <div className="flex items-center gap-2.5">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300">
-                <Eye className="h-4 w-4" />
-              </span>
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  {language === 'ar' ? 'المعاينة المباشرة' : 'Live Preview'}
-                </h3>
-                <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-                  {language === 'ar' ? 'تتحدث المعاينة فوراً مع تغيير القالب والبيانات.' : 'Preview updates instantly as you change the template and form data.'}
-                </p>
-              </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-slate-500">
+              {language === 'ar'
+                ? 'اضغط معاينة لمراجعة العرض قبل الحفظ'
+                : 'Tap Preview to review the quotation before saving'}
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('/app/dashboard/quotations')}
+                className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-dark-800"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="submit"
+                disabled={saveMutation.isPending}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg dark:bg-white dark:text-slate-900"
+              >
+                {saveMutation.isPending ? (
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+                {language === 'ar' ? 'معاينة' : 'Preview'}
+              </button>
             </div>
           </div>
-          <InvoiceLivePreview invoice={previewQuotation} tenant={tenant} language={language} templateId={selectedTemplateId} bilingual={resolveInvoiceBilingual(tenant, true)} secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || undefined} documentType="quotation" />
-        </div>
+        </form>
       </div>
 
       <DocumentPreSaveModal
@@ -1524,7 +1490,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
         language={language}
         documentType="quotation"
         templateId={selectedTemplateId}
-        title={language === 'ar' ? 'معاينة عرض السعر قبل الحفظ' : 'Quotation Live Preview'}
+        title={language === 'ar' ? 'معاينة عرض السعر' : 'Quotation preview'}
       />
     </div>
   )

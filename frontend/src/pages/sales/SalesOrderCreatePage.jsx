@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import PartnerCombobox from '../../components/inventory/PartnerCombobox'
@@ -13,11 +13,9 @@ import { useSalesSettings } from '../../context/SalesSettingsContext'
 import { canViewSalesMargin } from '../../lib/salesPermissions'
 import { INCOTERMS } from './salesConfig.menu'
 import {
-  backBtnClass,
   fieldControlClass,
   fieldLabelClass,
   ghostActionClass,
-  pageTitleClass,
   primaryActionClass,
   salesTableClass,
   salesTdClass,
@@ -147,20 +145,14 @@ export default function SalesOrderCreatePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <button type="button" className={backBtnClass} onClick={() => navigate('/app/dashboard/sales/orders')}>
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <h1 className={pageTitleClass}>{isAr ? 'أمر جديد' : 'New order'}</h1>
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <button
           type="button"
           className={`${primaryActionClass} !px-4 !py-2.5 !text-sm disabled:opacity-40`}
           disabled={!customer?._id || save.isPending}
           onClick={() => save.mutate()}
         >
-          {save.isPending ? '…' : (isAr ? 'حفظ' : 'Create')}
+          {save.isPending ? '…' : (isAr ? 'حفظ الطلب' : 'Save order')}
         </button>
       </div>
 

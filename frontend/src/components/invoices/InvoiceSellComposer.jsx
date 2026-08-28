@@ -822,6 +822,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       : api.post('/invoices/sell', data, { timeout: 120000 }),
     onSuccess: (res) => {
       isSubmittedRef.current = true;
+      setShowPreviewModal(false)
       toast.success(
         isEdit
           ? (language === 'ar' ? 'تم تحديث فاتورة البيع بنجاح' : 'Sell invoice updated successfully')
@@ -1153,27 +1154,13 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices')}
-            className={backBtnClass}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <h1 className={pageTitleClass}>
-            {isEdit
-              ? (language === 'ar' ? 'تعديل فاتورة' : 'Edit invoice')
-              : (language === 'ar' ? 'فاتورة جديدة' : 'New invoice')}
-          </h1>
-        </div>
-        {showArabicFields ? (
+      {showArabicFields ? (
+        <div className="flex justify-end">
           <span className="rounded-full border border-slate-200/90 bg-white px-2.5 py-1 text-[10px] font-semibold tracking-wide text-slate-500 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300">
             EN · AR
           </span>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       <div className="mx-auto w-full max-w-6xl space-y-2.5">
         <form onSubmit={handleSubmit(onSubmit, () => toast.error(language === 'ar' ? 'أكمل البنود المطلوبة قبل الحفظ' : 'Complete the billing lines before saving'))} className="space-y-2.5">
@@ -2205,60 +2192,18 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               </div>
             )}
 
-            <div className="space-y-3 border-t border-slate-200/80 pt-5 dark:border-dark-600">
-              <p className="text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                {language === 'ar' ? 'معاينة' : 'Preview'}
+            <div className="flex flex-col gap-3 border-t border-slate-200/80 pt-5 dark:border-dark-600 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-slate-500">
+                {language === 'ar'
+                  ? 'اضغط معاينة لمراجعة الفاتورة قبل الحفظ'
+                  : 'Tap Preview to review the invoice before saving'}
               </p>
-              <div className={`mx-auto w-full ${values?.printFormat === 'thermal' ? 'max-w-[340px]' : 'max-w-3xl'}`}>
-                {values?.printFormat === 'thermal' ? (
-                  <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-dark-600">
-                    <ThermalReceipt
-                      order={{
-                        ...previewInvoice,
-                        receiptNumber: previewInvoice.invoiceNumber,
-                        customerName: previewInvoice.buyer?.name || previewInvoice.buyer?.nameAr || (language === 'ar' ? 'عميل نقدي' : 'Cash Customer'),
-                        customerPhone: previewInvoice.buyer?.contactPhone || previewInvoice.buyer?.phone,
-                        grandTotal: previewInvoice.grandTotal,
-                        totalVat: previewInvoice.totalTax,
-                        subtotal: previewInvoice.subtotal,
-                        paymentMethod: previewInvoice.paymentMethod || 'cash',
-                        createdAt: previewInvoice.issueDate,
-                        zatcaQrCode: previewInvoice.zatca?.qrCodeData || (String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR' ? generateZatcaQrValue({
-                          sellerName: tenant?.business?.legalNameEn || tenant?.name,
-                          vatNumber: tenant?.business?.vatNumber,
-                          timestamp: previewInvoice.issueDate,
-                          totalWithVat: previewInvoice.grandTotal,
-                          vatTotal: previewInvoice.totalTax,
-                        }) : null),
-                        items: (previewInvoice.lineItems || []).map((item) => ({
-                          nameEn: item.productName || item.name,
-                          nameAr: item.productNameAr || item.nameAr,
-                          quantity: item.quantity,
-                          unitPrice: item.unitPrice,
-                          total: item.lineTotalWithTax || item.lineTotal || (Number(item.quantity || 0) * Number(item.unitPrice || 0)),
-                        })),
-                      }}
-                      type={previewInvoice?.businessContext || tenantBusinessTypes[0] || 'trading'}
-                    />
-                  </div>
-                ) : (
-                  <InvoiceLivePreview
-                    invoice={previewInvoice}
-                    tenant={tenant}
-                    language={language}
-                    templateId={selectedTemplateId}
-                    bilingual={resolveInvoiceBilingual(tenant, previewInvoice?.invoiceSubtype === 'travel_ticket' || ['travel_agency', 'trading', 'construction'].includes(previewInvoice?.businessContext))}
-                    secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || undefined}
-                  />
-                )}
+              <div className="flex justify-end gap-3">
+                <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices')} className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:text-slate-300">{t('cancel')}</button>
+                <button type="submit" disabled={saveMutation.isPending} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 dark:bg-white dark:text-slate-900">
+                  {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" /> : <><Eye className="w-4 h-4" />{language === 'ar' ? 'معاينة' : 'Preview'}</>}
+                </button>
               </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices')} className="rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:text-slate-300">{t('cancel')}</button>
-              <button type="submit" disabled={saveMutation.isPending} className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white dark:bg-white dark:text-slate-900 shadow-lg hover:opacity-95 transition">
-                {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" /> : <><Eye className="w-4 h-4" />{isEdit ? (language === 'ar' ? 'معاينة وتعديل الفاتورة' : 'Preview & Update Invoice') : (language === 'ar' ? 'معاينة وحفظ الفاتورة' : 'Preview & Save Invoice')}</>}
-              </button>
             </div>
           </div>
         </form>
