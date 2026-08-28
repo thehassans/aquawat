@@ -816,7 +816,10 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
       let hasAnyPendingBackorder = false;
 
       (refreshed.lineItems || []).forEach((li, idx) => {
-        const itemReq = items.find((it) => (it.productId && String(it.productId) === String(li.productId?._id || li.productId)) || it.lineIndex === idx);
+        const itemReq = items.find((it) => matchPurchaseLine(li, {
+          productId: it.productId,
+          variantId: it.variantId,
+        }) || it.lineIndex === idx);
         const rem = Math.max(0, toNumber(li.quantityOrdered, 0) - toNumber(li.quantityReceived, 0) - toNumber(li.quantityReturned, 0));
         if (rem > 0) {
           if (itemReq?.remainingAction === 'refund') {
