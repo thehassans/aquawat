@@ -190,6 +190,17 @@ export default function QuotationView() {
     },
   })
 
+  const proformaMutation = useMutation({
+    mutationFn: async () => (await api.post(`/quotations/${id}/send-proforma`)).data,
+    onSuccess: (data) => {
+      toast.success(language === 'ar' ? 'تم إنشاء فاتورة مبدئية' : 'Pro-forma invoice created')
+      if (data?.invoice?._id) navigate(`/app/dashboard/invoices/${data.invoice._id}`)
+    },
+    onError: (error) => {
+      toast.error(error?.response?.data?.error || 'Failed to create pro-forma')
+    },
+  })
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-96">
@@ -280,6 +291,16 @@ export default function QuotationView() {
               {language === 'ar' ? 'يتطلب الاعتماد' : 'Approval required'}
             </button>
           ) : null}
+
+          <button
+            type="button"
+            onClick={() => proformaMutation.mutate()}
+            disabled={proformaMutation.isPending}
+            className={ghostActionClass}
+          >
+            <FileText className="w-4 h-4" />
+            {language === 'ar' ? 'فاتورة مبدئية' : 'Send Pro-Forma'}
+          </button>
 
           <button
             type="button"

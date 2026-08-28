@@ -44,6 +44,8 @@ import {
   sectionEyebrowClass,
   sectionTitleClass,
 } from '../../pages/sales/salesUi'
+import SalesEnhancementBar from '../sales/SalesEnhancementBar'
+import { canViewSalesMargin } from '../../lib/salesPermissions'
 
 const getEmptyLine = (tenant) => {
   const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
@@ -867,6 +869,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   }
 
   const totals = calculateInvoiceSummary({ lineItems, invoiceDiscount: values?.invoiceDiscount })
+  const showMargin = canViewSalesMargin(user)
+  const estimatedMargin = useMemo(() => {
+    if (!showMargin) return 0
+    return lineItems.reduce((sum, line, index) => {
+      const summaryLine = totals.lines[index] || {}
+      const revenue = Number(summaryLine.lineTotal || 0)
+      const cost = Number(line.unitCost || line.costPrice || 0) * Number(line.quantity || 0)
+      return sum + (revenue - cost)
+    }, 0)
+  }, [showMargin, lineItems, totals.lines])
 
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [pendingPayload, setPendingPayload] = useState(null)
@@ -1828,6 +1840,39 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             </div>
           </div>
 
+          <SalesEnhancementBar
+            subtotal={totals.subtotal}
+            customerId={values?.customerId}
+            incoterm={values?.incoterm || ''}
+            onIncotermChange={(v) => setValue('incoterm', v)}
+            onApplyDiscountLine={(line) => append({
+              ...getEmptyLine(tenant),
+              productName: line.productName,
+              quantity: line.quantity || 1,
+              unitPrice: line.unitPrice,
+              productType: line.productType || 'service',
+            })}
+            onAddLines={(lines) => {
+              for (const line of lines) {
+                append({
+                  ...getEmptyLine(tenant),
+                  productId: line.productId || '',
+                  variantId: line.variantId || '',
+                  productName: line.productName,
+                  quantity: line.quantity,
+                  unitPrice: line.unitPrice,
+                })
+              }
+            }}
+            onAddShippingLine={(line) => append({
+              ...getEmptyLine(tenant),
+              productName: line.productName,
+              quantity: 1,
+              unitPrice: line.unitPrice,
+              productType: 'service',
+            })}
+          />
+
           <div className={`${sectionCardClass} space-y-5`}>
             <div>
               <h3 className="text-lg font-semibold tracking-[-0.02em] text-slate-950 dark:text-white">
@@ -2172,6 +2217,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{t('discount')}</span><span><Money value={totals.totalDiscount} /></span></div>
                   <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{language === 'ar' ? 'المبلغ الخاضع للضريبة' : 'Taxable Amount'}</span><span><Money value={totals.taxableAmount} /></span></div>
                   <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{isPk ? 'GST' : t('tax')}</span><span><Money value={totals.totalTax} /></span></div>
+                  {showMargin ? (
+                    <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{language === 'ar' ? 'الهامش التقديري' : 'Est. margin'}</span><span><Money value={estimatedMargin} /></span></div>
+                  ) : null}
                   <div className="flex justify-between border-t border-white/15 pt-3 text-lg font-semibold dark:border-slate-200"><span>{t('total')}</span><span><Money value={totals.grandTotal} /></span></div>
                 </div>
               </div>

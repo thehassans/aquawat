@@ -17,6 +17,10 @@ const purchaseOrderLineItemSchema = new mongoose.Schema({
 
   unitCost: { type: Number, required: true, min: 0 },
   taxRate: { type: Number, default: 15, min: 0 },
+  discountPercent: { type: Number, default: 0, min: 0, max: 100 },
+  uomId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvUom', default: null },
+  packagingId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductPackaging', default: null },
+  packagingQty: { type: Number, default: 1, min: 0 },
 
   lineSubtotal: { type: Number, default: 0 },
   lineTax: { type: Number, default: 0 },
@@ -68,6 +72,9 @@ const purchaseOrderSchema = new mongoose.Schema({
 
   lineItems: { type: [purchaseOrderLineItemSchema], default: [] },
 
+  /** Per-line discount percent (Phase 2) */
+  // lineItems already support via extending schema below in line item
+
   subtotal: { type: Number, default: 0 },
   totalTax: { type: Number, default: 0 },
   grandTotal: { type: Number, default: 0 },
@@ -96,6 +103,22 @@ const purchaseOrderSchema = new mongoose.Schema({
   }],
 
   notes: { type: String },
+
+  /** Sales CRM — teams, tags, lifecycle gates */
+  salesTeamId: { type: mongoose.Schema.Types.ObjectId, ref: 'SalesTeam', default: null, index: true },
+  salespersonId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
+  tagIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'SalesTag' }],
+  pricelistId: { type: mongoose.Schema.Types.ObjectId, ref: 'Pricelist', default: null },
+  incoterm: { type: String, default: '', trim: true },
+  deliveryMethodId: { type: String, default: '' },
+  shippingCost: { type: Number, default: 0, min: 0 },
+  onlineSignatureUrl: { type: String, default: '' },
+  signedAt: { type: Date, default: null },
+  signedBy: { type: String, default: '' },
+  signatureData: { type: String, default: '' },
+  paymentConfirmedAt: { type: Date, default: null },
+  isLocked: { type: Boolean, default: false },
+  quotationTemplateId: { type: mongoose.Schema.Types.ObjectId, ref: 'QuotationTemplate', default: null },
 
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

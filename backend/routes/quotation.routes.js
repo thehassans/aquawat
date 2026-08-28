@@ -18,6 +18,8 @@ import { sendRestaurantWhatsApp } from '../services/restaurantWhatsAppService.js
 import { getWhatsAppConfig } from '../services/whatsappCloudService.js';
 import { recordUserActivity } from '../utils/auditLogger.js';
 import { syncMarqueeBookingFromDocument } from '../utils/marqueeSync.js';
+import { computeQuotationValidUntil, getSalesSettings, resolveSaleWarnings } from '../services/sales/salesLifecycle.js';
+import QuotationTemplate from '../models/sales/QuotationTemplate.js';
 
 const router = express.Router();
 
@@ -413,7 +415,11 @@ async function resolveQuotationPayload(req, existingQuotation = null) {
 
   const pdfTemplateId = resolvePdfTemplateId(req.body?.pdfTemplateId, tenant, businessContext);
   const issueDate = req.body.issueDate ? new Date(req.body.issueDate) : (existingQuotation?.issueDate || new Date());
-  const validUntil = req.body.validUntil ? new Date(req.body.validUntil) : undefined;
+  let validUntil = req.body.validUntil ? new Date(req.body.validUntil) : undefined;
+  if (!validUntil && !existingQuotation) {
+    const settings = await getSalesSettings(req.user.tenantId);
+    validUntil = computeQuotationValidUntil(issueDate, settings.quotationValidityDays);
+  }
   const editableStatus = existingQuotation
     ? resolveEditableQuotationStatus(req.body?.status, existingQuotation?.status)
     : 'draft';
@@ -494,6 +500,40 @@ router.post('/', checkTrialLimits('quotations'), checkPermission('invoicing', 'c
   } catch (error) {
     const statusCode = /invalid|not found/i.test(error.message) ? 400 : 500;
     res.status(statusCode).json({ error: error.message });
+  }
+});
+
+router.get('/sale-warnings', checkPermission('invoicing', 'read'), async (req, res) => {
+  try {
+    const productIds = String(req.query.productIds || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const result = await resolveSaleWarnings({
+      tenantId: req.user.tenantId,
+      customerId: req.query.customerId,
+      productIds,
+    });
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/apply-template/:templateId', checkPermission('invoicing', 'create'), async (req, res) => {
+  try {
+    const template = await QuotationTemplate.findOne({ _id: req.params.templateId, ...req.tenantFilter }).lean();
+    if (!template) return res.status(404).json({ error: 'Template not found' });
+    res.json({
+      quotationTemplateId: template._id,
+      headerHtml: template.headerHtml || '',
+      footerHtml: template.footerHtml || '',
+      terms: template.terms || '',
+      lineItems: template.lines || template.lineItems || [],
+      notes: template.notes || '',
+    });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
   }
 });
 
@@ -801,6 +841,56 @@ router.post('/:id/send-whatsapp', checkPermission('invoicing', 'read'), async (r
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+/** Send pro-forma invoice PDF data — creates draft proforma without ZATCA sequence burn */
+router.post('/:id/send-proforma', checkPermission('invoicing', 'create'), async (req, res) => {
+  try {
+    const quotation = await Quotation.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!quotation) return res.status(404).json({ error: 'Quotation not found' });
+
+    const tenant = await Tenant.findById(req.user.tenantId);
+    const lastProforma = await Invoice.findOne({ tenantId: req.user.tenantId, invoiceSubtype: 'proforma' })
+      .sort({ createdAt: -1 })
+      .select('invoiceNumber');
+    const seq = lastProforma
+      ? parseInt(String(lastProforma.invoiceNumber || '').split('-').pop(), 10) + 1
+      : 1;
+    const invoiceNumber = `PRO-${new Date().getFullYear()}-${String(seq).padStart(6, '0')}`;
+
+    const invoiceData = {
+      tenantId: req.user.tenantId,
+      flow: 'sell',
+      invoiceSubtype: 'proforma',
+      invoiceNumber,
+      quotationId: quotation._id,
+      customerId: quotation.customerId,
+      buyer: quotation.buyer,
+      seller: quotation.seller,
+      lineItems: quotation.lineItems || [],
+      subtotal: quotation.subtotal,
+      totalTax: quotation.totalTax,
+      grandTotal: quotation.grandTotal,
+      currency: quotation.currency || 'SAR',
+      transactionType: quotation.transactionType || 'B2C',
+      status: 'draft',
+      issueDate: new Date(),
+      notes: req.body?.notes || `Pro-forma from quotation ${quotation.quotationNumber}`,
+      createdBy: req.user._id,
+      pdfTemplateId: quotation.pdfTemplateId,
+    };
+
+    const enriched = await enrichInvoiceArabicFields(invoiceData);
+    const invoice = await Invoice.create(enriched);
+
+    res.status(201).json({
+      invoice,
+      message: 'Pro-forma invoice created (no ZATCA sequence consumed)',
+      viewUrl: `/app/dashboard/invoices/${invoice._id}`,
+    });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
   }
 });
 

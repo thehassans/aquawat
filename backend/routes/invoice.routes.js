@@ -45,6 +45,8 @@ import { makeRateLimitStore } from '../utils/hybridRateLimitStore.js';
 import { isStockTrackedProductType, normalizeProductType, stampLineProductTypes } from '../utils/productType.js';
 import { recordUserActivity } from '../utils/auditLogger.js';
 import { syncMarqueeBookingFromDocument } from '../utils/marqueeSync.js';
+import { applyDeliveredInvoicingPolicy } from '../services/sales/invoicingPolicy.js';
+import { deliverDigitalProductsByEmail } from '../services/sales/digitalFulfillment.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -1438,6 +1440,23 @@ router.post('/', invoiceWriteLimiter, checkTrialLimits('invoices'), checkPermiss
     const issueDate = req.body.issueDate ? new Date(req.body.issueDate) : new Date();
     req.body.lineItems = await ensureProductsExist(req.user.tenantId, req.user._id, req.body.lineItems, 'sell');
     
+    const poIdForPolicy = cleanObjectId(req.body.sourcePurchaseOrderId || req.body.purchaseOrderId);
+    if (poIdForPolicy && Array.isArray(req.body.lineItems)) {
+      try {
+        const policyResult = await applyDeliveredInvoicingPolicy({
+          tenantId: req.user.tenantId,
+          purchaseOrderId: poIdForPolicy,
+          lineItems: req.body.lineItems,
+        });
+        req.body.lineItems = policyResult.lineItems;
+      } catch (policyErr) {
+        if (policyErr.code === 'INVOICING_POLICY_DELIVERED') {
+          return res.status(400).json({ error: policyErr.message, code: policyErr.code });
+        }
+        throw policyErr;
+      }
+    }
+
     resolvePaymentStatus(req.body);
 
     const invoiceData = {
@@ -1640,7 +1659,25 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
     const lineItems = await ensureProductsExist(req.user.tenantId, req.user._id, req.body.lineItems, 'sell');
     const invoiceDiscount = Math.max(0, toNumber(req.body?.invoiceDiscount, 0));
 
-    const productIds = lineItems
+    const poIdForPolicy = cleanObjectId(req.body.sourcePurchaseOrderId || req.body.purchaseOrderId);
+    let policyLineItems = lineItems;
+    if (poIdForPolicy) {
+      try {
+        const policyResult = await applyDeliveredInvoicingPolicy({
+          tenantId: req.user.tenantId,
+          purchaseOrderId: poIdForPolicy,
+          lineItems,
+        });
+        policyLineItems = policyResult.lineItems;
+      } catch (policyErr) {
+        if (policyErr.code === 'INVOICING_POLICY_DELIVERED') {
+          return res.status(400).json({ error: policyErr.message, code: policyErr.code });
+        }
+        throw policyErr;
+      }
+    }
+
+    const productIds = policyLineItems
       .map((li) => li.productId)
       .filter(Boolean)
       .map((id) => id.toString());
@@ -1679,7 +1716,7 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
       createdBy: req.user._id,
       ...getUserDisplayNames(req.user),
       invoiceDiscount,
-      lineItems,
+      lineItems: policyLineItems,
     };
 
     if (businessContext !== 'trading' || !cleanObjectId(invoiceData.warehouseId)) {
@@ -2317,6 +2354,14 @@ router.post('/:id/sign', checkPermission('invoicing', 'approve'), async (req, re
     }
 
     afterInvoiceWrite(invoice, { userId: req.user._id });
+
+    let digitalDelivery = { sent: false };
+    if (['approved', 'paid', 'partially_paid'].includes(invoice.status)) {
+      digitalDelivery = await deliverDigitalProductsByEmail(invoice, {
+        language: req.tenant?.settings?.language,
+      });
+    }
+
     emitPlatformEvent('invoice_signed', {
       tenantId: String(invoice.tenantId),
       invoiceId: String(invoice._id),

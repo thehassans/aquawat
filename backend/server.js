@@ -27,6 +27,9 @@ import payrollRoutes from './routes/payroll.routes.js';
 import hrRoutes from './routes/hr.routes.js';
 import invoiceRoutes from './routes/invoice.routes.js';
 import quotationRoutes from './routes/quotation.routes.js';
+import salesRoutes from './routes/sales.routes.js';
+import portalRoutes from './routes/portal.routes.js';
+import salesReportingRoutes from './routes/salesReporting.routes.js';
 import productRoutes from './routes/product.routes.js';
 import warehouseRoutes from './routes/warehouse.routes.js';
 import supplierRoutes from './routes/supplier.routes.js';
@@ -353,6 +356,15 @@ const startJobs = async () => {
       redisReady: isRedisReady(),
       redisRequired: process.env.REDIS_ENABLED !== 'false',
     });
+  });
+
+  cron.schedule('0 */4 * * *', async () => {
+    try {
+      const { runAmazonMarketplaceSync } = await import('./services/sales/amazonMarketplaceSync.js');
+      await runAmazonMarketplaceSync();
+    } catch (err) {
+      logger.warn(`[amazon-sync] cron failed: ${err.message}`);
+    }
   });
 
   if (process.env.STOCK_SCHEDULER_CRON === '1') {
@@ -792,6 +804,9 @@ app.use('/api/payroll', ensureDatabaseReady, payrollRoutes);
 app.use('/api/hr', ensureDatabaseReady, hrRoutes);
 app.use('/api/invoices', ensureDatabaseReady, invoiceRoutes);
 app.use('/api/quotations', ensureDatabaseReady, quotationRoutes);
+app.use('/api/sales', ensureDatabaseReady, salesRoutes);
+app.use('/api/sales/reporting', ensureDatabaseReady, salesReportingRoutes);
+app.use('/api/portal', portalRoutes);
 app.use('/api/products', ensureDatabaseReady, productRoutes);
 app.use('/api/warehouses', ensureDatabaseReady, warehouseRoutes);
 app.use('/api/suppliers', ensureDatabaseReady, supplierRoutes);

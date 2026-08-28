@@ -71,6 +71,28 @@ const Performance = lazy(() => import('./pages/hr/Performance'))
 const HRReports = lazy(() => import('./pages/hr/HRReports'))
 const ExpenseClaims = lazy(() => import('./pages/hr/ExpenseClaims'))
 const SalesLayout = lazy(() => import('./pages/sales/SalesLayout'))
+const SalesConfigurationLayout = lazy(() => import('./pages/sales/configuration/SalesConfigurationLayout'))
+const SalesSettingsPage = lazy(() => import('./pages/sales/configuration/SalesSettingsPage'))
+const SalesTeamsPage = lazy(() => import('./pages/sales/configuration/SalesTeamsPage'))
+const SalesTagsPage = lazy(() => import('./pages/sales/configuration/SalesTagsPage'))
+const ActivityTypesPage = lazy(() => import('./pages/sales/configuration/ActivityTypesPage'))
+const ActivityPlansPage = lazy(() => import('./pages/sales/configuration/ActivityPlansPage'))
+const PricelistsPage = lazy(() => import('./pages/sales/configuration/PricelistsPage'))
+const PromotionsPage = lazy(() => import('./pages/sales/configuration/PromotionsPage'))
+const QuotationTemplatesPage = lazy(() => import('./pages/sales/configuration/QuotationTemplatesPage'))
+const PaymentProvidersPage = lazy(() => import('./pages/sales/configuration/PaymentProvidersPage'))
+const PaymentMethodsPage = lazy(() => import('./pages/sales/configuration/PaymentMethodsPage'))
+const PaymentTransactionsPage = lazy(() => import('./pages/sales/configuration/PaymentTransactionsPage'))
+const CarrierConnectorsPage = lazy(() => import('./pages/sales/configuration/CarrierConnectorsPage'))
+const SalesReportingLayout = lazy(() => import('./pages/sales/reporting/SalesReportingLayout'))
+const SalesAnalysisPage = lazy(() => import('./pages/sales/reporting/SalesAnalysisPage'))
+const SalespeopleReportPage = lazy(() => import('./pages/sales/reporting/SalespeopleReportPage'))
+const ProductsReportPage = lazy(() => import('./pages/sales/reporting/ProductsReportPage'))
+const CustomersReportPage = lazy(() => import('./pages/sales/reporting/CustomersReportPage'))
+const PortalLoginPage = lazy(() => import('./pages/portal/PortalLoginPage'))
+const PortalSignupPage = lazy(() => import('./pages/portal/PortalSignupPage'))
+const PortalDocumentsPage = lazy(() => import('./pages/portal/PortalDocumentsPage'))
+const PortalAcceptInvitePage = lazy(() => import('./pages/portal/PortalAcceptInvitePage'))
 const InventoryLayout = lazy(() => import('./pages/inventory/InventoryLayout'))
 const InventoryOverview = lazy(() => import('./pages/inventory/InventoryOverview'))
 const TransfersList = lazy(() => import('./pages/inventory/TransfersList'))
@@ -581,6 +603,10 @@ function App() {
       <Route path="/public/services" element={<Suspense fallback={<PageLoader />}><PublicServices /></Suspense>} />
       <Route path="/payment-result" element={<Suspense fallback={<PageLoader />}><PaymentResult /></Suspense>} />
       <Route path="/demo-checkout" element={<Suspense fallback={<PageLoader />}><DemoCheckout /></Suspense>} />
+      <Route path="/portal/login" element={<Suspense fallback={<PageLoader />}><PortalLoginPage /></Suspense>} />
+      <Route path="/portal/signup" element={<Suspense fallback={<PageLoader />}><PortalSignupPage /></Suspense>} />
+      <Route path="/portal/accept-invite" element={<Suspense fallback={<PageLoader />}><PortalAcceptInvitePage /></Suspense>} />
+      <Route path="/portal/documents" element={<Suspense fallback={<PageLoader />}><PortalDocumentsPage /></Suspense>} />
 
       {/* Auth Routes — eager imports (no Suspense white flash on cold tenant origins) */}
       <Route path="/auth/handoff" element={<AuthHandoff />} />
@@ -723,6 +749,28 @@ function App() {
           <Route path="quotations/new" element={<QuotationCreatePage />} />
           <Route path="quotations/:id/edit" element={<QuotationEditPage />} />
           <Route path="quotations/:id" element={<QuotationView />} />
+        </Route>
+        <Route path="sales/configuration" element={<SalesConfigurationLayout />}>
+          <Route index element={<Navigate to="settings" replace />} />
+          <Route path="settings" element={<SalesSettingsPage />} />
+          <Route path="teams" element={<SalesTeamsPage />} />
+          <Route path="tags" element={<SalesTagsPage />} />
+          <Route path="activity-types" element={<ActivityTypesPage />} />
+          <Route path="activity-plans" element={<ActivityPlansPage />} />
+          <Route path="pricelists" element={<PricelistsPage />} />
+          <Route path="promotions" element={<PromotionsPage />} />
+          <Route path="quotation-templates" element={<QuotationTemplatesPage />} />
+          <Route path="payment-providers" element={<PaymentProvidersPage />} />
+          <Route path="payment-methods" element={<PaymentMethodsPage />} />
+          <Route path="payment-transactions" element={<PaymentTransactionsPage />} />
+          <Route path="carrier-connectors" element={<CarrierConnectorsPage />} />
+        </Route>
+        <Route path="sales/reporting" element={<SalesReportingLayout />}>
+          <Route index element={<Navigate to="analysis" replace />} />
+          <Route path="analysis" element={<SalesAnalysisPage />} />
+          <Route path="salespeople" element={<SalespeopleReportPage />} />
+          <Route path="products" element={<ProductsReportPage />} />
+          <Route path="customers" element={<CustomersReportPage />} />
         </Route>
         <Route path="sales" element={<Navigate to="/app/dashboard/invoices" replace />} />
         <Route path="contacts" element={<Contacts />} />

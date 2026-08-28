@@ -36,6 +36,7 @@ import {
   sectionCardClass,
   sectionEyebrowClass,
 } from '../../pages/sales/salesUi'
+import SalesEnhancementBar from '../sales/SalesEnhancementBar'
 
 const getEmptyLine = (tenant) => {
   const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
@@ -1206,6 +1207,39 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
               })}
             </div>
           </div>
+
+          <SalesEnhancementBar
+            subtotal={totals.subtotal}
+            customerId={values?.customerId}
+            incoterm={values?.incoterm || ''}
+            onIncotermChange={(v) => setValue('incoterm', v)}
+            onApplyDiscountLine={(line) => append({
+              ...getEmptyLine(tenant),
+              productName: line.productName,
+              quantity: line.quantity || 1,
+              unitPrice: line.unitPrice,
+              productType: line.productType || 'service',
+            })}
+            onAddLines={(lines) => {
+              for (const line of lines) {
+                append({
+                  ...getEmptyLine(tenant),
+                  productId: line.productId || '',
+                  variantId: line.variantId || '',
+                  productName: line.productName,
+                  quantity: line.quantity,
+                  unitPrice: line.unitPrice,
+                })
+              }
+            }}
+            onAddShippingLine={(line) => append({
+              ...getEmptyLine(tenant),
+              productName: line.productName,
+              quantity: 1,
+              unitPrice: line.unitPrice,
+              productType: 'service',
+            })}
+          />
 
           <div className={sectionShell}>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">

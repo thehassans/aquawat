@@ -20,6 +20,8 @@ export default function SalesLayout() {
     ...(hideQuotations
       ? []
       : [{ id: 'quotations', href: '/app/dashboard/quotations', labelEn: 'Quotations', labelAr: 'عروض الأسعار' }]),
+    { id: 'configuration', href: '/app/dashboard/sales/configuration', labelEn: 'Configuration', labelAr: 'الإعدادات' },
+    { id: 'reporting', href: '/app/dashboard/sales/reporting', labelEn: 'Reporting', labelAr: 'التقارير' },
   ]
 
   useEffect(() => {
@@ -28,6 +30,8 @@ export default function SalesLayout() {
 
   const isActiveTab = (href) => {
     if (href.includes('/quotations')) return location.pathname.includes('/quotations')
+    if (href.includes('/sales/configuration')) return location.pathname.includes('/sales/configuration')
+    if (href.includes('/sales/reporting')) return location.pathname.includes('/sales/reporting')
     return location.pathname.includes('/invoices')
   }
 

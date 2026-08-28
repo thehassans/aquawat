@@ -9,6 +9,7 @@ import GRN from '../models/GRN.js';
 import PurchaseReturn from '../models/PurchaseReturn.js';
 import LandedCost from '../models/LandedCost.js';
 import Invoice from '../models/Invoice.js';
+import Tenant from '../models/Tenant.js';
 import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { saveUploadBuffer, readUploadBuffer } from '../utils/objectStorage.js';
@@ -16,6 +17,8 @@ import { normalizeProductType } from '../utils/productType.js';
 import { confirmGrnReceive, generateGrnNumber, ensureDraftGrnForApprovedPo, PurchasesValidationError, upsertDraftLandedCostForPo } from '../services/purchasesWorkflow.js';
 import { computePurchaseLineTotals, buildPoReceivingLedger, round2, matchPurchaseLine } from '../services/purchasesLogic.js';
 import { nextDailyDocNumber } from '../services/inventory/sequence.js';
+import { assertSellOrderCanConfirm, shouldLockSellOrder, getSalesSettings } from '../services/sales/salesLifecycle.js';
+import { enrichInvoiceArabicFields } from '../utils/invoiceArabic.js';
 
 const router = express.Router();
 
@@ -499,6 +502,13 @@ router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) =
       return res.status(404).json({ error: 'Purchase order not found' });
     }
 
+    if (existing.isLocked || (existing.flow === 'sell' && existing.status === 'approved')) {
+      const settings = await getSalesSettings(req.user.tenantId);
+      if (shouldLockSellOrder(existing, settings) || existing.isLocked) {
+        return res.status(400).json({ error: 'Confirmed sales order is locked and cannot be modified' });
+      }
+    }
+
     if (['approved', 'received', 'cancelled', 'partially_received', 'billed'].includes(existing.status)) {
       return res.status(400).json({ error: 'Cannot update an approved, processed, or cancelled purchase order' });
     }
@@ -573,9 +583,22 @@ router.post('/:id/approve', checkPermission('supply_chain', 'approve'), async (r
       return res.status(400).json({ error: 'Order is already approved' });
     }
 
+    if (order.flow === 'sell') {
+      const gate = await assertSellOrderCanConfirm(order, req.user.tenantId);
+      if (!gate.ok) {
+        return res.status(400).json({ error: gate.error, code: gate.code });
+      }
+    }
+
     order.status = 'approved';
     order.approvedBy = req.user._id;
     order.approvedAt = new Date();
+    if (order.flow === 'sell') {
+      const settings = await getSalesSettings(req.user.tenantId);
+      if (shouldLockSellOrder(order, settings)) {
+        order.isLocked = true;
+      }
+    }
     await order.save();
 
     let draftGrn = null;
@@ -1057,6 +1080,71 @@ router.post('/:id/payment', checkPermission('supply_chain', 'update'), vendorBil
     res.json(refreshed);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+/** Create down-payment invoice from sell order (virtual product line, no stock impact) */
+router.post('/:id/down-payment-invoice', checkPermission('supply_chain', 'create'), async (req, res) => {
+  try {
+    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter, flow: 'sell' });
+    if (!order) return res.status(404).json({ error: 'Sales order not found' });
+
+    const percent = Number(req.body?.percent || 0);
+    const fixedAmount = Number(req.body?.amount || 0);
+    let amount = fixedAmount;
+    if (!amount && percent > 0) {
+      amount = Math.round((Number(order.grandTotal || 0) * percent) / 100 * 100) / 100;
+    }
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Provide amount or percent for down payment' });
+    }
+
+    const tenant = await Tenant.findById(req.user.tenantId);
+    const lastInvoice = await Invoice.findOne({ tenantId: req.user.tenantId, invoiceSubtype: { $ne: 'proforma' } })
+      .sort({ createdAt: -1 })
+      .select('invoiceNumber');
+    const seq = lastInvoice
+      ? parseInt(String(lastInvoice.invoiceNumber || '').split('-').pop(), 10) + 1
+      : 1;
+
+    const invoiceData = {
+      tenantId: req.user.tenantId,
+      flow: 'sell',
+      invoiceSubtype: 'standard',
+      invoiceNumber: `INV-${new Date().getFullYear()}-${String(seq).padStart(6, '0')}`,
+      sourcePurchaseOrderId: order._id,
+      customerId: order.customerId,
+      status: 'draft',
+      issueDate: new Date(),
+      transactionType: 'B2B',
+      lineItems: [{
+        productName: `Down Payment — ${order.poNumber || order._id}`,
+        productType: 'service',
+        quantity: 1,
+        unitPrice: amount,
+        taxRate: 15,
+        lineTotal: amount,
+      }],
+      subtotal: amount,
+      totalTax: Math.round(amount * 0.15 * 100) / 100,
+      grandTotal: Math.round(amount * 1.15 * 100) / 100,
+      notes: req.body?.notes || `Down payment for sales order ${order.poNumber || order._id}`,
+      seller: {
+        name: tenant?.business?.legalNameEn,
+        nameAr: tenant?.business?.legalNameAr,
+        vatNumber: tenant?.business?.vatNumber,
+        crNumber: tenant?.business?.crNumber,
+        address: tenant?.business?.address,
+      },
+      createdBy: req.user._id,
+    };
+
+    const enriched = await enrichInvoiceArabicFields(invoiceData);
+    const invoice = await Invoice.create(enriched);
+
+    res.status(201).json({ invoice, downPaymentAmount: amount });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
 });
 
