@@ -80,7 +80,10 @@ const productSchema = new mongoose.Schema({
   
   // Tax
   taxCategory: { type: String, enum: ['S', 'Z', 'E', 'O'], default: 'S' },
+  /** @deprecated Use saleTaxRate — kept for legacy clients */
   taxRate: { type: Number, default: 15 },
+  saleTaxRate: { type: Number, default: 15 },
+  purchaseTaxRate: { type: Number, default: 15 },
   
   // Units
   unitOfMeasure: { type: String, default: 'PCE' },

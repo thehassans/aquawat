@@ -70,11 +70,25 @@ const normalizeProductForClient = (product) => {
   p.descriptionAr = p.descriptionAr ?? '';
   p.costPrice = p.costPrice ?? p.cost ?? 0;
   p.sellingPrice = p.sellingPrice ?? p.price ?? 0;
-  p.taxRate = p.taxRate ?? 15;
+  const legacyTax = p.taxRate ?? 15;
+  p.saleTaxRate = p.saleTaxRate ?? legacyTax;
+  p.purchaseTaxRate = p.purchaseTaxRate ?? legacyTax;
+  p.taxRate = p.saleTaxRate;
   p.unitOfMeasure = p.unitOfMeasure ?? 'PCE';
   p.productType = normalizeProductType(p.productType);
   return p;
 };
+
+function syncProductTaxFields(data) {
+  if (!data || typeof data !== 'object') return data;
+  const legacy = data.taxRate ?? 15;
+  const sale = data.saleTaxRate ?? legacy;
+  const purchase = data.purchaseTaxRate ?? legacy;
+  data.saleTaxRate = sale;
+  data.purchaseTaxRate = purchase;
+  data.taxRate = sale;
+  return data;
+}
 
 // @route   GET /api/products
 router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
@@ -339,12 +353,12 @@ router.get('/:id', checkPermission('inventory', 'read'), async (req, res) => {
 router.post('/', checkTrialLimits('products'), checkPermission('inventory', 'create'), async (req, res) => {
   try {
     const { nextProductId } = await import('../services/inventory/productIdentity.js');
-    const productData = {
+    const productData = syncProductTaxFields({
       ...req.body,
       productType: normalizeProductType(req.body?.productType),
       tenantId: req.user.tenantId,
       createdBy: req.user._id,
-    };
+    });
     // Immutable sequential code — never trust client
     delete productData.productId;
     productData.productId = await nextProductId(req.user.tenantId);
@@ -404,7 +418,7 @@ router.put('/:id', checkPermission('inventory', 'update'), async (req, res) => {
     const lockedProductId = product.productId;
     const { productId: _dropProductId, ...safeBody } = req.body || {};
     void _dropProductId;
-    Object.assign(product, safeBody);
+    Object.assign(product, syncProductTaxFields({ ...safeBody }));
     product.productId = lockedProductId;
     if (!product.productId) {
       const { nextProductId } = await import('../services/inventory/productIdentity.js');

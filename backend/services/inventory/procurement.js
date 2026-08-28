@@ -45,7 +45,7 @@ export async function onBuyProcurement(ctx) {
   const qty = Math.max(0, Number(ctx.qty || 0));
   const unitCost = Number(product.costPrice || product.purchasePrice || 0);
   const lineSubtotal = Math.round(qty * unitCost * 100) / 100;
-  const taxRate = 15;
+  const taxRate = Number(product.purchaseTaxRate ?? product.taxRate ?? 15);
   const lineTax = Math.round(lineSubtotal * (taxRate / 100) * 100) / 100;
   const lineTotal = Math.round((lineSubtotal + lineTax) * 100) / 100;
 

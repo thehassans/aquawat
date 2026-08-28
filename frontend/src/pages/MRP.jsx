@@ -124,15 +124,23 @@ export default function MRP() {
   const selectedItems = useMemo(() => {
     const map = selected || {}
     return suggestions
-      .filter((s) => map[String(s.productId)])
-      .map((s) => ({ productId: s.productId, quantity: Number(s.recommendedQty || 0) }))
+      .filter((s) => map[String(s.rowKey || s.productId)])
+      .map((s) => ({
+        productId: s.productId,
+        variantId: s.variantId || undefined,
+        quantity: Number(s.recommendedQty || 0),
+      }))
       .filter((x) => x.productId && x.quantity > 0)
   }, [selected, suggestions])
 
   const bomShortageItems = useMemo(() => {
     const shortages = bomResult?.shortages || []
     return shortages
-      .map((l) => ({ productId: l.componentId, quantity: Number(l.shortageQty || 0) }))
+      .map((l) => ({
+        productId: l.componentId,
+        variantId: l.variantId || undefined,
+        quantity: Number(l.shortageQty || 0),
+      }))
       .filter((x) => x.productId && x.quantity > 0)
   }, [bomResult])
 
@@ -345,13 +353,15 @@ export default function MRP() {
                 </tr>
               </thead>
               <tbody>
-                {suggestions.map((s) => (
-                  <tr key={s.productId}>
+                {suggestions.map((s) => {
+                  const rowKey = String(s.rowKey || s.productId)
+                  return (
+                  <tr key={rowKey}>
                     <td>
                       <input
                         type="checkbox"
-                        checked={Boolean(selected?.[String(s.productId)])}
-                        onChange={(e) => setSelected((prev) => ({ ...prev, [String(s.productId)]: e.target.checked }))}
+                        checked={Boolean(selected?.[rowKey])}
+                        onChange={(e) => setSelected((prev) => ({ ...prev, [rowKey]: e.target.checked }))}
                       />
                     </td>
                     <td className="font-mono text-sm">{s.sku}</td>
@@ -360,6 +370,9 @@ export default function MRP() {
                         <p className="font-medium text-gray-900 dark:text-white">
                           {language === 'ar' ? s.nameAr || s.nameEn : s.nameEn || s.nameAr}
                         </p>
+                        {s.variantName && (
+                          <p className="text-xs text-primary-600">{s.variantName}</p>
+                        )}
                         <p className="text-xs text-gray-500">
                           {language === 'ar' ? 'مخزون متوقع:' : 'Projected:'} {Number(s.projectedStock || 0).toLocaleString()}
                           {typeof s?.onHand !== 'undefined' ? ` · ${language === 'ar' ? 'على الرف:' : 'On hand:'} ${Number(s.onHand || 0).toLocaleString()}` : ''}
@@ -380,7 +393,14 @@ export default function MRP() {
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => createPoMutation.mutate({ items: [{ productId: s.productId, quantity: Number(s.recommendedQty || 0) }], notes: 'Created from MRP' })}
+                          onClick={() => createPoMutation.mutate({
+                            items: [{
+                              productId: s.productId,
+                              variantId: s.variantId || undefined,
+                              quantity: Number(s.recommendedQty || 0),
+                            }],
+                            notes: 'Created from MRP',
+                          })}
                           disabled={createPoMutation.isPending}
                           className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg"
                           title={language === 'ar' ? 'إنشاء طلب شراء (مسودة)' : 'Create draft PO'}
@@ -393,7 +413,8 @@ export default function MRP() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
             </div>

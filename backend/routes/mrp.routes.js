@@ -42,29 +42,143 @@ function computeAvailableStock(product) {
   };
 }
 
+function mrpRowKey(productId, variantId) {
+  return `${String(productId)}|${variantId ? String(variantId) : ''}`;
+}
+
+async function expandProductsWithVariants(tenantId, products) {
+  const InvProductVariant = (await import('../models/inventory/InvProductVariant.js')).default;
+  const ids = (products || []).map((p) => p._id).filter(Boolean);
+  if (!ids.length) return [];
+
+  const variants = await InvProductVariant.find({
+    tenantId,
+    productId: { $in: ids },
+    active: { $ne: false },
+  }).select('productId name sku').lean();
+
+  const byProduct = new Map();
+  for (const v of variants) {
+    const key = String(v.productId);
+    if (!byProduct.has(key)) byProduct.set(key, []);
+    byProduct.get(key).push(v);
+  }
+
+  const rows = [];
+  for (const p of products || []) {
+    const pvars = byProduct.get(String(p._id)) || [];
+    if (pvars.length) {
+      for (const v of pvars) rows.push({ product: p, variant: v, variantId: v._id });
+    } else {
+      rows.push({ product: p, variant: null, variantId: null });
+    }
+  }
+  return rows;
+}
+
+async function resolveMrpStock(tenantId, productId, variantId, legacyProduct) {
+  try {
+    const { isInvEngineEnabled } = await import('../services/inventory/legacyAdapter.js');
+    if (await isInvEngineEnabled(tenantId)) {
+      const { computeForecast } = await import('../services/inventory/forecast.js');
+      const fc = await computeForecast(tenantId, productId, { variantId: variantId || undefined });
+      const onHand = safeNumber(fc.onHand, 0);
+      const reserved = safeNumber(fc.reserved, 0);
+      const available = safeNumber(fc.freeToUse ?? (onHand - reserved), 0);
+      return {
+        onHand,
+        reserved,
+        available: Number.isFinite(available) ? available : 0,
+        incomingQty: safeNumber(fc.incoming, 0),
+      };
+    }
+  } catch {
+    /* fall through */
+  }
+  const stockInfo = computeAvailableStock(legacyProduct);
+  return { ...stockInfo, incomingQty: 0 };
+}
+
 async function getIncomingMap(tenantFilterValue) {
   const pipeline = [
     {
       $match: {
         ...tenantFilterValue,
-        status: { $in: ['sent', 'approved', 'partially_received'] }
-      }
+        status: { $in: ['sent', 'approved', 'partially_received'] },
+      },
     },
     { $unwind: '$lineItems' },
     {
       $project: {
         productId: '$lineItems.productId',
+        variantId: '$lineItems.variantId',
         remaining: {
-          $subtract: ['$lineItems.quantityOrdered', '$lineItems.quantityReceived']
-        }
-      }
+          $subtract: ['$lineItems.quantityOrdered', '$lineItems.quantityReceived'],
+        },
+      },
     },
     { $match: { remaining: { $gt: 0 } } },
-    { $group: { _id: '$productId', incomingQty: { $sum: '$remaining' } } }
+    {
+      $group: {
+        _id: { productId: '$productId', variantId: '$variantId' },
+        incomingQty: { $sum: '$remaining' },
+      },
+    },
   ];
 
   const incoming = await PurchaseOrder.aggregate(pipeline);
-  return new Map(incoming.map((row) => [String(row._id), row.incomingQty || 0]));
+  return new Map(
+    incoming.map((row) => [
+      mrpRowKey(row._id?.productId, row._id?.variantId),
+      row.incomingQty || 0,
+    ]),
+  );
+}
+
+async function buildMrpSuggestion({
+  tenantId,
+  product,
+  variant,
+  variantId,
+  incomingMap,
+  mult,
+}) {
+  const reorderPoint = computeReorderPoint(product);
+  const stockInfo = await resolveMrpStock(tenantId, product._id, variantId, product);
+  const currentStock = safeNumber(stockInfo.available, 0);
+  const incomingQty = safeNumber(
+    stockInfo.incomingQty || incomingMap.get(mrpRowKey(product._id, variantId)),
+    0,
+  );
+  const projectedStock = currentStock + incomingQty;
+  const targetStock = reorderPoint * mult;
+  const recommendedQty = Math.max(0, targetStock - projectedStock);
+  if (recommendedQty <= 0) return null;
+
+  const costPrice = safeNumber(product?.costPrice, 0);
+  const baseName = product.nameEn || product.nameAr || product.sku || '';
+  const displayName = variant?.name ? `${baseName} - ${variant.name}` : baseName;
+
+  return {
+    rowKey: mrpRowKey(product._id, variantId),
+    productId: product._id,
+    variantId: variantId || null,
+    variantName: variant?.name || null,
+    sku: variant?.sku || product.sku,
+    nameEn: displayName,
+    nameAr: product.nameAr,
+    category: product.category,
+    currentStock,
+    onHand: stockInfo.onHand,
+    reservedQty: stockInfo.reserved,
+    incomingQty,
+    projectedStock,
+    reorderPoint,
+    targetStock,
+    recommendedQty,
+    costPrice,
+    estimatedCost: recommendedQty * costPrice,
+  };
 }
 
 router.get('/suggestions', checkPermission('mrp', 'read'), async (req, res) => {
@@ -94,42 +208,21 @@ router.get('/suggestions', checkPermission('mrp', 'read'), async (req, res) => {
       getIncomingMap(req.tenantFilter)
     ]);
 
-    const suggestions = (products || [])
-      .map((prod) => {
-        const reorderPoint = computeReorderPoint(prod);
-        const stockInfo = computeAvailableStock(prod);
-        const currentStock = safeNumber(stockInfo.available, 0);
-        const incomingQty = safeNumber(incomingMap.get(String(prod._id)), 0);
-        const projectedStock = currentStock + incomingQty;
+    const suggestions = [];
+    const expanded = await expandProductsWithVariants(req.user.tenantId, products || []);
+    for (const row of expanded) {
+      const suggestion = await buildMrpSuggestion({
+        tenantId: req.user.tenantId,
+        product: row.product,
+        variant: row.variant,
+        variantId: row.variantId,
+        incomingMap,
+        mult,
+      });
+      if (suggestion) suggestions.push(suggestion);
+    }
 
-        const targetStock = reorderPoint * mult;
-        const recommendedQty = Math.max(0, targetStock - projectedStock);
-
-        if (recommendedQty <= 0) return null;
-
-        const costPrice = safeNumber(prod?.costPrice, 0);
-        const estimatedCost = recommendedQty * costPrice;
-
-        return {
-          productId: prod._id,
-          sku: prod.sku,
-          nameEn: prod.nameEn,
-          nameAr: prod.nameAr,
-          category: prod.category,
-          currentStock,
-          onHand: stockInfo.onHand,
-          reservedQty: stockInfo.reserved,
-          incomingQty,
-          projectedStock,
-          reorderPoint,
-          targetStock,
-          recommendedQty,
-          costPrice,
-          estimatedCost
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => b.recommendedQty - a.recommendedQty);
+    suggestions.sort((a, b) => b.recommendedQty - a.recommendedQty);
 
     const total = suggestions.length;
     const pages = Math.ceil(total / l) || 1;
@@ -163,7 +256,8 @@ router.post('/bom-plan', checkPermission('mrp', 'read'), async (req, res) => {
 
     const finished = await Product.findOne({ _id: productId, ...req.tenantFilter, isActive: true })
       .select('sku nameEn nameAr isManufactured bomComponents')
-      .populate('bomComponents.productId', 'sku nameEn nameAr costPrice stocks suppliers taxRate')
+      .populate('bomComponents.productId', 'sku nameEn nameAr costPrice stocks suppliers taxRate purchaseTaxRate')
+      .populate('bomComponents.variantId', 'name sku')
       .lean();
 
     if (!finished) {
@@ -191,10 +285,14 @@ router.post('/bom-plan', checkPermission('mrp', 'read'), async (req, res) => {
       if (!Number.isFinite(perUnit) || perUnit <= 0) continue;
 
       const requiredQty = demandQty * perUnit;
-      const stockInfo = computeAvailableStock(compProd);
+      const compVariantId = c?.variantId?._id || c?.variantId || null;
+      const stockInfo = await resolveMrpStock(req.user.tenantId, compProd._id, compVariantId, compProd);
 
       const availableQty = safeNumber(stockInfo.available, 0);
-      const incomingQty = safeNumber(incomingMap.get(String(compProd._id)), 0);
+      const incomingQty = safeNumber(
+        stockInfo.incomingQty || incomingMap.get(mrpRowKey(compProd._id, compVariantId)),
+        0,
+      );
       const projectedQty = availableQty + incomingQty;
       const shortageQty = Math.max(0, requiredQty - projectedQty);
 
@@ -203,10 +301,16 @@ router.post('/bom-plan', checkPermission('mrp', 'read'), async (req, res) => {
       const fallback = suppliers.find((s) => s?.supplierId);
       const unitCost = safeNumber(preferred?.cost ?? fallback?.cost ?? compProd?.costPrice, 0);
 
+      const variant = c?.variantId && typeof c.variantId === 'object' ? c.variantId : null;
+      const baseName = compProd.nameEn || compProd.nameAr || compProd.sku || '';
+      const displayName = variant?.name ? `${baseName} - ${variant.name}` : baseName;
+
       lines.push({
         componentId: compProd._id,
-        sku: compProd.sku,
-        nameEn: compProd.nameEn,
+        variantId: compVariantId,
+        variantName: variant?.name || null,
+        sku: variant?.sku || compProd.sku,
+        nameEn: displayName,
         nameAr: compProd.nameAr,
         perUnit,
         requiredQty,
@@ -217,7 +321,7 @@ router.post('/bom-plan', checkPermission('mrp', 'read'), async (req, res) => {
         projectedQty,
         shortageQty,
         unitCost,
-        estimatedCost: shortageQty * unitCost
+        estimatedCost: shortageQty * unitCost,
       });
     }
 
@@ -280,33 +384,31 @@ router.get('/stats', checkPermission('mrp', 'read'), async (req, res) => {
     let totalIncomingQty = 0;
 
     for (const prod of products || []) {
-      const reorderPoint = computeReorderPoint(prod);
-      const stockInfo = computeAvailableStock(prod);
-      const currentStock = safeNumber(stockInfo.available, 0);
-      const incomingQty = safeNumber(incomingMap.get(String(prod._id)), 0);
-      const projectedStock = currentStock + incomingQty;
+      const expanded = await expandProductsWithVariants(req.user.tenantId, [prod]);
+      for (const row of expanded) {
+        const suggestion = await buildMrpSuggestion({
+          tenantId: req.user.tenantId,
+          product: row.product,
+          variant: row.variant,
+          variantId: row.variantId,
+          incomingMap,
+          mult,
+        });
+        if (!suggestion) continue;
 
-      totalIncomingQty += incomingQty;
+        suggestionsCount += 1;
+        totalRecommendedQty += suggestion.recommendedQty;
+        totalEstimatedCost += suggestion.estimatedCost;
+        totalIncomingQty += suggestion.incomingQty;
 
-      const targetStock = reorderPoint * mult;
-      const recommendedQty = Math.max(0, targetStock - projectedStock);
-
-      if (recommendedQty <= 0) continue;
-
-      suggestionsCount += 1;
-      totalRecommendedQty += recommendedQty;
-
-      const costPrice = safeNumber(prod?.costPrice, 0);
-      const estimatedCost = recommendedQty * costPrice;
-      totalEstimatedCost += estimatedCost;
-
-      const key = prod.category || 'Uncategorized';
-      const current = byCategory.get(key) || { category: key, suggestions: 0, estimatedCost: 0 };
-      byCategory.set(key, {
-        category: key,
-        suggestions: current.suggestions + 1,
-        estimatedCost: current.estimatedCost + estimatedCost
-      });
+        const key = prod.category || 'Uncategorized';
+        const current = byCategory.get(key) || { category: key, suggestions: 0, estimatedCost: 0 };
+        byCategory.set(key, {
+          category: key,
+          suggestions: current.suggestions + 1,
+          estimatedCost: current.estimatedCost + suggestion.estimatedCost,
+        });
+      }
     }
 
     const categories = Array.from(byCategory.values()).sort((a, b) => b.estimatedCost - a.estimatedCost);
@@ -342,6 +444,7 @@ function normalizeLineItems(lineItems = []) {
 
     return {
       productId: li.productId,
+      variantId: li.variantId || undefined,
       description: li.description,
       quantityOrdered,
       quantityReceived: 0,
@@ -396,7 +499,8 @@ router.post('/create-po', checkPermission('supply_chain', 'create'), async (req,
     const cleaned = items
       .map((x) => ({
         productId: x?.productId,
-        quantity: Math.max(0, toNumber(x?.quantity ?? x?.qty ?? 0, 0))
+        variantId: x?.variantId || undefined,
+        quantity: Math.max(0, toNumber(x?.quantity ?? x?.qty ?? 0, 0)),
       }))
       .filter((x) => x.productId && x.quantity > 0);
 
@@ -438,10 +542,11 @@ router.post('/create-po', checkPermission('supply_chain', 'create'), async (req,
       const group = supplierGroups.get(key) || [];
       group.push({
         productId: prod._id,
+        variantId: row.variantId || undefined,
         description: prod?.nameEn || prod?.nameAr || prod?.sku,
         quantityOrdered: row.quantity,
         unitCost: toNumber(supplierUnitCost, toNumber(prod?.costPrice, 0)),
-        taxRate: toNumber(prod?.taxRate, 15)
+        taxRate: toNumber(prod?.purchaseTaxRate ?? prod?.taxRate, 15),
       });
       supplierGroups.set(key, group);
     }

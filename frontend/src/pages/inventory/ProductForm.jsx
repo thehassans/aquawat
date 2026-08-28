@@ -80,6 +80,8 @@ export default function ProductForm() {
       sellingPrice: 0,
       unitOfMeasure: getDefaultUom(tenant),
       taxRate: defaultTaxRate,
+      saleTaxRate: defaultTaxRate,
+      purchaseTaxRate: defaultTaxRate,
       canBeSold: true,
       canBePurchased: true,
       canBeExpensed: false,
@@ -193,6 +195,15 @@ export default function ProductForm() {
       if (payload[key] === '' || payload[key] == null) payload[key] = null
     }
 
+    const legacyTax = payload.taxRate ?? defaultTaxRate
+    payload.saleTaxRate = Number.isFinite(Number(payload.saleTaxRate))
+      ? Number(payload.saleTaxRate)
+      : (Number.isFinite(Number(legacyTax)) ? Number(legacyTax) : defaultTaxRate)
+    payload.purchaseTaxRate = Number.isFinite(Number(payload.purchaseTaxRate))
+      ? Number(payload.purchaseTaxRate)
+      : payload.saleTaxRate
+    payload.taxRate = payload.saleTaxRate
+
     return payload
   }
 
@@ -235,7 +246,9 @@ export default function ProductForm() {
         descriptionAr: data?.descriptionAr ?? '',
         costPrice: data?.costPrice ?? data?.cost ?? 0,
         sellingPrice: data?.sellingPrice ?? data?.price ?? 0,
-        taxRate: data?.taxRate ?? 15,
+        saleTaxRate: data?.saleTaxRate ?? data?.taxRate ?? defaultTaxRate,
+        purchaseTaxRate: data?.purchaseTaxRate ?? data?.taxRate ?? defaultTaxRate,
+        taxRate: data?.saleTaxRate ?? data?.taxRate ?? defaultTaxRate,
         unitOfMeasure: data?.unitOfMeasure ?? 'PCE',
         productType: normalizeProductType(data?.productType),
       }
@@ -295,7 +308,9 @@ export default function ProductForm() {
       descriptionAr: draft.descriptionAr || '',
       costPrice: draft.costPrice ?? draft.cost ?? 0,
       sellingPrice: draft.sellingPrice ?? draft.price ?? 0,
-      taxRate: draft.taxRate ?? defaultTaxRate,
+      taxRate: draft.saleTaxRate ?? draft.taxRate ?? defaultTaxRate,
+      saleTaxRate: draft.saleTaxRate ?? draft.taxRate ?? defaultTaxRate,
+      purchaseTaxRate: draft.purchaseTaxRate ?? draft.taxRate ?? defaultTaxRate,
       unitOfMeasure: draft.unitOfMeasure || getDefaultUom(tenant),
       productType: normalizeProductType(draft.productType),
       sku: draft.sku || '',
@@ -906,6 +921,26 @@ export default function ProductForm() {
                 />
               )}
             </div>
+            <div>
+              <label className="label">{language === 'ar' ? 'ضريبة المبيعات' : 'Sales tax'} %</label>
+              <select {...register('saleTaxRate', { valueAsNumber: true })} className="select">
+                {taxRateOptions.map((opt) => (
+                  <option key={`sale-${opt.value}`} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">{language === 'ar' ? 'ضريبة المشتريات' : 'Purchase tax'} %</label>
+              <select {...register('purchaseTaxRate', { valueAsNumber: true })} className="select">
+                {taxRateOptions.map((opt) => (
+                  <option key={`purchase-${opt.value}`} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="md:col-span-2 lg:col-span-3">
               <label className="label">{language === 'ar' ? 'الوصف (EN)' : 'Description (EN)'}</label>
               <textarea {...register('descriptionEn')} className="input" rows={2} />
@@ -949,16 +984,6 @@ export default function ProductForm() {
                 </span>
               </label>
               <input type="number" step="0.01" {...register('sellingPrice', { valueAsNumber: true, required: canBeSold })} className="input" />
-            </div>
-            <div>
-              <label className="label">{language === 'ar' ? 'نسبة الضريبة' : 'Tax Rate'} %</label>
-              <select {...register('taxRate', { valueAsNumber: true })} className="select">
-                {taxRateOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
             </div>
             <div className="md:col-span-3">
               <label className="label">{language === 'ar' ? 'وصف المبيعات' : 'Sales description'}</label>

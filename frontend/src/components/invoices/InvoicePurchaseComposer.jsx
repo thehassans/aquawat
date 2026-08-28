@@ -490,7 +490,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     setValue(`lineItems.${index}.productName`, product.nameEn)
     setValue(`lineItems.${index}.productNameAr`, product.nameAr || product.nameEn)
     setValue(`lineItems.${index}.unitCode`, product.unitOfMeasure || 'PCE')
-    setValue(`lineItems.${index}.taxRate`, typeof product.taxRate === 'number' ? product.taxRate : 15)
+    setValue(`lineItems.${index}.taxRate`, typeof product.purchaseTaxRate === 'number' ? product.purchaseTaxRate : (typeof product.taxRate === 'number' ? product.taxRate : 15))
     setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType))
     if (typeof product.costPrice === 'number' && product.costPrice > 0) {
       setValue(`lineItems.${index}.unitPrice`, product.costPrice)

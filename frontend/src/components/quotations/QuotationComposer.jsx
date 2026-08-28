@@ -499,7 +499,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     setValue(`lineItems.${index}.description`, product.descriptionEn || '')
     setValue(`lineItems.${index}.descriptionAr`, product.descriptionAr || '')
     setValue(`lineItems.${index}.unitCode`, product.unitOfMeasure || 'PCE')
-    setValue(`lineItems.${index}.taxRate`, typeof product.taxRate === 'number' ? product.taxRate : 15)
+    setValue(`lineItems.${index}.taxRate`, typeof product.saleTaxRate === 'number' ? product.saleTaxRate : (typeof product.taxRate === 'number' ? product.taxRate : 15))
     setValue(`lineItems.${index}.unitPrice`, typeof product.sellingPrice === 'number' ? product.sellingPrice : 0)
     setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType))
   }
@@ -527,7 +527,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
       description: product.descriptionEn || '',
       descriptionAr: product.descriptionAr || '',
       unitCode: product.unitOfMeasure || 'PCE',
-      taxRate: typeof product.taxRate === 'number' ? product.taxRate : 15,
+      taxRate: typeof product.saleTaxRate === 'number' ? product.saleTaxRate : (typeof product.taxRate === 'number' ? product.taxRate : 15),
       unitPrice: typeof product.sellingPrice === 'number' ? product.sellingPrice : 0,
       productType: normalizeProductType(product.productType),
       quantity: 1,
