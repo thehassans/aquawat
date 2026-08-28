@@ -14,7 +14,6 @@ import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
 import { getUomLabel } from '../../lib/uomOptions'
 import { formatProductTypeLabel, isStockTrackedProductType, normalizeProductType, productTypeBadgeClass } from '../../lib/productType'
 import { formatInvError } from '../../lib/invError'
-import { invTableWrapClass, invTableClass } from './inventoryUi'
 import { ColumnChooser, useColumnVisibility } from './columnVisibility'
 import PrintBarcodeLabelsModal from './PrintBarcodeLabelsModal'
 
@@ -84,16 +83,10 @@ export default function Products() {
   const [stockWarehouseId, setStockWarehouseId] = useState('')
   const [stockVariantId, setStockVariantId] = useState('')
   const [stockQuantity, setStockQuantity] = useState(1)
-  const [selected, setSelected] = useState(() => new Set())
+  const [selectedRowIds, setSelectedRowIds] = useState(() => new Set())
   const [labelModalOpen, setLabelModalOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const masterCheckboxRefs = useRef([])
-
-  const bindMasterCheckbox = (el) => {
-    if (el && !masterCheckboxRefs.current.includes(el)) {
-      masterCheckboxRefs.current.push(el)
-    }
-  }
+  const masterCheckboxRef = useRef(null)
 
   const columnDefs = useMemo(() => PRODUCT_COL_DEFS, [])
   const { visible, toggle } = useColumnVisibility('maqder-inv-product-cols', columnDefs)
@@ -207,20 +200,6 @@ export default function Products() {
     placeholderData: (prev) => prev,
   })
 
-  const getExportRows = async () => {
-    const limit = 200
-    let currentPage = 1
-    let all = []
-    while (true) {
-      const res = await api.get('/products', { params: { page: currentPage, limit, search: debouncedSearch, ...filters } })
-      const batch = res.data?.products || []
-      all = all.concat(batch)
-      if (currentPage >= (res.data?.pagination?.pages || 1) || all.length >= 10000) break
-      currentPage += 1
-    }
-    return all
-  }
-
   const { data: stats } = useQuery({
     queryKey: ['products-stats'],
     queryFn: () => api.get('/products/stats').then((res) => res.data)
@@ -230,23 +209,23 @@ export default function Products() {
   const products = data?.products || []
   const pagination = data?.pagination
   const pageIds = useMemo(() => products.map((p) => String(p._id)), [products])
-  const selectedIds = useMemo(() => [...selected], [selected])
+  const selectedIds = useMemo(() => [...selectedRowIds], [selectedRowIds])
   const selectedOnPageCount = useMemo(
-    () => pageIds.filter((id) => selected.has(id)).length,
-    [pageIds, selected],
+    () => pageIds.filter((id) => selectedRowIds.has(id)).length,
+    [pageIds, selectedRowIds],
   )
-  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id))
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedRowIds.has(id))
   const somePageSelected = selectedOnPageCount > 0 && !allPageSelected
 
   useEffect(() => {
-    masterCheckboxRefs.current.forEach((el) => {
-      if (el) el.indeterminate = somePageSelected
-    })
+    if (masterCheckboxRef.current) {
+      masterCheckboxRef.current.indeterminate = somePageSelected
+    }
   }, [somePageSelected])
 
   const toggleRow = (id) => {
     const key = String(id)
-    setSelected((prev) => {
+    setSelectedRowIds((prev) => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
       else next.add(key)
@@ -255,7 +234,7 @@ export default function Products() {
   }
 
   const toggleAllPage = () => {
-    setSelected((prev) => {
+    setSelectedRowIds((prev) => {
       const next = new Set(prev)
       if (allPageSelected) pageIds.forEach((id) => next.delete(id))
       else pageIds.forEach((id) => next.add(id))
@@ -271,7 +250,10 @@ export default function Products() {
         const res = await api.post('/products/export', { ids: selectedIds })
         rows = res.data?.products || []
       } else {
-        rows = await getExportRows()
+        const res = await api.get('/products/export', {
+          params: { search: debouncedSearch, ...filters },
+        })
+        rows = res.data?.products || []
       }
       exportToCsv({
         fileName: buildDefaultFileName(isAr ? 'المخزون' : 'Inventory'),
@@ -356,7 +338,7 @@ export default function Products() {
             <button
               type="button"
               className={OUTLINED_BTN}
-              onClick={() => setSelected(new Set())}
+              onClick={() => setSelectedRowIds(new Set())}
             >
               {isAr ? `مسح (${selectedIds.length})` : `Clear (${selectedIds.length})`}
             </button>
@@ -454,7 +436,7 @@ export default function Products() {
         </div>
       </div>
 
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-[0_24px_60px_-32px_rgba(15,23,42,.18)]">
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="w-full overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-[0_24px_60px_-32px_rgba(15,23,42,.18)]">
         {isLoading ? (
           <div className="flex justify-center p-16">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
@@ -468,7 +450,7 @@ export default function Products() {
                   <input
                     type="checkbox"
                     checked={allPageSelected}
-                    ref={bindMasterCheckbox}
+                    ref={masterCheckboxRef}
                     onChange={toggleAllPage}
                     disabled={!pageIds.length}
                     aria-label={isAr ? 'تحديد الكل' : 'Select all'}
@@ -503,7 +485,7 @@ export default function Products() {
                     <input
                       type="checkbox"
                       className="mt-1 shrink-0"
-                      checked={selected.has(rowId)}
+                      checked={selectedRowIds.has(rowId)}
                       onChange={() => toggleRow(rowId)}
                       aria-label={isAr ? 'تحديد' : 'Select row'}
                     />
@@ -547,13 +529,13 @@ export default function Products() {
               )
             }}
           >
-            <div className={`${invTableWrapClass} w-full`}>
-              <table className={`${invTableClass} table-fixed w-full`}>
+            <div className="w-full overflow-hidden">
+              <table className="w-full table-fixed text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 text-start text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
                     <th className="w-10 px-2 py-3">
                       <input
-                        ref={bindMasterCheckbox}
+                        ref={masterCheckboxRef}
                         type="checkbox"
                         checked={allPageSelected}
                         onChange={toggleAllPage}
@@ -561,7 +543,7 @@ export default function Products() {
                         aria-label={isAr ? 'تحديد الكل' : 'Select all'}
                       />
                     </th>
-                    {col('name') && <th className="w-full px-3 py-3 font-semibold">{t('productName')}</th>}
+                    {col('name') && <th className="px-3 py-3 font-semibold">{t('productName')}</th>}
                     {col('productId') && <th className="w-24 px-2 py-3 font-semibold">{isAr ? 'المعرّف' : 'ID'}</th>}
                     {col('sku') && <th className="w-32 px-2 py-3 font-semibold">{t('sku')}</th>}
                     {col('type') && <th className="w-24 px-2 py-3 font-semibold">{isAr ? 'النوع' : 'Type'}</th>}
@@ -586,7 +568,7 @@ export default function Products() {
                         <td className="px-2 py-3.5">
                           <input
                             type="checkbox"
-                            checked={selected.has(rowId)}
+                            checked={selectedRowIds.has(rowId)}
                             onChange={() => toggleRow(rowId)}
                             aria-label={isAr ? 'تحديد' : 'Select row'}
                           />

@@ -166,61 +166,77 @@ router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
   }
 });
 
-// @route   POST /api/products/export — bulk export selected IDs (body) or filtered view
+async function resolveProductsExport(req, params = {}) {
+  const {
+    ids = [],
+    search,
+    status,
+    stockHealth,
+    productType,
+    categoryId,
+    allowNegativeStock,
+  } = params;
+
+  const query = { ...req.tenantFilter };
+  const idList = Array.isArray(ids)
+    ? ids
+    : (typeof ids === 'string' && ids.trim() ? ids.split(',') : []);
+  if (idList.length) {
+    query._id = { $in: idList.map((id) => String(id).trim()).filter(Boolean) };
+  }
+  if (categoryId) query.categoryId = categoryId;
+  if (status) query.status = status;
+  if (productType === 'service') {
+    query.productType = 'service';
+  } else if (productType === 'goods') {
+    query.$and = (query.$and || []).concat([{
+      $or: [{ productType: 'goods' }, { productType: { $exists: false } }, { productType: null }],
+    }]);
+  }
+  if (allowNegativeStock === true) query.allowNegativeStock = true;
+  else if (allowNegativeStock === false) query.allowNegativeStock = { $ne: true };
+  if (search) {
+    query.$or = [
+      { nameEn: { $regex: search, $options: 'i' } },
+      { nameAr: { $regex: search, $options: 'i' } },
+      { sku: { $regex: search, $options: 'i' } },
+      { barcode: { $regex: search, $options: 'i' } },
+      { productId: { $regex: search, $options: 'i' } },
+    ];
+  }
+
+  const limitNum = idList.length ? Math.min(500, idList.length) : 10000;
+
+  const found = await Product.find(query)
+    .select('-landedCostHistory')
+    .sort({ createdAt: -1 })
+    .limit(limitNum)
+    .lean();
+
+  const normalized = found.map((p) => enrichInventory(normalizeProductForClient(p)));
+  let products = await applyEngineInventoryToProducts(req.user.tenantId, normalized);
+
+  if (stockHealth) {
+    products = products.filter((p) => p.inventory?.health === stockHealth);
+  }
+
+  return products;
+}
+
+// @route   GET /api/products/export — filtered view export (active list filters)
+router.get('/export', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const products = await resolveProductsExport(req, req.query || {});
+    res.json({ products });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/products/export — bulk export selected IDs (body)
 router.post('/export', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const {
-      ids = [],
-      search,
-      status,
-      stockHealth,
-      productType,
-      categoryId,
-      allowNegativeStock,
-    } = req.body || {};
-
-    const query = { ...req.tenantFilter };
-    if (Array.isArray(ids) && ids.length) {
-      query._id = { $in: ids.map((id) => String(id).trim()).filter(Boolean) };
-    }
-    if (categoryId) query.categoryId = categoryId;
-    if (status) query.status = status;
-    if (productType === 'service') {
-      query.productType = 'service';
-    } else if (productType === 'goods') {
-      query.$and = (query.$and || []).concat([{
-        $or: [{ productType: 'goods' }, { productType: { $exists: false } }, { productType: null }],
-      }]);
-    }
-    if (allowNegativeStock === true) query.allowNegativeStock = true;
-    else if (allowNegativeStock === false) query.allowNegativeStock = { $ne: true };
-    if (search) {
-      query.$or = [
-        { nameEn: { $regex: search, $options: 'i' } },
-        { nameAr: { $regex: search, $options: 'i' } },
-        { sku: { $regex: search, $options: 'i' } },
-        { barcode: { $regex: search, $options: 'i' } },
-        { productId: { $regex: search, $options: 'i' } },
-      ];
-    }
-
-    const limitNum = Array.isArray(ids) && ids.length
-      ? Math.min(500, ids.length)
-      : 10000;
-
-    const found = await Product.find(query)
-      .select('-landedCostHistory')
-      .sort({ createdAt: -1 })
-      .limit(limitNum)
-      .lean();
-
-    const normalized = found.map((p) => enrichInventory(normalizeProductForClient(p)));
-    let products = await applyEngineInventoryToProducts(req.user.tenantId, normalized);
-
-    if (stockHealth) {
-      products = products.filter((p) => p.inventory?.health === stockHealth);
-    }
-
+    const products = await resolveProductsExport(req, req.body || {});
     res.json({ products });
   } catch (error) {
     res.status(500).json({ error: error.message });
