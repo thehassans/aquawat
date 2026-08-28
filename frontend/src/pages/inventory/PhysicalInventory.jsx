@@ -10,6 +10,36 @@ import EmptyState from '../../components/ui/EmptyState'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import { formatInvError } from '../../lib/invError'
 import { isVariantPickCancelled, useForceVariantPick } from '../../lib/useForceVariantPick'
+import {
+  pageTitleClass,
+  pageSubtitleClass,
+  pageHeaderClass,
+  statGridClass,
+  statCardClass,
+  statLabelClass,
+  statValueClass,
+  filterBarClass,
+  listShellClass,
+  salesTableClass,
+  salesThClass,
+  salesTdClass,
+  salesTrClass,
+  primaryBtnClass,
+  secondaryBtnClass,
+  ghostActionClass,
+  softChipClass,
+  fieldControlClass,
+  fieldLabelClass,
+  chipFilterClass,
+  sectionCardClass,
+  sectionEyebrowClass,
+  variantPillClass,
+  monoCellClass,
+  emptyStateClass,
+  dangerActionClass,
+} from '../planning/planningUi'
+
+const compactFieldClass = `${fieldControlClass} !py-1.5 !px-2.5 !text-xs`
 
 function fmtDate(d) {
   if (!d) return ''
@@ -638,206 +668,83 @@ export default function PhysicalInventory() {
 
   return (
     <div
-      className="flex h-[calc(100vh-8.25rem)] max-h-[calc(100vh-8.25rem)] flex-col gap-2 overflow-hidden"
+      className="flex h-[calc(100vh-8.25rem)] max-h-[calc(100vh-8.25rem)] flex-col gap-4 overflow-hidden pb-2"
       dir={ar ? 'rtl' : 'ltr'}
     >
       {forceVariantModal}
-      {/* Header — frozen */}
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-            {ar ? 'الجرد الفعلي' : 'Physical Inventory'}
-          </h2>
-          <p className="text-xs text-slate-500">
-            {ar ? 'عدّ المخزون وطابق الأرصدة' : 'Count stock and reconcile on-hand'}
-            {blindMode ? (ar ? ' · عد أعمى' : ' · Blind count') : ''}
+
+      <div className={`${pageHeaderClass} shrink-0`}>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className={pageTitleClass}>{ar ? 'الجرد الفعلي' : 'Physical Inventory'}</h1>
+            {blindMode && (
+              <span className={softChipClass}>{ar ? 'عد أعمى' : 'Blind count'}</span>
+            )}
+          </div>
+          <p className={pageSubtitleClass}>
+            {ar ? 'عدّ المخزون وطابق الأرصدة مع المخزون الفعلي' : 'Count stock and reconcile on-hand quantities'}
           </p>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          <button type="button" className="btn btn-secondary btn-sm" disabled={!dirty} onClick={discardLocal}>
-            {ar ? 'تجاهل' : 'Discard'}
-          </button>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {dirty && (
+            <>
+              <button type="button" className={ghostActionClass} disabled={!dirty} onClick={discardLocal}>
+                {ar ? 'تجاهل' : 'Discard'}
+              </button>
+              <button
+                type="button"
+                className={secondaryBtnClass}
+                disabled={!dirty || setCount.isPending}
+                onClick={() => {
+                  Object.entries(edits).forEach(([id, countedQty]) => {
+                    if (countedQty === '' || countedQty == null) return
+                    const row = list.find((r) => String(r._id) === String(id))
+                    setCount.mutate({
+                      quantId: id,
+                      productId: row?.productId?._id || row?.productId,
+                      variantId: row?.variantId?._id || row?.variantId || undefined,
+                      countedQty,
+                    })
+                  })
+                }}
+              >
+                {ar ? 'حفظ' : 'Save'}
+              </button>
+            </>
+          )}
           <button
             type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={!dirty || setCount.isPending}
-            onClick={() => {
-              Object.entries(edits).forEach(([id, countedQty]) => {
-                if (countedQty === '' || countedQty == null) return
-                const row = list.find((r) => String(r._id) === String(id))
-                setCount.mutate({
-                  quantId: id,
-                  productId: row?.productId?._id || row?.productId,
-                  variantId: row?.variantId?._id || row?.variantId || undefined,
-                  countedQty,
-                })
-              })
-            }}
-          >
-            {ar ? 'حفظ' : 'Save'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
+            className={primaryBtnClass}
             disabled={!list.some((r) => r.isCountSet)}
             onClick={() => openApply(list.filter((r) => r.isCountSet).map((r) => r._id))}
           >
-            {ar ? 'تطبيق الكل' : 'Apply All'}
+            {ar ? 'تطبيق الكل' : 'Apply all'}
           </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={!list.some((r) => r.isCountSet || (edits[r._id] != null && edits[r._id] !== ''))}
-            onClick={() => {
-              const ids = list
-                .filter((r) => r.isCountSet || (edits[r._id] != null && edits[r._id] !== ''))
-                .map((r) => r._id)
-              requestClearLines(ids, { forceConfirm: ids.length > 5 })
-            }}
-          >
-            {ar ? 'مسح الكل' : 'Clear All'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={selected.size === 0}
-            title={selected.size === 0 ? (ar ? 'حدد أسطراً أولاً' : 'Select rows first') : undefined}
-            onClick={() => openApply([...selected])}
-          >
-            {ar ? `تطبيق المحدد (${selected.size})` : `Apply Selected (${selected.size})`}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={selected.size === 0 || clear.isPending}
-            title={selected.size === 0 ? (ar ? 'حدد أسطراً أولاً' : 'Select rows first') : undefined}
-            onClick={() => requestClearLines([...selected])}
-          >
-            {ar
-              ? (selected.size ? `مسح المحدد (${selected.size})` : 'مسح المحدد')
-              : (selected.size ? `Clear Selected (${selected.size})` : 'Clear Selected')}
-          </button>
-          <button
-            type="button"
-            className={`btn btn-sm ${blindMode ? 'btn-primary' : 'btn-secondary'}`}
-            aria-pressed={blindMode}
-            onClick={() => setBlindMode((v) => !v)}
-          >
-            {ar ? (blindMode ? 'عد أعمى: تشغيل' : 'عد أعمى') : (blindMode ? 'Blind: ON' : 'Blind count')}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={async () => {
-              try {
-                const res = await api.post('/stock/print', {
-                  layout: blindMode ? 'count_sheet_blind' : 'count_sheet_open',
-                  lang: ar ? 'ar' : 'en',
-                  filters: {
-                    warehouseId: warehouseId || undefined,
-                    locationId: locationId || undefined,
-                    filter: filter || undefined,
-                  },
-                }, { responseType: 'blob' })
-                const url = URL.createObjectURL(res.data)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = 'count-sheet.pdf'
-                a.click()
-                URL.revokeObjectURL(url)
-              } catch (e) {
-                toast.error(formatInvError(e, language))
-              }
-            }}
-          >
-            {ar ? 'طباعة' : 'Print'}
-          </button>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setRequestOpen(true)}>
-            {ar ? 'طلب جرد' : 'Request count'}
-          </button>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={exportAllFields}>
-            {ar ? 'تصدير' : 'Export'}
-          </button>
-          <InventoryIeButtons
-            model="physical_inventory"
-            ar={ar}
-            filters={{
-              warehouseId: warehouseId || undefined,
-              locationId: locationId || undefined,
-              filter: filter || undefined,
-            }}
-            onImported={() => {
-              setFilter('toApply')
-              invalidate()
-            }}
-          />
         </div>
       </div>
 
-      {/* Compact KPIs — frozen */}
-      <div className="grid shrink-0 grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5">
+      <div className={`${statGridClass} shrink-0`}>
         {[
-          { label: ar ? 'أسطر للعد' : 'Lines to count', value: totals.linesToCount ?? meta.total ?? 0 },
-          { label: ar ? 'تم العد' : 'Lines counted', value: totals.linesCounted ?? 0 },
-          { label: ar ? 'فرق +' : 'Positive Δ', value: totals.positiveDiff ?? '0', tone: 'text-emerald-700 dark:text-emerald-400' },
-          { label: ar ? 'فرق −' : 'Negative Δ', value: totals.negativeDiff ?? '0', tone: 'text-rose-700 dark:text-rose-400' },
+          { label: ar ? 'للعد' : 'To count', value: totals.linesToCount ?? meta.total ?? 0 },
+          { label: ar ? 'تم العد' : 'Counted', value: totals.linesCounted ?? 0 },
+          { label: ar ? 'فرق +' : 'Positive Δ', value: totals.positiveDiff ?? '0', tone: 'text-teal-700 dark:text-teal-300' },
+          { label: ar ? 'فرق −' : 'Negative Δ', value: totals.negativeDiff ?? '0', tone: 'text-red-600 dark:text-red-400' },
           { label: ar ? 'صافي القيمة' : 'Net value', value: totals.netValueImpact ?? '0' },
         ].map((kpi) => (
-          <div
-            key={kpi.label}
-            className="rounded-lg border border-slate-200/70 bg-slate-50/90 px-2.5 py-0.5 dark:border-dark-600 dark:bg-dark-900/50"
-          >
-            <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">{kpi.label}</div>
-            <div className={`text-sm font-semibold tabular-nums tracking-tight ${kpi.tone || 'text-slate-800 dark:text-slate-100'}`}>
-              {kpi.value}
-            </div>
+          <div key={kpi.label} className={statCardClass}>
+            <p className={statLabelClass}>{kpi.label}</p>
+            <p className={`${statValueClass} !text-xl ${kpi.tone || ''}`}>{kpi.value}</p>
           </div>
         ))}
       </div>
 
-      {/* Filter bar + quick entry — frozen */}
-      <div className="shrink-0 space-y-2 rounded-xl border border-slate-200/80 bg-white p-2.5 dark:border-dark-600 dark:bg-dark-800">
-        <div className="flex w-full flex-row flex-wrap items-center gap-4">
-          <select
-            className="select select-sm min-w-[10rem] flex-1"
-            value={warehouseId}
-            onChange={(e) => {
-              setWarehouseId(e.target.value)
-              setLocationId('')
-              setPage(1)
-            }}
-          >
-            <option value="">{ar ? 'كل المستودعات' : 'All warehouses'}</option>
-            {whList.map((w) => (
-              <option key={w._id} value={w._id}>{ar && w.nameAr ? w.nameAr : (w.nameEn || w.name)}</option>
-            ))}
-          </select>
-          <select
-            className="select select-sm min-w-[10rem] flex-1"
-            value={locationId}
-            onChange={(e) => {
-              setLocationId(e.target.value)
-              setPage(1)
-            }}
-          >
-            <option value="">{ar ? 'كل المواقع' : 'All locations'}</option>
-            {locList.map((loc) => (
-              <option key={loc._id} value={loc._id}>{loc.completePath || loc.name}</option>
-            ))}
-          </select>
-          <div className="ms-auto flex items-center gap-1.5 text-xs text-slate-500">
-            <span>{from}-{to} / {meta.total || 0}</span>
-            <button type="button" className="btn btn-sm btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>‹</button>
-            <button type="button" className="btn btn-sm btn-secondary" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>›</button>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-1.5">
+      <div className={`${filterBarClass} shrink-0 space-y-3 !p-4`}>
+        <div className="flex flex-wrap items-center gap-2">
           {chips.map((f) => (
             <button
               key={f.id || 'all'}
               type="button"
-              className={`btn btn-sm ${filter === f.id ? 'btn-primary' : 'btn-secondary'}`}
+              className={chipFilterClass(filter === f.id)}
               onClick={() => {
                 setFilter(f.id)
                 setPage(1)
@@ -846,37 +753,74 @@ export default function PhysicalInventory() {
               {ar ? f.ar : f.en}
             </button>
           ))}
-          <select
-            className="select select-sm"
-            value={groupBy}
-            onChange={(e) => setGroupBy(e.target.value)}
+          <span className="hidden sm:inline h-5 w-px bg-slate-200 dark:bg-dark-600" aria-hidden />
+          <button
+            type="button"
+            className={chipFilterClass(blindMode)}
+            aria-pressed={blindMode}
+            onClick={() => setBlindMode((v) => !v)}
           >
-            <option value="">{ar ? 'بدون تجميع' : 'No grouping'}</option>
-            <option value="location">{ar ? 'تجميع بالموقع' : 'By location'}</option>
-            <option value="product">{ar ? 'تجميع بالمنتج' : 'By product'}</option>
-            <option value="category">{ar ? 'تجميع بالفئة' : 'By category'}</option>
-          </select>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={() => setColOptsOpen((v) => !v)}>
-            {ar ? 'أعمدة' : 'Columns'}
+            {ar ? 'عد أعمى' : 'Blind count'}
           </button>
-          {selected.size > 0 && list.some((r) => selected.has(r._id) && r.varianceApprovalRequired && !r.varianceApprovedAt) && (
-            <button
-              type="button"
-              className="btn btn-sm btn-secondary"
-              disabled={approveVariance.isPending}
-              onClick={() => approveVariance.mutate([...selected])}
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <label className={fieldLabelClass}>{ar ? 'المستودع' : 'Warehouse'}</label>
+            <select
+              className={fieldControlClass}
+              value={warehouseId}
+              onChange={(e) => {
+                setWarehouseId(e.target.value)
+                setLocationId('')
+                setPage(1)
+              }}
             >
-              {ar ? 'اعتماد فروقات' : 'Approve variance'}
+              <option value="">{ar ? 'كل المستودعات' : 'All warehouses'}</option>
+              {whList.map((w) => (
+                <option key={w._id} value={w._id}>{ar && w.nameAr ? w.nameAr : (w.nameEn || w.name)}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={fieldLabelClass}>{ar ? 'الموقع' : 'Location'}</label>
+            <select
+              className={fieldControlClass}
+              value={locationId}
+              onChange={(e) => {
+                setLocationId(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">{ar ? 'كل المواقع' : 'All locations'}</option>
+              {locList.map((loc) => (
+                <option key={loc._id} value={loc._id}>{loc.completePath || loc.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={fieldLabelClass}>{ar ? 'تجميع' : 'Group by'}</label>
+            <select className={fieldControlClass} value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
+              <option value="">{ar ? 'بدون' : 'None'}</option>
+              <option value="location">{ar ? 'الموقع' : 'Location'}</option>
+              <option value="product">{ar ? 'المنتج' : 'Product'}</option>
+              <option value="category">{ar ? 'الفئة' : 'Category'}</option>
+            </select>
+          </div>
+          <div className="flex items-end">
+            <button type="button" className={`${ghostActionClass} w-full justify-center`} onClick={() => setColOptsOpen((v) => !v)}>
+              {ar ? 'الأعمدة' : 'Columns'}
             </button>
-          )}
+          </div>
         </div>
 
         {colOptsOpen && (
-          <div className="flex flex-wrap gap-3 rounded-lg border border-slate-100 bg-slate-50/80 px-2 py-1.5 text-xs dark:border-dark-600 dark:bg-dark-900/40">
+          <div className="flex flex-wrap gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2 text-xs dark:border-dark-600 dark:bg-dark-900/40">
             {Object.entries(visibleCols).map(([k, on]) => (
-              <label key={k} className="flex items-center gap-1.5">
+              <label key={k} className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
                 <input
                   type="checkbox"
+                  className="rounded border-slate-300"
                   checked={on}
                   disabled={(k === 'onHand' || k === 'diff') && blindMode}
                   onChange={(e) => setVisibleCols((c) => ({ ...c, [k]: e.target.checked }))}
@@ -887,46 +831,150 @@ export default function PhysicalInventory() {
           </div>
         )}
 
-        {/* Scanner (action) + table filter (display) */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <form
-            className="relative flex min-w-0 flex-1 items-center"
+            className="relative min-w-0 flex-1"
             onSubmit={(e) => {
               e.preventDefault()
               scanBarcode(quickTerm)
             }}
           >
-            <ScanBarcode className="pointer-events-none absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <ScanBarcode className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               ref={quickRef}
-              className="input input-sm w-full ps-9"
+              className={`${fieldControlClass} ps-10`}
               value={quickTerm}
               onChange={(e) => setQuickTerm(e.target.value)}
-              placeholder={ar ? 'امسح الباركود أو SKU واضغط Enter…' : 'Scan barcode or SKU, press Enter…'}
+              placeholder={ar ? 'امسح الباركود أو SKU…' : 'Scan barcode or SKU…'}
               autoComplete="off"
               autoFocus
             />
           </form>
           <div className="relative min-w-0 flex-1 sm:max-w-xs">
-            <Search className="pointer-events-none absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
-              className="input input-sm w-full ps-9"
+              className={`${fieldControlClass} ps-10`}
               value={tableFilter}
               onChange={(e) => setTableFilter(e.target.value)}
-              placeholder={ar ? 'تصفية الجدول (اسم، SKU، موقع)…' : 'Filter table (name, SKU, location)…'}
+              placeholder={ar ? 'تصفية الجدول…' : 'Filter table…'}
             />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-dark-700">
+          <div className="flex flex-wrap gap-2">
+            {selected.size > 0 && (
+              <>
+                <button
+                  type="button"
+                  className={secondaryBtnClass}
+                  disabled={selected.size === 0}
+                  onClick={() => openApply([...selected])}
+                >
+                  {ar ? `تطبيق (${selected.size})` : `Apply (${selected.size})`}
+                </button>
+                <button
+                  type="button"
+                  className={ghostActionClass}
+                  disabled={selected.size === 0 || clear.isPending}
+                  onClick={() => requestClearLines([...selected])}
+                >
+                  {ar ? `مسح (${selected.size})` : `Clear (${selected.size})`}
+                </button>
+                {list.some((r) => selected.has(r._id) && r.varianceApprovalRequired && !r.varianceApprovedAt) && (
+                  <button
+                    type="button"
+                    className={ghostActionClass}
+                    disabled={approveVariance.isPending}
+                    onClick={() => approveVariance.mutate([...selected])}
+                  >
+                    {ar ? 'اعتماد الفروقات' : 'Approve variance'}
+                  </button>
+                )}
+              </>
+            )}
+            <button
+              type="button"
+              className={ghostActionClass}
+              disabled={!list.some((r) => r.isCountSet || (edits[r._id] != null && edits[r._id] !== ''))}
+              onClick={() => {
+                const ids = list
+                  .filter((r) => r.isCountSet || (edits[r._id] != null && edits[r._id] !== ''))
+                  .map((r) => r._id)
+                requestClearLines(ids, { forceConfirm: ids.length > 5 })
+              }}
+            >
+              {ar ? 'مسح الكل' : 'Clear all'}
+            </button>
+            <button type="button" className={ghostActionClass} onClick={() => setRequestOpen(true)}>
+              {ar ? 'طلب جرد' : 'Request count'}
+            </button>
+            <button
+              type="button"
+              className={ghostActionClass}
+              onClick={async () => {
+                try {
+                  const res = await api.post('/stock/print', {
+                    layout: blindMode ? 'count_sheet_blind' : 'count_sheet_open',
+                    lang: ar ? 'ar' : 'en',
+                    filters: {
+                      warehouseId: warehouseId || undefined,
+                      locationId: locationId || undefined,
+                      filter: filter || undefined,
+                    },
+                  }, { responseType: 'blob' })
+                  const url = URL.createObjectURL(res.data)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = 'count-sheet.pdf'
+                  a.click()
+                  URL.revokeObjectURL(url)
+                } catch (e) {
+                  toast.error(formatInvError(e, language))
+                }
+              }}
+            >
+              {ar ? 'طباعة' : 'Print'}
+            </button>
+            <button type="button" className={ghostActionClass} onClick={exportAllFields}>
+              {ar ? 'تصدير' : 'Export'}
+            </button>
+            <InventoryIeButtons
+              model="physical_inventory"
+              ar={ar}
+              filters={{
+                warehouseId: warehouseId || undefined,
+                locationId: locationId || undefined,
+                filter: filter || undefined,
+              }}
+              onImported={() => {
+                setFilter('toApply')
+                invalidate()
+              }}
+            />
+          </div>
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <span>{from}–{to} / {meta.total || 0}</span>
+            <button type="button" className={ghostActionClass} disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>‹</button>
+            <button type="button" className={ghostActionClass} disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>›</button>
           </div>
         </div>
       </div>
 
-      {/* Scrollable table only */}
-      <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-        <table className="w-full min-w-[960px] text-sm">
-          <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50 text-xs uppercase text-slate-500 dark:border-dark-600 dark:bg-dark-900">
+      {selected.size > 0 && (
+        <div className={`${softChipClass} shrink-0 w-fit`}>
+          {ar ? `${selected.size} محدد` : `${selected.size} selected`}
+        </div>
+      )}
+
+      <div className={`${listShellClass} min-h-0 flex-1 overflow-auto`}>
+        <table className={`${salesTableClass} min-w-[960px]`}>
+          <thead className="sticky top-0 z-10">
             <tr>
-              <th className="w-10 px-3 py-2.5 text-start">
+              <th className={`${salesThClass} w-10`}>
                 <input
                   type="checkbox"
+                  className="rounded border-slate-300"
                   checked={allFilteredSelected}
                   ref={(el) => {
                     if (el) el.indeterminate = !allFilteredSelected && someFilteredSelected
@@ -936,50 +984,46 @@ export default function PhysicalInventory() {
                   disabled={selectableIds.length === 0}
                 />
               </th>
-              <th className="min-w-[140px] px-3 py-2.5 text-start">{ar ? 'الموقع' : 'Location'}</th>
-              <th className="min-w-[200px] px-3 py-2.5 text-start">{ar ? 'المنتج / المتغير' : 'Product / Variant'}</th>
-              {visibleCols.lot && <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'دفعة' : 'Lot/Serial'}</th>}
-              {visibleCols.package && <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'عبوة' : 'Package'}</th>}
-              {showOnHand && <th className="min-w-[90px] px-3 py-2.5 text-start">{ar ? 'المتاح' : 'On Hand'}</th>}
-              {visibleCols.uom && <th className="min-w-[70px] px-3 py-2.5 text-start">{ar ? 'وحدة' : 'UoM'}</th>}
-              <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'العد' : 'Counted'}</th>
-              {showDiff && <th className="min-w-[90px] px-3 py-2.5 text-start">{ar ? 'الفرق' : 'Diff'}</th>}
-              {visibleCols.scheduled && <th className="min-w-[110px] px-3 py-2.5 text-start">{ar ? 'مجدول' : 'Scheduled'}</th>}
-              {visibleCols.user && <th className="min-w-[110px] px-3 py-2.5 text-start">{ar ? 'المستخدم' : 'User'}</th>}
-              {visibleCols.lastCount && <th className="min-w-[100px] px-3 py-2.5 text-start">{ar ? 'آخر جرد' : 'Last count'}</th>}
-              <th className="min-w-[110px] px-3 py-2.5 text-start">{ar ? 'إجراءات' : 'Actions'}</th>
+              <th className={salesThClass}>{ar ? 'الموقع' : 'Location'}</th>
+              <th className={salesThClass}>{ar ? 'المنتج' : 'Product / Variant'}</th>
+              {visibleCols.lot && <th className={salesThClass}>{ar ? 'دفعة' : 'Lot'}</th>}
+              {visibleCols.package && <th className={salesThClass}>{ar ? 'عبوة' : 'Package'}</th>}
+              {showOnHand && <th className={salesThClass}>{ar ? 'المتاح' : 'On hand'}</th>}
+              {visibleCols.uom && <th className={salesThClass}>{ar ? 'وحدة' : 'UoM'}</th>}
+              <th className={salesThClass}>{ar ? 'العد' : 'Counted'}</th>
+              {showDiff && <th className={salesThClass}>{ar ? 'الفرق' : 'Diff'}</th>}
+              {visibleCols.scheduled && <th className={salesThClass}>{ar ? 'مجدول' : 'Scheduled'}</th>}
+              {visibleCols.user && <th className={salesThClass}>{ar ? 'المستخدم' : 'User'}</th>}
+              {visibleCols.lastCount && <th className={salesThClass}>{ar ? 'آخر جرد' : 'Last count'}</th>}
+              <th className={salesThClass}>{ar ? 'إجراءات' : 'Actions'}</th>
             </tr>
           </thead>
           <tbody>
             {isLoading && (
-              <tr><td colSpan={14} className="px-4 py-8 text-center text-slate-400">…</td></tr>
+              <tr><td colSpan={14} className={emptyStateClass}>…</td></tr>
             )}
             {!isLoading && list.length === 0 && (
               <tr>
                 <td colSpan={14} className="p-8">
                   <EmptyState
                     title={ar ? 'لا أسطر جرد' : 'No count lines'}
-                    description={
-                      ar
-                        ? 'امسح باركوداً أو استخدم «طلب جرد».'
-                        : 'Scan a barcode or use Request count.'
-                    }
+                    description={ar ? 'امسح باركوداً أو استخدم «طلب جرد».' : 'Scan a barcode or use Request count.'}
                   />
                 </td>
               </tr>
             )}
             {!isLoading && list.length > 0 && filteredList.length === 0 && (
               <tr>
-                <td colSpan={14} className="px-4 py-8 text-center text-sm text-slate-500">
-                  {ar ? 'لا نتائج تطابق التصفية' : 'No rows match the table filter'}
+                <td colSpan={14} className={emptyStateClass}>
+                  {ar ? 'لا نتائج تطابق التصفية' : 'No rows match the filter'}
                 </td>
               </tr>
             )}
             {groupedList.map((group) => (
               <Fragment key={group.key || 'all'}>
                 {group.label && (
-                  <tr className="bg-slate-100/80 dark:bg-dark-900/60">
-                    <td colSpan={14} className="px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                  <tr className="bg-slate-50/90 dark:bg-dark-900/60">
+                    <td colSpan={14} className="px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
                       {group.label}
                       <span className="ms-2 font-normal text-slate-400">
                         ({group.rows.length})
@@ -997,43 +1041,48 @@ export default function PhysicalInventory() {
                   const lid = row.locationId?._id || row.locationId
                   const vid = row.variantId?._id || row.variantId
                   const pname = productLabel(row, ar)
+                  const variantOnly = row.variantId?.name || row.variantId?.nameAr
                   return (
                     <tr
                       key={row._id}
-                      className={`border-b border-slate-50 dark:border-dark-700 ${row.isStale ? 'bg-amber-50/80 dark:bg-amber-950/20' : ''} ${row.varianceApprovalRequired && !row.varianceApprovedAt ? 'ring-1 ring-inset ring-amber-300' : ''}`}
+                      className={`${salesTrClass} ${row.isStale ? 'bg-amber-50/60 dark:bg-amber-950/15' : ''} ${row.varianceApprovalRequired && !row.varianceApprovedAt ? 'ring-1 ring-inset ring-amber-200 dark:ring-amber-800' : ''}`}
                     >
-                      <td className="px-3 py-1.5">
+                      <td className={salesTdClass}>
                         <input
                           type="checkbox"
+                          className="rounded border-slate-300"
                           checked={selected.has(row._id)}
                           disabled={!row.isCountSet || row.isStale}
                           onChange={() => toggle(row._id)}
                         />
                       </td>
-                      <td className="px-3 py-1.5 text-xs text-slate-500">{row.locationId?.completePath || row.locationId?.name}</td>
-                      <td className="px-3 py-1.5">
+                      <td className={`${salesTdClass} text-xs text-slate-500`}>{row.locationId?.completePath || row.locationId?.name}</td>
+                      <td className={salesTdClass}>
                         <div className="font-medium text-slate-900 dark:text-white">
                           {pid ? (
-                            <Link className="text-primary-700 hover:underline dark:text-primary-300" to={`/app/dashboard/inventory/products/${pid}`}>
+                            <Link className="hover:text-teal-700 dark:hover:text-teal-300" to={`/app/dashboard/inventory/products/${pid}`}>
                               {pname}
                             </Link>
                           ) : pname}
                         </div>
-                        <div className="text-[11px] text-slate-400">{rowSku(row)}</div>
+                        {variantOnly && !pname.includes('—') && (
+                          <p className={variantPillClass}>{variantOnly}</p>
+                        )}
+                        <p className={`mt-0.5 ${monoCellClass}`}>{rowSku(row)}</p>
                         {row.isStale && (
-                          <div className="text-[11px] font-medium text-amber-700">{ar ? 'رصيد تغيّر — أعد العد' : 'Stale — recount required'}</div>
+                          <p className="mt-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">{ar ? 'رصيد تغيّر — أعد العد' : 'Stale — recount'}</p>
                         )}
                         {row.varianceApprovalRequired && !row.varianceApprovedAt && (
-                          <div className="text-[11px] font-medium text-amber-800">{ar ? 'يحتاج اعتماد فرق' : 'Needs variance approval'}</div>
+                          <p className="mt-0.5 text-[11px] font-medium text-amber-800 dark:text-amber-300">{ar ? 'يحتاج اعتماد' : 'Needs approval'}</p>
                         )}
                       </td>
-                      {visibleCols.lot && <td className="px-3 py-1.5 tabular-nums">{row.lotId?.name || '—'}</td>}
-                      {visibleCols.package && <td className="px-3 py-1.5">{row.packageId?.name || '—'}</td>}
-                      {showOnHand && <td className="px-3 py-1.5 tabular-nums">{row.quantity}</td>}
-                      {visibleCols.uom && <td className="px-3 py-1.5 text-xs text-slate-500">{row.uom || row.productId?.unitOfMeasure || 'PCE'}</td>}
-                      <td className="px-3 py-1.5">
+                      {visibleCols.lot && <td className={`${salesTdClass} ${monoCellClass}`}>{row.lotId?.name || '—'}</td>}
+                      {visibleCols.package && <td className={salesTdClass}>{row.packageId?.name || '—'}</td>}
+                      {showOnHand && <td className={`${salesTdClass} ${monoCellClass}`}>{row.quantity}</td>}
+                      {visibleCols.uom && <td className={`${salesTdClass} text-xs text-slate-500`}>{row.uom || row.productId?.unitOfMeasure || 'PCE'}</td>}
+                      <td className={salesTdClass}>
                         <input
-                          className="input input-sm w-24"
+                          className={`${compactFieldClass} w-24`}
                           value={counted}
                           onChange={(e) => {
                             setEdits((m) => ({ ...m, [row._id]: e.target.value }))
@@ -1049,24 +1098,24 @@ export default function PhysicalInventory() {
                         />
                       </td>
                       {showDiff && (
-                        <td className={`px-3 py-1.5 tabular-nums font-medium ${diffColor(liveDiff)}`}>
+                        <td className={`${salesTdClass} font-semibold tabular-nums ${diffColor(liveDiff)}`}>
                           {liveDiff}
                         </td>
                       )}
                       {visibleCols.scheduled && (
-                        <td className="px-3 py-1.5">
+                        <td className={salesTdClass}>
                           <input
                             type="date"
-                            className="input input-sm w-[9.5rem] text-xs"
+                            className={`${compactFieldClass} w-[9.5rem]`}
                             value={fmtDate(row.countScheduledDate)}
                             onChange={(e) => persistRow(row, { countScheduledDate: e.target.value || null })}
                           />
                         </td>
                       )}
                       {visibleCols.user && (
-                        <td className="px-3 py-1.5">
+                        <td className={salesTdClass}>
                           <select
-                            className="select select-sm max-w-[9rem] text-xs"
+                            className={`${compactFieldClass} max-w-[9rem]`}
                             value={row.countUserId?._id || row.countUserId || ''}
                             onChange={(e) => persistRow(row, { countUserId: e.target.value || null })}
                           >
@@ -1077,26 +1126,26 @@ export default function PhysicalInventory() {
                           </select>
                         </td>
                       )}
-                      {visibleCols.lastCount && <td className="px-3 py-1.5 text-xs text-slate-500">{fmtDate(row.lastCountDate) || '—'}</td>}
-                      <td className="px-3 py-1.5">
-                        <div className="flex flex-wrap items-center gap-1">
+                      {visibleCols.lastCount && <td className={`${salesTdClass} text-xs text-slate-500`}>{fmtDate(row.lastCountDate) || '—'}</td>}
+                      <td className={salesTdClass}>
+                        <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
-                            className="text-xs text-primary-600 hover:underline"
+                            className="text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                             onClick={() => setHistoryOpen({ productId: pid, locationId: lid, variantId: vid || undefined, label: pname })}
                           >
                             {ar ? 'سجل' : 'History'}
                           </button>
                           {row.isCountSet && (
-                            <button type="button" className="text-xs text-emerald-600 hover:underline" onClick={() => openApply([row._id])}>
+                            <button type="button" className="text-xs font-semibold text-teal-700 hover:text-teal-800 dark:text-teal-300" onClick={() => openApply([row._id])}>
                               {ar ? 'تطبيق' : 'Apply'}
                             </button>
                           )}
                           {(row.isCountSet || (edits[row._id] != null && edits[row._id] !== '')) && (
                             <button
                               type="button"
-                              className="inline-flex items-center gap-0.5 text-xs text-rose-500 hover:underline"
-                              title={ar ? 'مسح العد (لا يصفر المخزون)' : 'Clear count (does not zero stock)'}
+                              className="inline-flex items-center gap-0.5 text-xs font-semibold text-red-600 hover:text-red-700 dark:text-red-400"
+                              title={ar ? 'مسح العد' : 'Clear count'}
                               onClick={() => requestClearLines([row._id])}
                             >
                               <X className="h-3 w-3" />
@@ -1116,61 +1165,69 @@ export default function PhysicalInventory() {
 
       {/* Clear counted confirm */}
       {clearConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-dark-800">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-              {ar ? 'مسح الكميات المعدودة؟' : 'Clear Counted Quantities?'}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
+          <div className={`${sectionCardClass} w-full max-w-md`}>
+            <p className={sectionEyebrowClass}>{ar ? 'تأكيد' : 'Confirm'}</p>
+            <h3 className="mt-1 text-lg font-semibold text-slate-950 dark:text-white">
+              {ar ? 'مسح الكميات المعدودة؟' : 'Clear counted quantities?'}
             </h3>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
               {ar
-                ? `هل أنت متأكد من مسح الكميات المعدودة لـ ${clearConfirm.count} سطر محدد؟ هذا الإجراء لا يمكن التراجع عنه. لن يُصفَّر المخزون الفعلي.`
-                : `Are you sure you want to clear the counted quantities for ${clearConfirm.count} selected lines? This action cannot be undone. Physical stock is not zeroed.`}
+                ? `${clearConfirm.count} سطر — لن يُصفَّر المخزون الفعلي.`
+                : `${clearConfirm.count} line(s) — physical stock is not zeroed.`}
             </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setClearConfirm(null)}>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" className={ghostActionClass} onClick={() => setClearConfirm(null)}>
                 {ar ? 'إلغاء' : 'Cancel'}
               </button>
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                disabled={clear.isPending}
-                onClick={confirmClearLines}
-              >
-                {ar ? 'مسح الأسطر' : 'Clear Lines'}
+              <button type="button" className={dangerActionClass} disabled={clear.isPending} onClick={confirmClearLines}>
+                {ar ? 'مسح' : 'Clear'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Apply confirm */}
       {applyOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-dark-800">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
+          <div className={`${sectionCardClass} w-full max-w-md`}>
+            <p className={sectionEyebrowClass}>{ar ? 'تطبيق' : 'Apply'}</p>
+            <h3 className="mt-1 text-lg font-semibold text-slate-950 dark:text-white">
               {ar ? 'تأكيد التطبيق' : 'Confirm apply'}
             </h3>
-            <dl className="mt-3 space-y-1 text-sm text-slate-600 dark:text-slate-300">
-              <div className="flex justify-between"><dt>{ar ? 'الأسطر' : 'Lines'}</dt><dd className="tabular-nums">{applyPreview?.lines ?? applyIds.length}</dd></div>
-              <div className="flex justify-between"><dt>{ar ? 'فرق موجب' : 'Positive diff'}</dt><dd className="tabular-nums text-emerald-600">{applyPreview?.positiveDiff}</dd></div>
-              <div className="flex justify-between"><dt>{ar ? 'فرق سالب' : 'Negative diff'}</dt><dd className="tabular-nums text-rose-600">{applyPreview?.negativeDiff}</dd></div>
-              <div className="flex justify-between"><dt>{ar ? 'أثر التقييم' : 'Valuation impact'}</dt><dd className="tabular-nums">{applyPreview?.valuationImpact}</dd></div>
+            <dl className="mt-4 space-y-2 text-sm">
+              <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                <dt>{ar ? 'الأسطر' : 'Lines'}</dt>
+                <dd className="font-semibold tabular-nums text-slate-900 dark:text-white">{applyPreview?.lines ?? applyIds.length}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-slate-600 dark:text-slate-300">{ar ? 'فرق +' : 'Positive'}</dt>
+                <dd className="font-semibold tabular-nums text-teal-700 dark:text-teal-300">{applyPreview?.positiveDiff}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-slate-600 dark:text-slate-300">{ar ? 'فرق −' : 'Negative'}</dt>
+                <dd className="font-semibold tabular-nums text-red-600 dark:text-red-400">{applyPreview?.negativeDiff}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-slate-600 dark:text-slate-300">{ar ? 'أثر التقييم' : 'Valuation'}</dt>
+                <dd className="font-semibold tabular-nums text-slate-900 dark:text-white">{applyPreview?.valuationImpact}</dd>
+              </div>
             </dl>
-            <label className="mt-4 block text-xs font-medium text-slate-500">{ar ? 'تاريخ المحاسبة' : 'Accounting date'}</label>
-            <input type="date" className="input mt-1 w-full" value={accountingDate} onChange={(e) => setAccountingDate(e.target.value)} />
-            <label className="mt-3 block text-xs font-medium text-slate-500">{ar ? 'سبب الفرق *' : 'Reason code *'}</label>
-            <select className="select mt-1 w-full" value={reasonCode} onChange={(e) => setReasonCode(e.target.value)}>
+            <label className={`${fieldLabelClass} mt-4`}>{ar ? 'تاريخ المحاسبة' : 'Accounting date'}</label>
+            <input type="date" className={fieldControlClass} value={accountingDate} onChange={(e) => setAccountingDate(e.target.value)} />
+            <label className={`${fieldLabelClass} mt-3`}>{ar ? 'سبب الفرق' : 'Reason code'}</label>
+            <select className={fieldControlClass} value={reasonCode} onChange={(e) => setReasonCode(e.target.value)}>
               {REASON_CODES.map((c) => (
                 <option key={c.code} value={c.code}>{ar ? c.ar : c.en}</option>
               ))}
             </select>
-            <label className="mt-3 block text-xs font-medium text-slate-500">{ar ? 'ملاحظة' : 'Note'}</label>
-            <input className="input mt-1 w-full" value={reason} onChange={(e) => setReason(e.target.value)} />
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="btn btn-secondary" onClick={() => setApplyOpen(false)}>{ar ? 'إلغاء' : 'Cancel'}</button>
+            <label className={`${fieldLabelClass} mt-3`}>{ar ? 'ملاحظة' : 'Note'}</label>
+            <input className={fieldControlClass} value={reason} onChange={(e) => setReason(e.target.value)} />
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" className={ghostActionClass} onClick={() => setApplyOpen(false)}>{ar ? 'إلغاء' : 'Cancel'}</button>
               <button
                 type="button"
-                className="btn btn-primary"
+                className={primaryBtnClass}
                 disabled={apply.isPending || !reasonCode}
                 onClick={() => apply.mutate({ ids: applyIds, accountingDate, reason, reasonCode })}
               >
@@ -1182,16 +1239,17 @@ export default function PhysicalInventory() {
       )}
 
       {requestOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl dark:bg-dark-800">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-              {ar ? 'طلب جرد' : 'Request a Count'}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
+          <div className={`${sectionCardClass} w-full max-w-lg`}>
+            <p className={sectionEyebrowClass}>{ar ? 'جدولة' : 'Schedule'}</p>
+            <h3 className="mt-1 text-lg font-semibold text-slate-950 dark:text-white">
+              {ar ? 'طلب جرد' : 'Request a count'}
             </h3>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="label text-xs">{ar ? 'المستودع' : 'Warehouse'}</label>
+                <label className={fieldLabelClass}>{ar ? 'المستودع' : 'Warehouse'}</label>
                 <select
-                  className="select w-full"
+                  className={fieldControlClass}
                   value={reqWh}
                   onChange={(e) => {
                     setReqWh(e.target.value)
@@ -1205,17 +1263,17 @@ export default function PhysicalInventory() {
                 </select>
               </div>
               <div>
-                <label className="label text-xs">{ar ? 'الموقع' : 'Location'}</label>
-                <select className="select w-full" value={reqLoc} onChange={(e) => setReqLoc(e.target.value)}>
-                  <option value="">{ar ? 'كل المواقع الداخلية' : 'All internal locations'}</option>
+                <label className={fieldLabelClass}>{ar ? 'الموقع' : 'Location'}</label>
+                <select className={fieldControlClass} value={reqLoc} onChange={(e) => setReqLoc(e.target.value)}>
+                  <option value="">{ar ? 'كل المواقع' : 'All internal'}</option>
                   {reqLocList.map((loc) => (
                     <option key={loc._id} value={loc._id}>{loc.completePath || loc.name}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="label text-xs">{ar ? 'فئة المنتج' : 'Product category'}</label>
-                <select className="select w-full" value={reqCat} onChange={(e) => setReqCat(e.target.value)}>
+                <label className={fieldLabelClass}>{ar ? 'الفئة' : 'Category'}</label>
+                <select className={fieldControlClass} value={reqCat} onChange={(e) => setReqCat(e.target.value)}>
                   <option value="">—</option>
                   {catList.map((c) => (
                     <option key={c._id} value={c._id}>{c.completePath || c.name}</option>
@@ -1223,8 +1281,8 @@ export default function PhysicalInventory() {
                 </select>
               </div>
               <div>
-                <label className="label text-xs">{ar ? 'المستخدم' : 'User'}</label>
-                <select className="select w-full" value={reqUser} onChange={(e) => setReqUser(e.target.value)}>
+                <label className={fieldLabelClass}>{ar ? 'المستخدم' : 'User'}</label>
+                <select className={fieldControlClass} value={reqUser} onChange={(e) => setReqUser(e.target.value)}>
                   <option value="">—</option>
                   {users.map((u) => (
                     <option key={u._id} value={u._id}>{u.name || u.email}</option>
@@ -1232,21 +1290,21 @@ export default function PhysicalInventory() {
                 </select>
               </div>
               <div>
-                <label className="label text-xs">{ar ? 'تاريخ الجدولة' : 'Scheduled date'}</label>
-                <input type="date" className="input w-full" value={reqDate} onChange={(e) => setReqDate(e.target.value)} />
+                <label className={fieldLabelClass}>{ar ? 'التاريخ' : 'Scheduled date'}</label>
+                <input type="date" className={fieldControlClass} value={reqDate} onChange={(e) => setReqDate(e.target.value)} />
               </div>
-              <div className="flex items-end pb-2">
+              <div className="flex items-end pb-1">
                 <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                  <input type="checkbox" checked={reqZero} onChange={(e) => setReqZero(e.target.checked)} />
-                  {ar ? 'أسطر كمية صفر' : 'Include zero-qty lines'}
+                  <input type="checkbox" className="rounded border-slate-300" checked={reqZero} onChange={(e) => setReqZero(e.target.checked)} />
+                  {ar ? 'أسطر صفر' : 'Zero-qty lines'}
                 </label>
               </div>
             </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="btn btn-secondary" onClick={() => setRequestOpen(false)}>{ar ? 'إلغاء' : 'Cancel'}</button>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" className={ghostActionClass} onClick={() => setRequestOpen(false)}>{ar ? 'إلغاء' : 'Cancel'}</button>
               <button
                 type="button"
-                className="btn btn-primary"
+                className={primaryBtnClass}
                 disabled={(!reqWh && !reqLoc) || requestCountMut.isPending}
                 onClick={() =>
                   requestCountMut.mutate({
@@ -1267,33 +1325,32 @@ export default function PhysicalInventory() {
       )}
 
       {historyOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-dark-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
+          <div className={`${sectionCardClass} max-h-[80vh] w-full max-w-2xl overflow-auto`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-                  {ar ? 'سجل التسوية' : 'Adjustment history'}
+                <p className={sectionEyebrowClass}>{ar ? 'سجل' : 'History'}</p>
+                <h3 className="mt-1 text-lg font-semibold text-slate-950 dark:text-white">
+                  {ar ? 'تسويات الجرد' : 'Adjustment history'}
                 </h3>
                 <p className="text-sm text-slate-500">{historyOpen.label}</p>
               </div>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setHistoryOpen(null)}>
+              <button type="button" className={ghostActionClass} onClick={() => setHistoryOpen(null)}>
                 {ar ? 'إغلاق' : 'Close'}
               </button>
             </div>
             {historyLoading && <p className="mt-4 text-sm text-slate-400">…</p>}
             {!historyLoading && !(historyPayload || []).length && (
-              <p className="mt-4 text-sm text-slate-400">{ar ? 'لا حركات بعد' : 'No adjustment moves yet'}</p>
+              <p className="mt-4 text-sm text-slate-400">{ar ? 'لا حركات بعد' : 'No moves yet'}</p>
             )}
             <ul className="mt-4 space-y-2">
               {(historyPayload || []).map((line) => (
                 <li key={line._id} className="rounded-xl border border-slate-100 px-3 py-2 text-sm dark:border-dark-600">
                   <div className="flex justify-between gap-2">
-                    <span className="font-medium">{line.reference || line.moveId?.reference || '—'}</span>
-                    <span className="tabular-nums">{line.quantity}</span>
+                    <span className="font-medium text-slate-900 dark:text-white">{line.reference || line.moveId?.reference || '—'}</span>
+                    <span className={`${monoCellClass} font-semibold`}>{line.quantity}</span>
                   </div>
-                  <div className="text-xs text-slate-400">
-                    {fmtDate(line.moveId?.date || line.createdAt)}
-                  </div>
+                  <div className="text-xs text-slate-400">{fmtDate(line.moveId?.date || line.createdAt)}</div>
                 </li>
               ))}
             </ul>
