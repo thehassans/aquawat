@@ -192,7 +192,6 @@ services:
       AUTH_RATE_LIMIT_MAX: "40"
       PUBLIC_RATE_LIMIT_MAX: "1000"
       CLUSTER_WORKERS: "2"
-      CRON_WORKER: "0"
       ALLOW_LOCAL_UPLOADS: "true"
       REQUIRE_OBJECT_STORAGE: "false"
       API_MAX_PAGE_LIMIT: "100"
@@ -282,52 +281,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  cron-worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: maqder_cron_worker
-    restart: unless-stopped
-    command: ["node", "workers/cronWorker.js"]
-    env_file:
-      - .env
-    environment:
-      MONGODB_URI: mongodb://mongo:27017/maqder?replicaSet=rs0
-      REDIS_URL: redis://redis:6379
-      REDIS_ENABLED: "true"
-      NODE_ENV: production
-      CRON_WORKER: "1"
-      ALLOW_LOCAL_UPLOADS: "true"
-      REQUIRE_OBJECT_STORAGE: "false"
-      MONGODB_MAX_POOL_SIZE: "5"
-      CRON_WORKER_HEALTH_PORT: "3002"
-    depends_on:
-      mongo:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - maqder_net
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3002/ || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 45s
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.05'
-          memory: 128M
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
   frontend:
     build:
       context: ./frontend
@@ -336,7 +289,7 @@ services:
     restart: unless-stopped
     depends_on:
       backend:
-        condition: service_healthy     # Wait for backend healthcheck to pass
+        condition: service_started
     networks:
       - maqder_net
     # Public 8080 is held by `edge` so visitors see the updating page

@@ -18,28 +18,52 @@ fi
 
 if [ -n "$COMPOSE" ]; then
   echo "Deploying with $COMPOSE..."
-  # Keep the public edge proxy up so visitors see the updating page
-  # instead of Nginx 502 while images rebuild (do not compose down).
   ERROR_DOCS="/var/www/vhosts/maqder.com/error_docs"
   if [ -d "$ERROR_DOCS" ] && [ -f "$DEPLOY_PATH/frontend/public/updating.html" ]; then
     cp -f "$DEPLOY_PATH/frontend/public/updating.html" "$ERROR_DOCS/502.html" || true
     cp -f "$DEPLOY_PATH/frontend/public/updating.html" "$ERROR_DOCS/503.html" || true
     cp -f "$DEPLOY_PATH/frontend/public/updating.html" "$ERROR_DOCS/504.html" || true
   fi
-  # Keep the current frontend up until the new image builds. Taking it down
-  # first leaves visitors on the holding page if npm run build fails.
-  $COMPOSE up -d edge || true
-  if ! $COMPOSE up -d --build --remove-orphans; then
-    echo "=== docker compose up failed — recent logs ==="
+
+  # Drop deprecated cron-worker container from earlier compose files.
+  docker rm -f maqder_cron_worker 2>/dev/null || true
+
+  echo "Starting edge + data services..."
+  $COMPOSE up -d edge mongo redis mongo-backup || true
+
+  echo "Building backend images..."
+  $COMPOSE build backend pdf-worker
+
+  echo "Building frontend image..."
+  $COMPOSE build frontend
+
+  echo "Starting backend workers..."
+  $COMPOSE up -d --remove-orphans backend pdf-worker
+
+  echo "Waiting for backend readiness (up to 3 minutes)..."
+  ready=0
+  for _ in $(seq 1 36); do
+    if $COMPOSE exec -T backend wget -qO- http://127.0.0.1:3000/api/health/ready 2>/dev/null | grep -q '"status"'; then
+      ready=1
+      break
+    fi
+    sleep 5
+  done
+
+  if [ "$ready" -ne 1 ]; then
+    echo "=== backend not ready — recent logs ==="
     $COMPOSE ps -a || true
-    $COMPOSE logs --tail=100 backend frontend mongo redis cron-worker 2>/dev/null || $COMPOSE logs --tail=100
+    $COMPOSE logs --tail=120 backend mongo redis pdf-worker 2>/dev/null || $COMPOSE logs --tail=120
     exit 1
   fi
+
+  echo "Starting frontend..."
+  $COMPOSE up -d frontend
+
   echo "Running containers:"
   $COMPOSE ps
 fi
 
-# Always trigger Plesk / Passenger / PM2 restarts as fallback or native runner
 echo "Updating Node modules and restarting app..."
 if [ -d "$DEPLOY_PATH/backend" ]; then
   mkdir -p "$DEPLOY_PATH/backend/tmp" "$DEPLOY_PATH/tmp"
