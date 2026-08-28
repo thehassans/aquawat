@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import ProductChooser, { loadInventoryProducts } from '../../components/inventory/ProductChooser'
 import PartnerCombobox from '../../components/inventory/PartnerCombobox'
+import VariantLineSelect from '../../components/inventory/VariantLineSelect'
 import ProductTypeToggle from '../../components/ui/ProductTypeToggle'
 import { isStockTrackedProductType, normalizeProductType } from '../../lib/productType'
 import Money from '../../components/ui/Money'
@@ -29,6 +30,7 @@ import {
 
 const emptyLine = () => ({
   productId: '',
+  variantId: '',
   productName: '',
   barcode: '',
   productType: 'goods',
@@ -107,6 +109,7 @@ export default function GrnForm() {
       ...emptyLine(),
       ...line,
       productId: line.productId?._id || line.productId || '',
+      variantId: line.variantId?._id || line.variantId || '',
       delayedUntil: line.delayedUntil ? String(line.delayedUntil).slice(0, 10) : '',
       expiryDate: line.expiryDate ? String(line.expiryDate).slice(0, 10) : '',
     })))
@@ -128,6 +131,7 @@ export default function GrnForm() {
           ...emptyLine(),
           ...line,
           productId: line.productId?._id || line.productId || '',
+          variantId: line.variantId?._id || line.variantId || '',
           productType: normalizeProductType(line.productType),
           quantityReceived: line.remaining || line.quantityReceived || 0,
         })))
@@ -149,6 +153,7 @@ export default function GrnForm() {
           const remaining = Math.max(0, ordered - received)
           return {
             productId: product?._id || li?.productId || '',
+            variantId: li?.variantId?._id || li?.variantId || '',
             productName: product?.nameEn || product?.nameAr || li?.manualName || li?.description || '',
             barcode: product?.barcode || '',
             productType: normalizeProductType(li?.productType || product?.productType),
@@ -477,6 +482,7 @@ export default function GrnForm() {
                 setLines((prev) => [{
                   ...emptyLine(),
                   productId: product._id,
+                  variantId: '',
                   productName: product.name || product.nameEn || product.nameAr,
                   barcode: product.barcode,
                   productType: normalizeProductType(product.productType),
@@ -502,6 +508,16 @@ export default function GrnForm() {
                     />
                   </div>
                   <input value={line.productName} disabled className={fieldControlClass} />
+                  {line.productId && (
+                    <div className="mt-1.5">
+                      <VariantLineSelect
+                        productId={line.productId}
+                        value={line.variantId || ''}
+                        language={language}
+                        onChange={(variantId) => updateLine(index, { variantId: variantId || '' })}
+                      />
+                    </div>
+                  )}
                 </div>
                 <label className="text-[11px] font-medium text-slate-500 lg:col-span-2">
                   {language === 'ar' ? 'الوحدة' : 'UOM'}

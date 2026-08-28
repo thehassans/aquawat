@@ -42,6 +42,7 @@ function handlePurchasesError(res, error) {
 function normalizeGrnLines(lines = []) {
   return (Array.isArray(lines) ? lines : []).map((line) => ({
     productId: line.productId || undefined,
+    variantId: line.variantId || undefined,
     productName: line.productName || '',
     barcode: line.barcode || '',
     productType: normalizeProductType(line.productType),

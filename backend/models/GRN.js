@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const grnLineSchema = new mongoose.Schema({
   productId: { type: mongoose.Schema.Types.ObjectId },
+  variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant' },
   productName: { type: String },
   barcode: { type: String },
   productType: { type: String, enum: ['goods', 'service'], default: 'goods' },

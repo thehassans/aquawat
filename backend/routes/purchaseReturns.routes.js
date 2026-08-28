@@ -31,6 +31,7 @@ function normalizeReturnLines(lines = [], costMap = {}) {
     const unitCost = costMap[String(line.productId)] || 0;
     return {
       productId: line.productId || undefined,
+      variantId: line.variantId || undefined,
       productName: line.productName || '',
       barcode: line.barcode || '',
       productType: normalizeProductType(line.productType),
@@ -90,6 +91,7 @@ router.get('/from-grn/:grnId', checkPermission('supply_chain', 'read'), async (r
 
     const lines = (grn.lines || []).map((line, index) => ({
       productId: line.productId,
+      variantId: line.variantId || undefined,
       productName: line.productName,
       barcode: line.barcode,
       productType: line.productType || 'goods',

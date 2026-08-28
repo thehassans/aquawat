@@ -17,6 +17,7 @@ import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../../lib/uo
 import { normalizeProductType } from '../../lib/productType'
 import ProductTypeToggle from '../../components/ui/ProductTypeToggle'
 import CategoryCombobox from '../../components/inventory/CategoryCombobox'
+import VariantLineSelect from '../../components/inventory/VariantLineSelect'
 import PartnerCombobox from '../../components/inventory/PartnerCombobox'
 import ProductImageGallery from '../../components/inventory/ProductImageGallery'
 import ProductRelationsEditor from '../../components/inventory/ProductRelationsEditor'
@@ -561,10 +562,12 @@ export default function ProductForm() {
     }
     if (preset === 'manufacture') {
       setValue('routeIds', routeActionGroups.manufacture, { shouldDirty: true })
+      setIsManufactured(true)
       return
     }
     if (preset === 'both') {
       setValue('routeIds', [...new Set([...routeActionGroups.buy, ...routeActionGroups.manufacture])], { shouldDirty: true })
+      setIsManufactured(true)
       return
     }
   }
@@ -1180,6 +1183,133 @@ export default function ProductForm() {
                           : 'Choose whether this product is supplied by buying or by manufacturing, then refine with detailed routes below.'}
                       </p>
                     </div>
+                    {(isManufactured || selectedSupplyPreset === 'manufacture' || selectedSupplyPreset === 'both') && (
+                      <div className="rounded-xl border border-slate-200 p-4 dark:border-dark-600">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+                              {language === 'ar' ? 'مكونات التصنيع (BOM)' : 'Bill of Materials'}
+                            </h4>
+                            <p className="mt-0.5 text-xs text-slate-500">
+                              {language === 'ar'
+                                ? 'المواد الخام المطلوبة لإنتاج وحدة واحدة'
+                                : 'Raw materials consumed to produce one unit'}
+                            </p>
+                          </div>
+                          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                            <input
+                              type="checkbox"
+                              className="checkbox"
+                              checked={isManufactured}
+                              onChange={(e) => setIsManufactured(e.target.checked)}
+                            />
+                            {language === 'ar' ? 'منتج مصنّع' : 'Manufactured product'}
+                          </label>
+                        </div>
+                        {isManufactured && (
+                          <div className={invTableWrapClass}>
+                            <table className={`${invTableClass} min-w-[640px]`}>
+                              <thead className="bg-slate-50 text-left text-[11px] uppercase text-slate-500 dark:bg-dark-800">
+                                <tr>
+                                  <th className="px-3 py-2">{language === 'ar' ? 'المكون' : 'Component'}</th>
+                                  <th className="px-3 py-2">{language === 'ar' ? 'المتغير' : 'Variant'}</th>
+                                  <th className="w-24 px-3 py-2">{language === 'ar' ? 'الكمية' : 'Qty'}</th>
+                                  <th className="px-3 py-2">{language === 'ar' ? 'ملاحظات' : 'Notes'}</th>
+                                  <th className="w-10 px-3 py-2" />
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-dark-700">
+                                {(bomComponents.length ? bomComponents : [{ productId: '', variantId: '', quantity: 1, notes: '' }]).map((row, idx) => (
+                                  <tr key={idx}>
+                                    <td className="px-3 py-2">
+                                      <select
+                                        className="select select-sm w-full"
+                                        value={row.productId || ''}
+                                        onChange={(e) => {
+                                          const productId = e.target.value
+                                          setBomComponents((prev) => {
+                                            const copy = [...(prev.length ? prev : [{ productId: '', variantId: '', quantity: 1, notes: '' }])]
+                                            copy[idx] = { ...copy[idx], productId, variantId: '' }
+                                            return copy
+                                          })
+                                        }}
+                                      >
+                                        <option value="">—</option>
+                                        {bomProductOptions.map((p) => (
+                                          <option key={p._id} value={p._id}>{p.nameEn || p.sku}</option>
+                                        ))}
+                                      </select>
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <VariantLineSelect
+                                        productId={row.productId}
+                                        value={row.variantId || ''}
+                                        language={language}
+                                        autoSelectSingle={false}
+                                        onChange={(variantId) => {
+                                          setBomComponents((prev) => {
+                                            const copy = [...(prev.length ? prev : [{ productId: '', variantId: '', quantity: 1, notes: '' }])]
+                                            copy[idx] = { ...copy[idx], variantId: variantId || '' }
+                                            return copy
+                                          })
+                                        }}
+                                      />
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        step="any"
+                                        className="input input-sm w-full"
+                                        value={row.quantity ?? 1}
+                                        onChange={(e) => {
+                                          const quantity = Number(e.target.value) || 0
+                                          setBomComponents((prev) => {
+                                            const copy = [...(prev.length ? prev : [{ productId: '', variantId: '', quantity: 1, notes: '' }])]
+                                            copy[idx] = { ...copy[idx], quantity }
+                                            return copy
+                                          })
+                                        }}
+                                      />
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <input
+                                        className="input input-sm w-full"
+                                        value={row.notes || ''}
+                                        onChange={(e) => {
+                                          setBomComponents((prev) => {
+                                            const copy = [...(prev.length ? prev : [{ productId: '', variantId: '', quantity: 1, notes: '' }])]
+                                            copy[idx] = { ...copy[idx], notes: e.target.value }
+                                            return copy
+                                          })
+                                        }}
+                                      />
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <button
+                                        type="button"
+                                        className="btn btn-ghost btn-sm text-rose-600"
+                                        onClick={() => setBomComponents((prev) => prev.filter((_, i) => i !== idx))}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm mt-3"
+                              onClick={() => setBomComponents((prev) => [...prev, { productId: '', variantId: '', quantity: 1, notes: '' }])}
+                            >
+                              <Plus className="h-4 w-4" />
+                              {language === 'ar' ? 'إضافة مكون' : 'Add component'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div>
                     <label className="label">{language === 'ar' ? 'المسارات' : 'Routes'}</label>
                     <select

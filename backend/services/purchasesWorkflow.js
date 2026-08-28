@@ -89,6 +89,7 @@ export async function ensureDraftGrnForApprovedPo({
     status: 'draft',
     lines: openLines.map((line) => ({
       productId: line.productId,
+      variantId: line.variantId || undefined,
       productName: line.productName,
       barcode: line.barcode,
       productType: line.productType || 'goods',
@@ -514,7 +515,12 @@ export async function cancelPurchaseReturn({ tenantFilter, user, purchaseReturn 
       const grn = await GRN.findOne({ _id: purchaseReturn.grnId, ...tenantFilter });
       if (grn) {
         for (const line of purchaseReturn.lines || []) {
-          const target = (grn.lines || []).find((row) => String(row.productId || '') === String(line.productId || ''));
+          const target = (grn.lines || []).find((row) => {
+            if (String(row.productId || '') !== String(line.productId || '')) return false;
+            const rv = String(line.variantId || '');
+            const gv = String(row.variantId || '');
+            return rv ? gv === rv : true;
+          });
           if (target) {
             target.quantityReturned = Math.max(0, round2(toNumber(target.quantityReturned) - toNumber(line.quantityReturned)));
           }
@@ -526,7 +532,12 @@ export async function cancelPurchaseReturn({ tenantFilter, user, purchaseReturn 
       const order = await PurchaseOrder.findOne({ _id: purchaseReturn.purchaseOrderId, ...tenantFilter });
       if (order) {
         for (const line of purchaseReturn.lines || []) {
-          const target = (order.lineItems || []).find((row) => String(row.productId || '') === String(line.productId || ''));
+          const target = (order.lineItems || []).find((row) => {
+            if (String(row.productId || '') !== String(line.productId || '')) return false;
+            const rv = String(line.variantId || '');
+            const pv = String(row.variantId || '');
+            return rv ? pv === rv : true;
+          });
           if (target) {
             target.quantityReturned = Math.max(0, round2(toNumber(target.quantityReturned) - toNumber(line.quantityReturned)));
           }

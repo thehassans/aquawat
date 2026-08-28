@@ -1,5 +1,6 @@
 import { D, decStr } from '../../utils/decimal.js';
 import InvQuant from '../../models/inventory/InvQuant.js';
+import InvProductVariant from '../../models/inventory/InvProductVariant.js';
 import InvMove from '../../models/inventory/InvMove.js';
 import InvMoveLine from '../../models/inventory/InvMoveLine.js';
 import InvLocation from '../../models/inventory/InvLocation.js';
@@ -85,6 +86,47 @@ export async function runIntegrityChecks(tenantId, { limit = SAMPLE } = {}) {
       }
     }
     checks.noQuantsInView = { ok: viewCount === 0, count: viewCount };
+  }
+
+  // ── Template-level quants on variant products ────────────────────
+  {
+    let templateViolations = 0;
+    if (internalIds.length) {
+      const badQuants = await InvQuant.find({
+        tenantId: tid,
+        locationId: { $in: internalIds },
+        $or: [{ variantId: null }, { variantId: { $exists: false } }],
+        quantityNum: { $ne: 0 },
+      }).select('productId locationId quantity variantId').limit(50).lean();
+
+      const productIds = [...new Set(badQuants.map((q) => String(q.productId)))];
+      const [products, variantCounts] = await Promise.all([
+        Product.find({ _id: { $in: productIds }, tenantId: tid }).select('attributeLines nameEn').lean(),
+        InvProductVariant.aggregate([
+          { $match: { tenantId: tid, productId: { $in: productIds.map((id) => toObjectId(id)) }, active: true } },
+          { $group: { _id: '$productId', count: { $sum: 1 } } },
+        ]),
+      ]);
+      const countMap = new Map(variantCounts.map((r) => [String(r._id), r.count]));
+      const productMap = new Map(products.map((p) => [String(p._id), p]));
+
+      for (const q of badQuants) {
+        const p = productMap.get(String(q.productId));
+        const vCount = countMap.get(String(q.productId)) || 0;
+        const hasAttr = Array.isArray(p?.attributeLines) && p.attributeLines.length > 0;
+        if (!hasAttr && vCount <= 1) continue;
+        templateViolations += 1;
+        if (templateViolations <= 25) {
+          failures.push(fail(
+            'TEMPLATE_LEVEL_QUANT',
+            `Non-zero template quant on variant product ${p?.nameEn || q.productId}`,
+            `رصيد على مستوى القالب لمنتج له متغيرات`,
+            { quantId: q._id, productId: q.productId, locationId: q.locationId, quantity: q.quantity },
+          ));
+        }
+      }
+    }
+    checks.templateLevelQuants = { ok: templateViolations === 0, count: templateViolations };
   }
 
   // ── 6) orphan move lines ─────────────────────────────────────────

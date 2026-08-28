@@ -47,6 +47,7 @@ export function buildOpenReceiveLines(po) {
     const remaining = remainingReceivable(li);
     return {
       productId: product?._id || li?.productId || undefined,
+      variantId: li?.variantId?._id || li?.variantId || undefined,
       productName: product?.nameEn || product?.nameAr || li?.manualName || li?.description || '',
       barcode: product?.barcode || '',
       productType: normalizeProductType(li?.productType || product?.productType),
@@ -248,7 +249,16 @@ export function applyReturnToReceivedLines(receivedLines, returnLines) {
     if (returnLine.grnLineIndex != null && updated[returnLine.grnLineIndex]) {
       target = updated[returnLine.grnLineIndex];
     } else if (returnLine.productId) {
-      target = updated.find((line) => String(line.productId || '') === String(returnLine.productId));
+      const variantId = returnLine?.variantId ? String(returnLine.variantId) : '';
+      if (variantId) {
+        target = updated.find(
+          (line) => String(line.productId || '') === String(returnLine.productId)
+            && String(line.variantId || '') === variantId,
+        );
+      }
+      if (!target) {
+        target = updated.find((line) => String(line.productId || '') === String(returnLine.productId));
+      }
     } else if (updated[i]) {
       target = updated[i];
     }
@@ -265,6 +275,7 @@ export function applyReturnToReceivedLines(receivedLines, returnLines) {
     target.quantityReturned = round2(toNumber(target.quantityReturned) + qty);
     applied.push({
       productId: returnLine.productId || target.productId,
+      variantId: returnLine.variantId || target.variantId,
       productType: normalizeProductType(returnLine.productType || target.productType),
       quantity: qty,
     });

@@ -304,24 +304,60 @@ export async function performanceKpis(tenantId, {
 }
 
 /**
- * Multi-product forecast snapshot for reporting.
+ * Expand tracked products into variant rows (or one template row when no variants).
  */
-export async function forecastReport(tenantId, { warehouseId, limit = 100 } = {}) {
-  const tid = toObjectId(tenantId);
+async function trackedProductVariantRows(tid, { limit = 100 } = {}) {
+  const cap = Math.min(Math.max(Number(limit) || 100, 1), 2000);
   const products = await Product.find({
     tenantId: tid,
     isActive: { $ne: false },
     trackInventory: { $ne: false },
-  }).select('nameEn nameAr sku').limit(Number(limit)).lean();
+  }).select('nameEn nameAr sku costPrice barcode externalId').limit(cap).lean();
+  if (!products.length) return [];
+
+  const productIds = products.map((p) => p._id);
+  const variants = await InvProductVariant.find({
+    tenantId: tid,
+    productId: { $in: productIds },
+    active: { $ne: false },
+  }).select('productId name sku').lean();
+  const byProduct = new Map();
+  for (const v of variants) {
+    const key = String(v.productId);
+    if (!byProduct.has(key)) byProduct.set(key, []);
+    byProduct.get(key).push(v);
+  }
 
   const rows = [];
   for (const p of products) {
-    const fc = await computeForecast(tid, p._id, { warehouseId });
+    const pvars = byProduct.get(String(p._id)) || [];
+    if (pvars.length) {
+      for (const v of pvars) {
+        rows.push({ product: p, variant: v, variantId: v._id });
+      }
+    } else {
+      rows.push({ product: p, variant: null, variantId: null });
+    }
+  }
+  return rows;
+}
+
+/**
+ * Multi-product forecast snapshot for reporting.
+ */
+export async function forecastReport(tenantId, { warehouseId, limit = 100 } = {}) {
+  const tid = toObjectId(tenantId);
+  const expanded = await trackedProductVariantRows(tid, { limit });
+
+  const rows = [];
+  for (const { product: p, variant: v, variantId } of expanded) {
+    const fc = await computeForecast(tid, p._id, { warehouseId, variantId });
     if (D(fc.onHand).eq(0) && D(fc.incoming).eq(0) && D(fc.outgoing).eq(0)) continue;
     rows.push({
       productId: p._id,
-      name: p.nameEn || p.sku,
-      sku: p.sku,
+      variantId,
+      name: buildReportProductName(p, v),
+      sku: v?.sku || p.sku,
       ...fc,
     });
   }
@@ -334,21 +370,19 @@ export async function forecastReport(tenantId, { warehouseId, limit = 100 } = {}
  */
 export async function stockExportRows(tenantId, { warehouseId } = {}) {
   const tid = toObjectId(tenantId);
-  const products = await Product.find({
-    tenantId: tid,
-    isActive: { $ne: false },
-    trackInventory: { $ne: false },
-  }).select('nameEn sku costPrice barcode externalId').limit(2000).lean();
+  const expanded = await trackedProductVariantRows(tid, { limit: 2000 });
 
   const rows = [];
-  for (const p of products) {
-    const fc = await computeForecast(tid, p._id, { warehouseId });
+  for (const { product: p, variant: v, variantId } of expanded) {
+    const fc = await computeForecast(tid, p._id, { warehouseId, variantId });
     const val = await productInventoryValue(tid, p._id);
     rows.push({
       externalId: p.externalId || String(p._id),
-      sku: p.sku,
+      productId: p._id,
+      variantId,
+      sku: v?.sku || p.sku,
       barcode: p.barcode || '',
-      nameEn: p.nameEn,
+      nameEn: buildReportProductName(p, v),
       onHand: fc.onHand,
       reserved: fc.reserved,
       forecast: fc.forecasted,

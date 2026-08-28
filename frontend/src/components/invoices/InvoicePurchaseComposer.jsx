@@ -26,6 +26,7 @@ import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { formPaymentStatusFromInvoice, applyFormPaymentToPayload } from '../../lib/invoicePaymentTerms'
 import { normalizeProductType, productPickerLabel } from '../../lib/productType'
 import ProductTypeToggle from '../ui/ProductTypeToggle'
+import VariantLineSelect from '../inventory/VariantLineSelect'
 import RichTextNoteField from './RichTextNoteField'
 import PurchaseReceivingLedger from '../../pages/purchases/PurchaseReceivingLedger'
 import PartnerCombobox from '../inventory/PartnerCombobox'
@@ -44,6 +45,7 @@ import {
 
 const getEmptyLine = (tenant) => ({
   productId: '',
+  variantId: '',
   productName: '',
   productNameAr: '',
   productType: 'goods',
@@ -103,6 +105,7 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
           ...empty,
           ...line,
           productId: line?.productId || '',
+          variantId: line?.variantId || '',
           productName: line?.productName || '',
           productNameAr: line?.productNameAr || '',
           productType: normalizeProductType(line?.productType),
@@ -462,6 +465,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       .filter((line) => line?.productId && toNumber(line.quantity, 0) > 0)
       .map((line) => ({
         productId: line.productId,
+        variantId: line.variantId || undefined,
         quantity: toNumber(line.quantity, 0),
         unitPrice: toNumber(line.unitPrice, 0),
       })),
@@ -482,6 +486,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     const product = (products || []).find((item) => item._id === productId)
     if (!product) return
     setValue(`lineItems.${index}.productId`, product._id)
+    setValue(`lineItems.${index}.variantId`, '')
     setValue(`lineItems.${index}.productName`, product.nameEn)
     setValue(`lineItems.${index}.productNameAr`, product.nameAr || product.nameEn)
     setValue(`lineItems.${index}.unitCode`, product.unitOfMeasure || 'PCE')
@@ -1142,6 +1147,17 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                             }}
                           />
                           <input type="hidden" {...register(`lineItems.${index}.productId`)} />
+                          <input type="hidden" {...register(`lineItems.${index}.variantId`)} />
+                          {watch(`lineItems.${index}.productId`) && (
+                            <div className="mt-2">
+                              <VariantLineSelect
+                                productId={watch(`lineItems.${index}.productId`)}
+                                value={watch(`lineItems.${index}.variantId`) || ''}
+                                language={language}
+                                onChange={(variantId) => setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })}
+                              />
+                            </div>
+                          )}
                           <input {...register(`lineItems.${index}.productName`, { required: true })} className={`${fieldControlClass} mt-2`} readOnly={Boolean(lineItems?.[index]?.productId)} placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'} />
                         </div>
                       ) : (

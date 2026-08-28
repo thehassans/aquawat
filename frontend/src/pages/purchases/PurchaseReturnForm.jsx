@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux'
 import { ArrowLeft, CheckCircle2, Loader2, Save, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import VariantLineSelect from '../../components/inventory/VariantLineSelect'
 import PartnerCombobox from '../../components/inventory/PartnerCombobox'
 import { normalizeGrnList } from '../../lib/grnApi'
 import {
@@ -72,6 +73,7 @@ export default function PurchaseReturnForm() {
       setPurchaseOrderId(data.purchaseOrderId?._id || data.purchaseOrderId || '')
       setLines((data.lines || []).map((line) => ({
         ...line,
+        variantId: line.variantId?._id || line.variantId || '',
         quantityReturned: line.remaining || 0,
         reason: 'defective',
         notes: '',
@@ -95,7 +97,10 @@ export default function PurchaseReturnForm() {
     setWarehouseId(existing.warehouseId?._id || existing.warehouseId || '')
     setReason(existing.reason || '')
     setNotes(existing.notes || '')
-    setLines(existing.lines || [])
+    setLines((existing.lines || []).map((line) => ({
+      ...line,
+      variantId: line.variantId?._id || line.variantId || '',
+    })))
   }, [existing])
 
   const locked = isEdit && existing && existing.status !== 'draft'
@@ -285,7 +290,20 @@ export default function PurchaseReturnForm() {
               <tbody>
                 {lines.map((line, index) => (
                   <tr key={index} className="border-t border-slate-100 dark:border-white/10">
-                    <td className="py-3 font-medium text-slate-900 dark:text-white">{line.productName || '—'}</td>
+                    <td className="py-3 font-medium text-slate-900 dark:text-white">
+                      <div>{line.productName || '—'}</div>
+                      {line.productId && (
+                        <VariantLineSelect
+                          productId={line.productId?._id || line.productId}
+                          value={line.variantId || ''}
+                          language={language}
+                          autoSelectSingle={false}
+                          onChange={(variantId) => {
+                            setLines((prev) => prev.map((row, i) => (i === index ? { ...row, variantId: variantId || '' } : row)))
+                          }}
+                        />
+                      )}
+                    </td>
                     <td className="py-3 tabular-nums text-slate-500">{line.remaining ?? line.quantityReceived ?? '—'}</td>
                     <td className="py-3 tabular-nums text-slate-500">{Number(line.unitCost || 0).toFixed(2)}</td>
                     <td className="py-3">
