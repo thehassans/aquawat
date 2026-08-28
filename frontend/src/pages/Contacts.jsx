@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Search, Users, Building2, Briefcase, Phone, Mail, Hash, MessageCircle, MessageSquare, ArrowUpRight, UserRound, Plus, ChevronDown, Download, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Users, Building2, Briefcase, Phone, Mail, Hash, MessageCircle, MessageSquare, ArrowUpRight, UserRound, Download, ChevronLeft, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import { buildDefaultFileName, exportToCsv } from '../lib/export'
 import ExportMenu from '../components/ui/ExportMenu'
-import QuickCreateContactModal from '../components/inventory/QuickCreateContactModal'
+import ContactsCreateMenu from '../components/contacts/ContactsCreateMenu'
 import {
   avatarClass,
+  contactTabClass,
   contactsEyebrowClass,
   contactsSubtitleClass,
   contactsTableClass,
@@ -19,19 +20,12 @@ import {
   contactsThClass,
   contactsTitleClass,
   contactsTrClass,
-  createMenuClass,
-  createMenuItemClass,
   emptyStateClass,
   filterBarClass,
   ghostActionClass,
-  kpiTileClass,
-  kpiTileIconClass,
-  kpiTileLabelClass,
-  kpiTileValueClass,
   listShellClass,
   outlinedBtnClass,
   paginationBarClass,
-  primaryBtnClass,
   rowActionPrimaryClass,
   rowActionsWrapClass,
   searchInputClass,
@@ -71,7 +65,6 @@ export default function Contacts() {
   const { language } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
   const isAr = language === 'ar'
-  const qc = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const typesParam = searchParams.get('types') || ''
@@ -81,10 +74,6 @@ export default function Contacts() {
   const [type, setType] = useState(initialType)
   const [isActive, setIsActive] = useState('all')
   const [page, setPage] = useState(1)
-  const [createOpen, setCreateOpen] = useState(false)
-  const [createRole, setCreateRole] = useState('customer')
-  const [createMenuOpen, setCreateMenuOpen] = useState(false)
-  const [selected, setSelected] = useState(() => new Set())
   const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
@@ -96,8 +85,17 @@ export default function Contacts() {
     }
   }, [typesParam])
 
+  const [selected, setSelected] = useState(() => new Set())
+
   const queryTypes = type || (typesParam.includes(',') ? typesParam : undefined)
   const partnerHub = typesParam.includes('customer') && typesParam.includes('supplier')
+
+  const returnTo = useMemo(() => {
+    const params = new URLSearchParams(searchParams)
+    if (!params.get('types') && partnerHub) params.set('types', 'customer,supplier')
+    const q = params.toString()
+    return `/app/dashboard/contacts${q ? `?${q}` : ''}`
+  }, [searchParams, partnerHub])
 
   const { data, isLoading } = useQuery({
     queryKey: ['contacts', { search, type: queryTypes, isActive, page }],
@@ -236,21 +234,15 @@ export default function Contacts() {
     setSearchParams(params, { replace: true })
   }
 
-  const openCreate = (role) => {
-    setCreateRole(role)
-    setCreateMenuOpen(false)
-    setCreateOpen(true)
-  }
-
-  const tiles = [
-    { key: '', label: isAr ? 'الكل' : 'All', value: partnerHub ? (totals.partners || 0) : totalContacts, icon: Users, active: type === '' },
-    { key: 'customer', label: isAr ? 'العملاء' : 'Customers', value: totals.customers || 0, icon: Building2, active: type === 'customer' },
-    { key: 'supplier', label: isAr ? 'الموردون' : 'Suppliers', value: totals.suppliers || 0, icon: Briefcase, active: type === 'supplier' },
+  const tabs = [
+    { key: '', label: isAr ? 'الكل' : 'All', value: partnerHub ? (totals.partners || 0) : totalContacts },
+    { key: 'customer', label: isAr ? 'العملاء' : 'Customers', value: totals.customers || 0 },
+    { key: 'supplier', label: isAr ? 'الموردون' : 'Suppliers', value: totals.suppliers || 0 },
     ...(partnerHub ? [
-      { key: 'employee', label: isAr ? 'الموظفون' : 'Employees', value: totals.partnerEmployees || 0, icon: Users, active: type === 'employee' },
+      { key: 'employee', label: isAr ? 'الموظفون' : 'Employees', value: totals.partnerEmployees || 0 },
     ] : !partnerHub ? [
-      { key: 'employee', label: isAr ? 'الموظفون' : 'Employees', value: totals.employees || 0, icon: Users, active: type === 'employee' },
-      { key: 'whatsapp', label: 'WhatsApp', value: (totals.whatsapp || 0) + (totals.whatsappGroups || 0), icon: MessageCircle, active: type === 'whatsapp' },
+      { key: 'employee', label: isAr ? 'الموظفون' : 'Employees', value: totals.employees || 0 },
+      { key: 'whatsapp', label: 'WhatsApp', value: (totals.whatsapp || 0) + (totals.whatsappGroups || 0) },
     ] : []),
   ]
 
@@ -273,57 +265,11 @@ export default function Contacts() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <button
-              type="button"
-              className={primaryBtnClass}
-              onClick={() => setCreateMenuOpen((v) => !v)}
-            >
-              <Plus className="h-4 w-4" />
-              {isAr ? 'إنشاء' : 'Create'}
-              <ChevronDown className={`h-4 w-4 transition ${createMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {createMenuOpen && (
-              <div className={createMenuClass}>
-                <button type="button" className={createMenuItemClass} onClick={() => openCreate('customer')}>
-                  <Building2 className="mt-0.5 h-4 w-4 text-sky-700" />
-                  <span>
-                    <span className="block text-sm font-semibold text-slate-800">{isAr ? 'عميل' : 'Customer'}</span>
-                    <span className="block text-xs text-slate-400">{isAr ? 'يُعلَّم كعميل تلقائياً' : 'Sets is_customer automatically'}</span>
-                  </span>
-                </button>
-                <button type="button" className={createMenuItemClass} onClick={() => openCreate('vendor')}>
-                  <Briefcase className="mt-0.5 h-4 w-4 text-amber-700" />
-                  <span>
-                    <span className="block text-sm font-semibold text-slate-800">{isAr ? 'مورد' : 'Supplier'}</span>
-                    <span className="block text-xs text-slate-400">{isAr ? 'يُعلَّم كمورد تلقائياً' : 'Sets is_vendor automatically'}</span>
-                  </span>
-                </button>
-                <div className="my-1 border-t border-slate-100 dark:border-dark-600" />
-                <Link
-                  to="/app/dashboard/customers/new?entity=individual&role=employee&returnTo=/app/dashboard/contacts?types=customer,supplier"
-                  className="block px-3.5 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:hover:bg-dark-700"
-                  onClick={() => setCreateMenuOpen(false)}
-                >
-                  {isAr ? 'نموذج كامل — موظف…' : 'Full form — employee…'}
-                </Link>
-                <Link
-                  to="/app/dashboard/customers/new?role=customer&returnTo=/app/dashboard/contacts?types=customer,supplier"
-                  className="block px-3.5 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:hover:bg-dark-700"
-                  onClick={() => setCreateMenuOpen(false)}
-                >
-                  {isAr ? 'نموذج كامل — عميل…' : 'Full form — customer…'}
-                </Link>
-                <Link
-                  to="/app/dashboard/suppliers/new?role=vendor&returnTo=/app/dashboard/contacts?types=customer,supplier"
-                  className="block px-3.5 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:hover:bg-dark-700"
-                  onClick={() => setCreateMenuOpen(false)}
-                >
-                  {isAr ? 'نموذج كامل — مورد…' : 'Full form — vendor…'}
-                </Link>
-              </div>
-            )}
-          </div>
+          <ContactsCreateMenu
+            language={language}
+            returnTo={returnTo}
+            showEmployee={partnerHub || !typesParam}
+          />
           {partnerHub ? (
             <>
               <button
@@ -360,26 +306,30 @@ export default function Contacts() {
         </div>
       </div>
 
-      <div className={`grid grid-cols-2 gap-3 ${partnerHub ? 'lg:grid-cols-4' : 'lg:grid-cols-5'}`}>
-        {tiles.map((tile) => {
-          const Icon = tile.icon
-          return (
-            <button
-              key={tile.key || 'all'}
-              type="button"
-              onClick={() => setTypeFilter(tile.key)}
-              className={kpiTileClass(tile.active)}
-            >
-              <div className="flex items-center justify-between">
-                <span className={kpiTileIconClass}>
-                  <Icon className="h-4 w-4" />
+      <div className="border-b border-slate-200/90 dark:border-dark-600">
+        <nav className="-mb-px flex flex-wrap items-center gap-1">
+          {tabs.map((tab) => {
+            const active = type === tab.key
+            return (
+              <button
+                key={tab.key || 'all'}
+                type="button"
+                onClick={() => setTypeFilter(tab.key)}
+                className={`${contactTabClass(active)} inline-flex items-center gap-2`}
+              >
+                {tab.label}
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums ${
+                  active
+                    ? 'bg-teal-50 text-teal-800 dark:bg-teal-950/40 dark:text-teal-200'
+                    : 'bg-slate-100 text-slate-500 dark:bg-dark-700 dark:text-slate-400'
+                }`}
+                >
+                  {Number(tab.value).toLocaleString()}
                 </span>
-                <span className={kpiTileValueClass}>{Number(tile.value).toLocaleString()}</span>
-              </div>
-              <p className={kpiTileLabelClass}>{tile.label}</p>
-            </button>
-          )
-        })}
+              </button>
+            )
+          })}
+        </nav>
       </div>
 
       <div className={filterBarClass}>
@@ -578,17 +528,6 @@ export default function Contacts() {
         </div>
       )}
 
-      <QuickCreateContactModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        role={createRole}
-        ar={isAr}
-        language={language}
-        onCreated={() => {
-          qc.invalidateQueries({ queryKey: ['contacts'] })
-          qc.invalidateQueries({ queryKey: ['contacts-stats'] })
-        }}
-      />
     </div>
   )
 }
