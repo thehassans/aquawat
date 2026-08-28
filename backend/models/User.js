@@ -26,7 +26,7 @@ const userSchema = new mongoose.Schema({
   resellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Reseller', default: null, index: true },
   permissions: [{
     module: { type: String },
-    actions: [{ type: String, enum: ['create', 'read', 'update', 'delete', 'approve', 'export'] }]
+    actions: [{ type: String, enum: ['create', 'read', 'update', 'delete', 'approve', 'export', 'margin'] }]
   }],
   isActive: { type: Boolean, default: true },
   lastLogin: { type: Date },

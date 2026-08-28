@@ -71,6 +71,8 @@ const Performance = lazy(() => import('./pages/hr/Performance'))
 const HRReports = lazy(() => import('./pages/hr/HRReports'))
 const ExpenseClaims = lazy(() => import('./pages/hr/ExpenseClaims'))
 const SalesLayout = lazy(() => import('./pages/sales/SalesLayout'))
+const SalesOrdersPage = lazy(() => import('./pages/sales/SalesOrdersPage'))
+const SalesOrderViewPage = lazy(() => import('./pages/sales/SalesOrderViewPage'))
 const SalesConfigurationLayout = lazy(() => import('./pages/sales/configuration/SalesConfigurationLayout'))
 const SalesSettingsPage = lazy(() => import('./pages/sales/configuration/SalesSettingsPage'))
 const SalesTeamsPage = lazy(() => import('./pages/sales/configuration/SalesTeamsPage'))
@@ -752,6 +754,8 @@ function App() {
           <Route path="quotations/new" element={<QuotationCreatePage />} />
           <Route path="quotations/:id/edit" element={<QuotationEditPage />} />
           <Route path="quotations/:id" element={<QuotationView />} />
+          <Route path="sales/orders" element={<SalesOrdersPage />} />
+          <Route path="sales/orders/:id" element={<SalesOrderViewPage />} />
         </Route>
         <Route path="sales/configuration" element={<SalesConfigurationLayout />}>
           <Route index element={<Navigate to="settings" replace />} />

@@ -366,6 +366,16 @@ export default function InvoiceView() {
           </div>
         </div>
         <div className={`${actionBarClass} max-w-3xl justify-start lg:justify-end`}>
+          {(invoice?.sourcePurchaseOrderId || invoice?.purchaseOrderId) && invoice?.flow === 'sell' ? (
+            <button
+              type="button"
+              onClick={() => navigate(`/app/dashboard/sales/orders/${invoice.sourcePurchaseOrderId || invoice.purchaseOrderId}`)}
+              className={ghostActionClass}
+            >
+              <FileText className="w-4 h-4" />
+              {language === 'ar' ? 'أمر البيع' : '1 Sale Order'}
+            </button>
+          ) : null}
           {canRecordPayment && (
             <button
               type="button"

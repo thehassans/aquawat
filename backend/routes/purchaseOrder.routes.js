@@ -91,9 +91,11 @@ async function generatePoNumber(tenantId) {
 
 router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
-    const { page = 1, limit = 25, status, supplierId, warehouseId, search, startDate, endDate, receivable } = req.query;
+    const { page = 1, limit = 25, status, supplierId, warehouseId, search, startDate, endDate, receivable, flow } = req.query;
     
     const query = { ...req.tenantFilter };
+
+    if (flow === 'sell' || flow === 'purchase') query.flow = flow;
 
     if (String(receivable) === '1') {
       query.status = { $nin: ['cancelled', 'billed', 'closed'] };
@@ -587,6 +589,11 @@ router.post('/:id/approve', checkPermission('supply_chain', 'approve'), async (r
       const gate = await assertSellOrderCanConfirm(order, req.user.tenantId);
       if (!gate.ok) {
         return res.status(400).json({ error: gate.error, code: gate.code });
+      }
+      const { assertSellLineVariantBinding } = await import('../services/sales/variantBinding.js');
+      const binding = await assertSellLineVariantBinding(order.lineItems || [], req.user.tenantId);
+      if (!binding.ok) {
+        return res.status(400).json({ error: binding.errors.join('; '), code: 'VARIANT_REQUIRED' });
       }
     }
 

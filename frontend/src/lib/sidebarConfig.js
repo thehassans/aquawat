@@ -246,10 +246,11 @@ export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, bus
           label: language === 'ar' ? 'المبيعات' : 'Sales',
           perm: { module: 'invoicing', action: 'read' },
           excludeBusinessTypes: ['khayyat'],
-          activePrefixes: ['/app/dashboard/invoices', '/app/dashboard/quotations', '/app/dashboard/sales/configuration', '/app/dashboard/sales/reporting'],
+          activePrefixes: ['/app/dashboard/invoices', '/app/dashboard/quotations', '/app/dashboard/sales/orders', '/app/dashboard/sales/configuration', '/app/dashboard/sales/reporting'],
           children: [
             { path: '/app/dashboard/invoices', label: language === 'ar' ? 'الفواتير' : 'Invoices', perm: { module: 'invoicing', action: 'read' } },
             { path: '/app/dashboard/quotations', label: language === 'ar' ? 'عروض الأسعار' : 'Quotations', perm: { module: 'sales', action: 'read' }, excludeBusinessTypes: ['bakala'] },
+            { path: '/app/dashboard/sales/orders', label: language === 'ar' ? 'أوامر البيع' : 'Sales Orders', perm: { module: 'sales', action: 'read' } },
             { path: '/app/dashboard/sales/configuration', label: language === 'ar' ? 'إعدادات المبيعات' : 'Configuration', perm: { module: 'sales', action: 'read' } },
             { path: '/app/dashboard/sales/reporting', label: language === 'ar' ? 'تقارير المبيعات' : 'Reporting', perm: { module: 'sales', action: 'read' } },
           ],

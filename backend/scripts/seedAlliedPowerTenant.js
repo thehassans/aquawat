@@ -280,7 +280,7 @@ async function runSeed(shouldDisconnect = false) {
       password: 'Password@123',
       role: 'admin',
       permissions: [
-        { module: 'sales', actions: ['create', 'read', 'update', 'delete', 'approve', 'export'] },
+        { module: 'sales', actions: ['create', 'read', 'update', 'delete', 'approve', 'export', 'margin'] },
         { module: 'purchases', actions: ['create', 'read', 'update', 'delete', 'approve', 'export'] },
         { module: 'inventory', actions: ['create', 'read', 'update', 'delete', 'approve', 'export'] },
         { module: 'supply_chain', actions: ['create', 'read', 'update', 'delete', 'approve', 'export'] },

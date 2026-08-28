@@ -8,6 +8,9 @@ import { isInvEngineEnabled } from './legacyAdapter.js';
 import { ensureInventoryBootstrap, bootstrapWarehouse, getDefaultUom } from './bootstrap.js';
 import { createTransfer } from './createTransfer.js';
 import { cancelTransfer } from './transferService.js';
+import { convertQty } from './uomConvert.js';
+import InvProductPackaging from '../../models/inventory/InvProductPackaging.js';
+import Product from '../../models/Product.js';
 
 async function nextDnNumber(tenantFilter) {
   const last = await DeliveryNote.findOne(tenantFilter).sort({ createdAt: -1 }).select('dnNumber').lean();
@@ -125,6 +128,52 @@ export async function ensureDraftDeliveryForSellOrder({
   const warehouseId = order.warehouseId?._id || order.warehouseId;
   const dnNumber = await nextDnNumber(tenantFilter);
 
+  /** Resolve SO qty → base product UoM via packaging × UoM factor */
+  async function resolveBaseDemand(li) {
+    const ordered = Number(li.quantityOrdered || 0) - Number(li.quantityDelivered || 0);
+    let packMult = Number(li.packagingQty || 1);
+    if (li.packagingId) {
+      const pack = await InvProductPackaging.findById(li.packagingId).select('qty').lean();
+      if (pack?.qty != null) packMult = Number(pack.qty) || packMult;
+    }
+    const sellQty = ordered * packMult;
+    const productId = li.productId?._id || li.productId;
+    const product = await Product.findById(productId).select('uomId').lean();
+    const lineUomId = li.uomId || product?.uomId;
+    const productUomId = product?.uomId || lineUomId;
+    if (lineUomId && productUomId && String(lineUomId) !== String(productUomId)) {
+      try {
+        const converted = await convertQty({
+          qty: sellQty,
+          fromUomId: lineUomId,
+          toUomId: productUomId,
+          round: 'up',
+        });
+        return {
+          demandQty: converted.qty,
+          uomId: productUomId,
+          variantId: li.variantId || undefined,
+          displayQty: sellQty,
+          displayUomId: lineUomId,
+        };
+      } catch {
+        /* fall through */
+      }
+    }
+    return {
+      demandQty: String(sellQty),
+      uomId: productUomId || lineUomId || undefined,
+      variantId: li.variantId || undefined,
+      displayQty: sellQty,
+      displayUomId: lineUomId,
+    };
+  }
+
+  const resolvedLines = [];
+  for (const li of goodsLines) {
+    resolvedLines.push({ li, resolved: await resolveBaseDemand(li) });
+  }
+
   const dn = await DeliveryNote.create({
     tenantId: tenantId || order.tenantId,
     dnNumber,
@@ -138,11 +187,14 @@ export async function ensureDraftDeliveryForSellOrder({
     status: 'pending_invoice',
     warehouseId: warehouseId || undefined,
     notes: `Draft delivery for ${order.poNumber}`,
-    lineItems: goodsLines.map((li) => ({
+    lineItems: resolvedLines.map(({ li, resolved }) => ({
       productId: li.productId?._id || li.productId,
+      variantId: resolved.variantId || li.variantId || undefined,
       description: li.description || li.manualName || 'Item',
       unitCode: li.uom || 'PCE',
-      quantityDelivered: Number(li.quantityOrdered || 0) - Number(li.quantityDelivered || 0),
+      quantityDelivered: Number(resolved.displayQty || li.quantityOrdered || 0) - Number(li.quantityDelivered || 0) > 0
+        ? Number(resolved.displayQty)
+        : Number(li.quantityOrdered || 0) - Number(li.quantityDelivered || 0),
       quantityInvoiced: 0,
     })),
     createdBy: userId,
@@ -178,11 +230,11 @@ export async function ensureDraftDeliveryForSellOrder({
           ].join('\n'),
           sourceModel: 'delivery_note',
           sourceDocId: dn._id,
-          lines: dn.lineItems.map((l) => ({
-            productId: l.productId,
-            variantId: l.variantId || undefined,
-            demandQty: String(l.quantityDelivered),
-            uomId: defaultUom?._id,
+          lines: resolvedLines.map(({ li, resolved }) => ({
+            productId: li.productId?._id || li.productId,
+            variantId: resolved.variantId || li.variantId || undefined,
+            demandQty: String(resolved.demandQty),
+            uomId: resolved.uomId || defaultUom?._id,
           })),
         }, userId);
         dn.inventoryTransferId = transfer._id;
