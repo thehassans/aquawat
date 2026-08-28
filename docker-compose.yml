@@ -286,6 +286,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        BUILD_SHA: ${BUILD_SHA:-unknown}
     container_name: maqder_frontend
     restart: unless-stopped
     depends_on:

@@ -28,45 +28,17 @@ if [ -n "$COMPOSE" ]; then
   # Drop deprecated cron-worker container from earlier compose files.
   docker rm -f maqder_cron_worker 2>/dev/null || true
 
-  echo "Starting edge + data services..."
-  $COMPOSE up -d edge mongo redis mongo-backup || true
-
   BUILD_SHA="$(git rev-parse HEAD)"
-  echo "Building backend images (${BUILD_SHA})..."
-  if ! $COMPOSE build --build-arg BUILD_SHA="$BUILD_SHA" backend pdf-worker; then
-    echo "=== backend image build failed ==="
-    exit 1
-  fi
+  export BUILD_SHA
 
-  echo "Building frontend image..."
-  if ! $COMPOSE build --build-arg BUILD_SHA="$BUILD_SHA" frontend; then
-    echo "=== frontend image build failed ==="
-    exit 1
-  fi
-
-  echo "Starting backend workers..."
-  $COMPOSE up -d --remove-orphans backend pdf-worker
-
-  echo "Waiting for backend readiness (up to 4 minutes)..."
-  ready=0
-  for _ in $(seq 1 48); do
-    body="$($COMPOSE exec -T backend wget -qO- http://127.0.0.1:3000/api/health/ready 2>/dev/null || true)"
-    if echo "$body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"READY"'; then
-      ready=1
-      break
-    fi
-    sleep 5
-  done
-
-  if [ "$ready" -ne 1 ]; then
-    echo "=== backend not ready — recent logs ==="
+  # Keep edge + current frontend up while images rebuild (no compose down).
+  $COMPOSE up -d edge || true
+  if ! $COMPOSE up -d --build --remove-orphans; then
+    echo "=== docker compose up failed — recent logs ==="
     $COMPOSE ps -a || true
-    $COMPOSE logs --tail=120 backend mongo redis pdf-worker 2>/dev/null || $COMPOSE logs --tail=120
+    $COMPOSE logs --tail=120 backend frontend mongo redis pdf-worker 2>/dev/null || $COMPOSE logs --tail=120
     exit 1
   fi
-
-  echo "Starting frontend..."
-  $COMPOSE up -d frontend
 
   echo "Running containers:"
   $COMPOSE ps
