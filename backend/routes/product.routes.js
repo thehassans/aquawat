@@ -79,9 +79,13 @@ const normalizeProductForClient = (product) => {
 // @route   GET /api/products
 router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const { page = 1, limit = 50, category, categoryId, status, search, lowStock, allowNegativeStock, stockHealth, productType } = req.query;
+    const { page = 1, limit = 50, category, categoryId, status, search, lowStock, allowNegativeStock, stockHealth, productType, ids } = req.query;
 
     const query = { ...req.tenantFilter };
+    if (ids) {
+      const idList = String(ids).split(',').map((s) => s.trim()).filter(Boolean);
+      if (idList.length) query._id = { $in: idList };
+    }
     if (category) query.category = category;
     if (categoryId) query.categoryId = categoryId;
     if (status) query.status = status;

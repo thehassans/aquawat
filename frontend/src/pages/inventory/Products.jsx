@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { useSelector } from 'react-redux'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, Search, Package, AlertTriangle, Eye, Edit, QrCode, Boxes, Warehouse, CircleOff, Printer } from 'lucide-react'
+import { Plus, Search, Package, AlertTriangle, Eye, Edit, QrCode, Boxes, Warehouse, CircleOff, Printer, Download } from 'lucide-react'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
-import ExportMenu from '../../components/ui/ExportMenu'
+import { buildDefaultFileName, exportToCsv } from '../../lib/export'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -16,6 +16,10 @@ import { formatProductTypeLabel, isStockTrackedProductType, normalizeProductType
 import { formatInvError } from '../../lib/invError'
 import { invTableWrapClass, invTableClass } from './inventoryUi'
 import { ColumnChooser, useColumnVisibility } from './columnVisibility'
+import PrintBarcodeLabelsModal from './PrintBarcodeLabelsModal'
+
+const OUTLINED_BTN =
+  'inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 dark:border-dark-600 dark:bg-dark-800 dark:text-slate-200'
 
 const PRODUCT_COL_DEFS = [
   { id: 'name', labelEn: 'Product', labelAr: 'المنتج', locked: true },
@@ -79,6 +83,10 @@ export default function Products() {
   const [stockModal, setStockModal] = useState({ isOpen: false, productId: null, productName: '' })
   const [stockWarehouseId, setStockWarehouseId] = useState('')
   const [stockQuantity, setStockQuantity] = useState(1)
+  const [selected, setSelected] = useState(() => new Set())
+  const [labelModalOpen, setLabelModalOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const masterCheckboxRef = useRef(null)
 
   const columnDefs = useMemo(() => PRODUCT_COL_DEFS, [])
   const { visible, toggle } = useColumnVisibility('maqder-inv-product-cols', columnDefs)
@@ -196,6 +204,64 @@ export default function Products() {
   const totals = stats?.totals?.[0] || {}
   const products = data?.products || []
   const pagination = data?.pagination
+  const pageIds = useMemo(() => products.map((p) => String(p._id)), [products])
+  const selectedRowIds = useMemo(() => pageIds.filter((id) => selected.has(id)), [pageIds, selected])
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id))
+  const somePageSelected = pageIds.some((id) => selected.has(id)) && !allPageSelected
+
+  useEffect(() => {
+    if (masterCheckboxRef.current) {
+      masterCheckboxRef.current.indeterminate = somePageSelected
+    }
+  }, [somePageSelected])
+
+  const toggleRow = (id) => {
+    const key = String(id)
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const toggleAllPage = () => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (allPageSelected) pageIds.forEach((id) => next.delete(id))
+      else pageIds.forEach((id) => next.add(id))
+      return next
+    })
+  }
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      let rows
+      if (selectedRowIds.length > 0) {
+        const res = await api.get('/products', {
+          params: { ids: selectedRowIds.join(','), limit: Math.min(500, selectedRowIds.length), page: 1 },
+        })
+        rows = res.data?.products || []
+      } else {
+        rows = await getExportRows()
+      }
+      exportToCsv({
+        fileName: buildDefaultFileName(isAr ? 'المخزون' : 'Inventory'),
+        rows,
+        columns: exportColumns,
+      })
+      toast.success(
+        isAr
+          ? `تم تصدير ${rows.length} صف`
+          : `Exported ${rows.length} rows`,
+      )
+    } catch (e) {
+      toast.error(formatInvError(e, language))
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const setHealth = (health) => {
     setFilters((f) => ({ ...f, stockHealth: f.stockHealth === health ? '' : health }))
@@ -223,10 +289,11 @@ export default function Products() {
               : 'On-hand, available, and reorder levels — not just a product list.'}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <InventoryIeButtons
             model="products"
             ar={isAr}
+            hideExport
             filters={{ search: debouncedSearch, ...filters }}
             onImported={() => {
               queryClient.invalidateQueries({ queryKey: ['products'] })
@@ -236,40 +303,28 @@ export default function Products() {
           <ColumnChooser ar={isAr} definitions={columnDefs} visible={visible} onToggle={toggle} />
           <button
             type="button"
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 dark:border-dark-600 dark:bg-dark-800 dark:text-slate-200"
-            disabled={!products.length}
-            onClick={async () => {
-              try {
-                const res = await api.post('/stock/print', {
-                  layout: 'product_label',
-                  productIds: products.slice(0, 50).map((p) => p._id),
-                  copies: 1,
-                  lang: isAr ? 'ar' : 'en',
-                }, { responseType: 'blob' })
-                const url = URL.createObjectURL(res.data)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = 'product-labels.pdf'
-                a.click()
-                URL.revokeObjectURL(url)
-              } catch (e) {
-                toast.error(formatInvError(e, language))
-              }
-            }}
+            className={OUTLINED_BTN}
+            disabled={selectedRowIds.length === 0}
+            onClick={() => setLabelModalOpen(true)}
           >
             <Printer className="h-4 w-4" />
-            {isAr ? 'ملصقات' : 'Labels'}
+            {selectedRowIds.length
+              ? (isAr ? `ملصقات (${selectedRowIds.length})` : `Labels (${selectedRowIds.length})`)
+              : (isAr ? 'ملصقات' : 'Labels')}
           </button>
-          <ExportMenu
-            language={language}
-            t={t}
-            rows={products}
-            getRows={getExportRows}
-            columns={exportColumns}
-            fileBaseName={isAr ? 'المخزون' : 'Inventory'}
-            title={isAr ? 'المخزون' : 'Inventory'}
-            disabled={isLoading || products.length === 0}
-          />
+          <button
+            type="button"
+            className={OUTLINED_BTN}
+            disabled={isLoading || exporting || (!selectedRowIds.length && !products.length)}
+            onClick={handleExport}
+          >
+            <Download className="h-4 w-4" />
+            {exporting
+              ? '…'
+              : selectedRowIds.length
+                ? (isAr ? `تصدير (${selectedRowIds.length})` : `Export (${selectedRowIds.length})`)
+                : (isAr ? 'تصدير' : 'Export')}
+          </button>
           <Link to="/app/dashboard/inventory/products/new" className="inline-flex items-center gap-2 rounded-xl bg-[#1a3d28] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#244d33]">
             <Plus className="h-4 w-4" />
             {isAr ? 'إضافة صنف' : 'Add SKU'}
@@ -425,20 +480,30 @@ export default function Products() {
               )
             }}
           >
-            <div className={invTableWrapClass}>
-              <table className={`${invTableClass} min-w-[880px]`}>
+            <div className={`${invTableWrapClass} w-full`}>
+              <table className={`${invTableClass} table-fixed w-full`}>
                 <thead>
                   <tr className="border-b border-slate-100 text-start text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                    {col('name') && <th className="min-w-[150px] px-5 py-3 font-semibold">{t('productName')}</th>}
-                    {col('productId') && <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'المعرّف' : 'ID'}</th>}
-                    {col('sku') && <th className="min-w-[150px] px-3 py-3 font-semibold">{t('sku')}</th>}
-                    {col('type') && <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'النوع' : 'Type'}</th>}
-                    {col('uom') && <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'الوحدة' : 'UOM'}</th>}
-                    {col('available') && <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'المتاح' : 'Available'}</th>}
-                    {col('reorder') && <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'حد الطلب' : 'Reorder'}</th>}
-                    {col('sellingPrice') && <th className="min-w-[150px] px-3 py-3 font-semibold">{t('sellingPrice')}</th>}
-                    {col('stock') && <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'المخزون' : 'Stock'}</th>}
-                    {col('actions') && <th className="min-w-[150px] px-5 py-3 font-semibold" />}
+                    <th className="w-10 px-3 py-3">
+                      <input
+                        ref={masterCheckboxRef}
+                        type="checkbox"
+                        checked={allPageSelected}
+                        onChange={toggleAllPage}
+                        disabled={!pageIds.length}
+                        aria-label={isAr ? 'تحديد الكل' : 'Select all'}
+                      />
+                    </th>
+                    {col('name') && <th className="w-full px-3 py-3 font-semibold">{t('productName')}</th>}
+                    {col('productId') && <th className="w-24 px-2 py-3 font-semibold">{isAr ? 'المعرّف' : 'ID'}</th>}
+                    {col('sku') && <th className="w-32 px-2 py-3 font-semibold">{t('sku')}</th>}
+                    {col('type') && <th className="w-24 px-2 py-3 font-semibold">{isAr ? 'النوع' : 'Type'}</th>}
+                    {col('uom') && <th className="w-24 px-2 py-3 font-semibold">{isAr ? 'الوحدة' : 'UOM'}</th>}
+                    {col('available') && <th className="w-24 px-2 py-3 font-semibold">{isAr ? 'المتاح' : 'Available'}</th>}
+                    {col('reorder') && <th className="w-24 px-2 py-3 font-semibold">{isAr ? 'حد الطلب' : 'Reorder'}</th>}
+                    {col('sellingPrice') && <th className="w-28 px-2 py-3 font-semibold">{t('sellingPrice')}</th>}
+                    {col('stock') && <th className="w-24 px-2 py-3 font-semibold">{isAr ? 'المخزون' : 'Stock'}</th>}
+                    {col('actions') && <th className="w-28 px-2 py-3 font-semibold" />}
                   </tr>
                 </thead>
                 <tbody>
@@ -448,27 +513,36 @@ export default function Products() {
                     const hm = healthMeta[health] || healthMeta.in_stock
                     const tracked = isStockTrackedProductType(product.productType)
                     const type = normalizeProductType(product.productType)
+                    const rowId = String(product._id)
                     return (
                       <tr key={product._id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/70">
+                        <td className="px-3 py-3.5">
+                          <input
+                            type="checkbox"
+                            checked={selected.has(rowId)}
+                            onChange={() => toggleRow(rowId)}
+                            aria-label={isAr ? 'تحديد' : 'Select row'}
+                          />
+                        </td>
                         {col('name') && (
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100">
+                          <td className="max-w-0 px-3 py-3.5">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100">
                                 {product.images?.[0] ? (
                                   <img src={product.images[0].thumbUrl || product.images[0].url} alt="" className="h-full w-full object-cover" />
                                 ) : (
-                                  <Package className="h-5 w-5 text-slate-400" />
+                                  <Package className="h-4 w-4 text-slate-400" />
                                 )}
                               </div>
-                              <div className="min-w-0">
+                              <div className="min-w-0 flex-1">
                                 <p className="truncate font-semibold text-slate-900">
                                   <Link to={`/app/dashboard/inventory/products/${product._id}`} className="hover:text-emerald-800 hover:underline">
                                     {isAr ? product.nameAr || product.nameEn : product.nameEn}
                                   </Link>
                                 </p>
                                 {product.barcode && (
-                                  <p className="flex items-center gap-1 font-mono text-[11px] text-slate-400">
-                                    <QrCode className="h-3 w-3" />{product.barcode}
+                                  <p className="truncate font-mono text-[11px] text-slate-400">
+                                    <QrCode className="me-1 inline h-3 w-3" />{product.barcode}
                                   </p>
                                 )}
                               </div>
@@ -476,27 +550,27 @@ export default function Products() {
                           </td>
                         )}
                         {col('productId') && (
-                          <td className="px-3 py-3.5 font-mono text-xs font-semibold text-emerald-700">{product.productId || '—'}</td>
+                          <td className="truncate px-2 py-3.5 font-mono text-xs font-semibold text-emerald-700">{product.productId || '—'}</td>
                         )}
                         {col('sku') && (
-                          <td className="px-3 py-3.5 font-mono text-xs text-slate-500">{product.sku}</td>
+                          <td className="truncate px-2 py-3.5 font-mono text-xs text-slate-500">{product.sku}</td>
                         )}
                         {col('type') && (
-                          <td className="px-3 py-3.5">
+                          <td className="px-2 py-3.5">
                             <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${productTypeBadgeClass(type)}`}>
                               {formatProductTypeLabel(type, language)}
                             </span>
                           </td>
                         )}
                         {col('uom') && (
-                          <td className="px-3 py-3.5">
+                          <td className="truncate px-2 py-3.5">
                             <span className="rounded-lg bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600">
                               {getUomLabel(product.unitOfMeasure, language) || product.unitOfMeasure || 'EA'}
                             </span>
                           </td>
                         )}
                         {col('available') && (
-                          <td className="px-3 py-3.5">
+                          <td className="px-2 py-3.5">
                             {tracked ? (
                               <>
                                 {(inv.aggregatedFromVariants || (product.variantCount || 0) > 0) ? (
@@ -529,13 +603,13 @@ export default function Products() {
                           </td>
                         )}
                         {col('reorder') && (
-                          <td className="px-3 py-3.5 tabular-nums text-slate-500">{tracked ? (inv.reorderPoint ?? '—') : '—'}</td>
+                          <td className="truncate px-2 py-3.5 tabular-nums text-slate-500">{tracked ? (inv.reorderPoint ?? '—') : '—'}</td>
                         )}
                         {col('sellingPrice') && (
-                          <td className="px-3 py-3.5 font-semibold"><Money value={product.sellingPrice} /></td>
+                          <td className="truncate px-2 py-3.5 font-semibold"><Money value={product.sellingPrice} /></td>
                         )}
                         {col('stock') && (
-                          <td className="px-3 py-3.5">
+                          <td className="px-2 py-3.5">
                             {tracked ? (
                               <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${hm.className}`}>
                                 {isAr ? hm.ar : hm.en}
@@ -548,7 +622,7 @@ export default function Products() {
                           </td>
                         )}
                         {col('actions') && (
-                          <td className="px-5 py-3.5">
+                          <td className="px-2 py-3.5">
                             <div className="flex justify-end gap-1">
                             {tracked ? (
                               <button
@@ -605,6 +679,14 @@ export default function Products() {
           </button>
         </div>
       )}
+
+      <PrintBarcodeLabelsModal
+        open={labelModalOpen}
+        onClose={() => setLabelModalOpen(false)}
+        productIds={selectedRowIds}
+        ar={isAr}
+        language={language}
+      />
 
       {stockModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">

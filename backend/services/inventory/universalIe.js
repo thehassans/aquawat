@@ -183,6 +183,18 @@ async function loadExportRows(tenantId, model, filters = {}) {
   switch (model) {
     case 'products': {
       const q = withTenant(tid, {});
+      if (Array.isArray(filters.ids) && filters.ids.length) {
+        q._id = { $in: filters.ids.map((id) => toObjectId(id)).filter(Boolean) };
+      }
+      if (filters.status) q.status = filters.status;
+      if (filters.productType === 'service') {
+        q.productType = 'service';
+      } else if (filters.productType === 'goods') {
+        q.$and = (q.$and || []).concat([{
+          $or: [{ productType: 'goods' }, { productType: { $exists: false } }, { productType: null }],
+        }]);
+      }
+      if (filters.categoryId) q.categoryId = toObjectId(filters.categoryId);
       if (search) {
         q.$or = [
           { nameEn: new RegExp(search, 'i') },

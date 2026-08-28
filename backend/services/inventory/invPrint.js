@@ -470,6 +470,92 @@ async function stockReportHtml(tenantId, { filters, lang }) {
   </body></html>`;
 }
 
+async function variantLabelsHtml(tenantId, { labelItems = [], lang, preset = '50x25' }) {
+  const tenant = await loadTenant(tenantId);
+  const tid = toObjectId(tenantId);
+  const InvProductVariant = (await import('../../models/inventory/InvProductVariant.js')).default;
+  const currency = tenant?.currency || tenant?.settings?.currency || 'SAR';
+
+  const variantIds = labelItems.map((i) => i.product_variant_id).filter(Boolean);
+  const productIds = labelItems.map((i) => i.product_id).filter(Boolean);
+
+  const [variants, products] = await Promise.all([
+    variantIds.length
+      ? InvProductVariant.find({ tenantId: tid, _id: { $in: variantIds } })
+        .populate('productId', 'nameEn nameAr sku barcode sellingPrice salePrice')
+        .lean()
+      : Promise.resolve([]),
+    productIds.length
+      ? Product.find({ tenantId: tid, _id: { $in: productIds } })
+        .select('nameEn nameAr sku barcode sellingPrice salePrice productId')
+        .lean()
+      : Promise.resolve([]),
+  ]);
+
+  const variantById = new Map(variants.map((v) => [String(v._id), v]));
+  const productById = new Map(products.map((p) => [String(p._id), p]));
+
+  const isA4 = preset === 'a4_3x8';
+  const size = preset === '100x50'
+    ? 'width:100mm;height:50mm'
+    : preset === '40x30'
+      ? 'width:40mm;height:30mm'
+      : preset === 'a4_3x8'
+        ? 'width:70mm;height:35mm'
+        : 'width:50mm;height:25mm';
+  const nameMax = preset === '100x50' ? 64 : preset === '40x30' ? 36 : 42;
+
+  const pages = [];
+  for (const item of labelItems) {
+    const qty = Math.max(0, Number(item.qty) || 0);
+    if (qty <= 0) continue;
+
+    let p;
+    let v;
+    if (item.product_variant_id) {
+      v = variantById.get(String(item.product_variant_id));
+      p = v?.productId || productById.get(String(item.product_id));
+    } else {
+      p = productById.get(String(item.product_id));
+    }
+
+    const baseName = lang === 'ar' && p?.nameAr ? p.nameAr : (p?.nameEn || p?.name || p?.sku || '');
+    const displayName = v?.name ? `${baseName} — ${v.name}` : baseName;
+    const code = v?.barcode || p?.barcode || v?.sku || p?.sku || p?.productId || String(p?._id || item.product_id || '');
+    const barcodeImg = await linearBarcodeDataUrl(code);
+    const price = formatMoneyLabel(p?.sellingPrice ?? p?.salePrice, currency);
+
+    for (let i = 0; i < qty; i += 1) {
+      pages.push(`<div class="label-page product-label" style="${size};${isA4 ? '' : 'page-break-after:always;'}padding:2.5mm">
+        <div>
+          <div class="pl-name">${esc(truncateLabel(displayName, nameMax))}</div>
+          <div class="pl-meta">
+            <span class="pl-sku">SKU ${esc(v?.sku || p?.sku || '—')}</span>
+            <span class="pl-price">${esc(price)}</span>
+          </div>
+        </div>
+        <div class="pl-barcode">
+          ${barcodeImg
+    ? `<img src="${barcodeImg}" alt="barcode"/>`
+    : `<div class="pl-fallback">${esc(code)}</div>`}
+        </div>
+      </div>`);
+    }
+  }
+
+  const body = isA4
+    ? `<div class="a4-label-sheet">${pages.join('')}</div>`
+    : pages.join('');
+
+  const extraCss = isA4
+    ? `@page { size: A4; margin: 8mm; }
+       .a4-label-sheet { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2mm; }
+       .a4-label-sheet .label-page { page-break-inside: avoid; border: 0.2mm solid #e2e8f0; }`
+    : '';
+
+  return `<!DOCTYPE html><html lang="${lang || 'en'}" dir="${lang === 'ar' ? 'rtl' : 'ltr'}"><head><meta charset="utf-8"/><style>${baseCss()}${extraCss}</style></head><body>${body}</body></html>`;
+}
+
 async function productLabelsHtml(tenantId, { productIds, copies = 1, lang, preset = '50x25' }) {
   const tenant = await loadTenant(tenantId);
   const tid = toObjectId(tenantId);
@@ -716,6 +802,7 @@ export async function renderInventoryPdf(tenantId, {
   packageIds,
   copies,
   labelPreset,
+  labelItems,
   filters,
   lang = 'ar',
   showPrices = false,
@@ -793,6 +880,9 @@ export async function renderInventoryPdf(tenantId, {
     return htmlToPdf(await locationLabelsHtml(tenantId, { locationIds, lang }), pdfOpts);
   }
   if (layout === 'product_label') {
+    if (labelItems?.length) {
+      return htmlToPdf(await variantLabelsHtml(tenantId, { labelItems, lang, preset: labelPreset }), pdfOpts);
+    }
     return htmlToPdf(await productLabelsHtml(tenantId, { productIds, copies, lang, preset: labelPreset }), pdfOpts);
   }
   if (layout === 'lot_label') {

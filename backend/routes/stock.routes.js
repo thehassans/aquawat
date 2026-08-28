@@ -3859,6 +3859,7 @@ router.post('/print', checkPermission('inventory', 'read'), stockHeavyLimiter, a
         packageIds: req.body.packageIds,
         copies: req.body.copies,
         labelPreset: req.body.labelPreset,
+        labelItems: req.body.labelItems || [],
         filters: req.body.filters || {},
         lang: req.body.lang || 'ar',
         showPrices: !!req.body.showPrices,

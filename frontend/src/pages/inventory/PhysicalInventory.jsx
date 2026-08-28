@@ -3,18 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ScanBarcode, X } from 'lucide-react'
+import { ScanBarcode, Search, X } from 'lucide-react'
 import api from '../../lib/api'
 import { asInvList } from '../../lib/invList'
 import EmptyState from '../../components/ui/EmptyState'
-import AsyncCombobox from '../../components/ui/AsyncCombobox'
 import { InventoryIeButtons } from '../../components/inventory/ImportExportDialog'
 import { formatInvError } from '../../lib/invError'
-import {
-  opsProductOptionLabel,
-  opsProductOptionSub,
-  searchProductsAndVariants,
-} from '../../lib/productVariantSearch'
 import { isVariantPickCancelled, useForceVariantPick } from '../../lib/useForceVariantPick'
 
 function fmtDate(d) {
@@ -79,7 +73,7 @@ export default function PhysicalInventory() {
   const [filter, setFilter] = useState('')
   const [warehouseId, setWarehouseId] = useState('')
   const [locationId, setLocationId] = useState('')
-  const [search, setSearch] = useState('')
+  const [tableFilter, setTableFilter] = useState('')
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState(() => new Set())
   const [edits, setEdits] = useState({})
@@ -170,7 +164,7 @@ export default function PhysicalInventory() {
   const users = usersPayload?.users || []
 
   const { data: payload, isLoading } = useQuery({
-    queryKey: ['physical-inventory', warehouseId, locationId, filter, search, page],
+    queryKey: ['physical-inventory', warehouseId, locationId, filter, page],
     queryFn: () =>
       api
         .get('/stock/physical-inventory', {
@@ -178,7 +172,6 @@ export default function PhysicalInventory() {
             warehouseId: warehouseId || undefined,
             locationId: locationId || undefined,
             filter: filter || undefined,
-            search: search || undefined,
             page,
             limit: pageSize,
           },
@@ -190,6 +183,18 @@ export default function PhysicalInventory() {
     if (Array.isArray(payload)) return payload
     return Array.isArray(payload?.data) ? payload.data : []
   }, [payload])
+
+  const filteredList = useMemo(() => {
+    const needle = tableFilter.trim().toLowerCase()
+    if (!needle) return list
+    return list.filter((row) => {
+      const name = productLabel(row, ar).toLowerCase()
+      const sku = rowSku(row).toLowerCase()
+      const loc = String(row.locationId?.completePath || row.locationId?.name || '').toLowerCase()
+      return name.includes(needle) || sku.includes(needle) || loc.includes(needle)
+    })
+  }, [list, tableFilter, ar])
+
   const meta = payload?._meta || { total: list.length, page: 1, pageSize }
   const totals = meta.totals || {}
   const totalPages = Math.max(1, Math.ceil((meta.total || 0) / (meta.pageSize || pageSize)))
@@ -355,9 +360,9 @@ export default function PhysicalInventory() {
   })
 
   const groupedList = useMemo(() => {
-    if (!groupBy) return [{ key: '', label: null, rows: list }]
+    if (!groupBy) return [{ key: '', label: null, rows: filteredList }]
     const map = new Map()
-    for (const row of list) {
+    for (const row of filteredList) {
       let key = '—'
       let label = '—'
       if (groupBy === 'location') {
@@ -374,7 +379,12 @@ export default function PhysicalInventory() {
       map.get(key).rows.push(row)
     }
     return [...map.values()]
-  }, [list, groupBy, ar])
+  }, [filteredList, groupBy, ar])
+
+  const selectableIds = useMemo(
+    () => filteredList.filter((r) => r.isCountSet && !r.isStale).map((r) => r._id),
+    [filteredList],
+  )
 
   const whList = Array.isArray(warehouses) ? warehouses : []
   const locList = asInvList(locations)
@@ -382,10 +392,10 @@ export default function PhysicalInventory() {
   const catList = Array.isArray(categories) ? categories : []
   const effectiveLocationId = locationId || locList[0]?._id || ''
 
-  const selectableIds = useMemo(
-    () => list.filter((r) => r.isCountSet && !r.isStale).map((r) => r._id),
-    [list],
-  )
+  useEffect(() => {
+    quickRef.current?.focus()
+  }, [warehouseId, locationId])
+
   const allFilteredSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id))
   const someFilteredSelected = selectableIds.some((id) => selected.has(id))
 
@@ -466,29 +476,9 @@ export default function PhysicalInventory() {
     )
   }, [effectiveLocationId, list, edits, setCount, ar])
 
-  const onQuickPick = async (_id, opt) => {
-    if (!opt) return
-    try {
-      const resolved = await resolvePick(opt)
-      if (!resolved.productId) return
-      if (resolved.needsVariant && !resolved.variantId) {
-        toast.error(ar ? 'اختر متغيراً محدداً' : 'Select a specific variant')
-        return
-      }
-      await addOrIncrement({
-        productId: resolved.productId,
-        variantId: resolved.variantId,
-        name: resolved.variantName || resolved.productName || opt.name,
-      })
-      setQuickTerm('')
-    } catch (e) {
-      if (isVariantPickCancelled(e)) return
-      toast.error(formatInvError(e, language))
-    }
-  }
-
   const scanBarcode = async (raw) => {
     const q = String(raw || '').trim()
+    setQuickTerm('')
     if (!q) return
     try {
       const variants = await api.get('/stock/variants', { params: { q, limit: 8 } }).then((r) => r.data?.items || r.data || [])
@@ -502,7 +492,6 @@ export default function PhysicalInventory() {
           variantId: hit._id,
           name: hit.name,
         })
-        setQuickTerm('')
         return
       }
       const product = await api.get('/products/lookup', { params: { barcode: q } }).then((r) => r.data).catch(async () => {
@@ -524,7 +513,6 @@ export default function PhysicalInventory() {
         variantId: resolved.variantId,
         name: resolved.variantName || resolved.productName || product.nameEn,
       })
-      setQuickTerm('')
     } catch (e) {
       if (isVariantPickCancelled(e)) return
       toast.error(ar ? 'غير موجود' : 'Not found')
@@ -556,7 +544,6 @@ export default function PhysicalInventory() {
           warehouseId: warehouseId || undefined,
           locationId: locationId || undefined,
           filter: filter || undefined,
-          search: search || undefined,
           page: 1,
           limit: 500,
         },
@@ -591,11 +578,6 @@ export default function PhysicalInventory() {
       toast.error(formatInvError(e, language))
     }
   }
-
-  const fetchOptions = useCallback(
-    (q) => searchProductsAndVariants(q, { variantsEnabled: true, limit: 25 }),
-    [],
-  )
 
   const chips = [
     { id: '', en: 'All', ar: 'الكل' },
@@ -711,7 +693,6 @@ export default function PhysicalInventory() {
                     warehouseId: warehouseId || undefined,
                     locationId: locationId || undefined,
                     filter: filter || undefined,
-                    search: search || undefined,
                   },
                 }, { responseType: 'blob' })
                 const url = URL.createObjectURL(res.data)
@@ -740,7 +721,6 @@ export default function PhysicalInventory() {
               warehouseId: warehouseId || undefined,
               locationId: locationId || undefined,
               filter: filter || undefined,
-              search: search || undefined,
             }}
             onImported={() => {
               setFilter('toApply')
@@ -761,7 +741,7 @@ export default function PhysicalInventory() {
         ].map((kpi) => (
           <div
             key={kpi.label}
-            className="rounded-lg border border-slate-200/70 bg-slate-50/90 px-2.5 py-1.5 dark:border-dark-600 dark:bg-dark-900/50"
+            className="rounded-lg border border-slate-200/70 bg-slate-50/90 px-2.5 py-0.5 dark:border-dark-600 dark:bg-dark-900/50"
           >
             <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">{kpi.label}</div>
             <div className={`text-sm font-semibold tabular-nums tracking-tight ${kpi.tone || 'text-slate-800 dark:text-slate-100'}`}>
@@ -773,9 +753,9 @@ export default function PhysicalInventory() {
 
       {/* Filter bar + quick entry — frozen */}
       <div className="shrink-0 space-y-2 rounded-xl border border-slate-200/80 bg-white p-2.5 dark:border-dark-600 dark:bg-dark-800">
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex w-full flex-row flex-wrap items-center gap-4">
           <select
-            className="select select-sm"
+            className="select select-sm min-w-[10rem] flex-1"
             value={warehouseId}
             onChange={(e) => {
               setWarehouseId(e.target.value)
@@ -789,7 +769,7 @@ export default function PhysicalInventory() {
             ))}
           </select>
           <select
-            className="select select-sm"
+            className="select select-sm min-w-[10rem] flex-1"
             value={locationId}
             onChange={(e) => {
               setLocationId(e.target.value)
@@ -801,6 +781,14 @@ export default function PhysicalInventory() {
               <option key={loc._id} value={loc._id}>{loc.completePath || loc.name}</option>
             ))}
           </select>
+          <div className="ms-auto flex items-center gap-1.5 text-xs text-slate-500">
+            <span>{from}-{to} / {meta.total || 0}</span>
+            <button type="button" className="btn btn-sm btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>‹</button>
+            <button type="button" className="btn btn-sm btn-secondary" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>›</button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
           {chips.map((f) => (
             <button
               key={f.id || 'all'}
@@ -837,11 +825,6 @@ export default function PhysicalInventory() {
               {ar ? 'اعتماد فروقات' : 'Approve variance'}
             </button>
           )}
-          <div className="ms-auto flex items-center gap-1.5 text-xs text-slate-500">
-            <span>{from}-{to} / {meta.total || 0}</span>
-            <button type="button" className="btn btn-sm btn-secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>‹</button>
-            <button type="button" className="btn btn-sm btn-secondary" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>›</button>
-          </div>
         </div>
 
         {colOptsOpen && (
@@ -860,52 +843,35 @@ export default function PhysicalInventory() {
           </div>
         )}
 
-        {/* Unified barcode / variant search */}
-        <div className="flex items-stretch gap-2">
-          <div className="relative min-w-0 flex-1">
-            <AsyncCombobox
-              value=""
-              selectedOption={null}
-              debounceMs={280}
-              minChars={2}
-              queryKeyPrefix="pi-variant-search"
-              fetchOptions={fetchOptions}
-              getOptionLabel={opsProductOptionLabel}
-              getOptionSub={opsProductOptionSub}
-              placeholder={ar ? 'امسح باركود أو ابحث عن متغير…' : 'Scan barcode or search variant…'}
-              noResultsText={ar ? 'لا نتائج' : 'No results'}
-              onChange={onQuickPick}
-              className="w-full"
-            />
-          </div>
+        {/* Scanner (action) + table filter (display) */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
           <form
-            className="flex shrink-0 items-center gap-1"
+            className="relative flex min-w-0 flex-1 items-center"
             onSubmit={(e) => {
               e.preventDefault()
               scanBarcode(quickTerm)
             }}
           >
+            <ScanBarcode className="pointer-events-none absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               ref={quickRef}
-              className="input input-sm w-40 sm:w-48"
+              className="input input-sm w-full ps-9"
               value={quickTerm}
               onChange={(e) => setQuickTerm(e.target.value)}
-              placeholder={ar ? 'باركود…' : 'Barcode…'}
+              placeholder={ar ? 'امسح الباركود أو SKU واضغط Enter…' : 'Scan barcode or SKU, press Enter…'}
               autoComplete="off"
+              autoFocus
             />
-            <button type="submit" className="btn btn-secondary btn-sm" title={ar ? 'مسح' : 'Scan'}>
-              <ScanBarcode className="h-4 w-4" />
-            </button>
           </form>
-          <input
-            className="input input-sm hidden max-w-[10rem] sm:block"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-              setPage(1)
-            }}
-            placeholder={ar ? 'تصفية الجدول…' : 'Filter table…'}
-          />
+          <div className="relative min-w-0 flex-1 sm:max-w-xs">
+            <Search className="pointer-events-none absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              className="input input-sm w-full ps-9"
+              value={tableFilter}
+              onChange={(e) => setTableFilter(e.target.value)}
+              placeholder={ar ? 'تصفية الجدول (اسم، SKU، موقع)…' : 'Filter table (name, SKU, location)…'}
+            />
+          </div>
         </div>
       </div>
 
@@ -951,10 +917,17 @@ export default function PhysicalInventory() {
                     title={ar ? 'لا أسطر جرد' : 'No count lines'}
                     description={
                       ar
-                        ? 'امسح باركوداً أو ابحث عن متغير، أو استخدم «طلب جرد».'
-                        : 'Scan a barcode, search a variant, or use Request count.'
+                        ? 'امسح باركوداً أو استخدم «طلب جرد».'
+                        : 'Scan a barcode or use Request count.'
                     }
                   />
+                </td>
+              </tr>
+            )}
+            {!isLoading && list.length > 0 && filteredList.length === 0 && (
+              <tr>
+                <td colSpan={14} className="px-4 py-8 text-center text-sm text-slate-500">
+                  {ar ? 'لا نتائج تطابق التصفية' : 'No rows match the table filter'}
                 </td>
               </tr>
             )}
