@@ -248,8 +248,9 @@ export default function PosForm() {
       demandQty: String(qty),
       variantId: payload.variantId || null,
       variantName: payload.variantName || '',
-      variants: [],
-      needsVariant: false,
+      variants: payload.variants || [],
+      needsVariant: !!(payload.needsVariant || payload.productHasVariants) && !payload.variantId,
+      productHasVariants: !!payload.productHasVariants,
     }])
   }
 
@@ -315,7 +316,7 @@ export default function PosForm() {
       return
     }
     for (const l of cleanLines) {
-      if (l.needsVariant && !l.variantId) {
+      if ((l.needsVariant || l.productHasVariants) && !l.variantId) {
         toast.error(ar ? 'اختر المتغير' : 'Select a variant')
         return
       }

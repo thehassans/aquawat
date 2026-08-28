@@ -43,12 +43,14 @@ export default function StockReport() {
   })
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['stock-report', queryParams.warehouseId, queryParams.asOf],
+    queryKey: ['stock-report', queryParams.warehouseId, queryParams.asOf, queryParams.productId],
     queryFn: () =>
       api.get('/stock/report/stock', {
         params: {
           ...(queryParams.warehouseId ? { warehouseId: queryParams.warehouseId } : {}),
           ...(queryParams.asOf ? { asOf: queryParams.asOf } : {}),
+          ...(queryParams.productId ? { productId: queryParams.productId } : {}),
+          includeZeroVariants: 'true',
         },
       }).then((r) => r.data),
     placeholderData: (prev) => prev,

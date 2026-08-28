@@ -288,8 +288,9 @@ export default function InternalForm() {
       demandQty: '1',
       variantId: payload.variantId || null,
       variantName: payload.variantName || '',
-      variants: [],
-      needsVariant: false,
+      variants: payload.variants || [],
+      needsVariant: !!(payload.needsVariant || payload.productHasVariants) && !payload.variantId,
+      productHasVariants: !!payload.productHasVariants,
     }])
   }
 

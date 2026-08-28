@@ -26,7 +26,7 @@ import ProductVariantsGrid from '../../components/inventory/ProductVariantsGrid'
 import ProductActionsMenu from '../../components/inventory/ProductActionsMenu'
 import { formatInvError } from '../../lib/invError'
 import { invTableWrapClass, invTableClass } from './inventoryUi'
-import { contactToSupplier, fetchContactsList } from '../../lib/contactMappers'
+import { PRODUCT_CATEGORIES_KEY } from '../../lib/productCategoryQueries'
 
 function AttributeValuesMulti({ attributeId, valueIds, onChange, language }) {
   const ar = language === 'ar'
@@ -362,7 +362,7 @@ export default function ProductForm() {
   })
 
   const { data: invCategories } = useQuery({
-    queryKey: ['inv-product-categories'],
+    queryKey: PRODUCT_CATEGORIES_KEY,
     queryFn: () => api.get('/stock/product-categories').then((r) => asInvList(r.data)),
   })
 
@@ -1305,7 +1305,7 @@ export default function ProductForm() {
                     <button
                       type="button"
                       className="text-xs font-semibold text-teal-700 underline dark:text-teal-300"
-                      onClick={() => navigate('/app/dashboard/inventory/stock')}
+                      onClick={() => navigate(`/app/dashboard/inventory/stock?productId=${id}`)}
                     >
                       {language === 'ar' ? 'تقرير المخزون' : 'Stock report'}
                     </button>

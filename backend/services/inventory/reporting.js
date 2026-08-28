@@ -525,7 +525,7 @@ export async function inventoryAtDate(tenantId, { asOf, warehouseId } = {}) {
  * Live stock report in a bounded number of queries (no per-product N+1).
  * Groups by productId + variantId so templates with variants are not aggregated.
  */
-export async function stockReportLive(tenantId, { warehouseId, locIds } = {}) {
+export async function stockReportLive(tenantId, { warehouseId, locIds, productId, includeZeroVariants = true } = {}) {
   const tid = toObjectId(tenantId);
   const InvQuant = (await import('../../models/inventory/InvQuant.js')).default;
   const InvValuationLayer = (await import('../../models/inventory/InvValuationLayer.js')).default;
@@ -676,6 +676,71 @@ export async function stockReportLive(tenantId, { warehouseId, locIds } = {}) {
       unitCost,
       value: money2(valueD),
     });
+  }
+
+  if (includeZeroVariants !== false) {
+    const keysInRows = new Set(rows.map((r) => variantKey(r.productId, r.variantId)));
+    const variantMatch = { tenantId: tid, active: { $ne: false } };
+    if (productId) {
+      variantMatch.productId = toObjectId(productId);
+    } else if (quants.length) {
+      variantMatch.productId = { $in: [...new Set(quants.map((q) => q._id.productId))] };
+    }
+
+    if (productId || quants.length) {
+      const zeroVariants = await InvProductVariant.find(variantMatch)
+        .select('name sku barcode productId standardPrice extraPrice')
+        .lean();
+
+      const missingProductIds = [...new Set(
+        zeroVariants.map((v) => String(v.productId)).filter((pid) => !byId.has(pid)),
+      )];
+      if (missingProductIds.length) {
+        const extraProducts = await Product.find({ tenantId: tid, _id: { $in: missingProductIds } })
+          .select('nameEn nameAr sku barcode costPrice unitOfMeasure uomId sellingPrice')
+          .lean();
+        for (const p of extraProducts) byId.set(String(p._id), p);
+      }
+      for (const v of zeroVariants) variantById.set(String(v._id), v);
+
+      for (const v of zeroVariants) {
+        const pid = v.productId;
+        const vid = v._id;
+        const key = variantKey(pid, vid);
+        if (keysInRows.has(key)) continue;
+
+        const p = byId.get(String(pid));
+        const io = ioByKey.get(key) || { incoming: D(0), outgoing: D(0) };
+        const incoming = decStr(io.incoming);
+        const outgoing = decStr(io.outgoing);
+        const onHand = '0';
+        const reserved = '0';
+        const forecast = decStr(D(onHand).plus(io.incoming).minus(io.outgoing));
+        const costBase = v?.standardPrice != null && v.standardPrice !== ''
+          ? v.standardPrice
+          : (p?.costPrice || 0);
+        const productName = buildReportProductName(p, v)
+          || (pid ? `[Unknown/Deleted Product: ID ${pid}]` : '[Unknown/Deleted Product]');
+
+        rows.push({
+          productId: pid,
+          variantId: vid,
+          product: p || null,
+          variant: v || null,
+          productName,
+          sku: v?.sku || p?.sku || '',
+          onHand,
+          reserved,
+          freeToUse: '0',
+          incoming,
+          outgoing,
+          forecast,
+          unitCost: money2(costBase || 0),
+          value: money2(0),
+        });
+        keysInRows.add(key);
+      }
+    }
   }
 
   rows.sort((a, b) => String(a.productName).localeCompare(String(b.productName)));

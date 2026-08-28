@@ -1145,6 +1145,8 @@ router.get('/report/stock', checkPermission('inventory', 'read'), stockHeavyLimi
     return res.json(await stockReportLive(req.user.tenantId, {
       warehouseId: req.query.warehouseId,
       locIds,
+      productId: req.query.productId || undefined,
+      includeZeroVariants: req.query.includeZeroVariants !== 'false',
     }));
   } catch (err) {
     handleInventoryError(res, err);
@@ -1166,7 +1168,17 @@ router.post('/report/stock/:productId/adjust', checkPermission('inventory', 'upd
     }
 
     const variantId = req.body.variantId || null;
-    const current = await computeOnHand(req.user.tenantId, productId, { warehouseId, variantId: variantId || undefined });
+    const { assertStockMoveVariant } = await import('../services/inventory/variantGuard.js');
+    const resolvedVariantId = await assertStockMoveVariant(req.user.tenantId, {
+      productId,
+      variantId,
+      allowAutoSingle: false,
+    });
+
+    const current = await computeOnHand(req.user.tenantId, productId, {
+      warehouseId,
+      variantId: resolvedVariantId || undefined,
+    });
     const diff = newQty.minus(D(current.onHand));
     if (diff.isZero()) return res.json({ onHand: current.onHand, adjusted: false });
 
@@ -1181,12 +1193,6 @@ router.post('/report/stock/:productId/adjust', checkPermission('inventory', 'upd
     }
 
     const isGain = diff.gt(0);
-    const { assertStockMoveVariant } = await import('../services/inventory/variantGuard.js');
-    const resolvedVariantId = await assertStockMoveVariant(req.user.tenantId, {
-      productId,
-      variantId,
-      allowAutoSingle: false,
-    });
     const transfer = await createTransfer(req.user.tenantId, {
       operationTypeId: opType._id,
       sourceLocationId: isGain ? adjLoc._id : wh.stockLocationId,
