@@ -161,7 +161,7 @@ export default function SalesOrdersPage() {
                 <th className={salesThClass}>Incoterm</th>
                 <th className={`${salesThClass} text-end`}>{isAr ? 'الإجمالي' : 'Total'}</th>
                 <th className={salesThClass}>{isAr ? 'التاريخ' : 'Date'}</th>
-                <th className={`${salesThClass} w-16`}isAr ? '' : ''}</th>
+                <th className={`${salesThClass} w-16`} />
               </tr>
             </thead>
             <tbody>
