@@ -45,18 +45,22 @@ const partnerSearchOr = (q) => [
   { supplierCode: { $regex: q, $options: 'i' } }
 ];
 
-const mapPartner = (doc, { wantCustomers, wantSuppliers }) => {
+const mapPartner = (doc, { wantCustomers, wantSuppliers, wantEmployees }) => {
   const isCustomer = Boolean(doc.isCustomer);
   const isVendor = Boolean(doc.isVendor);
+  const isEmployeePartner = Boolean(doc.isEmployee);
 
   let entityType;
-  if (wantCustomers && !wantSuppliers) {
+  if (isEmployeePartner && !isCustomer && !isVendor) {
+    entityType = 'employee';
+  } else if (wantCustomers && !wantSuppliers && !wantEmployees) {
     entityType = 'customer';
-  } else if (wantSuppliers && !wantCustomers) {
+  } else if (wantSuppliers && !wantCustomers && !wantEmployees) {
     entityType = 'supplier';
+  } else if (wantEmployees && !wantCustomers && !wantSuppliers) {
+    entityType = 'employee';
   } else {
-    // Hub: both types requested — one row; dual-role keeps both badges
-    entityType = isCustomer ? 'customer' : 'supplier';
+    entityType = isCustomer ? 'customer' : (isVendor ? 'supplier' : (isEmployeePartner ? 'employee' : 'customer'));
   }
 
   return {
@@ -73,6 +77,8 @@ const mapPartner = (doc, { wantCustomers, wantSuppliers }) => {
     code: doc.supplierCode || doc.customerCode || null,
     isCustomer,
     isVendor,
+    isEmployee: isEmployeePartner,
+    isPartnerEmployee: isEmployeePartner,
     partnerType: doc.type || 'business',
     linkedSupplierId: null,
     linkedCustomerId: null,
@@ -117,15 +123,24 @@ router.get('/', async (req, res) => {
       ...activeMatch
     };
 
-    if (wantCustomers && wantSuppliers) {
-      partnerMatch.$or = [{ isCustomer: true }, { isVendor: true }];
-    } else if (wantCustomers) {
-      partnerMatch.isCustomer = true;
-    } else if (wantSuppliers) {
-      partnerMatch.isVendor = true;
+    const isPartnerHub = requestedTypes.includes('customer')
+      && requestedTypes.includes('supplier')
+      && !requestedTypes.includes('employee');
+
+    const partnerRoleOr = [];
+    if (wantCustomers) partnerRoleOr.push({ isCustomer: true });
+    if (wantSuppliers) partnerRoleOr.push({ isVendor: true });
+    if (wantEmployees || isPartnerHub) partnerRoleOr.push({ isEmployee: true });
+
+    if (partnerRoleOr.length === 1) {
+      Object.assign(partnerMatch, partnerRoleOr[0]);
+    } else if (partnerRoleOr.length > 1) {
+      partnerMatch.$or = partnerRoleOr;
+    } else if (wantEmployees) {
+      partnerMatch.isEmployee = true;
     }
 
-    if (q && (wantCustomers || wantSuppliers)) {
+    if (q && partnerRoleOr.length) {
       const searchOr = partnerSearchOr(q);
       if (partnerMatch.$or) {
         partnerMatch.$and = [{ $or: partnerMatch.$or }, { $or: searchOr }];
@@ -173,28 +188,33 @@ router.get('/', async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
     const fetchCap = Math.min(500, skip + limitNum + 100);
 
-    const cacheKey = `contacts:v4:${req.user.tenantId}:${pageNum}:${limitNum}:${q}:${types || ''}:${isActive || ''}:${sortBy || ''}:${sortDir || ''}`;
+    const cacheKey = `contacts:v5:${req.user.tenantId}:${pageNum}:${limitNum}:${q}:${types || ''}:${isActive || ''}:${sortBy || ''}:${sortDir || ''}`;
 
     const payload = await cacheAside(cacheKey, 45, async () => {
-    const wantPartners = wantCustomers || wantSuppliers;
+    const wantPartners = (wantCustomers && access.customers)
+      || (wantSuppliers && access.suppliers)
+      || (wantEmployees && access.employees)
+      || (isPartnerHub && (access.customers || access.suppliers));
+
+    const fetchHrEmployees = wantEmployees && !isPartnerHub;
 
     const [partnerDocs, employeeDocs, partnerTotal, employeeTotal] = await Promise.all([
       wantPartners
         ? Partner.find(partnerMatch)
-          .select('name nameEn nameAr email phone mobile vatNumber customerCode supplierCode isActive isCustomer isVendor type createdAt updatedAt')
+          .select('name nameEn nameAr email phone mobile vatNumber customerCode supplierCode isActive isCustomer isVendor isEmployee type createdAt updatedAt')
           .sort({ name: 1 })
           .limit(fetchCap)
           .lean()
         : [],
-      wantEmployees
+      fetchHrEmployees
         ? Employee.find(employeeMatch).select('employeeId firstNameEn lastNameEn firstNameAr lastNameAr email phone alternatePhone isActive createdAt updatedAt').sort({ firstNameEn: 1 }).limit(fetchCap).lean()
         : [],
       wantPartners ? Partner.countDocuments(partnerMatch) : 0,
-      wantEmployees ? Employee.countDocuments(employeeMatch) : 0,
+      fetchHrEmployees ? Employee.countDocuments(employeeMatch) : 0,
     ]);
 
     let contacts = [
-      ...partnerDocs.map((doc) => mapPartner(doc, { wantCustomers, wantSuppliers })),
+      ...partnerDocs.map((doc) => mapPartner(doc, { wantCustomers, wantSuppliers, wantEmployees: wantEmployees || isPartnerHub })),
       ...employeeDocs.map(mapEmployee)
     ];
     let total = (partnerTotal || 0) + (employeeTotal || 0);
@@ -274,18 +294,20 @@ router.get('/stats', async (req, res) => {
     const activeMatch = getIsActiveMatch(isActive);
     const base = { ...req.tenantFilter, ...activeMatch };
 
-    const [customers, suppliers, partners, employees, waContacts, waGroups] = await Promise.all([
+    const [customers, suppliers, partners, partnerEmployees, employees, waContacts, waGroups] = await Promise.all([
       access.customers ? Partner.countDocuments({ ...base, isCustomer: true }) : 0,
       access.suppliers ? Partner.countDocuments({ ...base, isVendor: true }) : 0,
-      (access.customers || access.suppliers)
+      (access.customers || access.suppliers || access.employees)
         ? Partner.countDocuments({
             ...base,
             $or: [
               ...(access.customers ? [{ isCustomer: true }] : []),
               ...(access.suppliers ? [{ isVendor: true }] : []),
+              ...(access.employees ? [{ isEmployee: true }] : []),
             ],
           })
         : 0,
+      access.employees ? Partner.countDocuments({ ...base, isEmployee: true }) : 0,
       access.employees ? Employee.countDocuments({ ...req.tenantFilter, ...activeMatch }) : 0,
       WhatsAppContact.countDocuments({ ...req.tenantFilter, isGroup: false }),
       WhatsAppContact.countDocuments({ ...req.tenantFilter, isGroup: true })
@@ -297,6 +319,7 @@ router.get('/stats', async (req, res) => {
         customers,
         suppliers,
         partners,
+        partnerEmployees,
         employees,
         whatsapp: waContacts,
         whatsappGroups: waGroups

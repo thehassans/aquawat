@@ -16,7 +16,7 @@ import {
   Users,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import api from '../../lib/api'
+import api, { getImageUrl } from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import AsyncCombobox from '../../components/ui/AsyncCombobox'
 import {
@@ -82,6 +82,7 @@ export default function PartnerForm() {
   const isSupplierRoute = location.pathname.includes('/suppliers')
   const roleParam = searchParams.get('role')
   const defaultVendor = isSupplierRoute || roleParam === 'vendor'
+  const defaultEmployee = roleParam === 'employee'
   const returnTo = searchParams.get('returnTo')
   const namePrefill = searchParams.get('name') || ''
   const emailPrefill = searchParams.get('email') || ''
@@ -94,11 +95,12 @@ export default function PartnerForm() {
   const [parentOption, setParentOption] = useState(null)
   const [salespersonOption, setSalespersonOption] = useState(null)
   const [logoUrl, setLogoUrl] = useState('')
+  const [logoUploading, setLogoUploading] = useState(false)
   const [bankAccounts, setBankAccounts] = useState([emptyBankRow()])
 
   const { register, handleSubmit, reset, watch, setValue, formState: { errors, isSubmitting } } = useForm({
     defaultValues: {
-      entity: entityPrefill === 'individual' ? 'individual' : 'company',
+      entity: entityPrefill === 'individual' || defaultEmployee ? 'individual' : 'company',
       nameEn: namePrefill,
       nameAr: '',
       email: emailPrefill,
@@ -127,9 +129,9 @@ export default function PartnerForm() {
       },
       notes: '',
       isActive: true,
-      isCustomer: !defaultVendor,
+      isCustomer: !defaultVendor && !defaultEmployee,
       isVendor: defaultVendor,
-      isEmployee: false,
+      isEmployee: defaultEmployee,
     },
   })
 
@@ -529,7 +531,7 @@ export default function PartnerForm() {
                   <div className="flex items-center gap-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-4 dark:border-white/10 dark:bg-white/[0.03]">
                     <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-white text-sm font-bold text-slate-500 ring-1 ring-slate-200 dark:bg-dark-800 dark:ring-white/10">
                       {logoUrl ? (
-                        <img src={logoUrl} alt="" className="h-full w-full object-cover" />
+                        <img src={getImageUrl(logoUrl)} alt="" className="h-full w-full object-cover" />
                       ) : isCompany ? (
                         <Building2 className="h-6 w-6" />
                       ) : (
@@ -541,18 +543,30 @@ export default function PartnerForm() {
                         type="file"
                         accept="image/*"
                         className="block text-xs text-slate-600 file:me-3 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files?.[0]
                           if (!file) return
                           if (file.size > 512000) {
                             toast.error(ar ? 'الصورة كبيرة جداً (500KB كحد أقصى)' : 'Image too large (max 500KB)')
                             return
                           }
-                          const reader = new FileReader()
-                          reader.onload = () => setLogoUrl(String(reader.result || ''))
-                          reader.readAsDataURL(file)
+                          setLogoUploading(true)
+                          try {
+                            const fd = new FormData()
+                            fd.append('logo', file)
+                            const res = await api.post('/partners/upload-logo', fd)
+                            setLogoUrl(res.data?.logoUrl || '')
+                          } catch (err) {
+                            toast.error(err?.response?.data?.error || (ar ? 'فشل رفع الصورة' : 'Logo upload failed'))
+                          } finally {
+                            setLogoUploading(false)
+                          }
                         }}
+                        disabled={logoUploading}
                       />
+                      {logoUploading && (
+                        <p className="mt-1 text-[11px] text-slate-400">{ar ? 'جاري الرفع…' : 'Uploading…'}</p>
+                      )}
                       {logoUrl && (
                         <button type="button" className="mt-1 text-[11px] text-rose-600" onClick={() => setLogoUrl('')}>
                           {ar ? 'إزالة' : 'Remove'}

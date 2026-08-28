@@ -22,7 +22,10 @@ const typeMeta = {
 const getEntityRoute = (contact) => {
   if (contact?.entityType === 'customer') return `/app/dashboard/customers/${contact.entityId}`
   if (contact?.entityType === 'supplier') return `/app/dashboard/suppliers/${contact.entityId}`
-  if (contact?.entityType === 'employee') return `/app/dashboard/employees/${contact.entityId}`
+  if (contact?.entityType === 'employee') {
+    if (contact?.isPartnerEmployee) return `/app/dashboard/customers/${contact.entityId}`
+    return `/app/dashboard/employees/${contact.entityId}`
+  }
   return null
 }
 
@@ -101,7 +104,7 @@ export default function Contacts() {
   }, [contacts, isAr])
 
   const selectableRows = useMemo(
-    () => rows.filter((r) => r.entityType === 'customer' || r.entityType === 'supplier'),
+    () => rows.filter((r) => r.entityType === 'customer' || r.entityType === 'supplier' || r.isPartnerEmployee),
     [rows],
   )
   const pageIds = useMemo(() => selectableRows.map((r) => r.entityId), [selectableRows])
@@ -211,10 +214,12 @@ export default function Contacts() {
   }
 
   const tiles = [
-    { key: '', label: isAr ? 'الكل' : 'All', value: partnerHub ? (totals.partners || totals.customers || 0) : totalContacts, icon: Users, active: type === '' },
+    { key: '', label: isAr ? 'الكل' : 'All', value: partnerHub ? (totals.partners || 0) : totalContacts, icon: Users, active: type === '' },
     { key: 'customer', label: isAr ? 'العملاء' : 'Customers', value: totals.customers || 0, icon: Building2, active: type === 'customer' },
     { key: 'supplier', label: isAr ? 'الموردون' : 'Suppliers', value: totals.suppliers || 0, icon: Briefcase, active: type === 'supplier' },
-    ...(!partnerHub ? [
+    ...(partnerHub ? [
+      { key: 'employee', label: isAr ? 'الموظفون' : 'Employees', value: totals.partnerEmployees || 0, icon: Users, active: type === 'employee' },
+    ] : !partnerHub ? [
       { key: 'employee', label: isAr ? 'الموظفون' : 'Employees', value: totals.employees || 0, icon: Users, active: type === 'employee' },
       { key: 'whatsapp', label: 'WhatsApp', value: (totals.whatsapp || 0) + (totals.whatsappGroups || 0), icon: MessageCircle, active: type === 'whatsapp' },
     ] : []),
@@ -276,8 +281,15 @@ export default function Contacts() {
                   </span>
                 </button>
                 <Link
-                  to="/app/dashboard/customers/new?role=customer&returnTo=/app/dashboard/contacts?types=customer,supplier"
+                  to="/app/dashboard/customers/new?entity=individual&role=employee&returnTo=/app/dashboard/contacts?types=customer,supplier"
                   className="block border-t border-slate-100 px-3 py-2 text-xs text-slate-500 hover:bg-slate-50 dark:border-dark-600"
+                  onClick={() => setCreateMenuOpen(false)}
+                >
+                  {isAr ? 'نموذج كامل — موظف…' : 'Full form — employee…'}
+                </Link>
+                <Link
+                  to="/app/dashboard/customers/new?role=customer&returnTo=/app/dashboard/contacts?types=customer,supplier"
+                  className="block px-3 py-2 text-xs text-slate-500 hover:bg-slate-50"
                   onClick={() => setCreateMenuOpen(false)}
                 >
                   {isAr ? 'نموذج كامل — عميل…' : 'Full form — customer…'}
@@ -328,7 +340,7 @@ export default function Contacts() {
         </div>
       </div>
 
-      <div className={`grid grid-cols-2 gap-3 ${partnerHub ? 'lg:grid-cols-3' : 'lg:grid-cols-5'}`}>
+      <div className={`grid grid-cols-2 gap-3 ${partnerHub ? 'lg:grid-cols-4' : 'lg:grid-cols-5'}`}>
         {tiles.map((tile) => {
           const Icon = tile.icon
           return (

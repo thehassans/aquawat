@@ -1,6 +1,9 @@
 import express from 'express';
+import sharp from 'sharp';
 import Partner from '../models/Partner.js';
 import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
+import { createImageUpload } from '../utils/uploadMime.js';
+import { saveUploadBuffer } from '../utils/objectStorage.js';
 import {
   fromPartnerBody,
   toPartnerDto,
@@ -12,6 +15,7 @@ import {
 } from '../services/partnerService.js';
 
 const router = express.Router();
+const logoUpload = createImageUpload({ fileSize: 512 * 1024 });
 
 router.use(protect);
 router.use(tenantFilter);
@@ -80,7 +84,7 @@ router.post('/export', async (req, res) => {
     if (Array.isArray(ids) && ids.length) {
       query._id = { $in: ids.map(String).filter(Boolean) };
     } else {
-      query.$or = [{ isCustomer: true }, { isVendor: true }];
+      query.$or = [{ isCustomer: true }, { isVendor: true }, { isEmployee: true }];
     }
 
     const rows = await Partner.find(query)
@@ -90,6 +94,40 @@ router.post('/export', async (req, res) => {
       .lean();
 
     res.json({ partners: rows.map((r) => toPartnerDto(r)) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/partners/upload-logo
+router.post('/upload-logo', logoUpload.single('logo'), async (req, res) => {
+  try {
+    if (!canWritePartners(req.user)) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    if (!req.user?.tenantId) {
+      return res.status(400).json({ error: 'No tenant associated with user' });
+    }
+    if (!req.file?.buffer) {
+      return res.status(400).json({ error: 'No image uploaded' });
+    }
+
+    const tenantId = String(req.user.tenantId);
+    const key = `partners/${tenantId}/logo-${Date.now()}.webp`;
+    const buffer = await sharp(req.file.buffer)
+      .rotate()
+      .resize(256, 256, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 85 })
+      .toBuffer();
+
+    const { url } = await saveUploadBuffer({
+      buffer,
+      key,
+      contentType: 'image/webp',
+      publicUrlPath: `/uploads/${key}`,
+    });
+
+    res.json({ logoUrl: url });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
