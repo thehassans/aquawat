@@ -40,9 +40,9 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
   }
 
   return (
-    <div className="mt-8 pt-4 border-t border-slate-100 flex flex-col md:flex-row justify-between items-start gap-8 text-black break-inside-avoid">
+    <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col md:flex-row justify-between items-start gap-4 text-black break-inside-avoid">
       {/* Left Column: Subject, Notes, Terms, Bank */}
-      <div className="space-y-4 flex-1 min-w-0">
+      <div className="space-y-3 flex-1 min-w-0">
         {hasSubject && (
           <div>
             <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1">

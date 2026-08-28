@@ -53,7 +53,7 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
   const footerBorderStyle = { borderTopColor: accentColor, borderTopWidth: 2, borderTopStyle: 'solid' }
 
   return (
-    <div data-letterhead-root className={`relative mx-auto flex min-h-[297mm] w-full max-w-4xl flex-col overflow-hidden bg-white text-gray-900 ${className}`}>
+    <div data-letterhead-root className={`relative mx-auto flex w-full max-w-4xl flex-col overflow-hidden bg-white text-gray-900 print:min-h-[297mm] ${className}`}>
       {logoSrc ? (
         <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center select-none">
           <img src={logoSrc} alt="" className="h-72 w-72 object-contain opacity-[0.06] sm:h-96 sm:w-96" />
@@ -120,7 +120,7 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
         </div>
       </header>
 
-      <div className="relative z-10 flex-1 bg-transparent">{children}</div>
+      <div className="relative z-10 bg-transparent">{children}</div>
 
       <footer className="relative z-10 mt-auto bg-gradient-to-r from-gray-50/80 to-white p-6 print:bg-none print:p-4" style={footerBorderStyle}>
         <div className="mx-auto flex max-w-3xl flex-col items-center gap-2 text-center text-sm font-bold print:text-black" style={{ color: textColor }}>

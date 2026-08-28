@@ -153,10 +153,10 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
       )}
       <div className="relative z-10">
         {/* Header */}
-        <div className={`border-b ${invoiceBranding.letterheadImage ? 'bg-transparent' : 'bg-white'} px-6 pb-6 ${invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental' ? 'pt-2' : 'pt-6'}`}>
-          <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-          <div className="flex-1">
-            <div className="mb-4">
+        <div className={`border-b ${invoiceBranding.letterheadImage ? 'bg-transparent' : 'bg-white'} px-4 pb-4 ${invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental' ? 'pt-2' : 'pt-4'}`}>
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="shrink-0 md:max-w-[12rem]">
+            <div className="mb-2">
               {logoSrc ? (
                 <img
                   src={logoSrc}
@@ -198,7 +198,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
             </div>
           </div>
 
-          <div className="flex-1 flex flex-col items-center justify-center text-center mt-2">
+          <div className="flex flex-1 flex-col items-center justify-start text-center">
             <h2 className="text-2xl font-bold tracking-normal text-slate-900 uppercase">
               {headerCompanyName}
             </h2>
@@ -275,9 +275,9 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
         </div>
       </div>
 
-      <div className="p-6">
+      <div className="p-4">
         {/* Bill To & Invoice Details Grid */}
-        <div className="mb-4 grid gap-4 md:grid-cols-2">
+        <div className="mb-3 grid items-start gap-3 md:grid-cols-2">
           <div className="rounded-xl border bg-gray-50 p-3">
             <h3 className="mb-2 flex items-center gap-2 font-semibold text-gray-900 border-b pb-1 text-sm">
               <User className="h-4 w-4 text-primary-600" />
@@ -439,7 +439,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
         </div>
 
         {/* Table */}
-        <div className="mb-4 overflow-hidden rounded-xl border border-gray-200">
+        <div className="mb-3 overflow-hidden rounded-xl border border-gray-200">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
@@ -492,8 +492,8 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                 
                 return (
                   <tr key={index} className="hover:bg-gray-50/50">
-                    <td className="px-4 py-4 font-medium text-gray-900">{index + 1}</td>
-                    <td className="px-4 py-4 max-w-xs">
+                    <td className="px-3 py-2 font-medium text-gray-900">{index + 1}</td>
+                    <td className="px-3 py-2 max-w-xs">
                       <div>
                         <p className="font-medium text-gray-900 whitespace-pre-wrap">{productNameEn}</p>
                         {bilingual && productNameAr && (
@@ -505,20 +505,20 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                       </div>
                     </td>
                     {isBoutiqueRental ? (
-                      <td className="px-4 py-4 text-center">
+                      <td className="px-3 py-2 text-center">
                         <div>{item.rentalDays || item.quantity || 1}</div>
                         {(item?.unitCode || item?.raw?.unitCode) && <div className="text-[10px] text-gray-500 font-semibold mt-1">{getUomLabel(item?.unitCode || item?.raw?.unitCode, language)}</div>}
                       </td>
                     ) : (
-                      <td className="px-4 py-4 text-center">
+                      <td className="px-3 py-2 text-center">
                         <div>{item.quantity}</div>
                         {(item?.unitCode || item?.raw?.unitCode) && <div className="text-[10px] text-gray-500 font-semibold mt-1">{getUomLabel(item?.unitCode || item?.raw?.unitCode, language)}</div>}
                       </td>
                     )}
-                    <td className="px-4 py-4 text-right font-mono text-gray-900">
+                    <td className="px-3 py-2 text-right font-mono text-gray-900">
                       {renderMoney(toNumber(item.unitPrice))}
                     </td>
-                    <td className="px-4 py-4 text-right">
+                    <td className="px-3 py-2 text-right">
                       <div className="flex flex-col items-end">
                         <span className="font-mono text-gray-900">
                           {renderMoney(toNumber(item.taxAmount))}
@@ -528,7 +528,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-right font-mono font-bold text-gray-900">
+                    <td className="px-3 py-2 text-right font-mono font-bold text-gray-900">
                       {renderMoney(toNumber(item.lineTotalWithTax))}
                     </td>
                   </tr>
@@ -539,34 +539,26 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
         </div>
 
         {/* Footer Summary & Notes */}
-        <div className="flex flex-col gap-4 md:flex-row">
-          {(invoice?.notes || invoice?.notesAr || invoice?.paymentMethod) && (
-            <div className="flex-1 rounded-xl border bg-gray-50 p-3">
-              {(invoice?.notes || invoice?.notesAr) && (
-                <>
-                  <h4 className="mb-2 font-semibold text-gray-900 border-b pb-1 text-sm">{L('Notes', 'ملاحظات')}</h4>
-                  <p className="text-sm text-gray-600 whitespace-pre-wrap">{invoice?.notes || '—'}</p>
-                  {bilingual && invoice?.notesAr && (
-                    <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap" dir="rtl">{invoice?.notesAr}</p>
-                  )}
-                </>
-              )}
-
-              {invoice?.paymentMethod && (
-                <>
-                  {(invoice?.notes || invoice?.notesAr) && <hr className="my-3 border-gray-200" />}
-                  <div className="flex items-center gap-2 text-sm">
-                    <CreditCard className="h-4 w-4 text-gray-400" />
-                    <span className="font-semibold text-gray-900">Payment Method:</span>
-                    <span className="text-gray-700">{invoice.paymentMethod}</span>
-                  </div>
-                </>
+        <div className={`flex flex-col gap-3 ${(invoice?.notes || invoice?.notesAr) ? 'md:flex-row md:items-start' : 'md:flex-row md:justify-end'}`}>
+          {(invoice?.notes || invoice?.notesAr) && (
+            <div className="min-w-0 flex-1 rounded-xl border bg-gray-50 p-3">
+              <h4 className="mb-2 font-semibold text-gray-900 border-b pb-1 text-sm">{L('Notes', 'ملاحظات')}</h4>
+              <p className="text-sm text-gray-600 whitespace-pre-wrap">{invoice?.notes || '—'}</p>
+              {bilingual && invoice?.notesAr && (
+                <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap" dir="rtl">{invoice?.notesAr}</p>
               )}
             </div>
           )}
 
-          <div className="w-full rounded-xl border bg-gray-50 p-3 md:w-80">
-            <div className="space-y-3">
+          <div className="w-full shrink-0 rounded-xl border bg-gray-50 p-3 md:w-80">
+            {invoice?.paymentMethod && (
+              <div className="mb-2 flex items-center gap-2 border-b border-gray-200 pb-2 text-sm">
+                <CreditCard className="h-4 w-4 shrink-0 text-gray-400" />
+                <span className="font-semibold text-gray-900">{L('Payment Method', 'طريقة الدفع')}:</span>
+                <span className="text-gray-700 capitalize">{invoice.paymentMethod}</span>
+              </div>
+            )}
+            <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <div className="flex flex-col">
                   <span className="text-gray-500">Subtotal</span>
@@ -618,7 +610,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
         </div>
 
         {/* Amount In Words & ZATCA QR */}
-        <div className="mt-4 flex flex-col md:flex-row gap-4">
+        <div className="mt-3 flex flex-col gap-3 md:flex-row">
           <div className="flex-1 rounded-xl border border-dashed border-gray-300 bg-gray-50/50 p-3">
             <div className="flex items-start gap-3">
               <Hash className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />

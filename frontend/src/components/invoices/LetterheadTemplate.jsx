@@ -90,7 +90,7 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
           </div>
         ) : null}
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <div className="mt-4 grid items-start gap-3 md:grid-cols-2">
           <div className="rounded-xl border border-slate-200 p-4">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
               {counterpartyLabelEn} / {counterpartyLabelAr}
