@@ -33,6 +33,7 @@ import { isPakistanTenant, getTaxLabel, getTaxIdLabel, getTenantCountryCode, sho
 import { LineRelationSuggestions } from '../inventory/ProductRelationSuggestions'
 import VariantLineSelect from '../inventory/VariantLineSelect'
 import PartnerCombobox from '../inventory/PartnerCombobox'
+import CustomerSummaryCard from '../sales/CustomerSummaryCard'
 import { formatInvError } from '../../lib/invError'
 import {
   backBtnClass,
@@ -1399,6 +1400,15 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 />
               </div>
             </div>
+            {selectedCustomer?._id ? (
+              <div className="mt-3">
+                <CustomerSummaryCard
+                  customer={selectedCustomer}
+                  language={language}
+                  onEdit={() => setSelectedCustomer(null)}
+                />
+              </div>
+            ) : null}
             <input type="hidden" {...register('customerId')} />
             {invoiceSubtype === 'travel_ticket' ? (
               <>

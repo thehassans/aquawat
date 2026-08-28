@@ -672,6 +672,12 @@ export async function validateTransfer(tenantId, transferId, {
       console.error('[inventory] delivery confirmation failed', err?.message || err);
     }
     try {
+      const { syncSellOrderDeliveredFromTransfer } = await import('../sales/syncDeliveredQty.js');
+      await syncSellOrderDeliveredFromTransfer(result.transfer);
+    } catch (err) {
+      console.error('[inventory] sell order delivered sync failed', err?.message || err);
+    }
+    try {
       const { dispatchInventoryWebhook } = await import('./webhooks.js');
       await dispatchInventoryWebhook(tenantId, 'picking.validated', {
         transferId: result.transfer._id,

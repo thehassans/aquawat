@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
+import { Plus } from 'lucide-react'
 import api from '../../lib/api'
 import {
+  ghostActionClass,
   listShellClass,
   pageSubtitleClass,
   pageTitleClass,
@@ -30,11 +32,17 @@ export default function SalesOrdersPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className={pageTitleClass}>{isAr ? 'أوامر البيع' : 'Sales Orders'}</h1>
-        <p className={pageSubtitleClass}>
-          {isAr ? 'طلبات البيع المؤكدة والتسليم والفوترة' : 'Confirmed sell orders, delivery, and invoicing'}
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className={pageTitleClass}>{isAr ? 'أوامر البيع' : 'Sales Orders'}</h1>
+          <p className={pageSubtitleClass}>
+            {isAr ? 'طلبات البيع المؤكدة والتسليم والفوترة' : 'Confirmed sell orders, delivery, and invoicing'}
+          </p>
+        </div>
+        <Link to="/app/dashboard/sales/orders/new" className={ghostActionClass}>
+          <Plus className="h-3.5 w-3.5" />
+          {isAr ? 'أمر بيع جديد' : 'New sales order'}
+        </Link>
       </div>
       <div className={listShellClass}>
         <table className={salesTableClass}>

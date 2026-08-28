@@ -79,4 +79,35 @@ router.get('/:id', checkPermission('invoicing', 'read'), async (req, res) => {
   }
 });
 
+router.post('/:id/mark-delivered', checkPermission('invoicing', 'update'), async (req, res) => {
+  try {
+    const dn = await DeliveryNote.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!dn) return res.status(404).json({ error: 'Delivery note not found' });
+
+    if (dn.inventoryTransferId) {
+      const { validateTransfer } = await import('../services/inventory/transferService.js');
+      try {
+        await validateTransfer(req.user.tenantId, dn.inventoryTransferId, { userId: req.user._id });
+      } catch (err) {
+        if (!/already done|VALIDATE_LOCK|done/i.test(String(err.message || err.code || ''))) {
+          console.warn('[dn] validate transfer:', err.message);
+        }
+      }
+    }
+
+    dn.status = 'delivered';
+    await dn.save();
+
+    const { recomputeSellOrderDelivered } = await import('../services/sales/syncDeliveredQty.js');
+    const sync = dn.purchaseOrderId
+      ? await recomputeSellOrderDelivered(dn.purchaseOrderId)
+      : { synced: false };
+
+    const refreshed = await DeliveryNote.findById(dn._id);
+    res.json({ deliveryNote: refreshed, sync });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 export default router;

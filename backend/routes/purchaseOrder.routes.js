@@ -405,9 +405,31 @@ router.post('/', checkTrialLimits('purchaseOrders'), checkPermission('supply_cha
       return res.status(400).json({ error: 'No tenant associated with user' });
     }
 
-    const supplier = await Supplier.findOne({ _id: req.body.supplierId, ...req.tenantFilter, isActive: true });
-    if (!supplier) {
-      return res.status(400).json({ error: 'Invalid supplier' });
+    const flow = req.body.flow === 'sell' ? 'sell' : 'purchase';
+
+    if (flow === 'purchase') {
+      const supplier = await Supplier.findOne({ _id: req.body.supplierId, ...req.tenantFilter, isActive: true });
+      if (!supplier) {
+        return res.status(400).json({ error: 'Invalid supplier' });
+      }
+    } else {
+      const Partner = (await import('../models/Partner.js')).default;
+      const customer = await Partner.findOne({
+        _id: req.body.customerId,
+        ...req.tenantFilter,
+        isCustomer: true,
+        isActive: { $ne: false },
+      });
+      if (!customer) {
+        return res.status(400).json({ error: 'Invalid customer' });
+      }
+      if (Array.isArray(req.body.lineItems) && req.body.lineItems.length) {
+        const { assertSellLineVariantBinding } = await import('../services/sales/variantBinding.js');
+        const binding = await assertSellLineVariantBinding(req.body.lineItems, req.user.tenantId);
+        if (!binding.ok) {
+          return res.status(400).json({ error: binding.errors.join('; '), code: 'VARIANT_REQUIRED' });
+        }
+      }
     }
 
     if (req.body.warehouseId) {
@@ -417,7 +439,10 @@ router.post('/', checkTrialLimits('purchaseOrders'), checkPermission('supply_cha
       }
     }
 
-    const poNumber = req.body.poNumber || (await generatePoNumber(req.user.tenantId));
+    const poNumber = req.body.poNumber
+      || (flow === 'sell'
+        ? await nextDailyDocNumber(req.user.tenantId, 'SO', { padding: 3 })
+        : await generatePoNumber(req.user.tenantId));
 
     const { normalized, subtotal, totalTax, grandTotal } = normalizeLineItems(req.body.lineItems);
 
@@ -464,6 +489,7 @@ router.post('/', checkTrialLimits('purchaseOrders'), checkPermission('supply_cha
 
     const data = {
       ...body,
+      flow,
       poNumber,
       tenantId: req.user.tenantId,
       createdBy: req.user._id,
@@ -477,6 +503,10 @@ router.post('/', checkTrialLimits('purchaseOrders'), checkPermission('supply_cha
       payments,
       status: body.status || 'draft',
     };
+    if (flow === 'sell') {
+      data.customerId = body.customerId;
+      data.supplierId = body.supplierId || undefined;
+    }
 
     const order = await PurchaseOrder.create(data);
     if (landedCostLines?.length) {
