@@ -3,13 +3,42 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Search, Users, Building2, Briefcase, Phone, Mail, Hash, MessageCircle, MessageSquare, ArrowUpRight, UserRound, Plus, ChevronDown, Download } from 'lucide-react'
+import { Search, Users, Building2, Briefcase, Phone, Mail, Hash, MessageCircle, MessageSquare, ArrowUpRight, UserRound, Plus, ChevronDown, Download, ChevronLeft, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useTranslation } from '../lib/translations'
 import { buildDefaultFileName, exportToCsv } from '../lib/export'
 import ExportMenu from '../components/ui/ExportMenu'
 import QuickCreateContactModal from '../components/inventory/QuickCreateContactModal'
+import {
+  avatarClass,
+  contactsEyebrowClass,
+  contactsSubtitleClass,
+  contactsTableClass,
+  contactsTdClass,
+  contactsThClass,
+  contactsTitleClass,
+  contactsTrClass,
+  createMenuClass,
+  createMenuItemClass,
+  emptyStateClass,
+  filterBarClass,
+  ghostActionClass,
+  kpiTileClass,
+  kpiTileIconClass,
+  kpiTileLabelClass,
+  kpiTileValueClass,
+  listShellClass,
+  outlinedBtnClass,
+  paginationBarClass,
+  primaryBtnClass,
+  rowActionPrimaryClass,
+  rowActionsWrapClass,
+  searchInputClass,
+  statusActiveClass,
+  statusInactiveClass,
+  typeChipClass,
+} from './contacts/contactsUi'
 
 const typeMeta = {
   customer: { en: 'Customer', ar: 'عميل', icon: Building2, tint: 'bg-sky-50 text-sky-700', ring: 'ring-sky-100' },
@@ -229,19 +258,17 @@ export default function Contacts() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">
+          <p className={contactsEyebrowClass}>
             {partnerHub ? (isAr ? 'الشركاء' : 'Partners') : (isAr ? 'الدليل' : 'Directory')}
           </p>
-          <h1 className="mt-1 font-[Outfit,sans-serif] text-3xl font-semibold tracking-tight text-slate-800 dark:text-white">
-            {partnerHub
-              ? (isAr ? 'جهات الاتصال — عملاء وموردون' : 'Contacts — customers & suppliers')
-              : (isAr ? 'جهات الاتصال' : 'Contacts')}
+          <h1 className={contactsTitleClass}>
+            {isAr ? 'جهات الاتصال' : 'Contacts'}
           </h1>
-          <p className="mt-1 max-w-xl text-sm text-slate-500">
+          <p className={contactsSubtitleClass}>
             {partnerHub
               ? (isAr
-                ? 'دليل موحّد للعملاء والموردين مع نموذج كامل وأدوار محاسبية'
-                : 'Unified contact registry with full form and accounting roles')
+                ? 'دليل موحّد للعملاء والموردين والموظفين — محاسبة وضريبة وزاتكا'
+                : 'Unified partners registry — accounting, tax, and ZATCA-ready addresses')
               : (isAr ? 'دليل موحّد للعملاء والموردين والموظفين.' : 'One book for customers, suppliers, employees, and WhatsApp.')}
           </p>
         </div>
@@ -249,7 +276,7 @@ export default function Contacts() {
           <div className="relative">
             <button
               type="button"
-              className="btn btn-action-dark"
+              className={primaryBtnClass}
               onClick={() => setCreateMenuOpen((v) => !v)}
             >
               <Plus className="h-4 w-4" />
@@ -257,46 +284,39 @@ export default function Contacts() {
               <ChevronDown className={`h-4 w-4 transition ${createMenuOpen ? 'rotate-180' : ''}`} />
             </button>
             {createMenuOpen && (
-              <div className="absolute end-0 z-30 mt-1 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800">
-                <button
-                  type="button"
-                  className="flex w-full items-start gap-2 px-3 py-2.5 text-start hover:bg-slate-50 dark:hover:bg-dark-700"
-                  onClick={() => openCreate('customer')}
-                >
+              <div className={createMenuClass}>
+                <button type="button" className={createMenuItemClass} onClick={() => openCreate('customer')}>
                   <Building2 className="mt-0.5 h-4 w-4 text-sky-700" />
                   <span>
                     <span className="block text-sm font-semibold text-slate-800">{isAr ? 'عميل' : 'Customer'}</span>
                     <span className="block text-xs text-slate-400">{isAr ? 'يُعلَّم كعميل تلقائياً' : 'Sets is_customer automatically'}</span>
                   </span>
                 </button>
-                <button
-                  type="button"
-                  className="flex w-full items-start gap-2 px-3 py-2.5 text-start hover:bg-slate-50 dark:hover:bg-dark-700"
-                  onClick={() => openCreate('vendor')}
-                >
+                <button type="button" className={createMenuItemClass} onClick={() => openCreate('vendor')}>
                   <Briefcase className="mt-0.5 h-4 w-4 text-amber-700" />
                   <span>
                     <span className="block text-sm font-semibold text-slate-800">{isAr ? 'مورد' : 'Supplier'}</span>
                     <span className="block text-xs text-slate-400">{isAr ? 'يُعلَّم كمورد تلقائياً' : 'Sets is_vendor automatically'}</span>
                   </span>
                 </button>
+                <div className="my-1 border-t border-slate-100 dark:border-dark-600" />
                 <Link
                   to="/app/dashboard/customers/new?entity=individual&role=employee&returnTo=/app/dashboard/contacts?types=customer,supplier"
-                  className="block border-t border-slate-100 px-3 py-2 text-xs text-slate-500 hover:bg-slate-50 dark:border-dark-600"
+                  className="block px-3.5 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:hover:bg-dark-700"
                   onClick={() => setCreateMenuOpen(false)}
                 >
                   {isAr ? 'نموذج كامل — موظف…' : 'Full form — employee…'}
                 </Link>
                 <Link
                   to="/app/dashboard/customers/new?role=customer&returnTo=/app/dashboard/contacts?types=customer,supplier"
-                  className="block px-3 py-2 text-xs text-slate-500 hover:bg-slate-50"
+                  className="block px-3.5 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:hover:bg-dark-700"
                   onClick={() => setCreateMenuOpen(false)}
                 >
                   {isAr ? 'نموذج كامل — عميل…' : 'Full form — customer…'}
                 </Link>
                 <Link
                   to="/app/dashboard/suppliers/new?role=vendor&returnTo=/app/dashboard/contacts?types=customer,supplier"
-                  className="block px-3 py-2 text-xs text-slate-500 hover:bg-slate-50"
+                  className="block px-3.5 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:hover:bg-dark-700"
                   onClick={() => setCreateMenuOpen(false)}
                 >
                   {isAr ? 'نموذج كامل — مورد…' : 'Full form — vendor…'}
@@ -305,10 +325,10 @@ export default function Contacts() {
             )}
           </div>
           {partnerHub ? (
-            <div className="flex flex-wrap items-center gap-2">
+            <>
               <button
                 type="button"
-                className="btn btn-secondary"
+                className={outlinedBtnClass}
                 disabled={isLoading || exporting || (!selectedIds.length && !rows.length)}
                 onClick={handlePartnerExport}
               >
@@ -317,14 +337,14 @@ export default function Contacts() {
                   ? (isAr ? 'جاري التصدير…' : 'Exporting…')
                   : selectedIds.length
                     ? (isAr ? `تصدير (${selectedIds.length})` : `Export (${selectedIds.length})`)
-                    : (isAr ? 'تصدير الكل' : 'Export all')}
+                    : (isAr ? 'تصدير' : 'Export')}
               </button>
               {selectedIds.length > 0 && (
-                <button type="button" className="btn btn-ghost text-sm" onClick={() => setSelected(new Set())}>
+                <button type="button" className={ghostActionClass} onClick={() => setSelected(new Set())}>
                   {isAr ? `مسح (${selectedIds.length})` : `Clear (${selectedIds.length})`}
                 </button>
               )}
-            </div>
+            </>
           ) : (
             <ExportMenu
               language={language}
@@ -348,25 +368,21 @@ export default function Contacts() {
               key={tile.key || 'all'}
               type="button"
               onClick={() => setTypeFilter(tile.key)}
-              className={`rounded-2xl border p-4 text-start transition ${
-                tile.active
-                  ? 'border-slate-200 bg-white shadow-sm ring-1 ring-slate-100'
-                  : 'border-slate-100 bg-slate-50/70 hover:border-slate-200 hover:bg-white'
-              }`}
+              className={kpiTileClass(tile.active)}
             >
               <div className="flex items-center justify-between">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                <span className={kpiTileIconClass}>
                   <Icon className="h-4 w-4" />
                 </span>
-                <span className="font-[Outfit,sans-serif] text-2xl font-semibold tabular-nums text-slate-800">{Number(tile.value).toLocaleString()}</span>
+                <span className={kpiTileValueClass}>{Number(tile.value).toLocaleString()}</span>
               </div>
-              <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{tile.label}</p>
+              <p className={kpiTileLabelClass}>{tile.label}</p>
             </button>
           )
         })}
       </div>
 
-      <div className="rounded-2xl border border-slate-100 bg-white p-3 sm:p-4">
+      <div className={filterBarClass}>
         <div className="flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
             <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -375,45 +391,51 @@ export default function Contacts() {
               placeholder={isAr ? 'بحث بالاسم أو الهاتف أو الرقم الضريبي' : 'Search name, phone, email, or VAT'}
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-2.5 ps-10 pe-3 text-sm outline-none transition focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-700/10"
+              className={searchInputClass}
             />
           </div>
           <select
             value={isActive}
             onChange={(e) => { setIsActive(e.target.value); setPage(1) }}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm sm:w-44"
+            className="rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none sm:w-44 dark:border-dark-500 dark:bg-dark-800 dark:text-white"
           >
             <option value="all">{isAr ? 'كل الحالات' : 'All statuses'}</option>
             <option value="true">{isAr ? 'نشط فقط' : 'Active only'}</option>
             <option value="false">{isAr ? 'غير نشط' : 'Inactive'}</option>
           </select>
         </div>
+        {selectedIds.length > 0 && partnerHub && (
+          <p className="text-xs font-semibold text-teal-700 dark:text-teal-300">
+            {isAr ? `${selectedIds.length} محدد للتصدير` : `${selectedIds.length} selected for export`}
+          </p>
+        )}
       </div>
 
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="overflow-x-auto rounded-[28px] border border-slate-100 bg-white">
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={listShellClass}>
         {isLoading ? (
           <div className="flex justify-center p-16">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-600 border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-teal-600 border-t-transparent" />
           </div>
         ) : rows.length === 0 ? (
-          <div className="px-6 py-16 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+          <div className={emptyStateClass}>
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300">
               <UserRound className="h-6 w-6" />
             </div>
-            <p className="mt-4 font-[Outfit,sans-serif] text-lg font-semibold text-slate-800">{isAr ? 'لا توجد جهات في هذا العرض' : 'No contacts in this view'}</p>
+            <p className="text-base font-semibold text-slate-800 dark:text-white">{isAr ? 'لا توجد جهات في هذا العرض' : 'No contacts in this view'}</p>
             <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
               {isAr ? 'أنشئ عميلاً أو مورداً من زر الإنشاء أعلاه.' : 'Create a customer or supplier with the Create button above.'}
             </p>
           </div>
         ) : (
-          <table className="w-full min-w-[820px] text-sm">
+          <div className="overflow-x-auto">
+          <table className={contactsTableClass}>
             <thead>
-              <tr className="border-b border-slate-100 text-start text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+              <tr>
                 {partnerHub && (
-                  <th className="w-10 px-3 py-3">
+                  <th className={`${contactsThClass} w-10`}>
                     <input
                       type="checkbox"
-                      className="rounded border-slate-300"
+                      className="rounded border-slate-300 text-teal-600 focus:ring-teal-600/20"
                       checked={allPageSelected}
                       ref={(el) => { if (el) el.indeterminate = somePageSelected }}
                       onChange={toggleAllPage}
@@ -421,27 +443,27 @@ export default function Contacts() {
                     />
                   </th>
                 )}
-                <th className="min-w-[150px] px-5 py-3 font-semibold">{isAr ? 'الاسم' : 'Name'}</th>
-                <th className="min-w-[120px] px-3 py-3 font-semibold">{isAr ? 'النوع' : 'Type'}</th>
-                <th className="min-w-[150px] px-3 py-3 font-semibold">{isAr ? 'التواصل' : 'Reach'}</th>
-                <th className="min-w-[110px] px-3 py-3 font-semibold">{isAr ? 'المرجع الداخلي' : 'Internal Ref'}</th>
-                <th className="min-w-[120px] px-3 py-3 font-semibold">{isAr ? 'الرقم الضريبي' : 'Tax ID / VAT'}</th>
-                <th className="min-w-[100px] px-3 py-3 font-semibold">{t('status')}</th>
-                <th className="min-w-[80px] px-5 py-3 font-semibold" />
+                <th className={contactsThClass}>{isAr ? 'الاسم' : 'Name'}</th>
+                <th className={contactsThClass}>{isAr ? 'النوع' : 'Type'}</th>
+                <th className={contactsThClass}>{isAr ? 'التواصل' : 'Reach'}</th>
+                <th className={contactsThClass}>{isAr ? 'المرجع الداخلي' : 'Internal Ref'}</th>
+                <th className={contactsThClass}>{isAr ? 'الرقم الضريبي' : 'Tax ID / VAT'}</th>
+                <th className={contactsThClass}>{t('status')}</th>
+                <th className={`${contactsThClass} w-16`} />
               </tr>
             </thead>
             <tbody>
               {rows.map((c) => {
-                const isSelectable = c.entityType === 'customer' || c.entityType === 'supplier'
+                const isSelectable = c.entityType === 'customer' || c.entityType === 'supplier' || c.isPartnerEmployee
                 const rowId = c.entityId
                 return (
-                <tr key={`${c.entityType}-${c.entityId}`} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/70">
+                <tr key={`${c.entityType}-${c.entityId}`} className={contactsTrClass}>
                   {partnerHub && (
-                    <td className="px-3 py-3.5">
+                    <td className={contactsTdClass}>
                       {isSelectable ? (
                         <input
                           type="checkbox"
-                          className="rounded border-slate-300"
+                          className="rounded border-slate-300 text-teal-600 focus:ring-teal-600/20"
                           checked={selected.has(rowId)}
                           onChange={() => toggleRow(rowId)}
                           aria-label={isAr ? 'تحديد الصف' : 'Select row'}
@@ -449,110 +471,109 @@ export default function Contacts() {
                       ) : null}
                     </td>
                   )}
-                  <td className="min-w-[150px] px-5 py-3.5">
+                  <td className={contactsTdClass}>
                     <div className="flex items-center gap-3">
-                      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xs font-bold ${c.meta.tint}`}>
+                      <div className={avatarClass(c.meta.tint)}>
                         {initials(c.name)}
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate font-semibold text-slate-800">{c.name || '—'}</p>
-                        {c.displayNameAr && !isAr && <p className="truncate text-xs text-slate-400" dir="rtl">{c.displayNameAr}</p>}
+                        <p className="truncate font-semibold text-slate-900 dark:text-white">{c.name || '—'}</p>
+                        {c.displayNameAr && !isAr && <p className="truncate text-xs text-slate-500" dir="rtl">{c.displayNameAr}</p>}
                       </div>
                     </div>
                   </td>
-                  <td className="min-w-[120px] px-3 py-3.5">
-                    <div className="flex flex-col gap-1">
+                  <td className={contactsTdClass}>
+                    <div className="flex flex-col gap-1.5">
                       <div className="flex flex-wrap gap-1">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${c.meta.tint}`}>
+                        <span className={typeChipClass(c.meta.tint)}>
                           <c.Icon className="h-3.5 w-3.5" />
                           {isAr ? c.meta.ar : c.meta.en}
                         </span>
                         {c.isCustomer && c.isVendor ? (
                           <>
-                            <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-800">
-                              {isAr ? 'مورد' : 'Vendor'}
-                            </span>
-                            <span className="rounded-full bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-800">
-                              {isAr ? 'عميل' : 'Customer'}
-                            </span>
+                            <span className={typeChipClass('bg-amber-50 text-amber-800')}>{isAr ? 'مورد' : 'Vendor'}</span>
+                            <span className={typeChipClass('bg-sky-50 text-sky-800')}>{isAr ? 'عميل' : 'Customer'}</span>
                           </>
                         ) : null}
                       </div>
                       {c.isCustomer && c.isVendor ? (
                         <div className="flex flex-wrap gap-2">
-                          <Link
-                            to={`/app/dashboard/customers/${c.entityId}`}
-                            className="text-[10px] font-medium text-sky-700 hover:underline"
-                          >
+                          <Link to={`/app/dashboard/customers/${c.entityId}`} className="text-[10px] font-semibold text-teal-700 hover:underline dark:text-teal-300">
                             {isAr ? 'فتح كعميل' : 'Open as customer'}
                           </Link>
-                          <Link
-                            to={`/app/dashboard/suppliers/${c.entityId}`}
-                            className="text-[10px] font-medium text-amber-700 hover:underline"
-                          >
-                            {isAr ? 'فتح كمورد' : 'Open as supplier'}
+                          <Link to={`/app/dashboard/suppliers/${c.entityId}`} className="text-[10px] font-semibold text-amber-700 hover:underline">
+                            {isAr ? 'فتح كمورد' : 'Open as vendor'}
                           </Link>
                         </div>
                       ) : null}
                     </div>
                   </td>
-                  <td className="min-w-[150px] px-3 py-3.5">
-                    <div className="space-y-0.5">
+                  <td className={contactsTdClass}>
+                    <div className="space-y-1">
                       {c.phone ? (
-                        <a href={`tel:${c.phone}`} className="flex items-center gap-1.5 text-slate-700 hover:text-slate-900">
+                        <a href={`tel:${c.phone}`} className="flex items-center gap-1.5 text-sm text-slate-700 hover:text-slate-900 dark:text-slate-300">
                           <Phone className="h-3.5 w-3.5 text-slate-400" />{c.phone}
                         </a>
                       ) : null}
                       {c.email ? (
-                        <a href={`mailto:${c.email}`} className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800">
+                        <a href={`mailto:${c.email}`} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 dark:text-slate-400">
                           <Mail className="h-3.5 w-3.5 text-slate-400" />{c.email}
                         </a>
                       ) : null}
                       {!c.phone && !c.email && <span className="text-slate-300">—</span>}
                     </div>
                   </td>
-                  <td className="min-w-[110px] px-3 py-3.5 font-mono text-xs text-slate-500">
+                  <td className={`${contactsTdClass} font-mono text-xs text-slate-600 dark:text-slate-400`}>
                     {(c.internalRef || c.customerCode || c.supplierCode || c.code) ? (
                       <span className="inline-flex items-center gap-1">
-                        <Hash className="h-3 w-3" />
+                        <Hash className="h-3 w-3 opacity-60" />
                         {c.internalRef || c.customerCode || c.supplierCode || c.code}
                       </span>
                     ) : '—'}
                   </td>
-                  <td className="min-w-[120px] px-3 py-3.5 font-mono text-xs text-slate-500">
+                  <td className={`${contactsTdClass} font-mono text-xs text-slate-600 dark:text-slate-400`}>
                     {c.vatNumber || '—'}
                   </td>
-                  <td className="min-w-[100px] px-3 py-3.5">
-                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${c.isActive ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
+                  <td className={contactsTdClass}>
+                    <span className={c.isActive ? statusActiveClass : statusInactiveClass}>
                       {c.isActive ? (isAr ? 'نشط' : 'Active') : (isAr ? 'غير نشط' : 'Inactive')}
                     </span>
                   </td>
-                  <td className="min-w-[80px] px-5 py-3.5 text-end">
+                  <td className={contactsTdClass}>
                     {c.route ? (
-                      <Link to={c.route} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-800">
-                        <ArrowUpRight className="h-4 w-4" />
-                      </Link>
+                      <div className={rowActionsWrapClass}>
+                        <Link to={c.route} className={rowActionPrimaryClass} title={isAr ? 'فتح' : 'Open'}>
+                          <ArrowUpRight className="h-4 w-4" />
+                        </Link>
+                      </div>
                     ) : c.entityType?.startsWith('whatsapp') ? (
-                      <Link to={`/app/dashboard/whatsapp?contact=${c.entityId}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-green-600 hover:bg-green-50">
-                        <MessageCircle className="h-4 w-4" />
-                      </Link>
+                      <div className={rowActionsWrapClass}>
+                        <Link to={`/app/dashboard/whatsapp?contact=${c.entityId}`} className={rowActionPrimaryClass}>
+                          <MessageCircle className="h-4 w-4" />
+                        </Link>
+                      </div>
                     ) : null}
                   </td>
                 </tr>
               )})}
             </tbody>
           </table>
+          </div>
         )}
       </motion.div>
 
       {pagination?.pages > 1 && (
-        <div className="flex items-center justify-between text-sm text-slate-500">
-          <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 disabled:opacity-40" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+        <div className={paginationBarClass}>
+          <button type="button" className={outlinedBtnClass} disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+            <ChevronLeft className="h-4 w-4" />
             {isAr ? 'السابق' : 'Previous'}
           </button>
-          <span>{isAr ? 'صفحة' : 'Page'} {page} / {pagination.pages}</span>
-          <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 disabled:opacity-40" disabled={page >= pagination.pages} onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}>
+          <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+            {isAr ? 'صفحة' : 'Page'} {page} / {pagination.pages}
+          </span>
+          <button type="button" className={outlinedBtnClass} disabled={page >= pagination.pages} onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}>
             {isAr ? 'التالي' : 'Next'}
+            <ChevronRight className="h-4 w-4" />
           </button>
         </div>
       )}

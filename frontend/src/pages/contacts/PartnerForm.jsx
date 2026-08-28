@@ -25,6 +25,25 @@ import {
   validatePartnerVat,
 } from '../../lib/partnerDefaults'
 import { getTenantCountryCode, getTaxIdLabel, showArabicFields as isArabicTenantMarket } from '../../lib/saudiTenant'
+import {
+  backBtnClass,
+  contactTabClass,
+  contactsEyebrowClass,
+  contactsSubtitleClass,
+  contactsTitleClass,
+  entitySegmentClass,
+  entitySegmentWrapClass,
+  fieldControlClass,
+  fieldLabelClass,
+  formCanvasClass,
+  formTabBarClass,
+  ghostActionClass,
+  outlinedBtnClass,
+  primaryBtnClass,
+  roleCheckClass,
+  sectionCardClass,
+  softChipClass,
+} from './contactsUi'
 
 const TABS = [
   { id: 'general', en: 'General', ar: 'عام', icon: User },
@@ -39,14 +58,6 @@ const emptyBankRow = () => ({
   accountNumber: '',
   isDefault: false,
 })
-
-const canvas = 'min-h-[calc(100vh-6rem)] bg-[#F9FAFB] dark:bg-dark-900'
-const card = 'rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_40px_-28px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-[#0c111a] sm:p-6'
-const labelCls = 'mb-1.5 block text-[12px] font-semibold tracking-wide text-slate-800 dark:text-slate-200'
-const inputCls = 'input w-full'
-const tabIdle = 'inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-[13px] font-medium text-slate-500 transition hover:bg-white hover:text-slate-800 dark:hover:bg-dark-800'
-const tabActive = 'inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-[13px] font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200/80 dark:bg-dark-800 dark:text-white dark:ring-white/10'
-const saveBtn = 'inline-flex items-center gap-2 rounded-xl bg-amber-700 px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_12px_24px_-16px_rgba(180,83,9,0.9)] transition hover:bg-amber-800 disabled:opacity-40'
 
 function pathWithPartnerId(returnTo, partnerId) {
   if (!returnTo || !partnerId) return returnTo
@@ -382,42 +393,35 @@ export default function PartnerForm() {
 
   if (isEditing && isLoading) {
     return (
-      <div className={`${canvas} flex items-center justify-center p-10`}>
+      <div className={`${formCanvasClass} flex items-center justify-center p-10`}>
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700" />
       </div>
     )
   }
 
   return (
-    <div className={canvas} dir={ar ? 'rtl' : 'ltr'}>
+    <div className={formCanvasClass} dir={ar ? 'rtl' : 'ltr'}>
       <div className="mx-auto max-w-4xl space-y-5 px-4 py-6 sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <button
-              type="button"
-              onClick={() => navigate(backPath)}
-              className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-medium text-slate-500 hover:text-slate-800"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              {ar ? 'رجوع' : 'Back'}
+          <div className="flex items-start gap-3">
+            <button type="button" onClick={() => navigate(backPath)} className={backBtnClass} aria-label={ar ? 'رجوع' : 'Back'}>
+              <ArrowLeft className="h-4 w-4" />
             </button>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-              {ar ? 'جهات الاتصال' : 'Contacts'}
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
-              {title}
-            </h1>
-            <p className="mt-1 text-[13px] text-slate-500">
-              {ar
-                ? 'سجل موحّد للعملاء والموردين مع حقول المحاسبة والضريبة'
-                : 'Unified registry for customers and vendors with accounting & tax fields'}
-            </p>
+            <div>
+              <p className={contactsEyebrowClass}>{ar ? 'جهات الاتصال' : 'Contacts'}</p>
+              <h1 className={contactsTitleClass}>{title}</h1>
+              <p className={contactsSubtitleClass}>
+                {ar
+                  ? 'سجل موحّد للعملاء والموردين مع حقول المحاسبة والضريبة'
+                  : 'Unified partner record with accounting, tax, and ZATCA fields'}
+              </p>
+            </div>
           </div>
           <button
             type="button"
             disabled={isSubmitting || mutation.isPending}
             onClick={handleSubmit(onSubmit)}
-            className={saveBtn}
+            className={primaryBtnClass}
           >
             <Save className="h-4 w-4" />
             {ar ? 'حفظ جهة الاتصال' : 'Save contact'}
@@ -425,17 +429,14 @@ export default function PartnerForm() {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Entity + roles strip */}
-          <div className={card}>
+          <div className={sectionCardClass}>
             <div className="grid gap-5 sm:grid-cols-2">
               <div>
-                <span className={labelCls}>{ar ? 'الكيان' : 'Entity'}</span>
-                <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100/90 p-1 dark:bg-dark-800">
+                <span className={fieldLabelClass}>{ar ? 'الكيان' : 'Entity'}</span>
+                <div className={entitySegmentWrapClass}>
                   <button
                     type="button"
-                    className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
-                      isCompany ? 'bg-white text-slate-900 shadow-sm dark:bg-dark-700 dark:text-white' : 'text-slate-500'
-                    }`}
+                    className={entitySegmentClass(isCompany)}
                     onClick={() => setValue('entity', 'company')}
                   >
                     <Building2 className="h-4 w-4" />
@@ -443,9 +444,7 @@ export default function PartnerForm() {
                   </button>
                   <button
                     type="button"
-                    className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
-                      !isCompany ? 'bg-white text-slate-900 shadow-sm dark:bg-dark-700 dark:text-white' : 'text-slate-500'
-                    }`}
+                    className={entitySegmentClass(!isCompany)}
                     onClick={() => setValue('entity', 'individual')}
                   >
                     <User className="h-4 w-4" />
@@ -454,17 +453,17 @@ export default function PartnerForm() {
                 </div>
               </div>
               <div>
-                <span className={labelCls}>{ar ? 'الأدوار المحاسبية' : 'Accounting roles'}</span>
-                <div className="flex flex-wrap gap-3 pt-1">
-                  <label className="inline-flex items-center gap-2 text-sm text-slate-800 dark:text-slate-200">
+                <span className={fieldLabelClass}>{ar ? 'الأدوار المحاسبية' : 'Accounting roles'}</span>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <label className={roleCheckClass}>
                     <input type="checkbox" className="rounded border-slate-300" {...register('isCustomer')} />
                     {ar ? 'عميل' : 'Customer'}
                   </label>
-                  <label className="inline-flex items-center gap-2 text-sm text-slate-800 dark:text-slate-200">
-                    <input type="checkbox" className="rounded border-slate-300" {...register('isVendor')} />
+                  <label className={roleCheckClass}>
+                    <input type="checkbox" className="rounded border-slate-300 text-teal-600 focus:ring-teal-600/20" {...register('isVendor')} />
                     {ar ? 'مورد' : 'Vendor'}
                   </label>
-                  <label className="inline-flex items-center gap-2 text-sm text-slate-800 dark:text-slate-200">
+                  <label className={roleCheckClass}>
                     <input type="checkbox" className="rounded border-slate-300" {...register('isEmployee')} />
                     {ar ? 'موظف' : 'Employee'}
                   </label>
@@ -481,23 +480,23 @@ export default function PartnerForm() {
               <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="sm:col-span-2">
-                    <span className={labelCls}>{ar ? 'الاسم (EN)' : 'Name (EN)'} *</span>
-                    <input className={inputCls} {...register('nameEn', { required: true })} />
+                    <span className={fieldLabelClass}>{ar ? 'الاسم (EN)' : 'Name (EN)'} *</span>
+                    <input className={fieldControlClass} {...register('nameEn', { required: true })} />
                     {errors.nameEn && <span className="mt-1 block text-xs text-rose-600">{t('required') || 'Required'}</span>}
                   </label>
                   <label className="sm:col-span-2">
-                    <span className={labelCls}>{ar ? 'الاسم (AR)' : 'Name (AR)'}</span>
-                    <input className={inputCls} dir="rtl" {...register('nameAr')} />
+                    <span className={fieldLabelClass}>{ar ? 'الاسم (AR)' : 'Name (AR)'}</span>
+                    <input className={fieldControlClass} dir="rtl" {...register('nameAr')} />
                   </label>
                   {!isCompany && (
                     <label className="sm:col-span-2">
-                      <span className={labelCls}>{ar ? 'المسمى الوظيفي' : 'Job position / title'}</span>
-                      <input className={inputCls} {...register('jobTitle')} />
+                      <span className={fieldLabelClass}>{ar ? 'المسمى الوظيفي' : 'Job position / title'}</span>
+                      <input className={fieldControlClass} {...register('jobTitle')} />
                     </label>
                   )}
                   {!isCompany && (
                     <div className="sm:col-span-2">
-                      <span className={labelCls}>{ar ? 'الشركة المرتبطة' : 'Related company'}</span>
+                      <span className={fieldLabelClass}>{ar ? 'الشركة المرتبطة' : 'Related company'}</span>
                       <AsyncCombobox
                         value={parentCompanyId || null}
                         selectedOption={parentOption}
@@ -527,7 +526,7 @@ export default function PartnerForm() {
                   )}
                 </div>
                 <div>
-                  <span className={labelCls}>{ar ? 'الشعار / الصورة' : 'Logo / avatar'}</span>
+                  <span className={fieldLabelClass}>{ar ? 'الشعار / الصورة' : 'Logo / avatar'}</span>
                   <div className="flex items-center gap-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-4 dark:border-white/10 dark:bg-white/[0.03]">
                     <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-white text-sm font-bold text-slate-500 ring-1 ring-slate-200 dark:bg-dark-800 dark:ring-white/10">
                       {logoUrl ? (
@@ -579,8 +578,7 @@ export default function PartnerForm() {
             </div>
           </div>
 
-          {/* Tabs */}
-          <div className="flex flex-wrap gap-1 rounded-2xl bg-slate-100/80 p-1 dark:bg-dark-800/80">
+          <div className={formTabBarClass}>
             {TABS.map((item) => {
               const Icon = item.icon
               const active = tab === item.id
@@ -588,7 +586,7 @@ export default function PartnerForm() {
                 <button
                   key={item.id}
                   type="button"
-                  className={active ? tabActive : tabIdle}
+                  className={contactTabClass(active)}
                   onClick={() => setTab(item.id)}
                 >
                   <Icon className="h-3.5 w-3.5 opacity-70" />
@@ -599,28 +597,28 @@ export default function PartnerForm() {
           </div>
 
           {tab === 'general' && (
-            <div className={`${card} space-y-5`}>
+            <div className={`${sectionCardClass} space-y-5`}>
               <div className="border-b border-slate-100 pb-5 dark:border-white/[0.06]">
                 <div className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   {ar ? 'بيانات التواصل' : 'Contact details'}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label>
-                    <span className={labelCls}>{ar ? 'الهاتف' : 'Phone'}</span>
-                    <input className={inputCls} {...register('phone')} />
+                    <span className={fieldLabelClass}>{ar ? 'الهاتف' : 'Phone'}</span>
+                    <input className={fieldControlClass} {...register('phone')} />
                   </label>
                   <label>
-                    <span className={labelCls}>{ar ? 'الجوال' : 'Mobile'}</span>
-                    <input className={inputCls} {...register('mobile')} />
+                    <span className={fieldLabelClass}>{ar ? 'الجوال' : 'Mobile'}</span>
+                    <input className={fieldControlClass} {...register('mobile')} />
                   </label>
                   <label>
-                    <span className={labelCls}>{ar ? 'البريد' : 'Email'}</span>
-                    <input type="email" className={inputCls} {...register('email')} />
+                    <span className={fieldLabelClass}>{ar ? 'البريد' : 'Email'}</span>
+                    <input type="email" className={fieldControlClass} {...register('email')} />
                   </label>
                   {isCompany && (
                     <label>
-                      <span className={labelCls}>{ar ? 'الموقع' : 'Website'}</span>
-                      <input className={inputCls} placeholder="https://" {...register('website')} />
+                      <span className={fieldLabelClass}>{ar ? 'الموقع' : 'Website'}</span>
+                      <input className={fieldControlClass} placeholder="https://" {...register('website')} />
                     </label>
                   )}
                 </div>
@@ -633,32 +631,32 @@ export default function PartnerForm() {
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label>
-                    <span className={labelCls}>{ar ? 'رقم المبنى' : 'Building no.'}</span>
-                    <input className={inputCls} {...register('address.buildingNumber')} />
+                    <span className={fieldLabelClass}>{ar ? 'رقم المبنى' : 'Building no.'}</span>
+                    <input className={fieldControlClass} {...register('address.buildingNumber')} />
                   </label>
                   <label className="sm:col-span-2">
-                    <span className={labelCls}>{ar ? 'اسم الشارع' : 'Street name'}</span>
-                    <input className={inputCls} {...register('address.street')} />
+                    <span className={fieldLabelClass}>{ar ? 'اسم الشارع' : 'Street name'}</span>
+                    <input className={fieldControlClass} {...register('address.street')} />
                   </label>
                   <label>
-                    <span className={labelCls}>{ar ? 'الحي / المنطقة' : 'District'}</span>
-                    <input className={inputCls} {...register('address.district')} />
+                    <span className={fieldLabelClass}>{ar ? 'الحي / المنطقة' : 'District'}</span>
+                    <input className={fieldControlClass} {...register('address.district')} />
                   </label>
                   <label>
-                    <span className={labelCls}>{ar ? 'المدينة' : 'City'}</span>
-                    <input className={inputCls} {...register('address.city')} />
+                    <span className={fieldLabelClass}>{ar ? 'المدينة' : 'City'}</span>
+                    <input className={fieldControlClass} {...register('address.city')} />
                   </label>
                   <label>
-                    <span className={labelCls}>{ar ? 'الرمز البريدي' : 'Postal code'}</span>
-                    <input className={inputCls} {...register('address.postalCode')} />
+                    <span className={fieldLabelClass}>{ar ? 'الرمز البريدي' : 'Postal code'}</span>
+                    <input className={fieldControlClass} {...register('address.postalCode')} />
                   </label>
                   <label>
-                    <span className={labelCls}>{ar ? 'الرقم الإضافي' : 'Additional no.'}</span>
-                    <input className={inputCls} {...register('address.additionalNumber')} />
+                    <span className={fieldLabelClass}>{ar ? 'الرقم الإضافي' : 'Additional no.'}</span>
+                    <input className={fieldControlClass} {...register('address.additionalNumber')} />
                   </label>
                   <label>
-                    <span className={labelCls}>{ar ? 'الدولة' : 'Country'}</span>
-                    <input className={inputCls} {...register('address.country')} />
+                    <span className={fieldLabelClass}>{ar ? 'الدولة' : 'Country'}</span>
+                    <input className={fieldControlClass} {...register('address.country')} />
                   </label>
                 </div>
               </div>
@@ -671,9 +669,9 @@ export default function PartnerForm() {
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label>
-                      <span className={labelCls}>{taxIdLabel || (ar ? 'الرقم الضريبي' : 'Tax ID / VAT')}</span>
+                      <span className={fieldLabelClass}>{taxIdLabel || (ar ? 'الرقم الضريبي' : 'Tax ID / VAT')}</span>
                       <input
-                        className={inputCls}
+                        className={fieldControlClass}
                         {...register('vatNumber')}
                         placeholder={tenantCountry === 'SA' ? '15 digits' : ''}
                       />
@@ -684,8 +682,8 @@ export default function PartnerForm() {
                       </p>
                     </label>
                     <label>
-                      <span className={labelCls}>{ar ? 'السجل التجاري' : 'CR number'}</span>
-                      <input className={inputCls} {...register('crNumber')} />
+                      <span className={fieldLabelClass}>{ar ? 'السجل التجاري' : 'CR number'}</span>
+                      <input className={fieldControlClass} {...register('crNumber')} />
                     </label>
                   </div>
                 </div>
@@ -693,19 +691,19 @@ export default function PartnerForm() {
 
               <div className="border-t border-slate-100 pt-5 dark:border-white/[0.06]">
                 <label>
-                  <span className={labelCls}>{ar ? 'ملاحظات داخلية' : 'Internal notes'}</span>
-                  <textarea className={`${inputCls} min-h-[100px]`} {...register('notes')} />
+                  <span className={fieldLabelClass}>{ar ? 'ملاحظات داخلية' : 'Internal notes'}</span>
+                  <textarea className={`${fieldControlClass} min-h-[100px]`} {...register('notes')} />
                 </label>
               </div>
             </div>
           )}
 
           {tab === 'sales' && (
-            <div className={`${card} space-y-4`}>
+            <div className={`${sectionCardClass} space-y-4`}>
               {isCustomer && (
                 <>
                   <label>
-                    <span className={labelCls}>{ar ? 'مندوب المبيعات' : 'Salesperson'}</span>
+                    <span className={fieldLabelClass}>{ar ? 'مندوب المبيعات' : 'Salesperson'}</span>
                     <AsyncCombobox
                       value={salespersonId || null}
                       selectedOption={salespersonOption}
@@ -724,8 +722,8 @@ export default function PartnerForm() {
                     />
                   </label>
                   <label>
-                    <span className={labelCls}>{ar ? 'شروط دفع العميل' : 'Customer payment terms'}</span>
-                    <select className={inputCls} {...register('paymentTermsCustomer')}>
+                    <span className={fieldLabelClass}>{ar ? 'شروط دفع العميل' : 'Customer payment terms'}</span>
+                    <select className={fieldControlClass} {...register('paymentTermsCustomer')}>
                       <option value="immediate">Immediate</option>
                       <option value="net15">Net 15</option>
                       <option value="net30">Net 30</option>
@@ -735,9 +733,9 @@ export default function PartnerForm() {
                     </select>
                   </label>
                   <label>
-                    <span className={labelCls}>{ar ? 'قائمة الأسعار' : 'Pricelist'}</span>
+                    <span className={fieldLabelClass}>{ar ? 'قائمة الأسعار' : 'Pricelist'}</span>
                     <input
-                      className={inputCls}
+                      className={fieldControlClass}
                       placeholder={ar ? 'معرف قائمة الأسعار (اختياري)' : 'Pricelist ID (optional)'}
                       {...register('salesPricelistId')}
                     />
@@ -747,8 +745,8 @@ export default function PartnerForm() {
               {isVendor && (
                 <>
                   <label>
-                    <span className={labelCls}>{ar ? 'شروط دفع المورد' : 'Vendor payment terms'}</span>
-                    <select className={inputCls} {...register('paymentTermsVendorTerm')}>
+                    <span className={fieldLabelClass}>{ar ? 'شروط دفع المورد' : 'Vendor payment terms'}</span>
+                    <select className={fieldControlClass} {...register('paymentTermsVendorTerm')}>
                       <option value="immediate">Immediate</option>
                       <option value="net_7">Net 7</option>
                       <option value="net_15">Net 15</option>
@@ -757,8 +755,8 @@ export default function PartnerForm() {
                     </select>
                   </label>
                   <label>
-                    <span className={labelCls}>{ar ? 'عملة المورد' : 'Vendor currency'}</span>
-                    <select className={inputCls} {...register('vendorCurrency')}>
+                    <span className={fieldLabelClass}>{ar ? 'عملة المورد' : 'Vendor currency'}</span>
+                    <select className={fieldControlClass} {...register('vendorCurrency')}>
                       <option value="SAR">SAR</option>
                       <option value="USD">USD</option>
                       <option value="EUR">EUR</option>
@@ -775,11 +773,11 @@ export default function PartnerForm() {
           )}
 
           {tab === 'accounting' && (
-            <div className={`${card} space-y-5`}>
+            <div className={`${sectionCardClass} space-y-5`}>
               {isCustomer && (
                 <label>
-                  <span className={labelCls}>{ar ? 'حسابات القبض' : 'Accounts receivable'}</span>
-                  <select className={inputCls} {...register('receivableAccountId')}>
+                  <span className={fieldLabelClass}>{ar ? 'حسابات القبض' : 'Accounts receivable'}</span>
+                  <select className={fieldControlClass} {...register('receivableAccountId')}>
                     <option value="">{ar ? 'الافتراضي من النظام' : 'System default'}</option>
                     {receivableAccounts.map((a) => (
                       <option key={a._id} value={a._id}>
@@ -791,8 +789,8 @@ export default function PartnerForm() {
               )}
               {isVendor && (
                 <label>
-                  <span className={labelCls}>{ar ? 'حسابات الدفع' : 'Accounts payable'}</span>
-                  <select className={inputCls} {...register('payableAccountId')}>
+                  <span className={fieldLabelClass}>{ar ? 'حسابات الدفع' : 'Accounts payable'}</span>
+                  <select className={fieldControlClass} {...register('payableAccountId')}>
                     <option value="">{ar ? 'الافتراضي من النظام' : 'System default'}</option>
                     {payableAccounts.map((a) => (
                       <option key={a._id} value={a._id}>
@@ -805,7 +803,7 @@ export default function PartnerForm() {
 
               <div>
                 <div className="mb-3 flex items-center justify-between">
-                  <span className={labelCls}>{ar ? 'الحسابات البنكية' : 'Bank accounts'}</span>
+                  <span className={fieldLabelClass}>{ar ? 'الحسابات البنكية' : 'Bank accounts'}</span>
                   <button type="button" className="inline-flex items-center gap-1 text-xs font-semibold text-sky-700" onClick={addBankRow}>
                     <Plus className="h-3.5 w-3.5" />
                     {ar ? 'إضافة' : 'Add row'}
@@ -815,26 +813,26 @@ export default function PartnerForm() {
                   {bankAccounts.map((row, index) => (
                     <div key={index} className="grid gap-2 rounded-xl border border-slate-100 p-3 sm:grid-cols-2 dark:border-white/10">
                       <input
-                        className={inputCls}
+                        className={fieldControlClass}
                         placeholder={ar ? 'اسم البنك' : 'Bank name'}
                         value={row.bankName}
                         onChange={(e) => updateBankRow(index, 'bankName', e.target.value)}
                       />
                       <input
-                        className={inputCls}
+                        className={fieldControlClass}
                         placeholder={ar ? 'اسم الحساب' : 'Account name'}
                         value={row.accountName}
                         onChange={(e) => updateBankRow(index, 'accountName', e.target.value)}
                       />
                       <input
-                        className={inputCls}
+                        className={fieldControlClass}
                         placeholder="IBAN"
                         value={row.iban}
                         onChange={(e) => updateBankRow(index, 'iban', e.target.value)}
                       />
                       <div className="flex items-center gap-2">
                         <input
-                          className={inputCls}
+                          className={fieldControlClass}
                           placeholder={ar ? 'رقم الحساب' : 'Account number'}
                           value={row.accountNumber}
                           onChange={(e) => updateBankRow(index, 'accountNumber', e.target.value)}
@@ -856,10 +854,10 @@ export default function PartnerForm() {
           )}
 
           <div className="flex justify-end gap-2 pb-8">
-            <button type="button" className="btn btn-secondary" onClick={() => navigate(backPath)}>
+            <button type="button" className={outlinedBtnClass} onClick={() => navigate(backPath)}>
               {ar ? 'إلغاء' : 'Cancel'}
             </button>
-            <button type="submit" className={saveBtn} disabled={isSubmitting || mutation.isPending}>
+            <button type="submit" className={primaryBtnClass} disabled={isSubmitting || mutation.isPending}>
               <Save className="h-4 w-4" />
               {ar ? 'حفظ جهة الاتصال' : 'Save contact'}
             </button>
