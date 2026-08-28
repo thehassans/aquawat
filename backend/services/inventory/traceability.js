@@ -9,6 +9,7 @@ import { cursorFilter, pageMeta } from './cursorPage.js';
  */
 export async function movesHistory(tenantId, {
   productId,
+  variantId,
   lotId,
   locationId,
   transferId,
@@ -23,6 +24,7 @@ export async function movesHistory(tenantId, {
   const pageSize = Math.min(10000, Number(limit) || 80);
   const filter = { tenantId: tid, state: 'done' };
   if (productId) filter.productId = productId;
+  if (variantId != null && variantId !== '') filter.variantId = variantId;
   if (lotId) filter.lotId = lotId;
   if (transferId) filter.transferId = transferId;
   if (locationId) {

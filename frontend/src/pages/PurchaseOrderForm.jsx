@@ -131,6 +131,13 @@ export function formatLineItemName(li, language = 'en', productsList = []) {
   return '—'
 }
 
+function poReceiveLineKey(li, idx) {
+  const productId = li?.productId?._id || li?.productId
+  const variantId = li?.variantId?._id || li?.variantId
+  if (!productId) return `line_${idx}`
+  return `${productId}|${variantId || ''}`
+}
+
 export default function PurchaseOrderForm() {
   const { id } = useParams()
   const isEdit = Boolean(id)
@@ -807,9 +814,9 @@ export default function PurchaseOrderForm() {
   const submitReceive = () => {
     const items = (orderLineItems || []).map((li, idx) => {
       const productId = li?.productId?._id || li?.productId
-      const key = productId ? String(productId) : `line_${idx}`
-      const qty = Number(receiveQty?.[key] ?? (productId ? receiveQty?.[productId] : 0) ?? 0)
-      const action = lineRemainingActions[key] || (productId ? lineRemainingActions[String(productId)] : undefined) || 'backorder'
+      const key = poReceiveLineKey(li, idx)
+      const qty = Number(receiveQty?.[key] ?? 0)
+      const action = lineRemainingActions[key] || 'backorder'
       return {
         productId: productId || undefined,
         variantId: li?.variantId?._id || li?.variantId || undefined,
@@ -3073,8 +3080,7 @@ export default function PurchaseOrderForm() {
                 onClick={() => {
                   const all = {}
                   orderLineItems.forEach((li, idx) => {
-                    const productId = li?.productId?._id || li?.productId
-                    const key = productId || `line_${idx}`
+                    const key = poReceiveLineKey(li, idx)
                     const rem = Math.max(0, Number(li.quantityOrdered || 0) - Number(li.quantityReceived || 0))
                     all[key] = rem
                   })
@@ -3103,15 +3109,15 @@ export default function PurchaseOrderForm() {
                 <tbody className="divide-y divide-slate-100 dark:divide-white/[0.06]">
                   {orderLineItems.map((li, idx) => {
                     const productId = li?.productId?._id || li?.productId
-                    const key = productId ? String(productId) : `line_${idx}`
+                    const key = poReceiveLineKey(li, idx)
                     const name = formatLineItemName(li, language, products)
                     const ordered = Number(li.quantityOrdered || 0)
                     const alreadyRec = Number(li.quantityReceived || 0)
                     const remaining = Math.max(0, ordered - alreadyRec)
-                    const currVal = receiveQty[key] ?? (productId ? receiveQty[productId] : '') ?? ''
+                    const currVal = receiveQty[key] ?? ''
                     const numVal = currVal === '' ? 0 : Number(currVal)
                     const lineBackorder = Math.max(0, remaining - numVal)
-                    const currentLineAction = lineRemainingActions[key] || (productId ? lineRemainingActions[String(productId)] : undefined) || 'backorder'
+                    const currentLineAction = lineRemainingActions[key] || 'backorder'
 
                     return (
                       <tr key={key} className="hover:bg-slate-50/40 dark:hover:bg-white/[0.02]">

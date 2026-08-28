@@ -132,6 +132,7 @@ export default function ManufacturingForm() {
   const [showPartner, setShowPartner] = useState(false)
   const [selectedPartner, setSelectedPartner] = useState(null)
   const [finishedGood, setFinishedGood] = useState(null)
+  const [finishedVariantId, setFinishedVariantId] = useState(null)
   const [produceQty, setProduceQty] = useState('1')
 
   useReturnedPartner({
@@ -351,7 +352,9 @@ export default function ManufacturingForm() {
       sourceLocationId: values.sourceLocationId,
       destLocationId: values.destLocationId,
       scheduledDate: values.scheduledDate || undefined,
-      origin: values.origin || undefined,
+      origin: finishedGood
+        ? `MO:${finishedGood._id}${finishedVariantId ? `:${finishedVariantId}` : ''}`
+        : (values.origin || undefined),
       note: values.note || undefined,
       priority: values.priority || 'normal',
       lines: cleanLines.map((l) => ({
@@ -563,6 +566,8 @@ export default function ManufacturingForm() {
             onProduceQtyChange={setProduceQty}
             selectedFinished={finishedGood}
             onFinishedChange={setFinishedGood}
+            finishedVariantId={finishedVariantId}
+            onFinishedVariantChange={setFinishedVariantId}
             onBomLines={(bomLines) => setLines(bomLines)}
           />
           <DeliveryDraftLines

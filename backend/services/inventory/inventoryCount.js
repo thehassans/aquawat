@@ -4,6 +4,7 @@ import InvLocation from '../../models/inventory/InvLocation.js';
 import InvMove from '../../models/inventory/InvMove.js';
 import InvMoveLine from '../../models/inventory/InvMoveLine.js';
 import Product from '../../models/Product.js';
+import InvProductVariant from '../../models/inventory/InvProductVariant.js';
 import InvSettings from '../../models/inventory/InvSettings.js';
 import { toObjectId, setDecimalPair } from '../../models/inventory/common.js';
 import { applyQuantDelta } from './quantDelta.js';
@@ -730,8 +731,8 @@ export async function requestCount(tenantId, {
   };
 }
 
-/** Move-line history for inventory adjustments on a product+location. */
-export async function countLineHistory(tenantId, { productId, locationId, limit = 50 }) {
+/** Move-line history for inventory adjustments on a product+location (+ optional variant). */
+export async function countLineHistory(tenantId, { productId, locationId, variantId, limit = 50 }) {
   const tid = toObjectId(tenantId);
   const invAdj = await InvLocation.findOne({ tenantId: tid, usage: 'inventoryLoss' }).select('_id').lean();
   const filter = withTenant(tid, {
@@ -743,6 +744,9 @@ export async function countLineHistory(tenantId, { productId, locationId, limit 
       { reference: /^INV\// },
     ],
   });
+  if (variantId != null && variantId !== '') {
+    filter.variantId = toObjectId(variantId);
+  }
   return InvMoveLine.find(filter)
     .sort({ createdAt: -1 })
     .limit(Math.min(200, Number(limit) || 50))
@@ -752,7 +756,7 @@ export async function countLineHistory(tenantId, { productId, locationId, limit 
 
 /**
  * Import counted quantities — dry-run or commit.
- * Rows: { location, product_sku|sku, lot?, counted_qty }
+ * Rows: { location, product_sku|sku, variant_sku|variantSku (optional), lot?, counted_qty }
  */
 export async function importCountedQuantities(tenantId, rows, { dryRun = true, userId } = {}) {
   const tid = toObjectId(tenantId);
@@ -762,11 +766,12 @@ export async function importCountedQuantities(tenantId, rows, { dryRun = true, u
     const row = rows[i] || {};
     const rowNum = i + 2;
     const sku = String(row.product_sku || row.sku || row.SKU || '').trim();
+    const variantSku = String(row.variant_sku || row.variantSku || row.VARIANT_SKU || '').trim();
     const locPath = String(row.location || row.location_path || row.completePath || '').trim();
     const counted = row.counted_qty ?? row.countedQty ?? row.counted;
     const lotName = String(row.lot || row.lot_name || '').trim();
 
-    if (!sku || !locPath || counted == null || counted === '') {
+    if ((!sku && !variantSku) || !locPath || counted == null || counted === '') {
       report.errors.push({
         row: rowNum,
         field: 'sku/location/counted_qty',
@@ -775,10 +780,48 @@ export async function importCountedQuantities(tenantId, rows, { dryRun = true, u
       continue;
     }
 
-    // eslint-disable-next-line no-await-in-loop
-    const product = await Product.findOne({ tenantId: tid, sku }).select('_id').lean();
-    if (!product) {
-      report.errors.push({ row: rowNum, field: 'product_sku', reason: `No product with sku ${sku}` });
+    let productId = null;
+    let variantId = null;
+
+    if (variantSku) {
+      // eslint-disable-next-line no-await-in-loop
+      const variant = await InvProductVariant.findOne({
+        tenantId: tid,
+        $or: [{ sku: variantSku }, { barcode: variantSku }],
+      }).select('_id productId').lean();
+      if (variant) {
+        productId = variant.productId;
+        variantId = variant._id;
+      } else {
+        report.errors.push({ row: rowNum, field: 'variant_sku', reason: `No variant with sku/barcode ${variantSku}` });
+        continue;
+      }
+    }
+
+    if (!productId && sku) {
+      // eslint-disable-next-line no-await-in-loop
+      const variantBySku = await InvProductVariant.findOne({
+        tenantId: tid,
+        $or: [{ sku }, { barcode: sku }],
+      }).select('_id productId').lean();
+      if (variantBySku) {
+        productId = variantBySku.productId;
+        variantId = variantBySku._id;
+      }
+    }
+
+    if (!productId && sku) {
+      // eslint-disable-next-line no-await-in-loop
+      const product = await Product.findOne({ tenantId: tid, sku }).select('_id').lean();
+      if (!product) {
+        report.errors.push({ row: rowNum, field: 'product_sku', reason: `No product with sku ${sku}` });
+        continue;
+      }
+      productId = product._id;
+    }
+
+    if (!productId) {
+      report.errors.push({ row: rowNum, field: 'product_sku', reason: 'Product not resolved' });
       continue;
     }
 
@@ -798,7 +841,7 @@ export async function importCountedQuantities(tenantId, rows, { dryRun = true, u
       // eslint-disable-next-line no-await-in-loop
       const lot = await InvLot.findOne({
         tenantId: tid,
-        productId: product._id,
+        productId,
         name: lotName,
       }).select('_id').lean();
       if (!lot) {
@@ -811,12 +854,12 @@ export async function importCountedQuantities(tenantId, rows, { dryRun = true, u
     // eslint-disable-next-line no-await-in-loop
     const existing = await InvQuant.findOne({
       tenantId: tid,
-      productId: product._id,
+      productId,
       locationId: location._id,
       lotId: lotId || null,
       packageId: null,
       ownerId: null,
-      variantId: null,
+      variantId: variantId || null,
     }).select('_id').lean();
 
     if (existing) report.wouldUpdate += 1;
@@ -824,7 +867,8 @@ export async function importCountedQuantities(tenantId, rows, { dryRun = true, u
 
     report.ok.push({
       row: rowNum,
-      productId: product._id,
+      productId,
+      variantId,
       locationId: location._id,
       lotId,
       countedQty: String(counted),
@@ -847,6 +891,7 @@ export async function importCountedQuantities(tenantId, rows, { dryRun = true, u
     const quant = await setCountedQuantity(tid, {
       productId: row.productId,
       locationId: row.locationId,
+      variantId: row.variantId || undefined,
       lotId: row.lotId,
       countedQty: row.countedQty,
       userId,

@@ -1152,7 +1152,8 @@ router.post('/report/stock/:productId/adjust', checkPermission('inventory', 'upd
       return res.status(400).json({ error: 'Warehouse not bootstrapped' });
     }
 
-    const current = await computeOnHand(req.user.tenantId, productId, { warehouseId });
+    const variantId = req.body.variantId || null;
+    const current = await computeOnHand(req.user.tenantId, productId, { warehouseId, variantId: variantId || undefined });
     const diff = newQty.minus(D(current.onHand));
     if (diff.isZero()) return res.json({ onHand: current.onHand, adjusted: false });
 
@@ -1167,7 +1168,6 @@ router.post('/report/stock/:productId/adjust', checkPermission('inventory', 'upd
     }
 
     const isGain = diff.gt(0);
-    const variantId = req.body.variantId || null;
     const { assertStockMoveVariant } = await import('../services/inventory/variantGuard.js');
     const resolvedVariantId = await assertStockMoveVariant(req.user.tenantId, {
       productId,
@@ -1191,7 +1191,7 @@ router.post('/report/stock/:productId/adjust', checkPermission('inventory', 'upd
       createBackorder: false,
     });
 
-    const after = await computeOnHand(req.user.tenantId, productId, { warehouseId });
+    const after = await computeOnHand(req.user.tenantId, productId, { warehouseId, variantId: resolvedVariantId || undefined });
     res.json({ onHand: after.onHand, adjusted: true, transferId: transfer._id });
   } catch (err) {
     handleInventoryError(res, err);
@@ -1751,6 +1751,7 @@ router.get('/physical-inventory/history', checkPermission('inventory', 'read'), 
       items: await countLineHistory(req.user.tenantId, {
         productId: req.query.productId,
         locationId: req.query.locationId,
+        variantId: req.query.variantId,
         limit: req.query.limit,
       }),
     });
@@ -2036,6 +2037,7 @@ router.get('/moves-history', checkPermission('inventory', 'read'), async (req, r
   try {
     const result = await movesHistory(req.user.tenantId, {
       productId: req.query.productId,
+      variantId: req.query.variantId,
       lotId: req.query.lotId,
       locationId: req.query.locationId,
       transferId: req.query.transferId,
@@ -2879,28 +2881,32 @@ router.get('/products/:productId/inventory-value', checkPermission('inventory', 
 
 router.get('/valuation-report', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const { productInventoryValue } = await import('../services/inventory/valuation.js');
-    const products = await Product.find({
-      tenantId: req.user.tenantId,
-      isActive: { $ne: false },
-      trackInventory: { $ne: false },
-    }).select('nameEn nameAr sku costPrice').limit(200).lean();
-
-    const rows = [];
-    for (const p of products) {
-      const v = await productInventoryValue(req.user.tenantId, p._id);
-      if (Number(v.qty) === 0 && Number(v.value) === 0) continue;
-      rows.push({
-        productId: p._id,
-        name: p.nameEn || p.sku,
-        sku: p.sku,
-        costMethod: v.costMethod,
-        qty: v.qty,
-        unitCost: v.unitCost || p.costPrice,
-        value: v.value,
+    const { stockReportLive } = await import('../services/inventory/reporting.js');
+    const { loadCostContext } = await import('../services/inventory/valuation.js');
+    const { data: rows, valueTotal } = await stockReportLive(req.user.tenantId, {
+      warehouseId: req.query.warehouseId,
+    });
+    const costMethodCache = new Map();
+    const items = [];
+    for (const r of rows) {
+      if (Number(r.onHand) === 0 && Number(r.value) === 0) continue;
+      const pid = String(r.productId);
+      if (!costMethodCache.has(pid)) {
+        const ctx = await loadCostContext(r.productId, null);
+        costMethodCache.set(pid, ctx.costMethod);
+      }
+      items.push({
+        productId: r.productId,
+        variantId: r.variantId || null,
+        name: r.productName,
+        sku: r.sku,
+        costMethod: costMethodCache.get(pid),
+        qty: r.onHand,
+        unitCost: r.unitCost,
+        value: r.value,
       });
     }
-    return sendList(res, rows);
+    return sendList(res, items, { valueTotal });
   } catch (err) {
     handleInventoryError(res, err);
   }

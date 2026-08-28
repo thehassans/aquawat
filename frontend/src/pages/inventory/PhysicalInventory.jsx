@@ -220,13 +220,14 @@ export default function PhysicalInventory() {
   const totalPages = Math.max(1, Math.ceil((meta.total || 0) / (meta.pageSize || pageSize)))
 
   const { data: historyPayload, isLoading: historyLoading } = useQuery({
-    queryKey: ['physical-inventory-history', historyOpen?.productId, historyOpen?.locationId],
+    queryKey: ['physical-inventory-history', historyOpen?.productId, historyOpen?.locationId, historyOpen?.variantId],
     queryFn: () =>
       api
         .get('/stock/physical-inventory/history', {
           params: {
             productId: historyOpen.productId,
             locationId: historyOpen.locationId,
+            variantId: historyOpen.variantId || undefined,
             limit: 40,
           },
         })
@@ -994,6 +995,7 @@ export default function PhysicalInventory() {
                     : (row.isCountSet ? row.countDifference : '—')
                   const pid = row.productId?._id || row.productId
                   const lid = row.locationId?._id || row.locationId
+                  const vid = row.variantId?._id || row.variantId
                   const pname = productLabel(row, ar)
                   return (
                     <tr
@@ -1081,7 +1083,7 @@ export default function PhysicalInventory() {
                           <button
                             type="button"
                             className="text-xs text-primary-600 hover:underline"
-                            onClick={() => setHistoryOpen({ productId: pid, locationId: lid, label: pname })}
+                            onClick={() => setHistoryOpen({ productId: pid, locationId: lid, variantId: vid || undefined, label: pname })}
                           >
                             {ar ? 'سجل' : 'History'}
                           </button>

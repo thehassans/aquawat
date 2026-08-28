@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import AsyncCombobox from '../../../components/ui/AsyncCombobox'
 import api from '../../../lib/api'
@@ -45,9 +45,41 @@ export function ManufacturingBomPicker({
   onProduceQtyChange,
   selectedFinished,
   onFinishedChange,
+  finishedVariantId,
+  onFinishedVariantChange,
   onBomLines,
 }) {
   const [busy, setBusy] = useState(false)
+  const [finishedVariants, setFinishedVariants] = useState([])
+  const [finishedNeedsVariant, setFinishedNeedsVariant] = useState(false)
+
+  const loadFinishedVariants = useCallback(async (productId) => {
+    if (!productId) {
+      setFinishedVariants([])
+      setFinishedNeedsVariant(false)
+      onFinishedVariantChange?.(null)
+      return
+    }
+    const resolved = await resolveComponentVariants(productId)
+    setFinishedVariants(resolved.variants || [])
+    setFinishedNeedsVariant(resolved.needsVariant)
+    if (resolved.variantId) {
+      onFinishedVariantChange?.(resolved.variantId)
+    } else if (resolved.needsVariant) {
+      onFinishedVariantChange?.(null)
+    } else {
+      onFinishedVariantChange?.(null)
+    }
+  }, [onFinishedVariantChange])
+
+  useEffect(() => {
+    if (selectedFinished?._id) {
+      loadFinishedVariants(String(selectedFinished._id))
+    } else {
+      setFinishedVariants([])
+      setFinishedNeedsVariant(false)
+    }
+  }, [selectedFinished?._id, loadFinishedVariants])
 
   const fetchFinished = useCallback(async (q) => {
     const list = await api.get('/products', {
@@ -58,6 +90,10 @@ export function ManufacturingBomPicker({
 
   const loadBom = async (product) => {
     if (!product?._id) return
+    if (finishedNeedsVariant && !finishedVariantId) {
+      toast.error(ar ? 'اختر متغير المنتج النهائي' : 'Select finished-good variant')
+      return
+    }
     setBusy(true)
     try {
       const bom = await api.get(`/bom/${product._id}`).then((r) => r.data)
@@ -72,7 +108,6 @@ export function ManufacturingBomPicker({
           demandQty: String(Number((Number(c.quantity) || 0) * ratio).toFixed(6)).replace(/\.?0+$/, '') || '0',
           uomId: c.uomId || undefined,
           uomLabel: c.uom || '',
-          // Prefer explicit variant from BOM when present
           presetVariantId: c.variantId?._id || c.variantId || null,
           presetVariantName: c.variantName || '',
         }))
@@ -138,8 +173,8 @@ export function ManufacturingBomPicker({
       </div>
       <p className="mb-3 text-xs text-slate-400">
         {ar
-          ? 'اختر منتجاً نهائياً لتعبئة بنود المكونات تلقائياً من قائمة المواد.'
-          : 'Select a finished good to auto-populate component lines from its BOM.'}
+          ? 'اختر منتجاً نهائياً (ومتغيره إن وُجد) لتعبئة بنود المكونات تلقائياً من قائمة المواد.'
+          : 'Select a finished good (and variant if applicable) to auto-populate component lines from its BOM.'}
       </p>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="min-w-0 flex-1">
@@ -160,10 +195,31 @@ export function ManufacturingBomPicker({
             getOptionSub={(p) => p.sku || ''}
             onChange={(_id, opt) => {
               onFinishedChange?.(opt)
+              onFinishedVariantChange?.(null)
               if (opt) loadBom(opt)
             }}
           />
         </div>
+        {finishedVariants.length > 1 && (
+          <label className="block w-full max-w-[12rem] shrink-0 text-sm">
+            <span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-slate-400">
+              {ar ? 'المتغير' : 'Variant'}
+            </span>
+            <select
+              className="input input-sm w-full"
+              disabled={disabled || busy}
+              value={finishedVariantId || ''}
+              onChange={(e) => {
+                onFinishedVariantChange?.(e.target.value || null)
+              }}
+            >
+              <option value="">{ar ? '— اختر —' : '— Select —'}</option>
+              {finishedVariants.map((v) => (
+                <option key={v._id} value={v._id}>{v.name || v.sku}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="block w-full max-w-[7.5rem] shrink-0 text-sm">
           <span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-slate-400">
             {ar ? 'كمية الإنتاج' : 'Qty to produce'}

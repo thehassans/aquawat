@@ -56,9 +56,10 @@ export default function StockReport() {
   })
 
   const adjust = useMutation({
-    mutationFn: ({ productId, onHand }) =>
+    mutationFn: ({ productId, variantId, onHand }) =>
       api.post(`/stock/report/stock/${productId}/adjust`, {
         warehouseId: filters.warehouseId || warehouses[0]?._id,
+        variantId: variantId || undefined,
         onHand,
         reason: 'Stock report inline edit',
       }),
@@ -213,7 +214,7 @@ export default function StockReport() {
                           toast.error(ar ? 'اختر مستودعاً' : 'Select a warehouse')
                           return
                         }
-                        adjust.mutate({ productId: row.productId, onHand: editValue })
+                        adjust.mutate({ productId: row.productId, variantId: row.variantId, onHand: editValue })
                       }}
                     >
                       <input
@@ -247,13 +248,13 @@ export default function StockReport() {
                   <div className="flex flex-wrap gap-2 text-xs">
                     <Link
                       className="text-primary-700 hover:underline dark:text-primary-300"
-                      to={`/app/dashboard/inventory/moves?productId=${row.productId}`}
+                      to={`/app/dashboard/inventory/moves?productId=${row.productId}${row.variantId ? `&variantId=${row.variantId}` : ''}`}
                     >
                       {ar ? 'السجل' : 'History'}
                     </Link>
                     <Link
                       className="text-primary-700 hover:underline dark:text-primary-300"
-                      to={`/app/dashboard/inventory/replenishment?productId=${row.productId}`}
+                      to={`/app/dashboard/inventory/replenishment?productId=${row.productId}${row.variantId ? `&variantId=${row.variantId}` : ''}`}
                     >
                       {ar ? 'إعادة التموين' : 'Replenishment'}
                     </Link>
