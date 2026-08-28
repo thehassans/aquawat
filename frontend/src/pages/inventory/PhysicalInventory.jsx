@@ -20,6 +20,7 @@ import {
   statValueClass,
   filterBarClass,
   listShellClass,
+  salesTableClass,
   salesThClass,
   salesTdClass,
   salesTrClass,
@@ -521,8 +522,6 @@ export default function PhysicalInventory() {
           if (existing) {
             setEdits((m) => ({ ...m, [existing._id]: countedQty }))
           }
-          setQuickTerm('')
-          quickRef.current?.focus()
         },
       },
     )
@@ -530,6 +529,7 @@ export default function PhysicalInventory() {
 
   const scanBarcode = async (raw) => {
     const q = String(raw || '').trim()
+    setQuickTerm('')
     if (!q) return
     try {
       const variants = await api.get('/stock/variants', { params: { q, limit: 8 } }).then((r) => r.data?.items || r.data || [])
@@ -572,8 +572,6 @@ export default function PhysicalInventory() {
       if (!product?._id) {
         playScanError()
         toast.error(ar ? 'غير موجود' : 'Not found')
-        setQuickTerm('')
-        quickRef.current?.focus()
         return
       }
       const resolved = await resolvePick({
@@ -588,14 +586,10 @@ export default function PhysicalInventory() {
         variantId: resolved.variantId,
         name: resolved.variantName || resolved.productName || product.nameEn,
       })
-      setQuickTerm('')
-      quickRef.current?.focus()
     } catch (e) {
       if (isVariantPickCancelled(e)) return
       playScanError()
       toast.error(ar ? 'غير موجود' : 'Not found')
-      setQuickTerm('')
-      quickRef.current?.focus()
     }
   }
 
@@ -674,7 +668,7 @@ export default function PhysicalInventory() {
 
   return (
     <div
-      className="flex h-[calc(100vh-8.25rem)] max-h-[calc(100vh-8.25rem)] flex-col gap-2 overflow-hidden pb-2"
+      className="flex h-[calc(100vh-8.25rem)] max-h-[calc(100vh-8.25rem)] flex-col gap-4 overflow-hidden pb-2"
       dir={ar ? 'rtl' : 'ltr'}
     >
       {forceVariantModal}
@@ -737,16 +731,41 @@ export default function PhysicalInventory() {
           { label: ar ? 'فرق −' : 'Negative Δ', value: totals.negativeDiff ?? '0', tone: 'text-red-600 dark:text-red-400' },
           { label: ar ? 'صافي القيمة' : 'Net value', value: totals.netValueImpact ?? '0' },
         ].map((kpi) => (
-          <div key={kpi.label} className={`${statCardClass} !py-2`}>
+          <div key={kpi.label} className={statCardClass}>
             <p className={statLabelClass}>{kpi.label}</p>
-            <p className={`${statValueClass} !mt-1 !text-lg ${kpi.tone || ''}`}>{kpi.value}</p>
+            <p className={`${statValueClass} !text-xl ${kpi.tone || ''}`}>{kpi.value}</p>
           </div>
         ))}
       </div>
 
-      <div className={`${filterBarClass} shrink-0 !space-y-2 !p-3`}>
-        <div className="flex w-full flex-row gap-4">
-          <div className="min-w-0 flex-1">
+      <div className={`${filterBarClass} shrink-0 space-y-3 !p-4`}>
+        <div className="flex flex-wrap items-center gap-2">
+          {chips.map((f) => (
+            <button
+              key={f.id || 'all'}
+              type="button"
+              className={chipFilterClass(filter === f.id)}
+              onClick={() => {
+                setFilter(f.id)
+                setPage(1)
+              }}
+            >
+              {ar ? f.ar : f.en}
+            </button>
+          ))}
+          <span className="hidden sm:inline h-5 w-px bg-slate-200 dark:bg-dark-600" aria-hidden />
+          <button
+            type="button"
+            className={chipFilterClass(blindMode)}
+            aria-pressed={blindMode}
+            onClick={() => setBlindMode((v) => !v)}
+          >
+            {ar ? 'عد أعمى' : 'Blind count'}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
             <label className={fieldLabelClass}>{ar ? 'المستودع' : 'Warehouse'}</label>
             <select
               className={fieldControlClass}
@@ -763,7 +782,7 @@ export default function PhysicalInventory() {
               ))}
             </select>
           </div>
-          <div className="min-w-0 flex-1">
+          <div>
             <label className={fieldLabelClass}>{ar ? 'الموقع' : 'Location'}</label>
             <select
               className={fieldControlClass}
@@ -779,44 +798,20 @@ export default function PhysicalInventory() {
               ))}
             </select>
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {chips.map((f) => (
-            <button
-              key={f.id || 'all'}
-              type="button"
-              className={chipFilterClass(filter === f.id)}
-              onClick={() => {
-                setFilter(f.id)
-                setPage(1)
-              }}
-            >
-              {ar ? f.ar : f.en}
+          <div>
+            <label className={fieldLabelClass}>{ar ? 'تجميع' : 'Group by'}</label>
+            <select className={fieldControlClass} value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
+              <option value="">{ar ? 'بدون' : 'None'}</option>
+              <option value="location">{ar ? 'الموقع' : 'Location'}</option>
+              <option value="product">{ar ? 'المنتج' : 'Product'}</option>
+              <option value="category">{ar ? 'الفئة' : 'Category'}</option>
+            </select>
+          </div>
+          <div className="flex items-end">
+            <button type="button" className={`${ghostActionClass} w-full justify-center`} onClick={() => setColOptsOpen((v) => !v)}>
+              {ar ? 'الأعمدة' : 'Columns'}
             </button>
-          ))}
-          <select
-            className={`${compactFieldClass} w-auto min-w-[9rem]`}
-            value={groupBy}
-            onChange={(e) => setGroupBy(e.target.value)}
-            aria-label={ar ? 'تجميع' : 'Group by'}
-          >
-            <option value="">{ar ? 'بدون تجميع' : 'No grouping'}</option>
-            <option value="location">{ar ? 'بالموقع' : 'By location'}</option>
-            <option value="product">{ar ? 'بالمنتج' : 'By product'}</option>
-            <option value="category">{ar ? 'بالفئة' : 'By category'}</option>
-          </select>
-          <button type="button" className={ghostActionClass} onClick={() => setColOptsOpen((v) => !v)}>
-            {ar ? 'أعمدة' : 'Columns'}
-          </button>
-          <button
-            type="button"
-            className={chipFilterClass(blindMode)}
-            aria-pressed={blindMode}
-            onClick={() => setBlindMode((v) => !v)}
-          >
-            {ar ? 'عد أعمى' : 'Blind count'}
-          </button>
+          </div>
         </div>
 
         {colOptsOpen && (
@@ -836,47 +831,37 @@ export default function PhysicalInventory() {
           </div>
         )}
 
-        <div className="flex w-full flex-row gap-4">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <form
-            className="min-w-0 flex-1"
+            className="relative min-w-0 flex-1"
             onSubmit={(e) => {
               e.preventDefault()
               scanBarcode(quickTerm)
             }}
           >
-            <label className={`${fieldLabelClass} inline-flex items-center gap-1.5`}>
-              <ScanBarcode className="h-3.5 w-3.5" />
-              {ar ? 'مسح / إضافة' : 'Scan to count'}
-            </label>
-            <div className="relative">
-              <input
-                ref={quickRef}
-                className={fieldControlClass}
-                value={quickTerm}
-                onChange={(e) => setQuickTerm(e.target.value)}
-                placeholder={ar ? 'باركود أو SKU — Enter' : 'Barcode or SKU — Enter'}
-                autoComplete="off"
-                autoFocus
-              />
-            </div>
+            <ScanBarcode className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              ref={quickRef}
+              className={`${fieldControlClass} ps-10`}
+              value={quickTerm}
+              onChange={(e) => setQuickTerm(e.target.value)}
+              placeholder={ar ? 'امسح الباركود أو SKU…' : 'Scan barcode or SKU…'}
+              autoComplete="off"
+              autoFocus
+            />
           </form>
-          <div className="min-w-0 flex-1 sm:max-w-sm">
-            <label className={`${fieldLabelClass} inline-flex items-center gap-1.5`}>
-              <Search className="h-3.5 w-3.5" />
-              {ar ? 'تصفية الجدول' : 'Filter table'}
-            </label>
-            <div className="relative">
-              <input
-                className={fieldControlClass}
-                value={tableFilter}
-                onChange={(e) => setTableFilter(e.target.value)}
-                placeholder={ar ? 'اسم · SKU · موقع' : 'Name · SKU · location'}
-              />
-            </div>
+          <div className="relative min-w-0 flex-1 sm:max-w-xs">
+            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              className={`${fieldControlClass} ps-10`}
+              value={tableFilter}
+              onChange={(e) => setTableFilter(e.target.value)}
+              placeholder={ar ? 'تصفية الجدول…' : 'Filter table…'}
+            />
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-dark-700">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-dark-700">
           <div className="flex flex-wrap gap-2">
             {selected.size > 0 && (
               <>
@@ -957,7 +942,6 @@ export default function PhysicalInventory() {
             <InventoryIeButtons
               model="physical_inventory"
               ar={ar}
-              hideExport
               filters={{
                 warehouseId: warehouseId || undefined,
                 locationId: locationId || undefined,
@@ -983,8 +967,8 @@ export default function PhysicalInventory() {
         </div>
       )}
 
-      <div className={`${listShellClass} min-h-0 w-full flex-1 overflow-auto`}>
-        <table className="w-full table-fixed text-sm">
+      <div className={`${listShellClass} min-h-0 flex-1 overflow-auto`}>
+        <table className={`${salesTableClass} min-w-[960px]`}>
           <thead className="sticky top-0 z-10">
             <tr>
               <th className={`${salesThClass} w-10`}>
@@ -1000,18 +984,18 @@ export default function PhysicalInventory() {
                   disabled={selectableIds.length === 0}
                 />
               </th>
-              <th className={`${salesThClass} w-[14%]`}>{ar ? 'الموقع' : 'Location'}</th>
+              <th className={salesThClass}>{ar ? 'الموقع' : 'Location'}</th>
               <th className={salesThClass}>{ar ? 'المنتج' : 'Product / Variant'}</th>
-              {visibleCols.lot && <th className={`${salesThClass} w-[8%]`}>{ar ? 'دفعة' : 'Lot'}</th>}
-              {visibleCols.package && <th className={`${salesThClass} w-[8%]`}>{ar ? 'عبوة' : 'Pkg'}</th>}
-              {showOnHand && <th className={`${salesThClass} w-[7%]`}>{ar ? 'المتاح' : 'On hand'}</th>}
-              {visibleCols.uom && <th className={`${salesThClass} w-[6%]`}>{ar ? 'وحدة' : 'UoM'}</th>}
-              <th className={`${salesThClass} w-[8%]`}>{ar ? 'العد' : 'Counted'}</th>
-              {showDiff && <th className={`${salesThClass} w-[7%]`}>{ar ? 'الفرق' : 'Diff'}</th>}
-              {visibleCols.scheduled && <th className={`${salesThClass} w-[9%]`}>{ar ? 'مجدول' : 'Sched.'}</th>}
-              {visibleCols.user && <th className={`${salesThClass} w-[9%]`}>{ar ? 'المستخدم' : 'User'}</th>}
-              {visibleCols.lastCount && <th className={`${salesThClass} w-[8%]`}>{ar ? 'آخر جرد' : 'Last'}</th>}
-              <th className={`${salesThClass} w-[10%]`}>{ar ? 'إجراءات' : 'Actions'}</th>
+              {visibleCols.lot && <th className={salesThClass}>{ar ? 'دفعة' : 'Lot'}</th>}
+              {visibleCols.package && <th className={salesThClass}>{ar ? 'عبوة' : 'Package'}</th>}
+              {showOnHand && <th className={salesThClass}>{ar ? 'المتاح' : 'On hand'}</th>}
+              {visibleCols.uom && <th className={salesThClass}>{ar ? 'وحدة' : 'UoM'}</th>}
+              <th className={salesThClass}>{ar ? 'العد' : 'Counted'}</th>
+              {showDiff && <th className={salesThClass}>{ar ? 'الفرق' : 'Diff'}</th>}
+              {visibleCols.scheduled && <th className={salesThClass}>{ar ? 'مجدول' : 'Scheduled'}</th>}
+              {visibleCols.user && <th className={salesThClass}>{ar ? 'المستخدم' : 'User'}</th>}
+              {visibleCols.lastCount && <th className={salesThClass}>{ar ? 'آخر جرد' : 'Last count'}</th>}
+              <th className={salesThClass}>{ar ? 'إجراءات' : 'Actions'}</th>
             </tr>
           </thead>
           <tbody>
@@ -1072,21 +1056,19 @@ export default function PhysicalInventory() {
                           onChange={() => toggle(row._id)}
                         />
                       </td>
-                      <td className={`${salesTdClass} truncate text-xs text-slate-500`} title={row.locationId?.completePath || row.locationId?.name}>
-                        {row.locationId?.completePath || row.locationId?.name}
-                      </td>
-                      <td className={`${salesTdClass} max-w-0`}>
-                        <div className="truncate font-medium text-slate-900 dark:text-white" title={pname}>
+                      <td className={`${salesTdClass} text-xs text-slate-500`}>{row.locationId?.completePath || row.locationId?.name}</td>
+                      <td className={salesTdClass}>
+                        <div className="font-medium text-slate-900 dark:text-white">
                           {pid ? (
-                            <Link className="truncate hover:text-teal-700 dark:hover:text-teal-300" to={`/app/dashboard/inventory/products/${pid}`}>
+                            <Link className="hover:text-teal-700 dark:hover:text-teal-300" to={`/app/dashboard/inventory/products/${pid}`}>
                               {pname}
                             </Link>
                           ) : pname}
                         </div>
                         {variantOnly && !pname.includes('—') && (
-                          <p className={`${variantPillClass} truncate`} title={variantOnly}>{variantOnly}</p>
+                          <p className={variantPillClass}>{variantOnly}</p>
                         )}
-                        <p className={`${monoCellClass} truncate`} title={rowSku(row)}>{rowSku(row)}</p>
+                        <p className={`mt-0.5 ${monoCellClass}`}>{rowSku(row)}</p>
                         {row.isStale && (
                           <p className="mt-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">{ar ? 'رصيد تغيّر — أعد العد' : 'Stale — recount'}</p>
                         )}
