@@ -1,4 +1,5 @@
 import api from '../../../lib/api'
+import { contactToCustomer, fetchContactsList } from '../../../lib/contactMappers'
 
 const WALK_IN_NAME = 'Walk-in Customer'
 const WALK_IN_NAME_AR = 'عميل نقدي'
@@ -8,10 +9,16 @@ const WALK_IN_NAME_AR = 'عميل نقدي'
  */
 export async function ensureWalkInCustomer() {
   try {
-    const { customers = [] } = await api.get('/customers', {
-      params: { search: 'Walk-in', limit: 10 },
-    }).then((r) => r.data || {})
-    const hit = (customers || []).find((c) => {
+    const { contacts } = await fetchContactsList(api, {
+      types: 'customer',
+      search: 'Walk-in',
+      limit: 10,
+      isActive: 'all',
+    })
+    const customers = contacts
+      .filter((c) => c.entityType === 'customer')
+      .map(contactToCustomer)
+    const hit = customers.find((c) => {
       const n = String(c.name || '').toLowerCase()
       const ar = String(c.nameAr || '')
       return n.includes('walk-in') || n.includes('walk in') || ar.includes('عميل نقدي') || n.includes('cash customer')
@@ -31,8 +38,16 @@ export async function ensureWalkInCustomer() {
   } catch (e) {
     // Likely duplicate code — search again
     try {
-      const rows = await api.get('/customers/search', { params: { q: 'Walk' } }).then((r) => r.data || [])
-      if (Array.isArray(rows) && rows[0]) return rows[0]
+      const { contacts } = await fetchContactsList(api, {
+        types: 'customer',
+        search: 'Walk',
+        limit: 10,
+        isActive: 'all',
+      })
+      const rows = contacts
+        .filter((c) => c.entityType === 'customer')
+        .map(contactToCustomer)
+      if (rows[0]) return rows[0]
     } catch { /* ignore */ }
     throw e
   }

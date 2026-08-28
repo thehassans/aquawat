@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
+import { contactToCustomer, fetchContactsList } from '../lib/contactMappers'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -137,14 +138,22 @@ function useRecordSearch(tagType, query) {
         }))
       }
       if (tagType === 'order') {
-        const res = await api.get(`/customers?search=${q}&limit=8`)
-        return (res.data?.customers || res.data || []).map(c => ({
-          id: c._id,
-          label: c.name,
-          sub: c.phone || c.email || '',
-          detail: c.type || '',
-          _id: c._id,
-        }))
+        const { contacts } = await fetchContactsList(api, {
+          types: 'customer',
+          search: query,
+          limit: 8,
+          isActive: 'all',
+        })
+        return contacts
+          .filter((c) => c.entityType === 'customer')
+          .map(contactToCustomer)
+          .map((c) => ({
+            id: c._id,
+            label: c.name,
+            sub: c.phone || c.email || '',
+            detail: c.type || '',
+            _id: c._id,
+          }))
       }
       return []
     },

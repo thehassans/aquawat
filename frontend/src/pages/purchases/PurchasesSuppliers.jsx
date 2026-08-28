@@ -41,6 +41,7 @@ import { downloadPurchaseOrderPdf, printPurchaseOrderPdf } from '../../lib/invoi
 import RecordPoPaymentModal from '../../components/purchases/RecordPoPaymentModal'
 import ReceiptLightboxModal from '../../components/purchases/ReceiptLightboxModal'
 import { showArabicFields as isArabicTenantMarket } from '../../lib/saudiTenant'
+import { purchasesTableWrapClass, purchasesTableClass } from './purchasesUi'
 
 const STATUS_PILL = {
   billed: 'bg-violet-50 text-violet-700 ring-violet-200/70 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/20',
@@ -576,8 +577,8 @@ export default function PurchasesSuppliers() {
                           {language === 'ar' ? 'لا توجد طلبات شراء مسجلة لهذا المورد حتى الآن' : 'No purchase orders recorded for this supplier yet'}
                         </div>
                       ) : (
-                        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-[#0c111a]">
-                          <table className="w-full text-start text-xs">
+                        <div className={purchasesTableWrapClass}>
+                          <table className={purchasesTableClass}>
                             <thead className="bg-slate-100/70 font-bold uppercase tracking-wider text-slate-500 dark:bg-white/[0.04] dark:text-slate-400">
                               <tr>
                                 <th className="p-3 text-start">{language === 'ar' ? 'رقم الطلب' : 'PO Number'}</th>

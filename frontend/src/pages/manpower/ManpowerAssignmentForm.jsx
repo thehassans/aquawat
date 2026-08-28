@@ -6,6 +6,7 @@ import { useForm, useFieldArray } from 'react-hook-form'
 import { ArrowLeft, Save, Building, Calendar, Users, Plus, Trash2, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import { contactToCustomer, fetchContactsList } from '../../lib/contactMappers'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 
@@ -34,7 +35,10 @@ export default function ManpowerAssignmentForm() {
 
   const { data: customers } = useQuery({
     queryKey: ['customers-lookup'],
-    queryFn: () => api.get('/customers', { params: { limit: 200 } }).then(res => res.data.customers)
+    queryFn: async () => {
+      const { contacts } = await fetchContactsList(api, { types: 'customer', limit: 200, isActive: 'all' })
+      return contacts.filter((c) => c.entityType === 'customer').map(contactToCustomer)
+    },
   })
 
   const { data: availableWorkers } = useQuery({

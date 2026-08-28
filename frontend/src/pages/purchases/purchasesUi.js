@@ -14,6 +14,11 @@ export const fieldControlClass =
 export const shell =
   'overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_16px_40px_-32px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#0c111a]'
 
+/** Horizontal-scroll tables in purchases module */
+export const purchasesTableWrapClass =
+  'overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-[#0c111a]'
+export const purchasesTableClass = 'w-full min-w-[720px] text-start text-xs'
+
 export const ghostBtn =
   'inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition hover:border-slate-300 disabled:opacity-40 dark:border-white/10 dark:bg-transparent dark:text-slate-200 dark:hover:border-white/20'
 

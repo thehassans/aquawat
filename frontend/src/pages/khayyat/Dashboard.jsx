@@ -396,7 +396,7 @@ const UserDashboard = () => {
           </Button>
           <Button
             variant="outline"
-            onClick={() => (isDemo ? setDemoBlockedOpen(true) : navigate('/app/dashboard/customers/new'))}
+            onClick={() => (isDemo ? setDemoBlockedOpen(true) : navigate('/app/dashboard/customers/new?role=customer&returnTo=/app/dashboard/contacts?types=customer'))}
             icon={UserPlus}
             className="rounded-2xl px-5 py-3"
             disabled={isDemo}

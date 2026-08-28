@@ -38,6 +38,7 @@ import { contactToSupplier, fetchContactsList } from '../../lib/contactMappers'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
+import { purchasesTableWrapClass, purchasesTableClass } from './purchasesUi'
 
 const COLORS = ['#0d9488', '#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#64748b']
 
@@ -595,8 +596,8 @@ export default function PurchasesReports() {
         </div>
 
         {/* Pivot Table Rendering */}
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-[#0c111a]">
-          <table className="w-full text-start text-xs">
+        <div className={purchasesTableWrapClass}>
+          <table className={purchasesTableClass}>
             <thead className="bg-slate-50/90 font-bold uppercase tracking-wider text-slate-500 dark:bg-white/[0.04] dark:text-slate-400">
               <tr>
                 <th
