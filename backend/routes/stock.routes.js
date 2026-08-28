@@ -1226,6 +1226,7 @@ router.get('/products/:productId/on-hand', checkPermission('inventory', 'read'),
     res.json(await computeOnHand(req.user.tenantId, req.params.productId, {
       warehouseId: req.query.warehouseId,
       locationId: req.query.locationId,
+      variantId: req.query.variantId || undefined,
     }));
   } catch (err) {
     handleInventoryError(res, err);
