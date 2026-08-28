@@ -284,6 +284,7 @@ export default function PartnerForm() {
       setValue('address.country', opt.address.country || tenantCountry || 'SA')
       setValue('address.buildingNumber', opt.address.buildingNumber || '')
       setValue('address.additionalNumber', opt.address.additionalNumber || '')
+      setValue('address.shortAddress', opt.address.shortAddress || '')
     }
     if (opt.vatNumber) setValue('vatNumber', opt.vatNumber)
     if (opt.crNumber) setValue('crNumber', opt.crNumber)
