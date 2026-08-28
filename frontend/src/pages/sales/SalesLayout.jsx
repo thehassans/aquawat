@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { FileText, Menu, X } from 'lucide-react'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
-import { salesTabClass } from './salesUi'
+import { salesTabClass, salesPageShellClass } from './salesUi'
 import SalesCreateMenu from '../../components/sales/SalesCreateMenu'
 
 export default function SalesLayout() {
@@ -36,7 +36,7 @@ export default function SalesLayout() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)]">
+    <div className={salesPageShellClass}>
       <div className="relative z-[30] border-b border-slate-200/90 bg-white dark:border-dark-600 dark:bg-dark-900">
         <div className="flex flex-wrap items-end justify-between gap-3 px-4 pb-0 pt-3 sm:px-6">
           <div className="flex items-center gap-3 pb-3">
@@ -103,7 +103,7 @@ export default function SalesLayout() {
           </div>
         )}
       </div>
-      <div className="px-4 py-6 sm:px-6">
+      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
         <Outlet />
       </div>
     </div>

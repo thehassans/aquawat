@@ -89,6 +89,29 @@ router.get('/settings', checkPermission('sales', 'read'), async (req, res) => {
   }
 });
 
+/** Blueprint alias — normalized configuration ledger for SalesSettingsContext */
+router.get('/configuration', checkPermission('sales', 'read'), async (req, res) => {
+  try {
+    const s = await getOrCreateSettings(req.user.tenantId);
+    res.json({
+      invoicing_policy: String(s.defaultInvoicingPolicy || 'ordered').toUpperCase(),
+      default_quotation_validity: s.quotationValidityDays ?? 30,
+      lock_confirmed_sales: s.lockConfirmedOrders !== false,
+      enable_sale_warnings: s.enableSaleWarnings !== false,
+      enable_proforma: s.enableProforma !== false,
+      require_online_signature: !!s.requireOnlineSignature,
+      require_online_payment: !!s.requireOnlinePayment,
+      portal_signup_mode: s.portalSignupMode || 'invitation_only',
+      default_incoterm: s.defaultIncoterm || 'EXW',
+      show_margins_by_default: !!s.showMarginsByDefault,
+      amazon_sync_enabled: !!s.amazonSyncEnabled,
+      raw: s,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.patch('/settings', checkPermission('sales', 'update'), async (req, res) => {
   try {
     const doc = await SalesSettings.findOneAndUpdate(
@@ -330,9 +353,24 @@ router.post('/shipping/compute-rates', checkPermission('sales', 'read'), async (
   }
 });
 
+/** Blueprint alias — POST /api/sales/shipping/rates */
+router.post('/shipping/rates', checkPermission('sales', 'read'), async (req, res) => {
+  try {
+    const connectors = await CarrierConnector.find({ ...req.tenantFilter, isActive: true }).lean();
+    const rates = await shopShippingRates({ connectors, payload: req.body });
+    res.json({ rates });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 /** Sale warnings for customer/product selection */
 router.get('/sale-warnings', checkPermission('sales', 'read'), async (req, res) => {
   try {
+    const settings = await getOrCreateSettings(req.user.tenantId);
+    if (settings.enableSaleWarnings === false) {
+      return res.json({ warnings: [], blocks: [], hasBlock: false, disabled: true });
+    }
     const productIds = String(req.query.productIds || '')
       .split(',')
       .map((s) => s.trim())
@@ -342,6 +380,29 @@ router.get('/sale-warnings', checkPermission('sales', 'read'), async (req, res) 
       customerId: req.query.customerId,
       productIds,
     }));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/** Smart-button counts for a sell order (deliveries + invoices) */
+router.get('/orders/:id/smart-buttons', checkPermission('sales', 'read'), async (req, res) => {
+  try {
+    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter, flow: 'sell' }).lean();
+    if (!order) return res.status(404).json({ error: 'Sales order not found' });
+    const DeliveryNote = (await import('../models/DeliveryNote.js')).default;
+    const Invoice = (await import('../models/Invoice.js')).default;
+    const [deliveries, invoices] = await Promise.all([
+      DeliveryNote.countDocuments({ ...req.tenantFilter, purchaseOrderId: order._id }),
+      Invoice.countDocuments({ ...req.tenantFilter, purchaseOrderId: order._id, flow: 'sell' }),
+    ]);
+    res.json({
+      purchaseOrderId: order._id,
+      deliveries,
+      invoices,
+      deliveryHref: `/app/dashboard/delivery-notes?purchaseOrderId=${order._id}`,
+      invoiceHref: `/app/dashboard/invoices?purchaseOrderId=${order._id}`,
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

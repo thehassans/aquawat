@@ -23,6 +23,7 @@ import {
   sectionCardClass,
   sectionEyebrowClass,
 } from '../sales/salesUi'
+import { useSalesSettings } from '../../context/SalesSettingsContext'
 
 const trimPartyName = (value) => String(value || '').trim()
 
@@ -72,6 +73,7 @@ export default function QuotationView() {
   const { language } = useSelector((state) => state.ui)
   const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
+  const { enableProforma } = useSalesSettings()
   const [downloadingPdf, setDownloadingPdf] = useState(false)
 
   const { data: quotation, isLoading } = useQuery({
@@ -292,6 +294,7 @@ export default function QuotationView() {
             </button>
           ) : null}
 
+          {enableProforma !== false ? (
           <button
             type="button"
             onClick={() => proformaMutation.mutate()}
@@ -301,6 +304,7 @@ export default function QuotationView() {
             <FileText className="w-4 h-4" />
             {language === 'ar' ? 'فاتورة مبدئية' : 'Send Pro-Forma'}
           </button>
+          ) : null}
 
           <button
             type="button"

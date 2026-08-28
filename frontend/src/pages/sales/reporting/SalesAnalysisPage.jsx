@@ -46,15 +46,19 @@ export default function SalesAnalysisPage() {
         <div>
           <label className={fieldLabelClass}>Period</label>
           <select className={fieldControlClass} value={preset} onChange={(e) => setPreset(e.target.value)}>
-            <option value="365d">Last 365 days</option>
-            <option value="ytd">Year to date</option>
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
             <option value="mtd">Month to date</option>
+            <option value="ytd">Year to date</option>
+            <option value="365d">Last 365 days</option>
           </select>
         </div>
         <div>
           <label className={fieldLabelClass}>Group by</label>
           <select className={fieldControlClass} value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
             <option value="product">Product</option>
+            <option value="variant">Product variant</option>
+            <option value="category">Product category</option>
             <option value="customer">Customer</option>
             <option value="salesperson">Salesperson</option>
             <option value="date">Order date</option>

@@ -63,7 +63,11 @@ export const filterBarClass =
 export const listShellClass =
   'overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_30px_-24px_rgba(15,23,42,0.28)] dark:border-dark-600 dark:bg-dark-800'
 
-export const salesTableClass = 'w-full min-w-max text-sm'
+export const salesTableClass = 'table-fixed w-full min-w-max text-sm'
+
+export const salesPageShellClass = 'flex h-[calc(100vh-4rem)] flex-col'
+
+export const salesGridScrollClass = 'flex-1 overflow-y-auto'
 
 export const salesThClass =
   'px-4 py-3 text-start text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 bg-slate-50/90 border-b border-slate-200/90 dark:bg-dark-800/90 dark:text-slate-400 dark:border-dark-600'

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import axios from 'axios'
@@ -10,7 +10,22 @@ export default function PortalAcceptInvitePage() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const token = params.get('token') || ''
+  const isMagic = params.get('magic') === '1'
   const [form, setForm] = useState({ password: '', name: '' })
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!isMagic || !token) return
+    setBusy(true)
+    portalApi.post('/auth/magic-login', { token })
+      .then(({ data }) => {
+        localStorage.setItem('portal_token', data.token)
+        toast.success('Signed in')
+        navigate('/portal/documents')
+      })
+      .catch((err) => toast.error(err?.response?.data?.error || 'Magic link expired'))
+      .finally(() => setBusy(false))
+  }, [isMagic, token, navigate])
 
   const accept = async (e) => {
     e.preventDefault()
@@ -22,6 +37,16 @@ export default function PortalAcceptInvitePage() {
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not accept invitation')
     }
+  }
+
+  if (isMagic) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+        <div className={`${sectionCardClass} w-full max-w-md text-center`}>
+          <p>{busy ? 'Signing you in…' : 'Completing magic link login…'}</p>
+        </div>
+      </div>
+    )
   }
 
   return (

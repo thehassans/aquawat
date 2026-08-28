@@ -47,6 +47,23 @@ export default function PortalLoginPage() {
         <input className={fieldControlClass} type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         <input className={fieldControlClass} type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         <button type="submit" className="btn btn-primary w-full">Sign in</button>
+        <button
+          type="button"
+          className="w-full text-sm text-teal-700"
+          onClick={async () => {
+            try {
+              const { data } = await portalApi.post('/auth/magic-link', { tenantId, email })
+              toast.success(data.message || 'Magic link generated')
+              if (data.magicLink) {
+                navigator.clipboard?.writeText(`${window.location.origin}${data.magicLink}`).catch(() => {})
+              }
+            } catch (err) {
+              toast.error(err?.response?.data?.error || 'Magic link failed')
+            }
+          }}
+        >
+          Send magic link
+        </button>
         <button type="button" className="text-sm text-teal-700" onClick={() => navigate('/portal/signup')}>Free sign up</button>
       </form>
     </div>

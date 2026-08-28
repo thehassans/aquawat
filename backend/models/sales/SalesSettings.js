@@ -30,6 +30,12 @@ const salesSettingsSchema = new mongoose.Schema({
   /** Amazon / marketplace sync toggle */
   amazonSyncEnabled: { type: Boolean, default: false },
 
+  /** Check partner/product warning flags before confirm */
+  enableSaleWarnings: { type: Boolean, default: true },
+
+  /** Reveal [Send Pro-Forma] action on quotations */
+  enableProforma: { type: Boolean, default: true },
+
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 

@@ -10,7 +10,7 @@ export default function ComputeShippingModal({ open, onClose, orderPayload, onSe
   const compute = async () => {
     setLoading(true)
     try {
-      const { data } = await api.post('/sales/shipping/compute-rates', orderPayload || {})
+      const { data } = await api.post('/sales/shipping/rates', orderPayload || {})
       setRates(data.rates || [])
       if (!data.rates?.length) toast.error('No rates returned — activate a shipping connector')
     } catch (e) {

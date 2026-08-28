@@ -93,6 +93,7 @@ const PortalLoginPage = lazy(() => import('./pages/portal/PortalLoginPage'))
 const PortalSignupPage = lazy(() => import('./pages/portal/PortalSignupPage'))
 const PortalDocumentsPage = lazy(() => import('./pages/portal/PortalDocumentsPage'))
 const PortalAcceptInvitePage = lazy(() => import('./pages/portal/PortalAcceptInvitePage'))
+const PortalSignPage = lazy(() => import('./pages/portal/PortalSignPage'))
 const InventoryLayout = lazy(() => import('./pages/inventory/InventoryLayout'))
 const InventoryOverview = lazy(() => import('./pages/inventory/InventoryOverview'))
 const TransfersList = lazy(() => import('./pages/inventory/TransfersList'))
@@ -607,6 +608,8 @@ function App() {
       <Route path="/portal/signup" element={<Suspense fallback={<PageLoader />}><PortalSignupPage /></Suspense>} />
       <Route path="/portal/accept-invite" element={<Suspense fallback={<PageLoader />}><PortalAcceptInvitePage /></Suspense>} />
       <Route path="/portal/documents" element={<Suspense fallback={<PageLoader />}><PortalDocumentsPage /></Suspense>} />
+      <Route path="/portal/sign/:documentType/:documentId" element={<Suspense fallback={<PageLoader />}><PortalSignPage /></Suspense>} />
+      <Route path="/portal/sign" element={<Suspense fallback={<PageLoader />}><PortalSignPage /></Suspense>} />
 
       {/* Auth Routes — eager imports (no Suspense white flash on cold tenant origins) */}
       <Route path="/auth/handoff" element={<AuthHandoff />} />

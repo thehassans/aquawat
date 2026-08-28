@@ -78,6 +78,14 @@ export default function SalesSettingsPage() {
           <input type="checkbox" checked={!!form.amazonSyncEnabled} onChange={(e) => set('amazonSyncEnabled', e.target.checked)} />
           {isAr ? 'تفعيل مزامنة Amazon' : 'Enable Amazon marketplace sync'}
         </label>
+        <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+          <input type="checkbox" checked={form.enableSaleWarnings !== false} onChange={(e) => set('enableSaleWarnings', e.target.checked)} />
+          {isAr ? 'تحذيرات البيع (عميل/منتج)' : 'Enable sale warnings (customer/product)'}
+        </label>
+        <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+          <input type="checkbox" checked={form.enableProforma !== false} onChange={(e) => set('enableProforma', e.target.checked)} />
+          {isAr ? 'إظهار إرسال فاتورة مبدئية' : 'Enable Send Pro-Forma action'}
+        </label>
       </div>
 
       <button type="button" className="btn btn-primary" onClick={() => save.mutate()} disabled={save.isPending}>

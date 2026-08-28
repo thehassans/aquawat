@@ -10,6 +10,7 @@ import './index.css'
 import { ErrorBoundary } from './lib/errorBoundary'
 import { initMaqderPwaInstall } from './lib/pwaInstall'
 import { initTelemetryFromServer } from './lib/analytics'
+import { SalesSettingsProvider } from './context/SalesSettingsContext'
 
 if (typeof window !== 'undefined') {
   initMaqderPwaInstall()
@@ -146,7 +147,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <QueryClientProvider client={queryClient}>
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <ErrorBoundary>
-            <App />
+            <SalesSettingsProvider>
+              <App />
+            </SalesSettingsProvider>
           </ErrorBoundary>
           <Toaster
             position="top-center"

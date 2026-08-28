@@ -847,6 +847,12 @@ router.post('/:id/send-whatsapp', checkPermission('invoicing', 'read'), async (r
 /** Send pro-forma invoice PDF data — creates draft proforma without ZATCA sequence burn */
 router.post('/:id/send-proforma', checkPermission('invoicing', 'create'), async (req, res) => {
   try {
+    const { getSalesSettings } = await import('../services/sales/salesLifecycle.js');
+    const settings = await getSalesSettings(req.user.tenantId);
+    if (settings.enableProforma === false) {
+      return res.status(403).json({ error: 'Pro-forma invoices are disabled in Sales settings' });
+    }
+
     const quotation = await Quotation.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!quotation) return res.status(404).json({ error: 'Quotation not found' });
 

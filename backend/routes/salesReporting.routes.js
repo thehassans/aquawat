@@ -22,6 +22,8 @@ function parseRange(query) {
   if (!from) {
     if (preset === 'ytd') from = new Date(now.getFullYear(), 0, 1);
     else if (preset === 'mtd') from = new Date(now.getFullYear(), now.getMonth(), 1);
+    else if (preset === '7d') from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    else if (preset === '30d') from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     else from = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
   }
 
@@ -52,15 +54,17 @@ router.get('/analysis', checkPermission('sales', 'read'), async (req, res) => {
       invoiceType: 'sell',
       status: { $in: ['approved', 'signed', 'paid', 'partially_paid'] },
       invoiceDate: { $gte: from, $lte: to },
-    }).select('invoiceDate customerId salespersonId lines subtotal grandTotal').lean();
+    }).select('invoiceDate customerId salespersonId lineItems subtotal grandTotal').lean();
 
     const buckets = new Map();
 
     for (const inv of invoices) {
       const bucketDate = groupKey(inv.invoiceDate, granularity);
-      for (const line of inv.lines || []) {
+      for (const line of inv.lineItems || inv.lines || []) {
         let key = 'unknown';
         if (groupBy === 'product') key = line.productName || String(line.productId || 'manual');
+        else if (groupBy === 'category') key = String(line.categoryName || line.categoryId || 'uncategorized');
+        else if (groupBy === 'variant') key = String(line.variantSku || line.variantId || line.productName || 'no-variant');
         else if (groupBy === 'customer') key = String(inv.customerId || 'walk-in');
         else if (groupBy === 'salesperson') key = String(inv.salespersonId || 'unassigned');
         else if (groupBy === 'date') key = bucketDate;

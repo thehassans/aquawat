@@ -119,6 +119,47 @@ router.post('/auth/accept-invite', async (req, res) => {
   }
 });
 
+/** Magic-link login — issues a one-time token emailed/returned for portal auth */
+router.post('/auth/magic-link', async (req, res) => {
+  try {
+    const { tenantId, email } = req.body || {};
+    const user = await PortalUser.findOne({ tenantId, email: String(email || '').toLowerCase() });
+    if (!user) return res.status(404).json({ error: 'Portal account not found' });
+    if (!user.isActive) return res.status(403).json({ error: 'Account disabled' });
+
+    const token = randomBytes(32).toString('hex');
+    user.inviteToken = token;
+    user.inviteExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    await user.save();
+
+    res.json({
+      magicLink: `/portal/accept-invite?token=${token}&magic=1`,
+      expiresAt: user.inviteExpiresAt,
+      message: 'Magic link generated — send to customer email',
+    });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+router.post('/auth/magic-login', async (req, res) => {
+  try {
+    const { token } = req.body || {};
+    const user = await PortalUser.findOne({ inviteToken: token });
+    if (!user) return res.status(404).json({ error: 'Invalid or expired magic link' });
+    if (user.inviteExpiresAt && user.inviteExpiresAt < new Date()) {
+      return res.status(410).json({ error: 'Magic link expired' });
+    }
+    user.inviteToken = null;
+    user.inviteExpiresAt = null;
+    user.lastLoginAt = new Date();
+    await user.save();
+    res.json({ token: portalToken(user), user: { id: user._id, email: user.email, name: user.name, partnerId: user.partnerId } });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 /** Customer signs a quotation / sales order via portal */
 router.post('/sign/:documentType/:documentId', protectPortal, async (req, res) => {
   try {

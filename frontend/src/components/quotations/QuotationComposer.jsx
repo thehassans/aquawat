@@ -37,6 +37,7 @@ import {
   sectionEyebrowClass,
 } from '../../pages/sales/salesUi'
 import SalesEnhancementBar from '../sales/SalesEnhancementBar'
+import CustomerSummaryCard from '../sales/CustomerSummaryCard'
 
 const getEmptyLine = (tenant) => {
   const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
@@ -921,7 +922,17 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                 onChange={onSelectCustomer}
               />
             </div>
+            {selectedCustomer?._id ? (
+              <div className="mb-4">
+                <CustomerSummaryCard
+                  customer={selectedCustomer}
+                  language={language}
+                  onEdit={() => setSelectedCustomer(null)}
+                />
+              </div>
+            ) : null}
             <input type="hidden" {...register('customerId')} />
+            {!selectedCustomer?._id ? (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2" dir="ltr">
               <div>
                 <FormLabel en="Name / Company" ar="الاسم / الشركة" as="label" />
@@ -988,6 +999,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                 <input {...register('buyer.address.country')} className="input" placeholder={getTenantCountryCode(tenant)} />
               </div>
             </div>
+            ) : null}
           </div>
 
           {isMarqueeContext && (
