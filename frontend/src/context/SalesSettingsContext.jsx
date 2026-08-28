@@ -29,6 +29,11 @@ export function SalesSettingsProvider({ children }) {
           enable_proforma: raw.enableProforma !== false,
           require_online_signature: !!raw.requireOnlineSignature,
           require_online_payment: !!raw.requireOnlinePayment,
+          show_margins_by_default: !!raw.showMarginsByDefault,
+          show_incoterm_on_documents: !!raw.showIncotermOnDocuments,
+          show_compute_shipping: !!raw.showComputeShipping,
+          show_promo_codes: !!raw.showPromoCodes,
+          show_crm_tags_on_documents: !!raw.showCrmTagsOnDocuments,
           raw,
         }
       }
@@ -37,10 +42,12 @@ export function SalesSettingsProvider({ children }) {
     staleTime: 60_000,
   })
 
+  const raw = data?.raw || data || null
+
   const value = useMemo(
     () => ({
       configuration: data || null,
-      settings: data?.raw || data || null,
+      settings: raw,
       isLoading,
       refetch,
       invoicingPolicy: data?.invoicing_policy || 'ORDERED',
@@ -48,9 +55,13 @@ export function SalesSettingsProvider({ children }) {
       lockConfirmedSales: data?.lock_confirmed_sales !== false,
       enableSaleWarnings: data?.enable_sale_warnings !== false,
       enableProforma: data?.enable_proforma !== false,
-      showMarginsByDefault: data?.show_margins_by_default === true || data?.raw?.showMarginsByDefault === true,
+      showMarginsByDefault: data?.show_margins_by_default === true || raw?.showMarginsByDefault === true,
+      showIncotermOnDocuments: data?.show_incoterm_on_documents === true || raw?.showIncotermOnDocuments === true,
+      showComputeShipping: data?.show_compute_shipping === true || raw?.showComputeShipping === true,
+      showPromoCodes: data?.show_promo_codes === true || raw?.showPromoCodes === true,
+      showCrmTagsOnDocuments: data?.show_crm_tags_on_documents === true || raw?.showCrmTagsOnDocuments === true,
     }),
-    [data, isLoading, refetch],
+    [data, raw, isLoading, refetch],
   )
 
   return <SalesSettingsContext.Provider value={value}>{children}</SalesSettingsContext.Provider>

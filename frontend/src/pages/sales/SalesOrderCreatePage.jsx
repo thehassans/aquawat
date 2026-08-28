@@ -56,7 +56,7 @@ export default function SalesOrderCreatePage() {
   const { language } = useSelector((s) => s.ui)
   const { tenant, user } = useSelector((s) => s.auth)
   const isAr = language === 'ar'
-  const { showMarginsByDefault } = useSalesSettings()
+  const { showMarginsByDefault, showIncotermOnDocuments } = useSalesSettings()
   const displayMargin = canViewSalesMargin(user) && !!showMarginsByDefault
   const defaultTax = Number(tenant?.settings?.taxRate ?? 15)
 
@@ -178,7 +178,7 @@ export default function SalesOrderCreatePage() {
         </div>
         {customer?._id ? <CustomerSummaryCard customer={customer} language={language} onEdit={() => setCustomer(null)} /> : null}
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className={`grid gap-4 ${showIncotermOnDocuments ? 'sm:grid-cols-2' : ''}`}>
           <div>
             <label className={fieldLabelClass}>{isAr ? 'المخزن' : 'Warehouse'}</label>
             <AsyncCombobox
@@ -191,12 +191,14 @@ export default function SalesOrderCreatePage() {
               minChars={0}
             />
           </div>
-          <div>
-            <label className={fieldLabelClass}>Incoterm</label>
-            <select className={fieldControlClass} value={incoterm} onChange={(e) => setIncoterm(e.target.value)}>
-              {INCOTERMS.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
+          {showIncotermOnDocuments ? (
+            <div>
+              <label className={fieldLabelClass}>Incoterm</label>
+              <select className={fieldControlClass} value={incoterm} onChange={(e) => setIncoterm(e.target.value)}>
+                {INCOTERMS.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          ) : null}
         </div>
       </div>
 

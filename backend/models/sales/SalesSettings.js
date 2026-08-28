@@ -33,6 +33,12 @@ const salesSettingsSchema = new mongoose.Schema({
   /** Check partner/product warning flags before confirm */
   enableSaleWarnings: { type: Boolean, default: true },
 
+  /** Composer UI feature toggles (invoice / quotation / SO) */
+  showIncotermOnDocuments: { type: Boolean, default: false },
+  showComputeShipping: { type: Boolean, default: false },
+  showPromoCodes: { type: Boolean, default: false },
+  showCrmTagsOnDocuments: { type: Boolean, default: false },
+
   /** Reveal [Send Pro-Forma] action on quotations */
   enableProforma: { type: Boolean, default: true },
 

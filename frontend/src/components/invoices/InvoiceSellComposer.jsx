@@ -121,13 +121,30 @@ const mapSellLineItems = (invoice, tenant) => {
 }
 const selectableContexts = ['trading', 'marquee', 'construction', 'travel_agency', 'restaurant', 'manpower', 'furniture', 'furniture_shop']
 
-const bilingualPairGridClass = 'grid grid-cols-1 gap-x-10 gap-y-6 md:grid-cols-2'
+const bilingualPairGridClass = 'grid grid-cols-1 gap-x-3 gap-y-1.5 md:grid-cols-2'
+const denseControlClass =
+  'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-900/10 dark:border-dark-500 dark:bg-dark-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-400'
+const compactFieldClass = `mt-0.5 ${denseControlClass}`
+const denseSelectStyles = {
+  control: (base, state) => ({
+    ...base,
+    borderRadius: '0.5rem',
+    borderColor: state.isFocused ? '#64748b' : '#cbd5e1',
+    boxShadow: state.isFocused ? '0 0 0 2px rgba(15,23,42,0.08)' : 'none',
+    minHeight: '34px',
+    backgroundColor: '#fff',
+  }),
+  valueContainer: (base) => ({ ...base, padding: '0 8px' }),
+  indicatorsContainer: (base) => ({ ...base, height: '32px' }),
+  singleValue: (base) => ({ ...base, color: '#0f172a', fontWeight: 500, fontSize: '0.875rem' }),
+  placeholder: (base) => ({ ...base, color: '#94a3b8', fontSize: '0.875rem' }),
+}
 
 /** Always EN left / AR right regardless of UI language for Arabic markets; English only for others */
 const BilingualLabel = ({ en, ar, htmlFor, as = 'label', showArabic = true }) => {
   const Tag = as
   return (
-    <Tag htmlFor={htmlFor} className={`${fieldLabelClass} !mb-1.5 !flex items-baseline justify-between gap-3`} dir="ltr">
+    <Tag htmlFor={htmlFor} className={`${fieldLabelClass} !mb-0.5 !flex items-baseline justify-between gap-2 text-[11px]`} dir="ltr">
       <span>{en}</span>
       {showArabic && ar ? (
         <span className="font-medium text-slate-500 dark:text-slate-400" dir="rtl">{ar}</span>
@@ -482,7 +499,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     hydratedInvoiceIdRef.current = invoiceKey
     recoveredLinesRef.current = false
     skipBusinessContextResetRef.current = true
-    setInvoiceType(initialInvoice?.transactionType === 'B2B' ? 'B2B' : 'B2C')
+    setInvoiceType(initialInvoice?.transactionType === 'B2C' ? 'B2C' : 'B2B')
     setSourceId('')
     setShowAuthorizedPerson(
       Boolean(
@@ -1156,9 +1173,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         ) : null}
       </div>
 
-      <div className="mx-auto w-full max-w-6xl space-y-4">
-        <form onSubmit={handleSubmit(onSubmit, () => toast.error(language === 'ar' ? 'أكمل البنود المطلوبة قبل الحفظ' : 'Complete the billing lines before saving'))} className="space-y-4">
-          <div className={`${sectionCardClass} !py-3 space-y-3`}>
+      <div className="mx-auto w-full max-w-6xl space-y-2.5">
+        <form onSubmit={handleSubmit(onSubmit, () => toast.error(language === 'ar' ? 'أكمل البنود المطلوبة قبل الحفظ' : 'Complete the billing lines before saving'))} className="space-y-2.5">
+          <div className={`${sectionCardClass} !p-3 space-y-2`}>
             <div className="flex flex-wrap items-center gap-2">
               <div className={segmentWrapClass}>
                 {[
@@ -1255,11 +1272,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             </div>
           )}
 
-          <div className={`${sectionCardClass} space-y-3 !py-4`}>
+          <div className={`${sectionCardClass} space-y-2 !p-3.5`}>
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
                 {language === 'ar' ? 'العميل' : 'Customer'}
               </h3>
+              {invoiceType === 'B2C' ? (
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  {language === 'ar' ? 'نقدي / تجزئة' : 'Cash / retail'}
+                </span>
+              ) : null}
             </div>
             <PartnerCombobox
               role="customer"
@@ -1269,8 +1291,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               language={language}
               onChange={onSelectCustomer}
             />
-            {selectedCustomer?._id ? (
-              <div className="mt-3">
+            {selectedCustomer?._id && invoiceType === 'B2B' ? (
+              <div className="mt-1.5">
                 <CustomerSummaryCard
                   customer={selectedCustomer}
                   language={language}
@@ -1341,79 +1363,101 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   </div>
                 )}
               </>
+            ) : invoiceType === 'B2C' ? (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" dir="ltr">
+                <div className="sm:col-span-1">
+                  <FieldLabel en="Name" ar="الاسم" />
+                  <input {...register('buyer.name')} className={compactFieldClass} placeholder={language === 'ar' ? 'عميل نقدي' : 'Cash customer'} />
+                </div>
+                {showArabicFields ? (
+                  <div>
+                    <FieldLabel en="Name (AR)" ar="الاسم عربي" />
+                    <input {...register('buyer.nameAr')} className={compactFieldClass} dir="rtl" />
+                  </div>
+                ) : null}
+                <div>
+                  <FieldLabel en="Phone" ar="الهاتف" />
+                  <input {...register('buyer.contactPhone')} className={compactFieldClass} />
+                </div>
+                <input type="hidden" {...register('buyer.vatNumber')} />
+                <input type="hidden" {...register('buyer.crNumber')} />
+                <input type="hidden" {...register('buyer.contactEmail')} />
+                <input type="hidden" {...register('buyer.address.city')} />
+                <input type="hidden" {...register('buyer.address.cityAr')} />
+                <input type="hidden" {...register('buyer.address.district')} />
+                <input type="hidden" {...register('buyer.address.districtAr')} />
+                <input type="hidden" {...register('buyer.address.street')} />
+                <input type="hidden" {...register('buyer.address.streetAr')} />
+                <input type="hidden" {...register('buyer.address.postalCode')} />
+                <input type="hidden" {...register('buyer.address.country')} />
+                <input type="hidden" {...register('buyer.address.buildingNumber')} />
+                <input type="hidden" {...register('buyer.address.additionalNumber')} />
+              </div>
             ) : (
               <div className={bilingualPairGridClass} dir="ltr">
                 <div>
                   <FieldLabel en="Name / Company" ar="الاسم / الشركة" />
-                  <input {...register('buyer.name', { required: invoiceType === 'B2B' })} className={`mt-1.5 ${fieldControlClass}`} />
+                  <input {...register('buyer.name', { required: true })} className={compactFieldClass} />
                 </div>
                 {showArabicFields ? (
                   <div>
                     <FieldLabel en="Name (Arabic)" ar="الاسم بالعربية" />
-                    <input {...register('buyer.nameAr')} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" />
+                    <input {...register('buyer.nameAr')} className={compactFieldClass} dir="rtl" />
                   </div>
                 ) : null}
                 <div>
                   <FieldLabel en={isPk ? "NTN / STRN" : "VAT Number"} ar="الرقم الضريبي" />
-                  <input {...register('buyer.vatNumber', { required: invoiceType === 'B2B' })} className={`mt-1.5 ${fieldControlClass}`} />
+                  <input {...register('buyer.vatNumber', { required: true })} className={compactFieldClass} />
                 </div>
                 <div>
                   <FieldLabel en="Phone Number" ar="رقم الهاتف" />
-                  <input {...register('buyer.contactPhone')} className={`mt-1.5 ${fieldControlClass}`} />
+                  <input {...register('buyer.contactPhone')} className={compactFieldClass} />
                 </div>
                 <div>
                   <FieldLabel en="Email" ar="البريد الإلكتروني" />
-                  <input type="email" {...register('buyer.contactEmail')} className={`mt-1.5 ${fieldControlClass}`} />
+                  <input type="email" {...register('buyer.contactEmail')} className={compactFieldClass} />
                 </div>
                 <div>
                   <FieldLabel en="CR Number" ar="السجل التجاري" />
-                  <input {...register('buyer.crNumber')} className={`mt-1.5 ${fieldControlClass}`} />
+                  <input {...register('buyer.crNumber')} className={compactFieldClass} />
                 </div>
                 <div>
                   <FieldLabel en="City" ar="المدينة" />
-                  <input {...register('buyer.address.city')} className={`mt-1.5 ${fieldControlClass}`} />
+                  <input {...register('buyer.address.city')} className={compactFieldClass} />
                 </div>
                 {showArabicFields ? (
                   <div>
                     <FieldLabel en="City (Arabic)" ar="المدينة بالعربية" />
-                    <input {...register('buyer.address.cityAr')} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" />
+                    <input {...register('buyer.address.cityAr')} className={compactFieldClass} dir="rtl" />
                   </div>
                 ) : null}
                 <div>
                   <FieldLabel en="District" ar="الحي" />
-                  <input {...register('buyer.address.district')} className={`mt-1.5 ${fieldControlClass}`} />
+                  <input {...register('buyer.address.district')} className={compactFieldClass} />
                 </div>
                 {showArabicFields ? (
                   <div>
                     <FieldLabel en="District (Arabic)" ar="الحي بالعربية" />
-                    <input {...register('buyer.address.districtAr')} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" />
+                    <input {...register('buyer.address.districtAr')} className={compactFieldClass} dir="rtl" />
                   </div>
                 ) : null}
                 <div>
                   <FieldLabel en="Street" ar="الشارع" />
-                  <input {...register('buyer.address.street')} className={`mt-1.5 ${fieldControlClass}`} />
+                  <input {...register('buyer.address.street')} className={compactFieldClass} />
                 </div>
                 {showArabicFields ? (
                   <div>
                     <FieldLabel en="Street (Arabic)" ar="الشارع بالعربية" />
-                    <input {...register('buyer.address.streetAr')} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" />
+                    <input {...register('buyer.address.streetAr')} className={compactFieldClass} dir="rtl" />
                   </div>
                 ) : null}
                 <div>
                   <FieldLabel en="Postal Code" ar="الرمز البريدي" />
-                  <input {...register('buyer.address.postalCode')} className={`mt-1.5 ${fieldControlClass}`} />
+                  <input {...register('buyer.address.postalCode')} className={compactFieldClass} />
                 </div>
                 <div>
                   <FieldLabel en="Country" ar="الدولة" />
-                  <input {...register('buyer.address.country')} className={`mt-1.5 ${fieldControlClass}`} placeholder={getTenantCountryCode(tenant)} />
-                </div>
-                <div>
-                  <FieldLabel en="Building Number" ar="رقم المبنى" />
-                  <input {...register('buyer.address.buildingNumber')} className={`mt-1.5 ${fieldControlClass}`} />
-                </div>
-                <div>
-                  <FieldLabel en="Additional Number" ar="الرقم الإضافي" />
-                  <input {...register('buyer.address.additionalNumber')} className={`mt-1.5 ${fieldControlClass}`} />
+                  <input {...register('buyer.address.country')} className={compactFieldClass} placeholder={getTenantCountryCode(tenant)} />
                 </div>
               </div>
             )}
@@ -1430,28 +1474,25 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             />
           )}
 
-          <div className={`${sectionCardClass} space-y-4 !py-4`}>
-            <div className="flex items-center justify-between gap-3">
+          <div className={`${sectionCardClass} space-y-2 !p-0 overflow-hidden`}>
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200/90 px-3.5 py-2.5 dark:border-dark-600">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
                 {language === 'ar' ? 'البنود' : 'Lines'}
               </h3>
-              <button type="button" onClick={() => append(getEmptyLine(tenant))} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:bg-slate-50 dark:border-white/10 dark:bg-dark-800 dark:text-slate-200">
+              <button type="button" onClick={() => append(getEmptyLine(tenant))} className="inline-flex items-center gap-1 rounded-lg border border-slate-200/90 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-dark-800 dark:text-slate-200">
                 <Plus className="w-3.5 h-3.5" />{t('add')}
               </button>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-1.5 px-3.5 pb-3.5 pt-1">
               {fields.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center dark:border-dark-600 dark:bg-dark-900/40">
-                  <p className="text-sm font-medium text-slate-500">
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-3 py-4 text-center dark:border-dark-600 dark:bg-dark-900/40">
+                  <p className="text-xs font-medium text-slate-500">
                     {language === 'ar' ? 'لا توجد بنود بعد' : 'No lines yet'}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {language === 'ar' ? 'أضف بنداً للمنتجات أو الخدمات على هذه الفاتورة.' : 'Add a product or service line to this invoice.'}
                   </p>
                   <button
                     type="button"
                     onClick={() => replace(mapSellLineItems(initialInvoice, tenant))}
-                    className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white dark:bg-white dark:text-slate-900"
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-white dark:bg-white dark:text-slate-900"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     {language === 'ar' ? 'تحميل البنود' : 'Load lines'}
@@ -1459,19 +1500,19 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 </div>
               ) : null}
               {fields.map((field, index) => (
-                <div key={field.fieldId || field.id || `line-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 dark:border-dark-600 dark:bg-dark-900/50">
+                <div key={field.fieldId || field.id || `line-${index}`} className="rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-dark-600 dark:bg-dark-900/40">
                   <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} initialNameAr={initialInvoice?.lineItems?.[index]?.productNameAr || ''} initialName={initialInvoice?.lineItems?.[index]?.productName || ''} />
                   <input type="hidden" {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} />
                   <input type="hidden" {...register(`lineItems.${index}.isTravelMargin`)} />
                   <input type="hidden" {...register(`lineItems.${index}.productType`)} />
-                  <div className="grid grid-cols-1 items-end gap-4 lg:grid-cols-12" dir="ltr">
-                    <div className={isTravelContext
+                  <div className="grid grid-cols-2 items-end gap-2 lg:grid-cols-12" dir="ltr">
+                    <div className={`col-span-2 ${isTravelContext
                       ? (showArabicFields ? 'lg:col-span-3' : 'lg:col-span-4')
-                      : (showArabicFields ? 'lg:col-span-3' : 'lg:col-span-4')}>
-                      <div className="mb-1.5 flex items-center gap-2" dir="ltr">
-                        <label htmlFor={`product-select-${index}`} className="min-w-0 flex-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                          <span>Product Name *</span>
-                          <span className="ms-1.5 font-medium text-slate-500 dark:text-slate-400" dir="rtl">اسم المنتج</span>
+                      : (showArabicFields ? 'lg:col-span-3' : 'lg:col-span-4')}`}>
+                      <div className="mb-0.5 flex items-center gap-2" dir="ltr">
+                        <label htmlFor={`product-select-${index}`} className="min-w-0 flex-1 text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+                          <span>Product *</span>
+                          <span className="ms-1 font-medium text-slate-500 dark:text-slate-400" dir="rtl">المنتج</span>
                         </label>
                         <ProductTypeToggle
                           value={watch(`lineItems.${index}.productType`)}
@@ -1480,7 +1521,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         />
                       </div>
                       {isTradingContext ? (
-                        <div>
+                        <div className="space-y-1">
                           <CreatableSelect
                             inputId={`product-select-${index}`}
                             name={`react-select-product-${index}`}
@@ -1502,67 +1543,60 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                               }
                             }}
                             formatCreateLabel={(inputValue) => language === 'ar' ? `إضافة "${inputValue}" كمنتج جديد` : `Add "${inputValue}" as new product`}
-                            placeholder={language === 'ar' ? 'اختياري: اختر منتج' : 'Optional: Select product'}
+                            placeholder={language === 'ar' ? 'اختر أو اكتب…' : 'Select or type…'}
                             isClearable
                             isSearchable
-                            styles={{
-                              control: (base, state) => ({
-                                ...base,
-                                borderRadius: '0.75rem',
-                                borderColor: state.isFocused ? '#0d9488' : '#cbd5e1',
-                                boxShadow: state.isFocused ? '0 0 0 3px rgba(13,148,136,0.15)' : '0 1px 2px rgba(15,23,42,0.04)',
-                                minHeight: '42px',
-                                backgroundColor: '#fff',
-                              }),
-                              singleValue: (base) => ({ ...base, color: '#0f172a', fontWeight: 500 }),
-                              placeholder: (base) => ({ ...base, color: '#94a3b8' })
-                            }}
+                            styles={denseSelectStyles}
                           />
-                          <input {...register(`lineItems.${index}.productName`)} className={`mt-2 ${fieldControlClass}`} readOnly={Boolean(lineItems?.[index]?.productId)} placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'} />
+                          <input
+                            type={watch(`lineItems.${index}.productId`) ? 'hidden' : 'text'}
+                            {...register(`lineItems.${index}.productName`)}
+                            className={watch(`lineItems.${index}.productId`) ? undefined : denseControlClass}
+                            placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'}
+                          />
                           <input type="hidden" {...register(`lineItems.${index}.productId`)} />
                           <input type="hidden" {...register(`lineItems.${index}.variantId`)} />
                           {isTradingContext && watch(`lineItems.${index}.productId`) ? (
-                            <div className="mt-2">
-                              <VariantLineSelect
-                                productId={watch(`lineItems.${index}.productId`)}
-                                value={watch(`lineItems.${index}.variantId`)}
-                                language={language}
-                                onChange={(variantId, variant) => {
-                                  setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })
-                                  if (variant?.name) {
-                                    setValue(`lineItems.${index}.productName`, variant.name, { shouldDirty: true })
-                                  }
-                                  if (variant?.price != null && Number(variant.price) > 0) {
-                                    setValue(`lineItems.${index}.unitPrice`, Number(variant.price), { shouldDirty: true })
-                                  }
-                                }}
-                              />
-                            </div>
+                            <VariantLineSelect
+                              productId={watch(`lineItems.${index}.productId`)}
+                              value={watch(`lineItems.${index}.variantId`)}
+                              language={language}
+                              onChange={(variantId, variant) => {
+                                setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })
+                                if (variant?.name) {
+                                  setValue(`lineItems.${index}.productName`, variant.name, { shouldDirty: true })
+                                }
+                                if (variant?.price != null && Number(variant.price) > 0) {
+                                  setValue(`lineItems.${index}.unitPrice`, Number(variant.price), { shouldDirty: true })
+                                }
+                              }}
+                            />
                           ) : null}
                         </div>
                       ) : (
-                        <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`)} className={`mt-1.5 ${fieldControlClass}`} placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
+                        <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`)} className={denseControlClass} placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                       )}
                     </div>
                     {showArabicFields ? (
-                      <div className={isTravelContext ? 'lg:col-span-3' : 'lg:col-span-3'}>
-                        <label className={`${fieldLabelClass} !flex items-baseline justify-between gap-3`} dir="ltr">
-                          <span>Arabic name</span>
-                          <span className="font-medium text-slate-500 dark:text-slate-400" dir="rtl">اسم البند بالعربية</span>
+                      <div className={`col-span-2 ${isTravelContext ? 'lg:col-span-3' : 'lg:col-span-3'}`}>
+                        <label className={`${fieldLabelClass} !mb-0.5 !flex items-baseline justify-between gap-2 text-[11px]`} dir="ltr">
+                          <span>Arabic</span>
+                          <span className="font-medium text-slate-500 dark:text-slate-400" dir="rtl">عربي</span>
                         </label>
-                        <input {...register(`lineItems.${index}.productNameAr`)} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" placeholder="اسم المنتج أو الخدمة" />
+                        <input {...register(`lineItems.${index}.productNameAr`)} className={denseControlClass} dir="rtl" placeholder="اسم البند" />
                       </div>
                     ) : (
                       <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
                     )}
-                    <div className="lg:col-span-2">
-                      <label htmlFor={`unit-${index}`} className={fieldLabelClass}>{language === 'ar' ? 'الوحدة (اختياري)' : 'UOM (Optional)'}</label>
+                    <div className="col-span-1 lg:col-span-2">
+                      <label htmlFor={`unit-${index}`} className={`${fieldLabelClass} !mb-0.5 text-[11px]`}>{language === 'ar' ? 'وحدة' : 'UOM'}</label>
                       <Select
-                        className="react-select-container mt-1.5"
+                        className="react-select-container"
                         classNamePrefix="react-select"
                         isClearable
                         isSearchable
-                        placeholder={language === 'ar' ? 'بدون وحدة' : 'None (Optional)'}
+                        placeholder="—"
+                        styles={denseSelectStyles}
                         value={
                           watch(`lineItems.${index}.unitCode`)
                             ? {
@@ -1573,7 +1607,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         }
                         onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : '', { shouldValidate: true })}
                         options={[
-                          { value: '', label: language === 'ar' ? 'بدون وحدة (اختياري)' : 'None (Optional)' },
+                          { value: '', label: '—' },
                           ...getAvailableUomOptions(tenant).map((uom) => ({
                             value: uom.code,
                             label: language === 'ar' ? uom.labelAr : uom.labelEn
@@ -1584,36 +1618,36 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     {isTravelContext ? (
                       <input type="hidden" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} />
                     ) : (
-                      <div className="lg:col-span-1">
-                        <label htmlFor={`qty-${index}`} className={fieldLabelClass}>{t('quantity')}</label>
-                        <input id={`qty-${index}`} type="number" min="0.0001" step="any" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} className={`mt-1.5 ${fieldControlClass}`} />
+                      <div className="col-span-1 lg:col-span-1">
+                        <label htmlFor={`qty-${index}`} className={`${fieldLabelClass} !mb-0.5 text-[11px]`}>{t('quantity')}</label>
+                        <input id={`qty-${index}`} type="number" min="0.0001" step="any" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} className={denseControlClass} />
                       </div>
                     )}
-                    <div className="lg:col-span-2">
-                      <label htmlFor={`price-${index}`} className={fieldLabelClass}>
+                    <div className="col-span-1 lg:col-span-2">
+                      <label htmlFor={`price-${index}`} className={`${fieldLabelClass} !mb-0.5 text-[11px]`}>
                         {isTravelContext
                           ? (language === 'ar' ? 'سعر التذكرة' : 'Unit Price')
                           : t('unitPrice')}
                       </label>
-                      <input id={`price-${index}`} type="number" step="0.01" {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })} className={`mt-1.5 ${fieldControlClass}`} />
+                      <input id={`price-${index}`} type="number" step="0.01" {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })} className={denseControlClass} />
                     </div>
                     {isTravelContext ? (
                       <>
-                        <div className="lg:col-span-2">
-                          <label htmlFor={`agencyprice-${index}`} className={fieldLabelClass}>{language === 'ar' ? 'سعر الوكالة' : 'Agency Price'}</label>
+                        <div className="col-span-1 lg:col-span-2">
+                          <label htmlFor={`agencyprice-${index}`} className={`${fieldLabelClass} !mb-0.5 text-[11px]`}>{language === 'ar' ? 'سعر الوكالة' : 'Agency'}</label>
                           <input
                             id={`agencyprice-${index}`}
                             type="number"
                             step="0.01"
                             min="0"
                             {...register(`lineItems.${index}.agencyPrice`, { valueAsNumber: true, min: 0 })}
-                            className={`mt-1.5 ${fieldControlClass}`}
+                            className={denseControlClass}
                             placeholder="0.00"
                           />
                         </div>
-                        <div className="lg:col-span-2">
-                          <label htmlFor={`custprice-${index}`} className={fieldLabelClass}>
-                            {language === 'ar' ? 'سعر العميل' : 'Customer Price'}
+                        <div className="col-span-1 lg:col-span-2">
+                          <label htmlFor={`custprice-${index}`} className={`${fieldLabelClass} !mb-0.5 text-[11px]`}>
+                            {language === 'ar' ? 'سعر العميل' : 'Customer'}
                           </label>
                           <input
                             id={`custprice-${index}`}
@@ -1621,20 +1655,20 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                             step="0.01"
                             min="0"
                             {...register(`lineItems.${index}.customerPrice`, { valueAsNumber: true, min: 0 })}
-                            className={`mt-1.5 ${fieldControlClass}`}
+                            className={denseControlClass}
                             placeholder="0.00"
                           />
                         </div>
                       </>
                     ) : (
-                      <div className="lg:col-span-1">
-                        <label className={fieldLabelClass}>{t('tax')} %</label>
+                      <div className="col-span-1 lg:col-span-1">
+                        <label className={`${fieldLabelClass} !mb-0.5 text-[11px]`}>{t('tax')} %</label>
                         {(() => {
-                          const isPk = String(tenant?.settings?.currency || '').toUpperCase() === 'PKR' || (tenant?.business?.address?.country || '').toUpperCase() === 'PK'
+                          const isPkTax = String(tenant?.settings?.currency || '').toUpperCase() === 'PKR' || (tenant?.business?.address?.country || '').toUpperCase() === 'PK'
                           const pkRate = Number(tenant?.fbr?.defaultSalesTaxRate || 18)
                           return (
-                            <select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className={`mt-1.5 ${fieldControlClass}`}>
-                              {isPk ? (
+                            <select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className={denseControlClass}>
+                              {isPkTax ? (
                                 <>
                                   <option value={pkRate}>{pkRate}%</option>
                                   {pkRate !== 16 && <option value={16}>16%</option>}
@@ -1652,13 +1686,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         })()}
                       </div>
                     )}
-                    <div className="lg:col-span-2 flex items-center gap-2">
-                      <div className="flex-1 text-end"><p className="mb-1 text-xs font-semibold text-slate-600 dark:text-slate-300">{t('total')}</p><p className="text-base font-bold text-slate-900 dark:text-white"><Money value={calculateLineTotal(index).total} /></p></div>
-                      {fields.length > 1 && <button type="button" onClick={() => remove(index)} className="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-4 h-4" /></button>}
+                    <div className="col-span-2 flex items-center justify-end gap-1.5 lg:col-span-2">
+                      <div className="text-end">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t('total')}</p>
+                        <p className="text-sm font-bold tabular-nums text-slate-900 dark:text-white"><Money value={calculateLineTotal(index).total} /></p>
+                      </div>
+                      {fields.length > 1 && <button type="button" onClick={() => remove(index)} className="rounded-md p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-3.5 h-3.5" /></button>}
                     </div>
                   </div>
                   {isTradingContext && lineItems?.[index]?.productId ? (
-                    <div className="mt-3">
+                    <div className="mt-1.5">
                       <LineRelationSuggestions
                         productId={lineItems[index].productId}
                         currentUnitPrice={lineItems[index].unitPrice}
@@ -1679,31 +1716,26 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     const marginVat = toNumber(summaryLine.taxAmount, 0)
                     const netMarginProfit = Math.max(0, marginProfit - marginVat)
                     return (
-                      <div className="mt-3 rounded-lg border border-dashed border-primary-200 bg-primary-50/40 p-3 dark:border-primary-900/40 dark:bg-primary-900/10">
-                        <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12">
-                          <div className="md:col-span-6">
-                            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                      <div className="mt-1.5 rounded-lg border border-dashed border-primary-200 bg-primary-50/40 p-2 dark:border-primary-900/40 dark:bg-primary-900/10">
+                        <div className="grid grid-cols-2 items-end gap-2 md:grid-cols-12">
+                          <div className="col-span-2 md:col-span-6">
+                            <p className="text-xs font-medium text-gray-700 dark:text-gray-200">
                               {language === 'ar'
-                                ? 'يتم احتساب الضريبة على هامش الربح فقط في فاتورة السفر'
-                                : 'VAT is calculated only on the travel margin profit.'}
-                            </p>
-                            <p className="mt-1 text-[11px] text-gray-500">
-                              {language === 'ar'
-                                ? 'سعر العميل هو المبلغ الظاهر للعميل على الفاتورة. سعر الوحدة وسعر الوكالة مخفيان في الفاتورة المطبوعة.'
-                                : 'Customer Price is what the buyer sees on the invoice. Unit Price and Agency Price are hidden on the printed invoice.'}
+                                ? 'الضريبة على هامش الربح فقط'
+                                : 'VAT on travel margin only'}
                             </p>
                           </div>
                           <div className="md:col-span-2 text-end">
-                            <p className="mb-1 text-xs text-gray-500">{language === 'ar' ? 'هامش الربح' : 'Margin Profit'}</p>
-                            <p className="font-semibold text-emerald-600"><Money value={marginProfit} /></p>
+                            <p className="text-[10px] text-gray-500">{language === 'ar' ? 'هامش' : 'Margin'}</p>
+                            <p className="text-sm font-semibold text-emerald-600"><Money value={marginProfit} /></p>
                           </div>
                           <div className="md:col-span-2 text-end">
-                            <p className="mb-1 text-xs text-gray-500">{language === 'ar' ? 'الضريبة على الهامش' : 'VAT on Margin'}</p>
-                            <p className="font-semibold text-amber-600"><Money value={marginVat} /></p>
+                            <p className="text-[10px] text-gray-500">{language === 'ar' ? 'ضريبة' : 'VAT'}</p>
+                            <p className="text-sm font-semibold text-amber-600"><Money value={marginVat} /></p>
                           </div>
                           <div className="md:col-span-2 text-end">
-                            <p className="mb-1 text-xs text-gray-500">{language === 'ar' ? 'صافي الربح' : 'Net Profit'}</p>
-                            <p className="font-semibold text-primary-600"><Money value={netMarginProfit} /></p>
+                            <p className="text-[10px] text-gray-500">{language === 'ar' ? 'صافي' : 'Net'}</p>
+                            <p className="text-sm font-semibold text-primary-600"><Money value={netMarginProfit} /></p>
                           </div>
                         </div>
                       </div>
@@ -1747,7 +1779,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             })}
           />
 
-          <div className={`${sectionCardClass} space-y-3 !py-4`}>
+          <div className={`${sectionCardClass} space-y-2 !p-3.5`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
                 {language === 'ar' ? 'إضافات' : 'Extras'}

@@ -171,6 +171,22 @@ export default function SalesSettingsPage() {
             {isAr ? 'تحذيرات البيع' : 'Enable sale warnings'}
           </label>
           <label className={checkClass}>
+            <input type="checkbox" checked={!!form.showIncotermOnDocuments} onChange={(e) => set('showIncotermOnDocuments', e.target.checked)} />
+            {isAr ? 'إظهار Incoterm في المستندات' : 'Show Incoterm on documents'}
+          </label>
+          <label className={checkClass}>
+            <input type="checkbox" checked={!!form.showComputeShipping} onChange={(e) => set('showComputeShipping', e.target.checked)} />
+            {isAr ? 'حساب الشحن' : 'Show compute shipping'}
+          </label>
+          <label className={checkClass}>
+            <input type="checkbox" checked={!!form.showPromoCodes} onChange={(e) => set('showPromoCodes', e.target.checked)} />
+            {isAr ? 'أكواد الخصم / العروض' : 'Show promo / coupon codes'}
+          </label>
+          <label className={checkClass}>
+            <input type="checkbox" checked={!!form.showCrmTagsOnDocuments} onChange={(e) => set('showCrmTagsOnDocuments', e.target.checked)} />
+            {isAr ? 'وسوم CRM على المستندات' : 'Show CRM tags on documents'}
+          </label>
+          <label className={checkClass}>
             <input type="checkbox" checked={!!form.showMarginsByDefault} onChange={(e) => set('showMarginsByDefault', e.target.checked)} />
             {isAr ? 'إظهار الهوامش افتراضياً' : 'Show margins by default'}
           </label>

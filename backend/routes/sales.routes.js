@@ -105,6 +105,10 @@ router.get('/configuration', checkPermission('sales', 'read'), async (req, res) 
       default_incoterm: s.defaultIncoterm || 'EXW',
       show_margins_by_default: !!s.showMarginsByDefault,
       amazon_sync_enabled: !!s.amazonSyncEnabled,
+      show_incoterm_on_documents: !!s.showIncotermOnDocuments,
+      show_compute_shipping: !!s.showComputeShipping,
+      show_promo_codes: !!s.showPromoCodes,
+      show_crm_tags_on_documents: !!s.showCrmTagsOnDocuments,
       raw: s,
     });
   } catch (e) {

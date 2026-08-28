@@ -23,9 +23,9 @@ export default function ApplyPromoPanel({ subtotal = 0, onApplyDiscountLine }) {
   }
 
   return (
-    <div className={`${sectionCardClass} flex flex-wrap items-end gap-3`}>
-      <div className="min-w-[200px] flex-1">
-        <label className="mb-1 block text-xs font-semibold text-slate-600">Promo / coupon / gift card</label>
+    <div className={`${sectionCardClass} !py-2.5 flex flex-wrap items-end gap-2`}>
+      <div className="min-w-[180px] flex-1">
+        <label className="mb-1 block text-xs font-semibold text-slate-600">Promo / coupon</label>
         <input
           className={fieldControlClass}
           placeholder="Enter code"
@@ -35,7 +35,7 @@ export default function ApplyPromoPanel({ subtotal = 0, onApplyDiscountLine }) {
         />
       </div>
       <button type="button" className={ghostActionClass} onClick={apply} disabled={loading}>
-        Apply Promo
+        Apply
       </button>
     </div>
   )
