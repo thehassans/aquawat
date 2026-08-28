@@ -195,8 +195,6 @@ services:
       CRON_WORKER: "0"
       API_MAX_PAGE_LIMIT: "100"
       REDIS_MEMORY_ALERT_PCT: "85"
-      REQUIRE_OBJECT_STORAGE: "true"
-      ALLOW_LOCAL_UPLOADS: "false"
       LOG_CONSOLE: "true"              # Forward logs to Docker log driver
     depends_on:
       mongo:
