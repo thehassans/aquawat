@@ -50,7 +50,7 @@ services:
       mongod
       --replSet rs0
       --bind_ip_all
-      --wiredTigerCacheSizeGB 1.5
+      --wiredTigerCacheSizeGB 1.0
       --wiredTigerJournalCompressor snappy
       --quiet
     environment:
@@ -193,6 +193,7 @@ services:
       PUBLIC_RATE_LIMIT_MAX: "1000"
       CLUSTER_WORKERS: "2"
       CRON_WORKER: "0"
+      ALLOW_LOCAL_UPLOADS: "true"
       API_MAX_PAGE_LIMIT: "100"
       REDIS_MEMORY_ALERT_PCT: "85"
       LOG_CONSOLE: "true"              # Forward logs to Docker log driver

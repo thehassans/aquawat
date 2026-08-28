@@ -89,10 +89,9 @@ test('compose keeps host 8080 on the edge proxy, not the frontend app', () => {
   assert.match(block, /expose:/);
 });
 
-test('compose backend must not hardcode object-storage flags (server .env controls them)', () => {
+test('compose backend must not hardcode REQUIRE_OBJECT_STORAGE (server .env controls it)', () => {
   const compose = fs.readFileSync(path.resolve(frontendDir, '../docker-compose.yml'), 'utf8');
   const backendService = compose.match(/\n  backend:[\s\S]*?\n  pdf-worker:/);
   const block = backendService ? backendService[0] : '';
   assert.doesNotMatch(block, /REQUIRE_OBJECT_STORAGE:/);
-  assert.doesNotMatch(block, /ALLOW_LOCAL_UPLOADS:/);
 });

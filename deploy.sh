@@ -29,7 +29,12 @@ if [ -n "$COMPOSE" ]; then
   # Keep the current frontend up until the new image builds. Taking it down
   # first leaves visitors on the holding page if npm run build fails.
   $COMPOSE up -d edge || true
-  $COMPOSE up -d --build --remove-orphans
+  if ! $COMPOSE up -d --build --remove-orphans; then
+    echo "=== docker compose up failed — recent logs ==="
+    $COMPOSE ps -a || true
+    $COMPOSE logs --tail=100 backend frontend mongo redis cron-worker 2>/dev/null || $COMPOSE logs --tail=100
+    exit 1
+  fi
   echo "Running containers:"
   $COMPOSE ps
 fi
