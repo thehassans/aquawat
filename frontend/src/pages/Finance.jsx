@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { TrendingUp, TrendingDown, Wallet, Percent, CalendarDays } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import api from '../lib/api'
+import { asArray } from '../lib/asArray'
 import Money from '../components/ui/Money'
 import { useTranslation } from '../lib/translations'
 import ExportMenu from '../components/ui/ExportMenu'
@@ -76,12 +77,12 @@ export default function Finance() {
 
   const { data: revenueData, isLoading: revenueLoading } = useQuery({
     queryKey: ['finance-revenue', 12],
-    queryFn: () => api.get('/dashboard/charts/revenue', { params: { months: 12 } }).then((res) => res.data),
+    queryFn: () => api.get('/dashboard/charts/revenue', { params: { months: 12 } }).then((res) => asArray(res.data)),
   })
 
   const { data: expensesData, isLoading: expensesLoading } = useQuery({
     queryKey: ['finance-expenses', 12],
-    queryFn: () => api.get('/dashboard/charts/expenses', { params: { months: 12 } }).then((res) => res.data),
+    queryFn: () => api.get('/dashboard/charts/expenses', { params: { months: 12 } }).then((res) => asArray(res.data)),
   })
 
   const { data: vatData, isLoading: vatLoading } = useQuery({
@@ -90,7 +91,7 @@ export default function Finance() {
   })
 
   const chartData = useMemo(
-    () => mergeMonthSeries(revenueData || [], expensesData || [], language),
+    () => mergeMonthSeries(asArray(revenueData), asArray(expensesData), language),
     [revenueData, expensesData, language]
   )
 

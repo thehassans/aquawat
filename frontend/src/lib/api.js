@@ -256,7 +256,7 @@ api.interceptors.response.use(
             mergeQueue('contacts', ['POST:/contacts']);
           } else if (config.url.includes('/projects') && !config.url.includes('/projects/')) {
             mergeQueue('projects', ['POST:/projects']);
-          } else if (config.url.includes('/expenses') && !config.url.includes('/expenses/')) {
+          } else if (/^\/expenses(\?|$)/.test(String(config.url || '').split('?')[0])) {
             mergeQueue('expenses', ['POST:/expenses']);
           }
 

@@ -51,6 +51,7 @@ import {
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../lib/api'
+import { asArray } from '../lib/asArray'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
@@ -102,7 +103,7 @@ export default function Dashboard() {
   // Fetch Charts Data
   const { data: revenueData } = useQuery({
     queryKey: ['dashboard-revenue'],
-    queryFn: () => api.get('/dashboard/charts/revenue').then(res => res.data),
+    queryFn: () => api.get('/dashboard/charts/revenue').then((res) => asArray(res.data)),
     refetchInterval: chartPollMs,
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_CHART_REFRESH_MS,
@@ -110,7 +111,7 @@ export default function Dashboard() {
 
   const { data: expensesData } = useQuery({
     queryKey: ['dashboard-expenses'],
-    queryFn: () => api.get('/dashboard/charts/expenses').then(res => res.data),
+    queryFn: () => api.get('/dashboard/charts/expenses').then((res) => asArray(res.data)),
     refetchInterval: chartPollMs,
     refetchIntervalInBackground: false,
     staleTime: DASHBOARD_CHART_REFRESH_MS,
@@ -725,13 +726,15 @@ export default function Dashboard() {
 
   const trendData = useMemo(() => {
     const byKey = new Map()
+    const revenueSeries = asArray(revenueData)
+    const expensesSeries = asArray(expensesData)
 
-    ;(revenueData || []).forEach((r) => {
+    revenueSeries.forEach((r) => {
       const key = `${r._id?.year}-${r._id?.month}`
       byKey.set(key, { ...byKey.get(key), year: r._id?.year, month: r._id?.month, revenue: r.revenue || 0, tax: r.tax || 0 })
     })
 
-    ;(expensesData || []).forEach((e) => {
+    expensesSeries.forEach((e) => {
       const key = `${e._id?.year}-${e._id?.month}`
       byKey.set(key, { ...byKey.get(key), year: e._id?.year, month: e._id?.month, expenses: (e.salaries || 0) + (e.gosi || 0) + (e.other || 0) })
     })
