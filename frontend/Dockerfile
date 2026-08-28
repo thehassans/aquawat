@@ -9,7 +9,9 @@ RUN npm install
 COPY . .
 
 # Build the frontend with production API URL
+ARG BUILD_SHA=unknown
 ARG VITE_CDN_URL
+RUN echo "Building frontend at commit ${BUILD_SHA}"
 ENV VITE_API_BASE_URL=/api
 ENV VITE_API_URL=/api
 ENV VITE_CDN_URL=$VITE_CDN_URL

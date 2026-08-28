@@ -31,19 +31,27 @@ if [ -n "$COMPOSE" ]; then
   echo "Starting edge + data services..."
   $COMPOSE up -d edge mongo redis mongo-backup || true
 
-  echo "Building backend images..."
-  $COMPOSE build backend pdf-worker
+  BUILD_SHA="$(git rev-parse HEAD)"
+  echo "Building backend images (${BUILD_SHA})..."
+  if ! $COMPOSE build --build-arg BUILD_SHA="$BUILD_SHA" backend pdf-worker; then
+    echo "=== backend image build failed ==="
+    exit 1
+  fi
 
   echo "Building frontend image..."
-  $COMPOSE build frontend
+  if ! $COMPOSE build --build-arg BUILD_SHA="$BUILD_SHA" frontend; then
+    echo "=== frontend image build failed ==="
+    exit 1
+  fi
 
   echo "Starting backend workers..."
   $COMPOSE up -d --remove-orphans backend pdf-worker
 
-  echo "Waiting for backend readiness (up to 3 minutes)..."
+  echo "Waiting for backend readiness (up to 4 minutes)..."
   ready=0
-  for _ in $(seq 1 36); do
-    if $COMPOSE exec -T backend wget -qO- http://127.0.0.1:3000/api/health/ready 2>/dev/null | grep -q '"status"'; then
+  for _ in $(seq 1 48); do
+    body="$($COMPOSE exec -T backend wget -qO- http://127.0.0.1:3000/api/health/ready 2>/dev/null || true)"
+    if echo "$body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"READY"'; then
       ready=1
       break
     fi
