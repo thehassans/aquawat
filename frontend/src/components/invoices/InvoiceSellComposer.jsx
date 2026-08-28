@@ -39,7 +39,6 @@ import {
   backBtnClass,
   fieldControlClass,
   fieldLabelClass,
-  pageSubtitleClass,
   pageTitleClass,
   sectionCardClass,
   sectionEyebrowClass,
@@ -1116,149 +1115,130 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     }),
   }
 
+  const segmentWrapClass =
+    'inline-flex items-center rounded-xl border border-slate-200/90 bg-slate-50/80 p-0.5 dark:border-white/10 dark:bg-dark-900/50'
+  const segmentBtnClass = (active) =>
+    `rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+      active
+        ? 'bg-white text-slate-900 shadow-sm dark:bg-dark-700 dark:text-white'
+        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+    }`
+
+  const sellerLine = [
+    tenant?.business?.legalNameEn || tenant?.name,
+    tenant?.business?.vatNumber || tenant?.fbr?.ntn || tenant?.business?.ntn
+      ? `${isPk ? 'NTN' : 'VAT'} ${tenant?.business?.vatNumber || tenant?.fbr?.ntn || tenant?.business?.ntn}`
+      : null,
+    tenant?.business?.crNumber ? `CR ${tenant.business.crNumber}` : null,
+  ].filter(Boolean).join(' · ')
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <button
-          type="button"
-          onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices')}
-          className={backBtnClass}
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <div>
-          <p className={sectionEyebrowClass}>
-            {language === 'ar' ? 'المبيعات' : 'Sales'}
-          </p>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices')}
+            className={backBtnClass}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
           <h1 className={pageTitleClass}>
             {isEdit
-              ? (language === 'ar' ? 'تعديل فاتورة البيع' : 'Edit sales invoice')
-              : (language === 'ar' ? 'فاتورة بيع جديدة' : 'New sales invoice')}
+              ? (language === 'ar' ? 'تعديل فاتورة' : 'Edit invoice')
+              : (language === 'ar' ? 'فاتورة جديدة' : 'New invoice')}
           </h1>
-          <p className={pageSubtitleClass}>
-            {isEdit
-              ? (language === 'ar' ? 'حدّث بيانات الفاتورة وشاهد المعاينة المباشرة قبل الحفظ' : 'Update details and review the live preview before saving')
-              : (language === 'ar' ? 'اختر صيغة الفاتورة وشروط الدفع وشاهد المعاينة قبل الحفظ' : 'Choose format, payment terms, and preview before saving')}
-          </p>
         </div>
+        {showArabicFields ? (
+          <span className="rounded-full border border-slate-200/90 bg-white px-2.5 py-1 text-[10px] font-semibold tracking-wide text-slate-500 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300">
+            EN · AR
+          </span>
+        ) : null}
       </div>
 
-      <div className="mx-auto w-full max-w-6xl space-y-8">
-        <form onSubmit={handleSubmit(onSubmit, () => toast.error(language === 'ar' ? 'أكمل البنود المطلوبة قبل الحفظ' : 'Complete the billing lines before saving'))} className="space-y-8">
-          <div className={`${sectionCardClass} space-y-5`}>
-            <div className="mb-1 flex items-end justify-between gap-3">
-              <div>
-                <p className={sectionEyebrowClass}>
-                  {isEdit ? (language === 'ar' ? 'تعديل' : 'Edit') : (language === 'ar' ? 'جديد' : 'New')}
-                </p>
-                <h2 className={sectionTitleClass}>
-                  {language === 'ar' ? 'إنشاء فاتورة' : 'Create invoice'}
-                </h2>
+      <div className="mx-auto w-full max-w-6xl space-y-4">
+        <form onSubmit={handleSubmit(onSubmit, () => toast.error(language === 'ar' ? 'أكمل البنود المطلوبة قبل الحفظ' : 'Complete the billing lines before saving'))} className="space-y-4">
+          <div className={`${sectionCardClass} !py-3 space-y-3`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className={segmentWrapClass}>
+                {[
+                  { id: 'a4', labelEn: 'A4', labelAr: 'A4', Icon: FileText },
+                  { id: 'thermal', labelEn: 'Thermal', labelAr: 'حراري', Icon: Receipt },
+                ].map((fmt) => {
+                  const active = (values?.printFormat || 'a4') === fmt.id
+                  const Icon = fmt.Icon
+                  return (
+                    <button
+                      key={fmt.id}
+                      type="button"
+                      onClick={() => setValue('printFormat', fmt.id, { shouldDirty: true, shouldTouch: true })}
+                      className={`${segmentBtnClass(active)} inline-flex items-center gap-1.5`}
+                    >
+                      <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      {language === 'ar' ? fmt.labelAr : fmt.labelEn}
+                    </button>
+                  )
+                })}
               </div>
-              {showArabicFields && (
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold tracking-wide text-slate-700 dark:bg-dark-700 dark:text-slate-200">
-                  EN · AR
+
+              <div className={segmentWrapClass}>
+                <button type="button" onClick={() => setInvoiceType('B2B')} className={segmentBtnClass(invoiceType === 'B2B')}>
+                  B2B
+                </button>
+                <button type="button" onClick={() => setInvoiceType('B2C')} className={segmentBtnClass(invoiceType === 'B2C')}>
+                  B2C
+                </button>
+              </div>
+
+              <div className="ms-auto flex min-w-0 max-w-full items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
+                  <img
+                    src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo}
+                    alt=""
+                    className="h-7 w-7 shrink-0 rounded-lg border border-slate-200/80 object-contain bg-white p-0.5 dark:border-white/10"
+                  />
+                ) : null}
+                <span className="truncate font-medium text-slate-700 dark:text-slate-200" title={sellerLine}>
+                  {sellerLine || (language === 'ar' ? 'بيانات المنشأة' : 'Company')}
                 </span>
-              )}
-            </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {[
-                {
-                  id: 'a4',
-                  Icon: FileText,
-                  titleEn: 'A4 Invoice',
-                  titleAr: 'فاتورة A4',
-                  descEn: 'Full-page PDF for email, print, and archives.',
-                  descAr: 'ملف PDF كامل للبريد والطباعة والأرشيف.',
-                },
-                {
-                  id: 'thermal',
-                  Icon: Receipt,
-                  titleEn: 'Thermal Invoice',
-                  titleAr: 'فاتورة حرارية',
-                  descEn: '80mm receipt-style print for POS counters.',
-                  descAr: 'طباعة إيصال 80 مم لنقاط البيع.',
-                },
-              ].map((fmt) => {
-                const active = (values?.printFormat || 'a4') === fmt.id
-                const Icon = fmt.Icon
-                return (
-                  <button
-                    key={fmt.id}
-                    type="button"
-                    onClick={() => setValue('printFormat', fmt.id, { shouldDirty: true, shouldTouch: true })}
-                    className={`group flex items-start gap-3 rounded-2xl border px-4 py-4 text-start transition ${
-                      active
-                        ? 'border-slate-900 bg-slate-950 text-white shadow-lg dark:border-white dark:bg-white dark:text-slate-950'
-                        : 'border-slate-200/90 bg-white hover:border-slate-300 dark:border-dark-600 dark:bg-dark-800'
-                    }`}
-                  >
-                    <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${active ? 'bg-white/10 text-white dark:bg-slate-900/10 dark:text-slate-900' : 'bg-slate-50 text-slate-600 dark:bg-dark-700 dark:text-slate-300'}`}>
-                      <Icon className="h-4.5 w-4.5" />
-                    </span>
-                    <span>
-                      <span className={`block text-sm font-semibold ${active ? '' : 'text-slate-900 dark:text-white'}`}>{language === 'ar' ? fmt.titleAr : fmt.titleEn}</span>
-                      <span className={`mt-1 block text-xs leading-relaxed ${active ? 'text-white/70 dark:text-slate-600' : 'text-slate-500'}`}>{language === 'ar' ? fmt.descAr : fmt.descEn}</span>
-                    </span>
-                  </button>
-                )
-              })}
+              </div>
             </div>
             <input type="hidden" {...register('printFormat')} />
             <input type="hidden" {...register('businessContext')} />
+            <input type="hidden" {...register('invoiceSubtype')} />
+            <input type="hidden" {...register('pdfTemplateId')} />
           </div>
 
           {(isRestaurantContext || isTravelContext || isManpowerContext) && (
-            <div className="card p-6">
-              <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'مصدر الفاتورة' : 'Invoice Source'}</h3>
-              {isRestaurantContext && (
-                <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12">
-                  <div className="md:col-span-9">
-                    <label className={fieldLabelClass}>{language === 'ar' ? 'طلب مطعم' : 'Restaurant Order'}</label>
-                    <select value={sourceId} onChange={(e) => setSourceId(e.target.value)} className={`mt-1.5 ${fieldControlClass}`}>
-                      <option value="">{language === 'ar' ? 'اختر طلب' : 'Select order'}</option>
-                      {(restaurantOrders || []).map((item) => <option key={item._id} value={item._id}>{item.orderNumber} - {Number(item.grandTotal || 0).toFixed(2)}</option>)}
-                    </select>
-                  </div>
-                  <div className="md:col-span-3">
-                    <button type="button" className="btn btn-secondary w-full" disabled={!sourceId || importSourceMutation.isPending} onClick={() => importSourceMutation.mutate()}>
-                      {importSourceMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-600 border-t-transparent" /> : (language === 'ar' ? 'استيراد' : 'Import')}
-                    </button>
-                  </div>
+            <div className={`${sectionCardClass} !py-3`}>
+              <div className="grid grid-cols-1 items-end gap-3 md:grid-cols-12">
+                <div className="md:col-span-9">
+                  <label className={fieldLabelClass}>
+                    {isRestaurantContext
+                      ? (language === 'ar' ? 'طلب مطعم' : 'Restaurant order')
+                      : isTravelContext
+                        ? (language === 'ar' ? 'حجز سفر' : 'Travel booking')
+                        : (language === 'ar' ? 'تعيين عمالة' : 'Manpower assignment')}
+                  </label>
+                  <select value={sourceId} onChange={(e) => setSourceId(e.target.value)} className={`mt-1 ${fieldControlClass}`}>
+                    <option value="">{language === 'ar' ? 'اختر…' : 'Select…'}</option>
+                    {isRestaurantContext
+                      ? (restaurantOrders || []).map((item) => <option key={item._id} value={item._id}>{item.orderNumber} - {Number(item.grandTotal || 0).toFixed(2)}</option>)
+                      : null}
+                    {isTravelContext
+                      ? (travelBookings || []).map((item) => <option key={item._id} value={item._id}>{item.bookingNumber} - {Number(item.grandTotal || 0).toFixed(2)}</option>)
+                      : null}
+                    {isManpowerContext
+                      ? (manpowerAssignments || []).map((item) => <option key={item._id} value={item._id}>{item.assignmentNumber} - {item.clientId?.name || 'Customer'}</option>)
+                      : null}
+                  </select>
                 </div>
-              )}
-              {isTravelContext && (
-                <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12">
-                  <div className="md:col-span-9">
-                    <label className={fieldLabelClass}>{language === 'ar' ? 'حجز سفر' : 'Travel Booking'}</label>
-                    <select value={sourceId} onChange={(e) => setSourceId(e.target.value)} className={`mt-1.5 ${fieldControlClass}`}>
-                      <option value="">{language === 'ar' ? 'اختر حجز' : 'Select booking'}</option>
-                      {(travelBookings || []).map((item) => <option key={item._id} value={item._id}>{item.bookingNumber} - {Number(item.grandTotal || 0).toFixed(2)}</option>)}
-                    </select>
-                  </div>
-                  <div className="md:col-span-3">
-                    <button type="button" className="btn btn-secondary w-full" disabled={!sourceId || importSourceMutation.isPending} onClick={() => importSourceMutation.mutate()}>
-                      {importSourceMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-600 border-t-transparent" /> : (language === 'ar' ? 'استيراد' : 'Import')}
-                    </button>
-                  </div>
+                <div className="md:col-span-3">
+                  <button type="button" className="btn btn-secondary w-full" disabled={!sourceId || importSourceMutation.isPending} onClick={() => importSourceMutation.mutate()}>
+                    {importSourceMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-600 border-t-transparent" /> : (language === 'ar' ? 'استيراد' : 'Import')}
+                  </button>
                 </div>
-              )}
-              {isManpowerContext && (
-                <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12">
-                  <div className="md:col-span-9">
-                    <label className={fieldLabelClass}>{language === 'ar' ? 'تعيين عمالة' : 'Manpower Assignment'}</label>
-                    <select value={sourceId} onChange={(e) => setSourceId(e.target.value)} className={`mt-1.5 ${fieldControlClass}`}>
-                      <option value="">{language === 'ar' ? 'اختر تعيين' : 'Select assignment'}</option>
-                      {(manpowerAssignments || []).map((item) => <option key={item._id} value={item._id}>{item.assignmentNumber} - {item.clientId?.name || 'Customer'}</option>)}
-                    </select>
-                  </div>
-                  <div className="md:col-span-3">
-                    <button type="button" className="btn btn-secondary w-full" disabled={!sourceId || importSourceMutation.isPending} onClick={() => importSourceMutation.mutate()}>
-                      {importSourceMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-600 border-t-transparent" /> : (language === 'ar' ? 'استيراد العمالة' : 'Import Workers')}
-                    </button>
-                  </div>
-                </div>
-              )}
+              </div>
               <input type="hidden" {...register('restaurantOrderId')} />
               <input type="hidden" {...register('travelBookingId')} />
               <input type="hidden" {...register('manpowerAssignmentId')} />
@@ -1266,156 +1246,29 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             </div>
           )}
 
-          <div className="space-y-4">
-            <p className={sectionEyebrowClass}>
-              {language === 'ar' ? 'النوع' : 'Type'}
-            </p>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <button type="button" onClick={() => setInvoiceType('B2B')} className={`rounded-2xl border px-4 py-4 text-start transition ${invoiceType === 'B2B' ? 'border-slate-900 bg-slate-950 text-white dark:border-white dark:bg-white dark:text-slate-950' : 'border-slate-200 bg-white dark:border-dark-600 dark:bg-dark-800'}`}>
-                <p className="text-sm font-semibold">{t('b2bInvoice')}</p>
-                <p className={`mt-1 text-xs ${invoiceType === 'B2B' ? 'text-white/70 dark:text-slate-600' : 'text-slate-500'}`}>
-                  {isTravelContext
-                    ? (language === 'ar' ? 'فاتورة سفر ضريبية للشركات والعملاء المسجلين ضريبياً' : 'Tax travel invoice for companies and VAT-registered customers')
-                    : (language === 'ar' ? 'فواتير الشركات والجهات' : 'Invoices for business customers')}
-                </p>
-              </button>
-              <button type="button" onClick={() => setInvoiceType('B2C')} className={`rounded-2xl border px-4 py-4 text-start transition ${invoiceType === 'B2C' ? 'border-slate-900 bg-slate-950 text-white dark:border-white dark:bg-white dark:text-slate-950' : 'border-slate-200 bg-white dark:border-dark-600 dark:bg-dark-800'}`}>
-                <p className="text-sm font-semibold">{t('b2cInvoice')}</p>
-                <p className={`mt-1 text-xs ${invoiceType === 'B2C' ? 'text-white/70 dark:text-slate-600' : 'text-slate-500'}`}>
-                  {isTravelContext
-                    ? (language === 'ar' ? 'فاتورة سفر مبسطة للأفراد' : 'Simplified travel invoice for individual customers')
-                    : (language === 'ar' ? 'مبيعات نقدية أو مباشرة' : 'Cash or direct sale invoices')}
-                </p>
-              </button>
-            </div>
-            <input type="hidden" {...register('invoiceSubtype')} />
-          </div>
-
-          <input type="hidden" {...register('pdfTemplateId')} />
-
           {isTravelContext && (
-            <div className="space-y-3 border-t border-slate-200/80 pt-6 dark:border-dark-600">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                {language === 'ar' ? 'تاريخ ووقت الفاتورة' : 'Invoice Date & Time'}
-              </h3>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <label className={fieldLabelClass}>
-                    {language === 'ar' ? 'تاريخ ووقت الإصدار المخصص' : 'Custom Issue Date & Time'}
-                  </label>
-                  <input
-                    type="datetime-local"
-                    {...register('issueDate')}
-                    className={`mt-1.5 ${fieldControlClass}`}
-                  />
-                </div>
-              </div>
+            <div className={`${sectionCardClass} !py-3`}>
+              <label className={fieldLabelClass}>
+                {language === 'ar' ? 'تاريخ ووقت الإصدار' : 'Issue date & time'}
+              </label>
+              <input type="datetime-local" {...register('issueDate')} className={`mt-1 max-w-sm ${fieldControlClass}`} />
             </div>
           )}
 
-          <div className={`${sectionCardClass} space-y-5`}>
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className={sectionEyebrowClass}>
-                  {language === 'ar' ? 'البائع' : 'Seller'}
-                </p>
-                <h3 className={sectionTitleClass}>
-                  {language === 'ar' ? 'بيانات المنشأة' : 'Your company details'}
-                </h3>
-                <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                  {language === 'ar' ? 'تُؤخذ تلقائياً من ملف الشركة' : 'Prefilled from your company profile'}
-                </p>
-              </div>
-              <div className="h-14 w-14 shrink-0 rounded-2xl bg-white p-1.5 shadow-md ring-1 ring-slate-200/80 dark:ring-white/15">
-                {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
-                  <img
-                    src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo}
-                    alt=""
-                    className="h-full w-full object-contain"
-                  />
-                ) : null}
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3" dir="ltr">
-              <div className={showArabicFields ? 'sm:col-span-2 lg:col-span-2' : ''}>
-                <FieldLabel en="Legal name" ar="الاسم القانوني" as="p" />
-                <div className={`mt-1 grid gap-3 ${showArabicFields ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                    {tenant?.business?.legalNameEn || tenant?.name || '—'}
-                  </p>
-                  {showArabicFields ? (
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white" dir="rtl">
-                      {tenant?.business?.legalNameAr || '—'}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-              <div>
-                <FieldLabel en={isPk ? "NTN / STRN" : "VAT Number"} ar="الرقم الضريبي" as="p" />
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.fbr?.ntn || tenant?.business?.ntn || tenant?.business?.vatNumber || '—'}</p>
-              </div>
-              <div>
-                <FieldLabel en="CR Number" ar="السجل التجاري" as="p" />
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.crNumber || '—'}</p>
-              </div>
-              <div>
-                <FieldLabel en="Phone" ar="الهاتف" as="p" />
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.contactPhone || '—'}</p>
-              </div>
-              <div>
-                <FieldLabel en="Email" ar="البريد" as="p" />
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.contactEmail || '—'}</p>
-              </div>
-              <div className={showArabicFields ? 'sm:col-span-2' : ''}>
-                <FieldLabel en="Address" ar="العنوان" as="p" />
-                <div className={`mt-1 grid gap-3 ${showArabicFields ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                    {[
-                      tenant?.business?.address?.street,
-                      tenant?.business?.address?.district,
-                      tenant?.business?.address?.city,
-                      tenant?.business?.address?.postalCode,
-                      tenant?.business?.address?.country || getTenantCountryCode(tenant),
-                    ].filter(Boolean).join(', ') || '—'}
-                  </p>
-                  {showArabicFields ? (
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white" dir="rtl">
-                      {[
-                        tenant?.business?.address?.streetAr,
-                        tenant?.business?.address?.districtAr,
-                        tenant?.business?.address?.cityAr,
-                        tenant?.business?.address?.postalCode,
-                        tenant?.business?.address?.country || getTenantCountryCode(tenant),
-                      ].filter(Boolean).join('، ') || '—'}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className={`${sectionCardClass} space-y-6`}>
-            <div>
-              <p className={sectionEyebrowClass}>
-                {language === 'ar' ? 'المشتري' : 'Buyer'}
-              </p>
-              <h3 className={sectionTitleClass}>
-                {language === 'ar' ? 'بيانات العميل' : 'Who is this for?'}
+          <div className={`${sectionCardClass} space-y-3 !py-4`}>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                {language === 'ar' ? 'العميل' : 'Customer'}
               </h3>
             </div>
-            <div>
-              <label className={fieldLabelClass}>{language === 'ar' ? 'اختر عميل موجود' : 'Select existing customer'}</label>
-              <div className="mt-1.5">
-                <PartnerCombobox
-                  role="customer"
-                  value={values?.customerId || ''}
-                  selectedOption={selectedCustomer}
-                  ar={language === 'ar'}
-                  language={language}
-                  onChange={onSelectCustomer}
-                />
-              </div>
-            </div>
+            <PartnerCombobox
+              role="customer"
+              value={values?.customerId || ''}
+              selectedOption={selectedCustomer}
+              ar={language === 'ar'}
+              language={language}
+              onChange={onSelectCustomer}
+            />
             {selectedCustomer?._id ? (
               <div className="mt-3">
                 <CustomerSummaryCard
@@ -1577,25 +1430,20 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             />
           )}
 
-          <div className={`${sectionCardClass} space-y-5`}>
-            <div className="flex items-end justify-between gap-3">
-              <div>
-                <p className={sectionEyebrowClass}>
-                  {language === 'ar' ? 'البنود' : 'Lines'}
-                </p>
-                <h3 className={sectionTitleClass}>
-                  {language === 'ar' ? 'بنود الفاتورة' : 'What are you billing?'}
-                </h3>
-              </div>
-              <button type="button" onClick={() => append(getEmptyLine(tenant))} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-800 shadow-sm transition hover:border-teal-600 hover:text-teal-700 dark:border-dark-500 dark:bg-dark-700 dark:text-slate-100">
+          <div className={`${sectionCardClass} space-y-4 !py-4`}>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                {language === 'ar' ? 'البنود' : 'Lines'}
+              </h3>
+              <button type="button" onClick={() => append(getEmptyLine(tenant))} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:bg-slate-50 dark:border-white/10 dark:bg-dark-800 dark:text-slate-200">
                 <Plus className="w-3.5 h-3.5" />{t('add')}
               </button>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {fields.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center dark:border-dark-600 dark:bg-dark-900/40">
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                    {language === 'ar' ? 'لا توجد بنود بعد' : 'No billing lines yet'}
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center dark:border-dark-600 dark:bg-dark-900/40">
+                  <p className="text-sm font-medium text-slate-500">
+                    {language === 'ar' ? 'لا توجد بنود بعد' : 'No lines yet'}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
                     {language === 'ar' ? 'أضف بنداً للمنتجات أو الخدمات على هذه الفاتورة.' : 'Add a product or service line to this invoice.'}
@@ -1899,39 +1747,39 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             })}
           />
 
-          <div className={`${sectionCardClass} space-y-5`}>
-            <div>
-              <h3 className="text-lg font-semibold tracking-[-0.02em] text-slate-950 dark:text-white">
-                {language === 'ar' ? 'معلومات إضافية' : 'Additional Information'}
+          <div className={`${sectionCardClass} space-y-3 !py-4`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                {language === 'ar' ? 'إضافات' : 'Extras'}
               </h3>
-              <div className="mt-4 flex flex-wrap gap-2.5">
+              <div className="flex flex-wrap gap-1.5">
                 {[
                   {
                     id: 'signature',
                     active: showAuthorizedPerson,
-                    labelEn: '+ Add Signature',
-                    labelAr: '+ إضافة توقيع',
+                    labelEn: 'Signature',
+                    labelAr: 'توقيع',
                     onClick: () => handleToggleAuthorizedPerson(!showAuthorizedPerson),
                   },
                   {
                     id: 'terms',
                     active: showTermsPanel,
-                    labelEn: '+ Add Terms & Conditions',
-                    labelAr: '+ إضافة الشروط والأحكام',
+                    labelEn: 'Terms',
+                    labelAr: 'شروط',
                     onClick: () => handleToggleTerms(!showTermsPanel),
                   },
                   {
                     id: 'notes',
                     active: showNotesPanel,
-                    labelEn: '+ Add Notes',
-                    labelAr: '+ إضافة ملاحظات',
+                    labelEn: 'Notes',
+                    labelAr: 'ملاحظات',
                     onClick: () => handleToggleNotes(!showNotesPanel),
                   },
                   {
                     id: 'bank',
                     active: showBankPanel,
-                    labelEn: '+ Add Bank Details',
-                    labelAr: '+ إضافة بيانات البنك',
+                    labelEn: 'Bank',
+                    labelAr: 'بنك',
                     onClick: () => handleToggleBankDetails(!showBankPanel),
                   },
                 ].map((pill) => (
@@ -1939,10 +1787,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     key={pill.id}
                     type="button"
                     onClick={pill.onClick}
-                    className={`rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.12em] transition ${
+                    className={`rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition ${
                       pill.active
                         ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
-                        : 'border-slate-300 bg-white text-slate-800 hover:border-slate-500 dark:border-dark-500 dark:bg-dark-800 dark:text-slate-100'
+                        : 'border-slate-200/90 bg-white text-slate-600 hover:border-slate-300 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300'
                     }`}
                   >
                     {language === 'ar' ? pill.labelAr : pill.labelEn}
@@ -2148,93 +1996,88 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             )}
           </div>
 
-          <div className={`${sectionCardClass} space-y-8`}>
-            <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-              <div>
-                <p className={sectionEyebrowClass}>
-                  {language === 'ar' ? 'شروط الدفع' : 'Payment Terms'}
-                </p>
-                <div className="mt-4 space-y-5">
-                  <div>
-                    <label className={fieldLabelClass}>{language === 'ar' ? 'شرط الدفع' : 'Payment Terms'}</label>
-                    <select
-                      {...register('paymentTerms')}
-                      className={`mt-1.5 ${fieldControlClass}`}
-                      onChange={(e) => {
-                        const id = e.target.value
-                        setValue('paymentTerms', id, { shouldDirty: true })
-                        const issueRaw = getValues('issueDate')
-                        const issue = issueRaw ? new Date(issueRaw) : new Date()
-                        const due = computeDueDateFromPaymentTerms(issue, id)
-                        if (due) setValue('dueDate', due.toISOString().slice(0, 10), { shouldDirty: true })
-                        setValue('paymentStatus', isImmediatePaymentTerm(id) ? 'paid' : 'pending', { shouldDirty: true })
-                        if (isImmediatePaymentTerm(id)) {
-                          setValue('paidAmount', totals.grandTotal, { shouldDirty: true })
-                        } else {
-                          const currentPaid = Number(getValues('paidAmount') || 0)
-                          if (currentPaid >= totals.grandTotal) setValue('paidAmount', 0, { shouldDirty: true })
-                        }
-                      }}
-                    >
-                      <optgroup label={language === 'ar' ? 'الأكثر استخداماً' : 'Most used'}>
-                        {INVOICE_PAYMENT_TERMS.slice(0, 8).map((term) => (
-                          <option key={term.id} value={term.id}>{language === 'ar' ? term.labelAr : term.labelEn}</option>
-                        ))}
-                      </optgroup>
-                      <optgroup label={language === 'ar' ? 'المزيد...' : 'Search more...'}>
-                        {INVOICE_PAYMENT_TERMS.slice(8).map((term) => (
-                          <option key={term.id} value={term.id}>{language === 'ar' ? term.labelAr : term.labelEn}</option>
-                        ))}
-                      </optgroup>
-                    </select>
+          <div className={`${sectionCardClass} space-y-4 !py-4`}>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+                <div className="col-span-2 sm:col-span-2">
+                  <label className={fieldLabelClass}>{language === 'ar' ? 'شرط الدفع' : 'Payment terms'}</label>
+                  <select
+                    {...register('paymentTerms')}
+                    className={`mt-1 ${fieldControlClass}`}
+                    onChange={(e) => {
+                      const id = e.target.value
+                      setValue('paymentTerms', id, { shouldDirty: true })
+                      const issueRaw = getValues('issueDate')
+                      const issue = issueRaw ? new Date(issueRaw) : new Date()
+                      const due = computeDueDateFromPaymentTerms(issue, id)
+                      if (due) setValue('dueDate', due.toISOString().slice(0, 10), { shouldDirty: true })
+                      setValue('paymentStatus', isImmediatePaymentTerm(id) ? 'paid' : 'pending', { shouldDirty: true })
+                      if (isImmediatePaymentTerm(id)) {
+                        setValue('paidAmount', totals.grandTotal, { shouldDirty: true })
+                      } else {
+                        const currentPaid = Number(getValues('paidAmount') || 0)
+                        if (currentPaid >= totals.grandTotal) setValue('paidAmount', 0, { shouldDirty: true })
+                      }
+                    }}
+                  >
+                    <optgroup label={language === 'ar' ? 'الأكثر استخداماً' : 'Most used'}>
+                      {INVOICE_PAYMENT_TERMS.slice(0, 8).map((term) => (
+                        <option key={term.id} value={term.id}>{language === 'ar' ? term.labelAr : term.labelEn}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label={language === 'ar' ? 'المزيد...' : 'More...'}>
+                      {INVOICE_PAYMENT_TERMS.slice(8).map((term) => (
+                        <option key={term.id} value={term.id}>{language === 'ar' ? term.labelAr : term.labelEn}</option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+                <div>
+                  <label className={fieldLabelClass}>{language === 'ar' ? 'الاستحقاق' : 'Due'}</label>
+                  <input type="date" {...register('dueDate')} className={`mt-1 ${fieldControlClass}`} />
+                </div>
+                <div>
+                  <label className={fieldLabelClass}>{language === 'ar' ? 'الحالة' : 'Status'}</label>
+                  <select
+                    {...register('paymentStatus')}
+                    className={`mt-1 ${fieldControlClass}`}
+                    onChange={(e) => {
+                      const status = e.target.value
+                      setValue('paymentStatus', status, { shouldDirty: true })
+                      if (status === 'paid') {
+                        setValue('paidAmount', totals.grandTotal, { shouldDirty: true })
+                      } else {
+                        const currentPaid = Number(getValues('paidAmount') || 0)
+                        if (currentPaid >= totals.grandTotal) setValue('paidAmount', 0, { shouldDirty: true })
+                      }
+                    }}
+                  >
+                    <option value="paid">{language === 'ar' ? 'مدفوعة' : 'Paid'}</option>
+                    <option value="pending">{language === 'ar' ? 'غير مدفوعة' : 'Unpaid'}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={fieldLabelClass}>{language === 'ar' ? 'الطريقة' : 'Method'}</label>
+                  <select {...register('paymentMethod')} className={`mt-1 ${fieldControlClass}`}>
+                    <option value="cash">{language === 'ar' ? 'نقداً' : 'Cash'}</option>
+                    <option value="card">{language === 'ar' ? 'بطاقة' : 'Card'}</option>
+                    <option value="bank_transfer">{language === 'ar' ? 'تحويل' : 'Transfer'}</option>
+                    <option value="credit">{language === 'ar' ? 'آجل' : 'Credit'}</option>
+                  </select>
+                </div>
+                {watch('paymentMethod') === 'credit' && watch('paymentStatus') !== 'paid' && (
+                  <div className="col-span-2">
+                    <label className={fieldLabelClass}>{language === 'ar' ? 'مقدم' : 'Advance'}</label>
+                    <input type="number" min="0" max={totals.grandTotal} step="0.01" {...register('paidAmount', { valueAsNumber: true, min: 0 })} className={`mt-1 ${fieldControlClass}`} placeholder="0.00" />
                   </div>
-                  <div>
-                    <label className={fieldLabelClass}>{language === 'ar' ? 'تاريخ الاستحقاق' : 'Due Date'}</label>
-                    <input type="date" {...register('dueDate')} className={`mt-1.5 ${fieldControlClass}`} />
-                  </div>
-                  <div>
-                    <label className={fieldLabelClass}>{language === 'ar' ? 'مدفوعة / غير مدفوعة' : 'Paid / Unpaid'}</label>
-                    <select
-                      {...register('paymentStatus')}
-                      className={`mt-1.5 ${fieldControlClass}`}
-                      onChange={(e) => {
-                        const status = e.target.value
-                        setValue('paymentStatus', status, { shouldDirty: true })
-                        if (status === 'paid') {
-                          setValue('paidAmount', totals.grandTotal, { shouldDirty: true })
-                        } else {
-                          const currentPaid = Number(getValues('paidAmount') || 0)
-                          if (currentPaid >= totals.grandTotal) setValue('paidAmount', 0, { shouldDirty: true })
-                        }
-                      }}
-                    >
-                      <option value="paid">{language === 'ar' ? 'مدفوعة' : 'Paid'}</option>
-                      <option value="pending">{language === 'ar' ? 'غير مدفوعة' : 'Unpaid'}</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className={fieldLabelClass}>{language === 'ar' ? 'طريقة الدفع' : 'Payment Method'}</label>
-                    <select {...register('paymentMethod')} className={`mt-1.5 ${fieldControlClass}`}>
-                      <option value="cash">{language === 'ar' ? 'نقداً' : 'Cash'}</option>
-                      <option value="card">{language === 'ar' ? 'بطاقة' : 'Card'}</option>
-                      <option value="bank_transfer">{language === 'ar' ? 'تحويل بنكي' : 'Bank Transfer'}</option>
-                      <option value="credit">{language === 'ar' ? 'آجل / ذمم' : 'Credit / Split'}</option>
-                    </select>
-                  </div>
-                  {watch('paymentMethod') === 'credit' && watch('paymentStatus') !== 'paid' && (
-                    <div>
-                      <label className={fieldLabelClass}>{language === 'ar' ? 'المبلغ المدفوع (مقدم)' : 'Paid Amount (Advance)'}</label>
-                      <input type="number" min="0" max={totals.grandTotal} step="0.01" {...register('paidAmount', { valueAsNumber: true, min: 0 })} className={`mt-1.5 ${fieldControlClass}`} placeholder="0.00" />
-                    </div>
-                  )}
-                  <div>
-                    <label className={fieldLabelClass}>{language === 'ar' ? 'خصم الفاتورة' : 'Invoice Discount'}</label>
-                    <input type="number" min="0" step="0.01" {...register('invoiceDiscount', { valueAsNumber: true, min: 0 })} className={`mt-1.5 ${fieldControlClass}`} />
-                  </div>
+                )}
+                <div className="col-span-2">
+                  <label className={fieldLabelClass}>{language === 'ar' ? 'خصم الفاتورة' : 'Invoice discount'}</label>
+                  <input type="number" min="0" step="0.01" {...register('invoiceDiscount', { valueAsNumber: true, min: 0 })} className={`mt-1 ${fieldControlClass}`} />
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-slate-950 px-5 py-5 text-white dark:bg-white dark:text-slate-950 lg:sticky lg:top-4 self-start">
+              <div className="rounded-2xl bg-slate-950 px-5 py-4 text-white dark:bg-white dark:text-slate-950 lg:sticky lg:top-4 self-start">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/50 dark:text-slate-400">
                   {language === 'ar' ? 'الملخص' : 'Summary'}
                 </p>
@@ -2296,21 +2139,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               </div>
             )}
 
-            {/* Live preview — bottom mid */}
-            <div className="space-y-4 border-t border-slate-200/80 pt-8 dark:border-dark-600">
-              <div className="text-center">
-                <p className={sectionEyebrowClass}>
-                  {language === 'ar' ? 'المعاينة' : 'Preview'}
-                </p>
-                <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-white">
-                  {language === 'ar' ? 'المعاينة المباشرة' : 'Live Preview'}
-                </h3>
-                <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
-                  {values?.printFormat === 'thermal'
-                    ? (language === 'ar' ? 'معاينة بصيغة الإيصال الحراري (80 مم).' : 'Thermal 80mm receipt layout.')
-                    : (language === 'ar' ? 'معاينة فاتورة A4 — تتحدث مع تغيير البيانات.' : 'A4 invoice preview — updates as you edit.')}
-                </p>
-              </div>
+            <div className="space-y-3 border-t border-slate-200/80 pt-5 dark:border-dark-600">
+              <p className="text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                {language === 'ar' ? 'معاينة' : 'Preview'}
+              </p>
               <div className={`mx-auto w-full ${values?.printFormat === 'thermal' ? 'max-w-[340px]' : 'max-w-3xl'}`}>
                 {values?.printFormat === 'thermal' ? (
                   <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-dark-600">
