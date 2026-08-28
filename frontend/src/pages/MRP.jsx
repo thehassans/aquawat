@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
@@ -6,6 +6,7 @@ import { motion } from 'framer-motion'
 import { Search, Factory, Package, TrendingUp, ArrowUpRight, Edit, ShoppingCart, HelpCircle, Boxes } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
+import useDebouncedValue from '../hooks/useDebouncedValue'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
 import ExportMenu from '../components/ui/ExportMenu'
@@ -17,6 +18,7 @@ export default function MRP() {
   const queryClient = useQueryClient()
 
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search, 300)
   const [page, setPage] = useState(1)
   const [multiplier, setMultiplier] = useState(2)
   const [selected, setSelected] = useState({})
@@ -41,15 +43,19 @@ export default function MRP() {
     { key: 'estimatedCost', label: language === 'ar' ? 'تكلفة' : 'Cost', value: (r) => r?.estimatedCost ?? '' },
   ]
 
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, multiplier])
+
   const { data, isLoading } = useQuery({
-    queryKey: ['mrp-suggestions', page, search, multiplier],
+    queryKey: ['mrp-suggestions', page, debouncedSearch, multiplier],
     queryFn: () =>
       api
         .get('/mrp/suggestions', {
           params: {
             page,
             limit: 25,
-            search,
+            search: debouncedSearch || undefined,
             multiplier,
           },
         })
@@ -82,7 +88,7 @@ export default function MRP() {
 
     while (true) {
       const res = await api.get('/mrp/suggestions', {
-        params: { page: currentPage, limit, search, multiplier }
+        params: { page: currentPage, limit, search: debouncedSearch || undefined, multiplier }
       })
       const batch = res.data?.suggestions || []
       all = all.concat(batch)
@@ -98,8 +104,8 @@ export default function MRP() {
   }
 
   const { data: stats } = useQuery({
-    queryKey: ['mrp-stats', search, multiplier],
-    queryFn: () => api.get('/mrp/stats', { params: { search, multiplier } }).then((res) => res.data),
+    queryKey: ['mrp-stats', debouncedSearch, multiplier],
+    queryFn: () => api.get('/mrp/stats', { params: { search: debouncedSearch || undefined, multiplier } }).then((res) => res.data),
   })
 
   const suggestions = data?.suggestions || []

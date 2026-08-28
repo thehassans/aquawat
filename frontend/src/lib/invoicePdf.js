@@ -6,7 +6,7 @@ import ThermalReceipt from '../components/ui/ThermalReceipt'
 import api from './api'
 import { formatCurrency, isSarCurrency } from './currency'
 import { calculateInvoiceSummary, normalizeTravelDetails } from './invoiceDocument'
-import { getInvoiceBranding, getInvoiceTemplateId, splitBrandingText, getLetterheadContact, splitCompanyNameLines } from './invoiceBranding'
+import { getInvoiceBranding, getInvoiceTemplateId, splitBrandingText, getLetterheadContact, splitCompanyNameLines, getLetterheadStyle, hexColorToRgb } from './invoiceBranding'
 import { getAmountInWords } from './amountInWords'
 import { resolveTaxInvoiceQr } from './taxInvoiceQr'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, toEasternArabicNumerals } from './invoiceLanguage'
@@ -1192,7 +1192,9 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   const drawHeader = ({ pageNumber }) => {
     if (letterheadMode) {
       const contact = getLetterheadContact(tenant, invoice)
-      const teal = { r: 20, g: 184, b: 166 }
+      const { textColor, accentColor } = getLetterheadStyle(tenant)
+      const textRgb = hexColorToRgb(textColor)
+      const accentRgb = hexColorToRgb(accentColor)
       doc.setFillColor(255, 255, 255)
       doc.rect(0, 0, pageW, headerH, 'F')
 
@@ -1212,7 +1214,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
       const crVatPdfSize = Math.max(7, Math.min(14, Math.round((invoiceBranding.crVatSize || 14) * 0.6)))
 
       setHeadingFont(headingPdfSize, 'bold')
-      doc.setTextColor(15, 23, 42)
+      doc.setTextColor(textRgb.r, textRgb.g, textRgb.b)
       const leftNameLines = splitCompanyNameLines(contact.companyEn || companyName)
       const rightNameLines = splitCompanyNameLines(contact.companyAr)
       leftNameLines.forEach((line, index) => {
@@ -1223,7 +1225,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
       })
 
       setBodyFont(crVatPdfSize, 'bold')
-      doc.setTextColor(15, 23, 42)
+      doc.setTextColor(textRgb.r, textRgb.g, textRgb.b)
       if (contact.crNumber) {
         doc.text(shape(`C.R # : ${contact.crNumber}`), contentLeft, crY, { align: 'left' })
         doc.text(shape(`س.ت : ${toEasternArabicNumerals(contact.crNumber)}`), contentRightEdge, crY, { align: 'right' })
@@ -1233,7 +1235,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
         doc.text(shape(`الرقم الضريبي : ${toEasternArabicNumerals(contact.vatNumber)}`), contentRightEdge, vatY, { align: 'right' })
       }
 
-      doc.setDrawColor(teal.r, teal.g, teal.b)
+      doc.setDrawColor(accentRgb.r, accentRgb.g, accentRgb.b)
       doc.setLineWidth(0.9)
       doc.line(contentLeft, 88, contentRightEdge, 88)
       doc.setLineWidth(0.2)
@@ -1805,15 +1807,17 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
     doc.setPage(i)
 
     if (letterheadMode) {
-      const teal = { r: 20, g: 184, b: 166 }
+      const { textColor, accentColor, footerTextEn, footerTextAr } = getLetterheadStyle(tenant)
+      const textRgb = hexColorToRgb(textColor)
+      const accentRgb = hexColorToRgb(accentColor)
       const footerTop = pageH - footerH + 8
-      doc.setDrawColor(teal.r, teal.g, teal.b)
+      doc.setDrawColor(accentRgb.r, accentRgb.g, accentRgb.b)
       doc.setLineWidth(0.9)
       doc.line(contentLeft, footerTop, contentRightEdge, footerTop)
       doc.setLineWidth(0.2)
 
       setBodyFont(8, 'bold')
-      doc.setTextColor(15, 23, 42)
+      doc.setTextColor(textRgb.r, textRgb.g, textRgb.b)
       let footerY = footerTop + 16
       if (letterheadContact.addressLine) {
         doc.text(shape(letterheadContact.addressLine), pageW / 2, footerY, {
@@ -1832,6 +1836,11 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
       const phoneEmail = [letterheadContact.phone, letterheadContact.email].filter(Boolean).join('     ')
       if (phoneEmail) {
         doc.text(shape(phoneEmail), pageW / 2, footerY, { align: 'center', maxWidth: contentW })
+        footerY += 12
+      }
+      const extraFooter = [footerTextEn, footerTextAr].filter(Boolean).join('  •  ')
+      if (extraFooter) {
+        doc.text(shape(extraFooter), pageW / 2, footerY, { align: 'center', maxWidth: contentW })
       }
 
       setBodyFont(8, 'normal')

@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Warehouse from '../models/Warehouse.js';
 import Product from '../models/Product.js';
 import { protect, tenantFilter, checkPermission, requireBusinessType, requireTenantFilter } from '../middleware/auth.js';
+import { cachedTenantStats } from '../utils/statsCache.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 
 const router = express.Router();
@@ -27,16 +28,18 @@ router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
 // @route   GET /api/warehouses/stock-summary/stats
 router.get('/stock-summary/stats', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const summary = await Product.aggregate([
+    const summary = await cachedTenantStats(req, 'warehouse-stock-summary', async () => Product.aggregate([
       { $match: req.tenantFilter },
-      { $unwind: "$stocks" },
-      { $group: {
-          _id: "$stocks.warehouseId",
+      { $unwind: '$stocks' },
+      {
+        $group: {
+          _id: '$stocks.warehouseId',
           totalSKUs: { $sum: 1 },
-          totalQuantity: { $sum: "$stocks.quantity" },
-          totalValue: { $sum: { $multiply: ["$stocks.quantity", { $ifNull: ["$costPrice", 0] }] } }
-      }}
-    ]);
+          totalQuantity: { $sum: '$stocks.quantity' },
+          totalValue: { $sum: { $multiply: ['$stocks.quantity', { $ifNull: ['$costPrice', 0] }] } },
+        },
+      },
+    ]));
     res.json(summary);
   } catch (error) {
     res.status(500).json({ error: error.message });

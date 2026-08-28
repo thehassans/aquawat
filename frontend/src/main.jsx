@@ -2,7 +2,8 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, HashRouter } from 'react-router-dom'
 import { Provider } from 'react-redux'
-import { QueryClient, QueryClientProvider, keepPreviousData } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClient } from './lib/queryClient'
 import { Toaster } from 'react-hot-toast'
 import App from './App'
 import { store } from './store'
@@ -106,35 +107,6 @@ window.addEventListener('unhandledrejection', (event) => {
     const msg = reason?.userMessage || reason?.message || 'Request failed'
     console.warn(`[API] ${status || code || 'error'} ${method} ${url} — ${msg}`)
   }
-})
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: true,
-      staleTime: 5 * 60 * 1000,
-      gcTime: 10 * 60 * 1000,
-      placeholderData: keepPreviousData,
-      retry: (failureCount, error) => {
-        const status = error?.response?.status
-        if (status === 401 || status === 403 || status === 404) return false
-        // For rate-limit (429), gateway/server errors (502, 503, 504), or timeout (ECONNABORTED), retry up to 3 times
-        if (status === 429 || status === 502 || status === 503 || status === 504 || error?.code === 'ECONNABORTED') {
-          return failureCount < 3
-        }
-        return failureCount < 1
-      },
-      retryDelay: (attemptIndex, error) => {
-        const retryAfter = parseInt(error?.response?.headers?.['retry-after'] || '0', 10)
-        if (retryAfter > 0) return (retryAfter * 1000) + Math.random() * 500
-        return Math.min(1000 * 2 ** attemptIndex + Math.random() * 500, 15000)
-      },
-    },
-    mutations: {
-      retry: 0,
-    },
-  },
 })
 
 const isDesktop = import.meta.env.VITE_IS_DESKTOP === 'true'

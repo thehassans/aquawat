@@ -12,6 +12,7 @@ import {
   toSupplierDto,
   nextSupplierCode,
 } from '../services/partnerService.js';
+import { cachedTenantStats } from '../utils/statsCache.js';
 
 const router = express.Router();
 
@@ -82,7 +83,8 @@ router.get('/', checkPermission('supply_chain', 'read'), async (req, res) => {
 // @route   GET /api/suppliers/stats
 router.get('/stats', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
-    const stats = await Supplier.aggregate([
+    const payload = await cachedTenantStats(req, 'suppliers', async () => {
+      const stats = await Supplier.aggregate([
       { $match: asVendorQuery({ ...req.tenantFilter }) },
       {
         $facet: {
@@ -92,8 +94,10 @@ router.get('/stats', checkPermission('supply_chain', 'read'), async (req, res) =
         }
       }
     ]);
+      return stats[0] || {};
+    });
 
-    res.json(stats[0] || {});
+    res.json(payload);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

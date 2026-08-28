@@ -3,6 +3,7 @@ import User from '../models/User.js';
 import Tenant from '../models/Tenant.js';
 import UserActivityLog from '../models/UserActivityLog.js';
 import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
+import { cachedTenantStats } from '../utils/statsCache.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { getTenantBusinessTypes } from '../utils/businessTypes.js';
 import { sendUserWelcomeEmail } from '../utils/tenantEmailService.js';
@@ -248,17 +249,21 @@ router.get('/stats', checkPermission('settings', 'read'), async (req, res) => {
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: 'No tenant associated with user' });
 
-    const [tenant, activeCount, totalCount] = await Promise.all([
-      Tenant.findById(tenantId).select('subscription.maxUsers'),
-      User.countDocuments({ tenantId, isActive: true }),
-      User.countDocuments({ tenantId }),
-    ]);
+    const payload = await cachedTenantStats(req, 'users', async () => {
+      const [tenant, activeCount, totalCount] = await Promise.all([
+        Tenant.findById(tenantId).select('subscription.maxUsers').lean(),
+        User.countDocuments({ tenantId, isActive: true }),
+        User.countDocuments({ tenantId }),
+      ]);
 
-    res.json({
-      maxUsers: tenant?.subscription?.maxUsers ?? 0,
-      activeUsers: activeCount,
-      totalUsers: totalCount,
+      return {
+        maxUsers: tenant?.subscription?.maxUsers ?? 0,
+        activeUsers: activeCount,
+        totalUsers: totalCount,
+      };
     });
+
+    res.json(payload);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

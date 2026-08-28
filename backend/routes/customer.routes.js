@@ -9,6 +9,7 @@ import {
   toCustomerDto,
   nextCustomerCode,
 } from '../services/partnerService.js';
+import { cachedTenantStats } from '../utils/statsCache.js';
 
 const router = express.Router();
 
@@ -402,6 +403,7 @@ router.get('/search', checkPermission('invoicing', 'read'), async (req, res) => 
 // @desc    Get customer statistics
 router.get('/stats', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
+    const payload = await cachedTenantStats(req, 'customers', async () => {
     const match = asCustomerQuery({});
     if (req.user?.role !== 'super_admin' && req.user?.tenantId) {
       match.tenantId = new mongoose.Types.ObjectId(String(req.user.tenantId));
@@ -425,7 +427,7 @@ router.get('/stats', checkPermission('invoicing', 'read'), async (req, res) => {
       }
     ]);
     
-    res.json({
+    return {
       total: stats[0]?.total[0]?.count || 0,
       active: stats[0]?.active[0]?.count || 0,
       withVat: stats[0]?.withVat[0]?.count || 0,
@@ -433,7 +435,10 @@ router.get('/stats', checkPermission('invoicing', 'read'), async (req, res) => {
       totalInvoices: stats[0]?.revenue[0]?.totalInvoices || 0,
       byType: stats[0]?.byType || [],
       topByRevenue: stats[0]?.topByRevenue || []
+    };
     });
+
+    res.json(payload);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

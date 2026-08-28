@@ -1,5 +1,5 @@
 import { Building2, Mail, Phone, MapPin } from 'lucide-react'
-import { getLetterheadContact, splitCompanyNameLines } from '../../lib/invoiceBranding'
+import { getLetterheadContact, splitCompanyNameLines, getLetterheadStyle } from '../../lib/invoiceBranding'
 import { toEasternArabicNumerals, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 import { isPakistanTenant, isBangladeshTenant } from '../../lib/saudiTenant'
 
@@ -11,6 +11,7 @@ import { isPakistanTenant, isBangladeshTenant } from '../../lib/saudiTenant'
 export default function LetterheadChrome({ tenant, invoice, bilingual = true, outputLang, children, className = '' }) {
   const contact = getLetterheadContact(tenant, invoice)
   const logoSrc = String(tenant?.branding?.logo || '').trim() || null
+  const letterheadStyle = getLetterheadStyle(tenant)
 
   const secondaryCode = getInvoiceSecondaryLanguage(tenant) || (isPakistanTenant(tenant) ? 'ur' : isBangladeshTenant(tenant) ? 'bn' : 'ar')
   const isUrdu = secondaryCode === 'ur'
@@ -29,10 +30,12 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
   const addressSec = isArabic ? toEasternArabicNumerals(contact.addressAr) : (contact.addressAr || '')
 
   const invoiceBranding = tenant?.settings?.invoiceBranding || {}
-  const logoHeight = invoiceBranding.logoSize || 112 // 112px default
-  const headingFontSize = invoiceBranding.headingSize || 24 // 24px default
-  const crVatFontSize = invoiceBranding.crVatSize || 14 // 14px default
+  const logoHeight = invoiceBranding.logoSize || 112
+  const headingFontSize = invoiceBranding.headingSize || 24
+  const crVatFontSize = invoiceBranding.crVatSize || 14
   const isSingleLine = invoiceBranding.singleLineHeading || false
+
+  const { textColor, accentColor, headerTextEn, headerTextAr, footerTextEn, footerTextAr } = letterheadStyle
 
   const getSecCrLabel = () => {
     if (isUrdu) return 'رجسٹریشن / CR #'
@@ -46,6 +49,9 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
     return 'الرقم الضريبي'
   }
 
+  const headerBorderStyle = { borderBottomColor: accentColor, borderBottomWidth: 2, borderBottomStyle: 'solid' }
+  const footerBorderStyle = { borderTopColor: accentColor, borderTopWidth: 2, borderTopStyle: 'solid' }
+
   return (
     <div data-letterhead-root className={`relative mx-auto flex min-h-[297mm] w-full max-w-4xl flex-col overflow-hidden bg-white text-gray-900 ${className}`}>
       {logoSrc ? (
@@ -54,12 +60,12 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
         </div>
       ) : null}
 
-      <header className="relative z-10 border-b-2 border-primary-500/20 bg-gradient-to-r from-white to-gray-50/80 p-8 print:bg-none print:p-4">
+      <header className="relative z-10 bg-gradient-to-r from-white to-gray-50/80 p-8 print:bg-none print:p-4" style={headerBorderStyle}>
         <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-x-4">
           <div className="min-w-0 w-full text-left">
             {showEn ? (
               <>
-                <h1 className="min-h-16 font-bold leading-tight print:text-black" style={{ fontSize: `${headingFontSize}px` }}>
+                <h1 className="min-h-16 font-bold leading-tight print:text-black" style={{ fontSize: `${headingFontSize}px`, color: textColor }}>
                   {isSingleLine ? (
                     <span className="block whitespace-nowrap">{contact.companyEn || '—'}</span>
                   ) : (
@@ -68,7 +74,10 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
                     ))
                   )}
                 </h1>
-                <div className="mt-2 space-y-1 font-bold leading-snug" style={{ fontSize: `${crVatFontSize}px` }}>
+                {headerTextEn ? (
+                  <p className="mt-1 text-sm font-medium leading-snug" style={{ color: textColor }}>{headerTextEn}</p>
+                ) : null}
+                <div className="mt-2 space-y-1 font-bold leading-snug" style={{ fontSize: `${crVatFontSize}px`, color: textColor }}>
                   {contact.crNumber ? <p>{isPakistanTenant(tenant) ? 'Reg #' : 'C.R #'} : {contact.crNumber}</p> : null}
                   {contact.vatNumber ? <p>{isPakistanTenant(tenant) ? 'NTN / STRN #' : isBangladeshTenant(tenant) ? 'BIN #' : 'VAT #'} : {contact.vatNumber}</p> : null}
                 </div>
@@ -80,8 +89,8 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
             {logoSrc ? (
               <img src={logoSrc} alt="Logo" className="w-auto max-w-[200px] object-contain" style={{ height: `${logoHeight}px` }} />
             ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary-100">
-                <Building2 className="h-8 w-8 text-primary-600" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-lg" style={{ backgroundColor: `${accentColor}22` }}>
+                <Building2 className="h-8 w-8" style={{ color: accentColor }} />
               </div>
             )}
           </div>
@@ -89,7 +98,7 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
           <div className={`min-w-0 w-full ${isBangla ? 'text-right' : 'text-right font-[\'Almarai\']'}`} dir={isBangla ? 'ltr' : 'rtl'}>
             {showSec ? (
               <>
-                <h1 className={`min-h-16 w-full font-bold leading-tight print:text-black ${!isBangla ? "font-['Almarai']" : ''}`} style={{ fontSize: `${headingFontSize}px` }}>
+                <h1 className={`min-h-16 w-full font-bold leading-tight print:text-black ${!isBangla ? "font-['Almarai']" : ''}`} style={{ fontSize: `${headingFontSize}px`, color: textColor }}>
                   {isSingleLine ? (
                     <span className="block whitespace-nowrap">{contact.companyAr || contact.companyEn}</span>
                   ) : (
@@ -98,7 +107,10 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
                     ))
                   )}
                 </h1>
-                <div className={`mt-2 w-full space-y-1 font-bold leading-snug ${!isBangla ? "font-['Almarai']" : ''}`} style={{ fontSize: `${crVatFontSize}px` }}>
+                {headerTextAr ? (
+                  <p className={`mt-1 text-sm font-medium leading-snug ${!isBangla ? "font-['Almarai']" : ''}`} style={{ color: textColor }} dir="rtl">{headerTextAr}</p>
+                ) : null}
+                <div className={`mt-2 w-full space-y-1 font-bold leading-snug ${!isBangla ? "font-['Almarai']" : ''}`} style={{ fontSize: `${crVatFontSize}px`, color: textColor }}>
                   {contact.crNumber ? <p>{getSecCrLabel()} : {crFormatted}</p> : null}
                   {contact.vatNumber ? <p>{getSecVatLabel()} : {vatFormatted}</p> : null}
                 </div>
@@ -110,34 +122,40 @@ export default function LetterheadChrome({ tenant, invoice, bilingual = true, ou
 
       <div className="relative z-10 flex-1 bg-transparent">{children}</div>
 
-      <footer className="relative z-10 mt-auto border-t-2 border-primary-500/20 bg-gradient-to-r from-gray-50/80 to-white p-6 print:bg-none print:p-4">
-        <div className="mx-auto flex max-w-3xl flex-col items-center gap-2 text-center text-sm font-bold text-gray-900 print:text-black">
+      <footer className="relative z-10 mt-auto bg-gradient-to-r from-gray-50/80 to-white p-6 print:bg-none print:p-4" style={footerBorderStyle}>
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-2 text-center text-sm font-bold print:text-black" style={{ color: textColor }}>
           {contact.addressLine ? (
             <p className="flex items-start justify-center gap-1.5">
-              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: accentColor }} />
               <span>{contact.addressLine}</span>
             </p>
           ) : null}
           {showSec && addressSec ? (
             <p className={`flex items-start justify-center gap-1.5 ${!isBangla ? "font-['Almarai']" : ''}`} dir={isBangla ? 'ltr' : 'rtl'}>
-              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: accentColor }} />
               <span>{addressSec}</span>
             </p>
           ) : null}
           <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-1">
             {contact.phone ? (
               <p className="flex items-center gap-1.5">
-                <Phone className="h-3.5 w-3.5 shrink-0" />
+                <Phone className="h-3.5 w-3.5 shrink-0" style={{ color: accentColor }} />
                 <span>{contact.phone}</span>
               </p>
             ) : null}
             {contact.email ? (
               <p className="flex items-center gap-1.5">
-                <Mail className="h-3.5 w-3.5 shrink-0" />
+                <Mail className="h-3.5 w-3.5 shrink-0" style={{ color: accentColor }} />
                 <span>{contact.email}</span>
               </p>
             ) : null}
           </div>
+          {footerTextEn && showEn ? (
+            <p className="mt-1 text-xs font-semibold leading-relaxed opacity-90">{footerTextEn}</p>
+          ) : null}
+          {footerTextAr && showSec ? (
+            <p className={`mt-1 text-xs font-semibold leading-relaxed opacity-90 ${!isBangla ? "font-['Almarai']" : ''}`} dir="rtl">{footerTextAr}</p>
+          ) : null}
         </div>
       </footer>
     </div>

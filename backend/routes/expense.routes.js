@@ -8,6 +8,8 @@ import Customer from '../models/Customer.js';
 import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { statsRead } from '../utils/mongoReadPreference.js';
+import { cachedTenantStats } from '../utils/statsCache.js';
+import { parsePagination } from '../utils/pagination.js';
 
 const router = express.Router();
 
@@ -106,18 +108,19 @@ router.get('/', checkPermission('finance', 'read'), async (req, res) => {
       ];
     }
 
-    const pageNum = Math.max(1, parseInt(page));
-    const limitNum = Math.max(1, Math.min(200, parseInt(limit)));
+    const { page: pageNum, limit: limitNum, skip } = parsePagination(req.query, { limit: 20 });
 
     const [expenses, total] = await Promise.all([
       Expense.find(query)
+        .select('expenseNumber expenseDate status category totalAmount currency description descriptionAr payeeName paymentReference projectId supplierId employeeId customerId isActive createdAt updatedAt')
         .populate('projectId', 'code nameEn nameAr')
         .populate('supplierId', 'supplierCode name nameEn nameAr phone email')
         .populate('employeeId', 'employeeId firstNameEn lastNameEn firstNameAr lastNameAr')
         .populate('customerId', 'name nameAr email phone')
         .sort({ expenseDate: -1, createdAt: -1 })
-        .skip((pageNum - 1) * limitNum)
-        .limit(limitNum),
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
       Expense.countDocuments(query)
     ]);
 
@@ -150,6 +153,8 @@ router.get('/stats', checkPermission('finance', 'read'), async (req, res) => {
       match.isActive = true;
     }
 
+    const suffix = `${isActive || 'active'}:${projectId || 'all'}`;
+    const payload = await cachedTenantStats(req, 'expenses', async () => {
     const [result] = await statsRead(Expense.aggregate([
       { $match: match },
       {
@@ -213,12 +218,15 @@ router.get('/stats', checkPermission('finance', 'read'), async (req, res) => {
 
     const totals = result?.totals?.[0] || { total: 0, grossTotal: 0, paidTotal: 0, approvedTotal: 0 };
 
-    res.json({
+    return {
       totals,
       byStatus: result?.byStatus || [],
       byCategory: result?.byCategory || [],
       recent: result?.recent || []
-    });
+    };
+    }, { querySuffix: suffix });
+
+    res.json(payload);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

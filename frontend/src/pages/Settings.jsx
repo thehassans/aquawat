@@ -254,6 +254,8 @@ export default function Settings() {
   const [invoiceHeadingSize, setInvoiceHeadingSize] = useState(24)
   const [invoiceCrVatSize, setInvoiceCrVatSize] = useState(14)
   const [invoiceSingleLineHeading, setInvoiceSingleLineHeading] = useState(false)
+  const [letterheadTextColor, setLetterheadTextColor] = useState('#0F172A')
+  const [letterheadAccentColor, setLetterheadAccentColor] = useState('#14B8A6')
   const [presetAuthorizedPersonName, setPresetAuthorizedPersonName] = useState('')
   const [presetAuthorizedPersonNameAr, setPresetAuthorizedPersonNameAr] = useState('')
   const [presetAuthorizedPersonDesignation, setPresetAuthorizedPersonDesignation] = useState('')
@@ -330,6 +332,8 @@ export default function Settings() {
     setInvoiceHeadingSize(tenant.settings?.invoiceBranding?.headingSize || 24)
     setInvoiceCrVatSize(tenant.settings?.invoiceBranding?.crVatSize || 14)
     setInvoiceSingleLineHeading(tenant.settings?.invoiceBranding?.singleLineHeading || false)
+    setLetterheadTextColor(tenant.settings?.invoiceBranding?.letterheadTextColor || '#0F172A')
+    setLetterheadAccentColor(tenant.settings?.invoiceBranding?.letterheadAccentColor || '#14B8A6')
     setPresetAuthorizedPersonName(tenant.settings?.invoiceBranding?.presetAuthorizedPersonName || '')
     setPresetAuthorizedPersonNameAr(tenant.settings?.invoiceBranding?.presetAuthorizedPersonNameAr || '')
     setPresetAuthorizedPersonDesignation(tenant.settings?.invoiceBranding?.presetAuthorizedPersonDesignation || '')
@@ -732,6 +736,95 @@ export default function Settings() {
                 </div>
               </div>
 
+              <div className="pt-6 border-t border-gray-100 dark:border-dark-700">
+                <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
+                  {language === 'ar' ? 'نص وألوان الترويسة' : 'Letterhead Text & Colors'}
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">
+                  {language === 'ar'
+                    ? 'لون النص يطبّق على عناوين الشركة وسجل CR/VAT ونص التذييل. لون التمييز يطبّق على خطوط الحدود والأيقونات في الرأس والتذييل.'
+                    : 'Text color applies to company headings, CR/VAT lines, and footer contact text. Accent color applies to header/footer border lines and icons.'}
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">{language === 'ar' ? 'سطر تعريفي (إنجليزي)' : 'Tagline under heading (EN)'}</label>
+                    <input
+                      type="text"
+                      value={invoiceHeaderTextEn}
+                      onChange={(e) => setInvoiceHeaderTextEn(e.target.value)}
+                      placeholder={language === 'ar' ? 'مثال: خدمات تجارية واستشارية' : 'e.g. Trading & consulting services'}
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'سطر تعريفي (عربي)' : 'Tagline under heading (AR)'}</label>
+                    <input
+                      type="text"
+                      value={invoiceHeaderTextAr}
+                      onChange={(e) => setInvoiceHeaderTextAr(e.target.value)}
+                      dir="rtl"
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'نص إضافي في التذييل (إنجليزي)' : 'Extra footer line (EN)'}</label>
+                    <input
+                      type="text"
+                      value={invoiceFooterTextEn}
+                      onChange={(e) => setInvoiceFooterTextEn(e.target.value)}
+                      placeholder={language === 'ar' ? 'مثال: www.example.com' : 'e.g. www.example.com'}
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'نص إضافي في التذييل (عربي)' : 'Extra footer line (AR)'}</label>
+                    <input
+                      type="text"
+                      value={invoiceFooterTextAr}
+                      onChange={(e) => setInvoiceFooterTextAr(e.target.value)}
+                      dir="rtl"
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'لون نص الترويسة والتذييل' : 'Heading & footer text color'}</label>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <input
+                        type="color"
+                        value={letterheadTextColor}
+                        onChange={(e) => setLetterheadTextColor(e.target.value)}
+                        className="h-10 w-14 cursor-pointer rounded border border-gray-200 bg-white p-1"
+                      />
+                      <input
+                        type="text"
+                        value={letterheadTextColor}
+                        onChange={(e) => setLetterheadTextColor(e.target.value)}
+                        className="input font-mono uppercase"
+                        maxLength={7}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'لون حدود الترويسة والتذييل' : 'Header & footer accent color'}</label>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <input
+                        type="color"
+                        value={letterheadAccentColor}
+                        onChange={(e) => setLetterheadAccentColor(e.target.value)}
+                        className="h-10 w-14 cursor-pointer rounded border border-gray-200 bg-white p-1"
+                      />
+                      <input
+                        type="text"
+                        value={letterheadAccentColor}
+                        onChange={(e) => setLetterheadAccentColor(e.target.value)}
+                        className="input font-mono uppercase"
+                        maxLength={7}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Signatory & Stamp Defaults */}
               <div className="pt-6 border-t border-gray-100 dark:border-dark-700">
                 <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
@@ -873,7 +966,13 @@ export default function Settings() {
                             logoSize: invoiceLogoSize,
                             headingSize: invoiceHeadingSize,
                             crVatSize: invoiceCrVatSize,
-                            singleLineHeading: invoiceSingleLineHeading
+                            singleLineHeading: invoiceSingleLineHeading,
+                            headerTextEn: invoiceHeaderTextEn,
+                            headerTextAr: invoiceHeaderTextAr,
+                            footerTextEn: invoiceFooterTextEn,
+                            footerTextAr: invoiceFooterTextAr,
+                            letterheadTextColor,
+                            letterheadAccentColor,
                           }
                         }
                       }}
@@ -896,6 +995,12 @@ export default function Settings() {
                         headingSize: invoiceHeadingSize,
                         crVatSize: invoiceCrVatSize,
                         singleLineHeading: invoiceSingleLineHeading,
+                        headerTextEn: invoiceHeaderTextEn,
+                        headerTextAr: invoiceHeaderTextAr,
+                        footerTextEn: invoiceFooterTextEn,
+                        footerTextAr: invoiceFooterTextAr,
+                        letterheadTextColor,
+                        letterheadAccentColor,
                         presetSignature: signatureDataUrl,
                         presetStamp: stampDataUrl,
                         presetAuthorizedPersonName,

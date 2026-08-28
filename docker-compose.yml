@@ -50,7 +50,7 @@ services:
       mongod
       --replSet rs0
       --bind_ip_all
-      --wiredTigerCacheSizeGB 1.0
+      --wiredTigerCacheSizeGB 1.5
       --wiredTigerJournalCompressor snappy
       --quiet
     environment:
@@ -192,7 +192,11 @@ services:
       AUTH_RATE_LIMIT_MAX: "40"
       PUBLIC_RATE_LIMIT_MAX: "1000"
       CLUSTER_WORKERS: "2"
-      ALLOW_LOCAL_UPLOADS: "true"
+      CRON_WORKER: "0"
+      API_MAX_PAGE_LIMIT: "100"
+      REDIS_MEMORY_ALERT_PCT: "85"
+      REQUIRE_OBJECT_STORAGE: "true"
+      ALLOW_LOCAL_UPLOADS: "false"
       LOG_CONSOLE: "true"              # Forward logs to Docker log driver
     depends_on:
       mongo:
@@ -271,6 +275,50 @@ services:
           memory: 768M
         reservations:
           cpus: '0.10'
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  cron-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: maqder_cron_worker
+    restart: unless-stopped
+    command: ["node", "workers/cronWorker.js"]
+    env_file:
+      - .env
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/maqder?replicaSet=rs0
+      REDIS_URL: redis://redis:6379
+      REDIS_ENABLED: "true"
+      NODE_ENV: production
+      CRON_WORKER: "1"
+      MONGODB_MAX_POOL_SIZE: "5"
+      CRON_WORKER_HEALTH_PORT: "3002"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - maqder_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3002/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.05'
           memory: 128M
     logging:
       driver: json-file

@@ -4,6 +4,8 @@ import Employee from '../models/Employee.js';
 import { WhatsAppContact } from '../models/WhatsApp.js';
 import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import { cacheAside } from '../lib/redis.js';
+import { cachedTenantStats } from '../utils/statsCache.js';
+import { parseLimit, parsePage } from '../utils/pagination.js';
 
 const router = express.Router();
 
@@ -183,8 +185,8 @@ router.get('/', async (req, res) => {
       updatedAt: doc.updatedAt
     });
 
-    const pageNum = Math.max(1, toInt(page, 1));
-    const limitNum = Math.max(1, Math.min(200, toInt(limit, 50)));
+    const pageNum = parsePage(page, 1);
+    const limitNum = parseLimit(limit, 50);
     const skip = (pageNum - 1) * limitNum;
     const fetchCap = Math.min(500, skip + limitNum + 100);
 
@@ -291,40 +293,44 @@ router.get('/stats', async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to read contacts' });
     }
 
-    const activeMatch = getIsActiveMatch(isActive);
-    const base = { ...req.tenantFilter, ...activeMatch };
+    const payload = await cachedTenantStats(req, 'contacts', async () => {
+      const activeMatch = getIsActiveMatch(isActive);
+      const base = { ...req.tenantFilter, ...activeMatch };
 
-    const [customers, suppliers, partners, partnerEmployees, employees, waContacts, waGroups] = await Promise.all([
-      access.customers ? Partner.countDocuments({ ...base, isCustomer: true }) : 0,
-      access.suppliers ? Partner.countDocuments({ ...base, isVendor: true }) : 0,
-      (access.customers || access.suppliers || access.employees)
-        ? Partner.countDocuments({
-            ...base,
-            $or: [
-              ...(access.customers ? [{ isCustomer: true }] : []),
-              ...(access.suppliers ? [{ isVendor: true }] : []),
-              ...(access.employees ? [{ isEmployee: true }] : []),
-            ],
-          })
-        : 0,
-      access.employees ? Partner.countDocuments({ ...base, isEmployee: true }) : 0,
-      access.employees ? Employee.countDocuments({ ...req.tenantFilter, ...activeMatch }) : 0,
-      WhatsAppContact.countDocuments({ ...req.tenantFilter, isGroup: false }),
-      WhatsAppContact.countDocuments({ ...req.tenantFilter, isGroup: true })
-    ]);
+      const [customers, suppliers, partners, partnerEmployees, employees, waContacts, waGroups] = await Promise.all([
+        access.customers ? Partner.countDocuments({ ...base, isCustomer: true }) : 0,
+        access.suppliers ? Partner.countDocuments({ ...base, isVendor: true }) : 0,
+        (access.customers || access.suppliers || access.employees)
+          ? Partner.countDocuments({
+              ...base,
+              $or: [
+                ...(access.customers ? [{ isCustomer: true }] : []),
+                ...(access.suppliers ? [{ isVendor: true }] : []),
+                ...(access.employees ? [{ isEmployee: true }] : []),
+              ],
+            })
+          : 0,
+        access.employees ? Partner.countDocuments({ ...base, isEmployee: true }) : 0,
+        access.employees ? Employee.countDocuments({ ...req.tenantFilter, ...activeMatch }) : 0,
+        WhatsAppContact.countDocuments({ ...req.tenantFilter, isGroup: false }),
+        WhatsAppContact.countDocuments({ ...req.tenantFilter, isGroup: true }),
+      ]);
 
-    res.json({
-      total: partners + employees + waContacts + waGroups,
-      byType: {
-        customers,
-        suppliers,
-        partners,
-        partnerEmployees,
-        employees,
-        whatsapp: waContacts,
-        whatsappGroups: waGroups
-      }
-    });
+      return {
+        total: partners + employees + waContacts + waGroups,
+        byType: {
+          customers,
+          suppliers,
+          partners,
+          partnerEmployees,
+          employees,
+          whatsapp: waContacts,
+          whatsappGroups: waGroups,
+        },
+      };
+    }, { querySuffix: String(isActive || 'all') });
+
+    res.json(payload);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

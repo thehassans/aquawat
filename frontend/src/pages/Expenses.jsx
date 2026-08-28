@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Plus, Search, Receipt, Edit, FileText } from 'lucide-react'
 import api from '../lib/api'
+import useDebouncedValue from '../hooks/useDebouncedValue'
 import { useTranslation } from '../lib/translations'
 import Money from '../components/ui/Money'
 import ExportMenu from '../components/ui/ExportMenu'
@@ -46,16 +47,21 @@ export default function Expenses() {
   }, [location.search])
 
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search, 300)
   const [status, setStatus] = useState('')
   const [page, setPage] = useState(1)
 
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, status, projectIdFromQuery])
+
   const { data, isLoading } = useQuery({
-    queryKey: ['expenses', { search, status, page, projectId: projectIdFromQuery }],
+    queryKey: ['expenses', { search: debouncedSearch, status, page, projectId: projectIdFromQuery }],
     queryFn: () =>
       api
         .get('/expenses', {
           params: {
-            search,
+            search: debouncedSearch || undefined,
             status,
             ...(projectIdFromQuery ? { projectId: projectIdFromQuery } : {}),
             page,
@@ -66,7 +72,7 @@ export default function Expenses() {
   })
 
   const { data: stats } = useQuery({
-    queryKey: ['expense-stats', { projectId: projectIdFromQuery }],
+    queryKey: ['expenses-stats', { projectId: projectIdFromQuery }],
     queryFn: () => api.get('/expenses/stats', { params: projectIdFromQuery ? { projectId: projectIdFromQuery } : {} }).then((res) => res.data),
   })
 

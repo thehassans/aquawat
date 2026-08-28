@@ -10,6 +10,7 @@ import dotenv from 'dotenv';
 import http from 'http';
 import mongoose from 'mongoose';
 import { startPdfQueueWorker, closePdfQueue } from '../services/invoicePdfQueue.js';
+import { startInventoryPrintWorker, closeInventoryPrintQueue } from '../services/inventoryPrintQueue.js';
 import logger from '../utils/logger.js';
 
 dotenv.config();
@@ -39,6 +40,7 @@ async function main() {
   logger.info('[pdfWorker] MongoDB connected');
   startHealthServer();
   startPdfQueueWorker();
+  startInventoryPrintWorker();
 }
 
 async function shutdown(signal) {
@@ -48,6 +50,7 @@ async function shutdown(signal) {
   } catch { /* ignore */ }
   try {
     await closePdfQueue();
+    await closeInventoryPrintQueue();
   } catch { /* ignore */ }
   try {
     await mongoose.disconnect();

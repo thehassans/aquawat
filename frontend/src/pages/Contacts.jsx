@@ -6,6 +6,7 @@ import { motion } from 'framer-motion'
 import { Search, Users, Building2, Briefcase, Phone, Mail, Hash, MessageCircle, MessageSquare, ArrowUpRight, UserRound, Download, ChevronLeft, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
+import useDebouncedValue from '../hooks/useDebouncedValue'
 import { useTranslation } from '../lib/translations'
 import { buildDefaultFileName, exportToCsv } from '../lib/export'
 import ExportMenu from '../components/ui/ExportMenu'
@@ -70,6 +71,7 @@ export default function Contacts() {
   const initialType = typesParam.includes(',') ? '' : (typesParam || '')
 
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search, 300)
   const [type, setType] = useState(initialType)
   const [isActive, setIsActive] = useState('all')
   const [page, setPage] = useState(1)
@@ -96,12 +98,16 @@ export default function Contacts() {
     return `/app/dashboard/contacts${q ? `?${q}` : ''}`
   }, [searchParams, partnerHub])
 
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, type, isActive])
+
   const { data, isLoading } = useQuery({
-    queryKey: ['contacts', { search, type: queryTypes, isActive, page }],
+    queryKey: ['contacts', { search: debouncedSearch, type: queryTypes, isActive, page }],
     queryFn: () =>
       api
         .get('/contacts', {
-          params: { search, types: queryTypes || undefined, isActive, page, limit: 25 },
+          params: { search: debouncedSearch || undefined, types: queryTypes || undefined, isActive, page, limit: 25 },
         })
         .then((res) => res.data),
   })
@@ -332,7 +338,7 @@ export default function Contacts() {
               type="text"
               placeholder={isAr ? 'بحث بالاسم أو الهاتف أو الرقم الضريبي' : 'Search name, phone, email, or VAT'}
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+              onChange={(e) => setSearch(e.target.value)}
               className={searchInputClass}
             />
           </div>

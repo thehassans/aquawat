@@ -10,6 +10,7 @@ import Tenant from '../models/Tenant.js';
 import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
 import whatsappService from '../services/whatsappService.js';
 import { sendTenantEmail } from '../utils/tenantEmailService.js';
+import { cachedTenantStats } from '../utils/statsCache.js';
 
 const router = express.Router();
 
@@ -352,6 +353,7 @@ router.get('/follow-ups', checkPermission('crm', 'read'), async (req, res) => {
 
 router.get('/stats', checkPermission('crm', 'read'), async (req, res) => {
   try {
+    const payload = await cachedTenantStats(req, 'crm', async () => {
     const [leadTotal, dealTotal, activityTotal, pipeline, leadStatus, followUpCount] = await Promise.all([
       CRMLead.countDocuments({ ...req.tenantFilter }),
       CRMDeal.countDocuments({ ...req.tenantFilter }),
@@ -368,7 +370,9 @@ router.get('/stats', checkPermission('crm', 'read'), async (req, res) => {
     ]);
     const dealValue = pipeline.reduce((s, p) => s + (p.value || 0), 0);
     const wonValue = pipeline.filter(p => p._id === 'closed_won').reduce((s, p) => s + (p.value || 0), 0);
-    res.json({ leadTotal, dealTotal, activityTotal, pipeline, leadStatus, dealValue, wonValue, followUpCount });
+    return { leadTotal, dealTotal, activityTotal, pipeline, leadStatus, dealValue, wonValue, followUpCount };
+    });
+    res.json(payload);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

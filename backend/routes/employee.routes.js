@@ -7,6 +7,8 @@ import { protect, tenantFilter, checkPermission, checkEmailAddon, requireTenantF
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { sendTenantEmail } from '../utils/tenantEmailService.js';
 import { describeSaudiId, normalizeSaudiId } from '../utils/saudiId.js';
+import { cachedTenantStats } from '../utils/statsCache.js';
+import { parsePagination } from '../utils/pagination.js';
 
 const router = express.Router();
 
@@ -218,10 +220,11 @@ async function findEmployeeBySaudiId({ tenantFilterValue, normalizedId, excludeE
 // @route   GET /api/employees
 router.get('/', checkPermission('hr', 'read'), async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, nationality, department, search } = req.query;
+    const { page: pageNum, limit: limitNum, skip } = parsePagination(req.query, { page: 1, limit: 20 });
     
     const query = { ...req.tenantFilter };
-    
+    const { status, nationality, department, search } = req.query;
+
     if (status) query.status = status;
     if (nationality) query.nationality = nationality;
     if (department) query.department = department;
@@ -238,8 +241,8 @@ router.get('/', checkPermission('hr', 'read'), async (req, res) => {
       Employee.find(query)
         .select('-documents.fileUrl -salaryHistory -idCardProof -idCardFront -idCardBack')
         .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(parseInt(limit))
+        .skip(skip)
+        .limit(limitNum)
         .lean(),
       Employee.countDocuments(query),
     ]);
@@ -265,10 +268,10 @@ router.get('/', checkPermission('hr', 'read'), async (req, res) => {
     res.json({
       employees,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total,
-        pages: Math.ceil(total / limit)
+        pages: Math.ceil(total / limitNum) || 0,
       }
     });
   } catch (error) {
@@ -279,7 +282,8 @@ router.get('/', checkPermission('hr', 'read'), async (req, res) => {
 // @route   GET /api/employees/stats
 router.get('/stats', checkPermission('hr', 'read'), async (req, res) => {
   try {
-    const stats = await Employee.aggregate([
+    const payload = await cachedTenantStats(req, 'employees', async () => {
+      const stats = await Employee.aggregate([
       { $match: { ...req.tenantFilter, isActive: true } },
       {
         $facet: {
@@ -337,9 +341,11 @@ router.get('/stats', checkPermission('hr', 'read'), async (req, res) => {
           ]
         }
       }
-    ]);
-    
-    res.json(stats[0]);
+      ]);
+      return stats[0];
+    });
+
+    res.json(payload);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Plus, Search, Users, AlertTriangle, Eye, Edit } from 'lucide-react'
 import api from '../../lib/api'
+import useDebouncedValue from '../../hooks/useDebouncedValue'
 import { useTranslation } from '../../lib/translations'
 import ExportMenu from '../../components/ui/ExportMenu'
 import EmployeeContactCards from '../../components/ui/EmployeeContactCards'
@@ -14,8 +15,13 @@ export default function Employees() {
   const { language } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search, 300)
   const [filters, setFilters] = useState({ status: '', nationality: '' })
   const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, filters.status, filters.nationality])
 
   const exportColumns = [
     {
@@ -58,8 +64,8 @@ export default function Employees() {
   ]
 
   const { data, isLoading } = useQuery({
-    queryKey: ['employees', page, search, filters],
-    queryFn: () => api.get('/employees', { params: { page, search, ...filters } }).then(res => res.data)
+    queryKey: ['employees', page, debouncedSearch, filters],
+    queryFn: () => api.get('/employees', { params: { page, search: debouncedSearch || undefined, ...filters } }).then(res => res.data)
   })
 
   const getExportRows = async () => {
@@ -69,7 +75,7 @@ export default function Employees() {
 
     while (true) {
       const res = await api.get('/employees', {
-        params: { page: currentPage, limit, search, ...filters }
+        params: { page: currentPage, limit, search: debouncedSearch || undefined, ...filters }
       })
       const batch = res.data?.employees || []
       all = all.concat(batch)

@@ -135,6 +135,21 @@ export async function cacheDel(key) {
   }
 }
 
+/** Redis memory usage for health checks / alerts. */
+export async function getRedisMemoryInfo() {
+  if (!isRedisReady()) return null;
+  try {
+    const info = await withRedisTimeout(redisClient.info('memory'), '');
+    if (!info) return null;
+    const used = Number((info.match(/used_memory:(\d+)/) || [])[1] || 0);
+    const max = Number((info.match(/maxmemory:(\d+)/) || [])[1] || 0);
+    const pct = max > 0 ? Math.round((used / max) * 1000) / 10 : null;
+    return { usedBytes: used, maxBytes: max, usedPercent: pct };
+  } catch {
+    return null;
+  }
+}
+
 export async function cacheDelPrefix(prefix) {
   if (!isRedisReady() || !prefix) return 0;
   try {

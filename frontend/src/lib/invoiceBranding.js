@@ -222,3 +222,35 @@ export const splitCompanyNameLines = (name) => {
   if (words.length === 2) return [words[0], words[1]]
   return [words.slice(0, -1).join(' '), words[words.length - 1]]
 }
+
+const normalizeHexColor = (value, fallback) => {
+  const raw = String(value || '').trim()
+  if (/^#[0-9A-Fa-f]{6}$/.test(raw)) return raw
+  if (/^#[0-9A-Fa-f]{3}$/.test(raw)) {
+    const h = raw.slice(1)
+    return `#${h[0]}${h[0]}${h[1]}${h[1]}${h[2]}${h[2]}`
+  }
+  return fallback
+}
+
+/** Letterhead chrome colors + optional tagline/footer copy (Settings → Invoice & Letterhead). */
+export const getLetterheadStyle = (tenant) => {
+  const branding = tenant?.settings?.invoiceBranding || {}
+  return {
+    textColor: normalizeHexColor(branding.letterheadTextColor, '#0F172A'),
+    accentColor: normalizeHexColor(branding.letterheadAccentColor, '#14B8A6'),
+    headerTextEn: String(branding.headerTextEn || '').trim(),
+    headerTextAr: String(branding.headerTextAr || '').trim(),
+    footerTextEn: String(branding.footerTextEn || '').trim(),
+    footerTextAr: String(branding.footerTextAr || '').trim(),
+  }
+}
+
+export const hexColorToRgb = (hex) => {
+  const normalized = normalizeHexColor(hex, '#000000').slice(1)
+  return {
+    r: parseInt(normalized.slice(0, 2), 16),
+    g: parseInt(normalized.slice(2, 4), 16),
+    b: parseInt(normalized.slice(4, 6), 16),
+  }
+}
