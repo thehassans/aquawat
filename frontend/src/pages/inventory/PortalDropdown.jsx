@@ -3,8 +3,9 @@ import { createPortal } from 'react-dom'
 
 /** Module z-index scale — keep literals out of call sites */
 export const INV_Z = {
-  pageHeader: 30,
-  navDropdown: 50,
+  /** Keep below app Header (z-50) so global search never stacks under module chrome */
+  pageHeader: 10,
+  navDropdown: 60,
   modal: 100,
   toast: 200,
 }
@@ -140,7 +141,7 @@ export function PortalDropdown({
         width: style.width,
         maxHeight: style.maxHeight,
         visibility: style.visibility,
-        zIndex: INV_Z.navDropdown, // 50 — above table headers / sticky bars
+        zIndex: INV_Z.navDropdown, // above module chrome; below modals
       }}
     >
       {children}

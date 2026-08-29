@@ -168,7 +168,7 @@ export default function InventoryLayout() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)]">
-      <div className="relative z-[30] border-b border-slate-200 bg-white dark:border-dark-600 dark:bg-dark-900">
+      <div className="relative z-10 border-b border-slate-200 bg-white dark:border-dark-600 dark:bg-dark-900">
         <div className="flex flex-wrap items-end justify-between gap-3 px-1 pb-0 pt-2">
           <div className="flex items-center gap-3 px-3 pb-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-500/10 text-primary-600 dark:text-primary-400">

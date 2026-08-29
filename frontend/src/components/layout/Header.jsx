@@ -141,8 +141,8 @@ export default function Header() {
   const headerStyle = tenant?.branding?.headerStyle || 'glass'
   const headerClassName =
     headerStyle === 'solid'
-      ? 'sticky top-0 z-30 bg-white dark:bg-dark-800 border-b border-gray-200 dark:border-dark-700'
-      : 'sticky top-0 z-30 bg-white/80 dark:bg-dark-800/80 backdrop-blur-xl border-b border-gray-200 dark:border-dark-700'
+      ? 'sticky top-0 z-50 bg-white dark:bg-dark-800 border-b border-gray-200 dark:border-dark-700'
+      : 'sticky top-0 z-50 bg-white/80 dark:bg-dark-800/80 backdrop-blur-xl border-b border-gray-200 dark:border-dark-700'
 
   return (
     <header className={headerClassName}>
