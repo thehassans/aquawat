@@ -153,12 +153,19 @@ export default function DocumentAppearancePanel({
               {isAr ? 'جاري التحميل…' : 'Loading…'}
             </div>
           ) : (
-            <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-sm dark:border-dark-600">
+            <div className="overflow-auto rounded-lg border border-slate-200/80 bg-white shadow-sm dark:border-dark-600">
               <LetterheadChrome
+                key={`preview-${appearance.logoSize}-${appearance.headingSize}-${appearance.crVatSize}-${appearance.bodyFontSize}-${appearance.letterheadTextColor}-${appearance.letterheadAccentColor}-${appearance.singleLineHeading}`}
                 tenant={previewTenant}
                 compact
                 bilingual
                 className="!max-w-none"
+                sizeOverrides={{
+                  logoSize: appearance.logoSize,
+                  headingSize: appearance.headingSize,
+                  crVatSize: appearance.crVatSize,
+                  bodyFontSize: appearance.bodyFontSize,
+                }}
               />
             </div>
           )}
@@ -191,16 +198,25 @@ export function buildAppearanceFromTenant(tenant) {
 
 export function applyAppearanceToTenant(baseTenant, appearance) {
   if (!baseTenant) return null
+  const logoSize = Number(appearance.logoSize) || 112
+  const headingSize = Number(appearance.headingSize) || 24
+  const crVatSize = Number(appearance.crVatSize) || 14
+  const bodyFontSize = Number(appearance.bodyFontSize) || 12
   return {
     ...baseTenant,
+    branding: {
+      ...(baseTenant.branding || {}),
+      // Keep logo path available to LetterheadChrome during live preview
+      logo: baseTenant.branding?.logo || baseTenant.settings?.invoiceBranding?.logo || '',
+    },
     settings: {
       ...baseTenant.settings,
       invoiceBranding: {
         ...(baseTenant.settings?.invoiceBranding || {}),
-        logoSize: appearance.logoSize,
-        headingSize: appearance.headingSize,
-        crVatSize: appearance.crVatSize,
-        singleLineHeading: appearance.singleLineHeading,
+        logoSize,
+        headingSize,
+        crVatSize,
+        singleLineHeading: Boolean(appearance.singleLineHeading),
         headerTextEn: appearance.headerTextEn,
         headerTextAr: appearance.headerTextAr,
         footerTextEn: appearance.footerTextEn,
@@ -210,9 +226,8 @@ export function applyAppearanceToTenant(baseTenant, appearance) {
         typography: {
           bodyFontFamily: appearance.bodyFontFamily,
           headingFontFamily: appearance.headingFontFamily,
-          bodyFontSize: appearance.bodyFontSize,
-          // Keep typography heading in sync with company heading size slider
-          headingFontSize: appearance.headingSize ?? appearance.headingFontSize,
+          bodyFontSize,
+          headingFontSize: headingSize,
         },
       },
     },

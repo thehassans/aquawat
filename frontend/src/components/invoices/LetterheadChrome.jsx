@@ -2,6 +2,7 @@ import { Building2, Mail, Phone, MapPin } from 'lucide-react'
 import { getLetterheadContact, splitCompanyNameLines, getLetterheadStyle, getInvoiceTypography, getInvoiceCssFontFamily } from '../../lib/invoiceBranding'
 import { toEasternArabicNumerals, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 import { isPakistanTenant, isBangladeshTenant } from '../../lib/saudiTenant'
+import { getImageUrl } from '../../lib/api'
 
 /**
  * Official company letterhead chrome (header + footer).
@@ -17,9 +18,20 @@ export default function LetterheadChrome({
   className = '',
   /** Settings live-preview: no A4 min-height, tighter padding */
   compact = false,
+  /** Optional live overrides (settings panel) — wins over tenant.settings */
+  sizeOverrides = null,
+  /** Hide letterhead footer when the child template renders its own */
+  hideFooter = false,
 }) {
   const contact = getLetterheadContact(tenant, invoice)
-  const logoSrc = String(tenant?.branding?.logo || '').trim() || null
+  const invoiceBranding = tenant?.settings?.invoiceBranding || {}
+  const logoSrc = getImageUrl(
+    String(
+      tenant?.branding?.logo
+      || invoiceBranding.logo
+      || '',
+    ).trim(),
+  ) || null
   const letterheadStyle = getLetterheadStyle(tenant)
 
   const secondaryCode = getInvoiceSecondaryLanguage(tenant) || (isPakistanTenant(tenant) ? 'ur' : isBangladeshTenant(tenant) ? 'bn' : 'ar')
@@ -38,28 +50,19 @@ export default function LetterheadChrome({
   const vatFormatted = isArabic ? toEasternArabicNumerals(contact.vatNumber) : contact.vatNumber
   const addressSec = isArabic ? toEasternArabicNumerals(contact.addressAr) : (contact.addressAr || '')
 
-  const invoiceBranding = tenant?.settings?.invoiceBranding || {}
   const typography = getInvoiceTypography(tenant)
   const headingFontFamily = getInvoiceCssFontFamily(typography.headingFontFamily)
   const bodyFontFamily = getInvoiceCssFontFamily(typography.bodyFontFamily)
-  // Use configured sizes as-is so live preview / print match the sliders.
-  // Compact mode previously capped these (72 / 20) which made sliders look broken.
-  const logoHeight = Math.max(24, Math.min(300, Number(invoiceBranding.logoSize) || 112))
-  const headingFontSize = Math.max(
-    10,
-    Math.min(
-      72,
-      Number(invoiceBranding.headingSize)
-        || Number(typography.headingFontSize)
-        || 24,
-    ),
-  )
-  const crVatFontSize = Math.max(
-    8,
-    Math.min(48, Number(invoiceBranding.crVatSize) || Math.max(9, (typography.bodyFontSize || 12) + 2)),
-  )
+
+  const rawLogo = Number(sizeOverrides?.logoSize ?? invoiceBranding.logoSize) || 112
+  const rawHeading = Number(sizeOverrides?.headingSize ?? invoiceBranding.headingSize ?? typography.headingFontSize) || 24
+  const rawCrVat = Number(sizeOverrides?.crVatSize ?? invoiceBranding.crVatSize) || Math.max(9, (typography.bodyFontSize || 12) + 2)
+
+  const logoHeight = Math.max(24, Math.min(300, rawLogo))
+  const headingFontSize = Math.max(10, Math.min(72, rawHeading))
+  const crVatFontSize = Math.max(8, Math.min(48, rawCrVat))
   const isSingleLine = invoiceBranding.singleLineHeading || false
-  const bodyFontSize = typography.bodyFontSize || 12
+  const bodyFontSize = Number(sizeOverrides?.bodyFontSize ?? typography.bodyFontSize) || 12
   const logoMaxWidth = Math.max(logoHeight * 1.75, compact ? 96 : 120)
 
   const { textColor, accentColor, headerTextEn, headerTextAr, footerTextEn, footerTextAr } = letterheadStyle
@@ -190,6 +193,7 @@ export default function LetterheadChrome({
 
       <div className="relative z-10 flex-1 bg-transparent">{sampleBody}</div>
 
+      {!hideFooter ? (
       <footer
         className={`relative z-10 mt-auto bg-gradient-to-r from-gray-50/80 to-white print:bg-none print:p-4 ${compact ? 'p-3' : 'p-6'}`}
         style={{ ...footerBorderStyle, color: textColor }}
@@ -229,6 +233,7 @@ export default function LetterheadChrome({
           ) : null}
         </div>
       </footer>
+      ) : null}
     </div>
   )
 }

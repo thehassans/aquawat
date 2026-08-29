@@ -250,6 +250,15 @@ router.put('/current', authorize('admin'), async (req, res) => {
         invoiceBranding: {
           ...(currentSettings.invoiceBranding || {}),
           ...(settings.invoiceBranding || {}),
+          ...(settings.invoiceBranding?.logoSize != null
+            ? { logoSize: Number(settings.invoiceBranding.logoSize) }
+            : {}),
+          ...(settings.invoiceBranding?.headingSize != null
+            ? { headingSize: Number(settings.invoiceBranding.headingSize) }
+            : {}),
+          ...(settings.invoiceBranding?.crVatSize != null
+            ? { crVatSize: Number(settings.invoiceBranding.crVatSize) }
+            : {}),
           typography: {
             ...(currentSettings.invoiceBranding?.typography || {}),
             ...(settings.invoiceBranding?.typography || {}),

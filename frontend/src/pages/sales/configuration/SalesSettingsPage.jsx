@@ -36,6 +36,7 @@ export default function SalesSettingsPage() {
   const [tab, setTab] = useState('general')
   const [form, setForm] = useState({})
   const [appearance, setAppearance] = useState(() => buildAppearanceFromTenant(tenant))
+  const [appearanceDirty, setAppearanceDirty] = useState(false)
   const [signatory, setSignatory] = useState({
     presetAuthorizedPersonName: '',
     presetAuthorizedPersonNameAr: '',
@@ -61,20 +62,31 @@ export default function SalesSettingsPage() {
 
   useEffect(() => {
     if (!tenantFresh) return
-    setAppearance(buildAppearanceFromTenant(tenantFresh))
+    // Don't wipe in-progress slider edits when tenant query refetches
+    if (!appearanceDirty) {
+      setAppearance(buildAppearanceFromTenant(tenantFresh))
+    }
     const b = tenantFresh.settings?.invoiceBranding || {}
-    setSignatory({
+    setSignatory((prev) => ({
       presetAuthorizedPersonName: b.presetAuthorizedPersonName || '',
       presetAuthorizedPersonNameAr: b.presetAuthorizedPersonNameAr || '',
       presetAuthorizedPersonDesignation: b.presetAuthorizedPersonDesignation || '',
       presetAuthorizedPersonDesignationAr: b.presetAuthorizedPersonDesignationAr || '',
-      presetSignature: b.presetSignature || b.signatureImage || null,
-      presetStamp: b.presetStamp || b.stampImage || null,
-    })
-  }, [tenantFresh])
+      presetSignature: prev.presetSignature?.startsWith?.('data:')
+        ? prev.presetSignature
+        : (b.presetSignature || b.signatureImage || null),
+      presetStamp: prev.presetStamp?.startsWith?.('data:')
+        ? prev.presetStamp
+        : (b.presetStamp || b.stampImage || null),
+    }))
+  }, [tenantFresh, appearanceDirty])
 
   const set = (key, val) => setForm((p) => ({ ...p, [key]: val }))
   const setSig = (key, val) => setSignatory((p) => ({ ...p, [key]: val }))
+  const onAppearanceChange = (next) => {
+    setAppearanceDirty(true)
+    setAppearance(next)
+  }
 
   const previewTenant = useMemo(
     () => applyAppearanceToTenant(tenantFresh || tenant, appearance),
@@ -135,6 +147,7 @@ export default function SalesSettingsPage() {
       if (nextTenant) {
         dispatch(updateTenant(nextTenant))
         setAppearance(buildAppearanceFromTenant(nextTenant))
+        setAppearanceDirty(false)
       }
     },
     onError: (e) => toast.error(e?.response?.data?.error || e.message),
@@ -325,7 +338,7 @@ export default function SalesSettingsPage() {
           <DocumentAppearancePanel
             isAr={isAr}
             appearance={appearance}
-            onChange={setAppearance}
+            onChange={onAppearanceChange}
             previewTenant={previewTenant}
             titleEn="Invoice appearance"
             titleAr="مظهر الفاتورة"
@@ -357,7 +370,7 @@ export default function SalesSettingsPage() {
           <DocumentAppearancePanel
             isAr={isAr}
             appearance={appearance}
-            onChange={setAppearance}
+            onChange={onAppearanceChange}
             previewTenant={previewTenant}
             titleEn="Quotation appearance"
             titleAr="مظهر عرض السعر"

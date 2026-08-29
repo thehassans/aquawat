@@ -6,7 +6,7 @@ import { getUomLabel } from '../../lib/uomOptions'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceBranding, getLetterheadContact } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
-import { Building2, Calendar, Hash, User, Phone, MapPin, CreditCard, FileText, Mail, Info } from 'lucide-react'
+import { Calendar, Hash, User, Phone, MapPin, CreditCard, FileText, Mail, Info } from 'lucide-react'
 import { getAmountInWords } from '../../lib/amountInWords'
 import { bilingualLabel, localizeSecondaryText, setActiveInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 import { getTaxIdLabel, getTaxQrLabel } from '../../lib/saudiTenant'
@@ -17,6 +17,7 @@ import {
   shouldShowZatcaQr,
 } from '../../lib/commercialDocumentLabels'
 import ProductTypeMark from './ProductTypeMark'
+import LetterheadChrome from './LetterheadChrome'
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
 const toEasternArabicNumerals = (str) => String(str || '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d])
@@ -71,8 +72,6 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
     : (invoice?.seller?.crNumber || tenant?.business?.crNumber || '')
   const companyCr = isDummyCr(rawCompanyCr) ? '' : String(rawCompanyCr).trim()
 
-  const headerCompanyName = bilingual ? companyNameEn : (language === 'ar' ? (companyNameAr || companyNameEn) : (companyNameEn || companyNameAr))
-
   // Counterparty Info (Customer for sell/quotation, Supplier for purchase/PO):
   const counterpartyData = isPurchaseFlow ? invoice?.seller : invoice?.buyer
   const counterpartyNameEn = counterpartyData?.name || counterpartyData?.nameAr || (isPurchaseFlow ? (language === 'ar' ? 'مورد نقدي' : 'Cash Supplier') : getCounterpartyFallbackName(documentType, 'en'))
@@ -83,8 +82,6 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
   const counterpartyVat = isDummyVat(counterpartyData?.vatNumber) ? '' : String(counterpartyData?.vatNumber).trim()
   const counterpartyCr = isDummyCr(counterpartyData?.crNumber) ? '' : String(counterpartyData?.crNumber).trim()
 
-  const logoSrc = invoiceBranding.logoSrc
-  
   const taxIdLabel = getTaxIdLabel(tenant, currency, false)
   const taxIdLabelAr = getTaxIdLabel(tenant, currency, true)
   const isZatcaApplicable = String(currency || 'SAR').toUpperCase() === 'SAR'
@@ -147,133 +144,51 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
   const showZatcaQr = shouldShowZatcaQr(documentType)
 
   return (
-    <div dir="ltr" className={`relative mx-auto max-w-5xl ${invoiceBranding.letterheadImage ? 'bg-transparent' : 'bg-white'} border rounded-[2rem] shadow-xl overflow-hidden font-sans`}>
+    <LetterheadChrome
+      tenant={tenant}
+      invoice={invoice}
+      bilingual={bilingual}
+      hideFooter={!isQuotation}
+      className={`rounded-[2rem] border shadow-xl overflow-hidden font-sans ${invoiceBranding.letterheadImage ? 'bg-transparent' : 'bg-white'}`}
+    >
       {invoiceBranding.letterheadImage && (
         <img src={invoiceBranding.letterheadImage} alt="" className="absolute inset-0 w-full h-full object-cover z-0 pointer-events-none" />
       )}
       <div className="relative z-10">
-        {/* Header */}
-        <div className={`border-b ${invoiceBranding.letterheadImage ? 'bg-transparent' : 'bg-white'} px-4 pb-4 ${invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental' ? 'pt-2' : 'pt-4'}`}>
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="shrink-0 md:max-w-[12rem]">
-            <div className="mb-2">
-              {logoSrc ? (
-                <img
-                  src={logoSrc}
-                  alt="Logo"
-                  className={`w-auto object-contain ${invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental' ? 'h-24' : 'h-16'}`}
-                />
-              ) : (
-                <Building2 className={`text-primary-600 ${invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental' ? 'h-12 w-12' : 'h-8 w-8'}`} />
-              )}
-            </div>
-            
-            <div className="mt-2 space-y-1 text-sm">
-              {!isQuotation && (companyAddress?.street || companyAddress?.city) && (
-                <div className="flex flex-col gap-1">
-                  <p className="flex items-start gap-2">
-                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-gray-500" />
-                    <span>{[companyAddress.street, companyAddress.district, companyAddress.city, companyAddress.country].filter(Boolean).join(', ')}</span>
-                  </p>
-                  {bilingual && (companyAddress.streetAr || companyAddress.districtAr || companyAddress.cityAr) && (
-                    <p className="flex items-start gap-2 text-gray-500" dir="rtl">
-                      <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-                      <span>{[companyAddress.streetAr, companyAddress.districtAr, companyAddress.cityAr, companyAddress.country].filter(Boolean).join('، ')}</span>
-                    </p>
-                  )}
-                </div>
-              )}
-              {!isQuotation && companyPhone && (
-                <p className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-gray-500" />
-                  {companyPhone}
-                </p>
-              )}
-              {!isQuotation && companyEmail && (
-                <p className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-gray-500" />
-                  {companyEmail}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="flex flex-1 flex-col items-center justify-start text-center">
-            <h2 className="text-2xl font-bold tracking-normal text-slate-900 uppercase">
-              {headerCompanyName}
-            </h2>
-            {bilingual && companyNameAr && (
-              <p className="text-2xl font-bold text-slate-900 mt-2" dir="rtl">
-                {companyNameAr}
-              </p>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-4 md:items-end">
-            <div className={`inline-flex items-center justify-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-wider w-fit text-center align-middle ${
-              isPurchaseOrder
-                ? 'bg-slate-900 text-white border-slate-900'
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+          <div className={`inline-flex items-center justify-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-wider w-fit text-center align-middle ${
+            isPurchaseOrder
+              ? 'bg-slate-900 text-white border-slate-900'
+              : isPurchaseFlow
+              ? 'bg-slate-900 text-white border-slate-900'
+              : invoice?.businessContext === 'furniture' || window.location.pathname.includes('/furniture')
+              ? 'bg-blue-50 text-blue-700 border-blue-200'
+              : invoice?.businessContext === 'boutique'
+              ? invoice?.boutiqueDetails?.transactionType === 'sale'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-rose-50 text-rose-700 border-rose-200'
+              : 'bg-primary-50 text-primary-700'
+          }`}>
+            <FileText className="h-4 w-4 shrink-0" />
+            <span className="inline-flex items-center gap-1.5 leading-none">
+              {isPurchaseOrder
+                ? L('Purchase Order', 'طلب شراء')
+                : isVendorBill
+                ? L('Purchase Order Bill', 'فاتورة أمر الشراء')
                 : isPurchaseFlow
-                ? 'bg-slate-900 text-white border-slate-900'
+                ? L('Purchase Invoice', 'فاتورة شراء')
                 : invoice?.businessContext === 'furniture' || window.location.pathname.includes('/furniture')
-                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                ? L('Furniture Sale Invoice', 'فاتورة بيع مفروشات')
                 : invoice?.businessContext === 'boutique'
                 ? invoice?.boutiqueDetails?.transactionType === 'sale'
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : 'bg-rose-50 text-rose-700 border-rose-200'
-                : 'bg-primary-50 text-primary-700'
-            }`}>
-              <FileText className="h-4 w-4 shrink-0" />
-              <span className="inline-flex items-center gap-1.5 leading-none">
-                {isPurchaseOrder
-                  ? L('Purchase Order', 'طلب شراء')
-                  : isVendorBill
-                  ? L('Purchase Order Bill', 'فاتورة أمر الشراء')
-                  : isPurchaseFlow
-                  ? L('Purchase Invoice', 'فاتورة شراء')
-                  : invoice?.businessContext === 'furniture' || window.location.pathname.includes('/furniture')
-                  ? L('Furniture Sale Invoice', 'فاتورة بيع مفروشات')
-                  : invoice?.businessContext === 'boutique'
-                  ? invoice?.boutiqueDetails?.transactionType === 'sale'
-                    ? L('Boutique Sale Invoice', 'فاتورة بيع بوتيك')
-                    : L('Boutique Rental Invoice', 'فاتورة إيجار بوتيك')
-                  : isQuotation
-                  ? L('Quotation', 'عرض سعر')
-                  : L('Tax Invoice', 'فاتورة ضريبية')}
-              </span>
-            </div>
-            
-            <div className={`mt-2 space-y-1 text-sm md:text-right ${isQuotation ? 'font-bold text-gray-900' : 'text-gray-600'}`}>
-              {!isQuotation && companyPhone && (
-                <div className="flex items-center gap-2 md:justify-end mb-2">
-                  <span className="font-semibold text-gray-900">Phone:</span>
-                  <span className="font-mono">{companyPhone}</span>
-                </div>
-              )}
-              {companyVat && (
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center justify-end gap-2">
-                    <span className={isQuotation ? 'font-bold text-gray-900' : 'font-semibold text-gray-900'}>{isQuotation ? `${taxIdLabel} #` : taxIdLabel}:</span>
-                    <span className={`font-mono ${isQuotation ? 'font-bold' : ''}`}>{companyVat}</span>
-                  </div>
-                  {bilingual && taxIdLabelAr && (
-                    <div className="flex items-center justify-end gap-2" dir={secondaryDir}>
-                      <span className={isQuotation ? 'font-bold text-gray-900' : 'font-semibold text-gray-900'}>{taxIdLabelAr}:</span>
-                      <span className={`font-sans ${isQuotation ? 'font-bold' : ''}`}>{isArabicSecondary ? toEasternArabicNumerals(companyVat) : companyVat}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-              {companyCr && (
-                <div className="flex items-center gap-2 md:justify-end mt-2">
-                  <span className={isQuotation ? 'font-bold text-gray-900' : 'font-semibold text-gray-900'}>{isQuotation ? 'C.R #' : 'CR No'}:</span>
-                  <span className={`font-mono ${isQuotation ? 'font-bold' : ''}`}>{companyCr}</span>
-                </div>
-              )}
-            </div>
+                  ? L('Boutique Sale Invoice', 'فاتورة بيع بوتيك')
+                  : L('Boutique Rental Invoice', 'فاتورة إيجار بوتيك')
+                : isQuotation
+                ? L('Quotation', 'عرض سعر')
+                : L('Tax Invoice', 'فاتورة ضريبية')}
+            </span>
           </div>
         </div>
-      </div>
 
       <div className="p-4">
         {/* Bill To & Invoice Details Grid */}
@@ -703,6 +618,6 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
         </footer>
       ) : null}
       </div>
-    </div>
+    </LetterheadChrome>
   )
 }
