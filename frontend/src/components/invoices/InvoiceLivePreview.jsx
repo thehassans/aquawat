@@ -700,11 +700,17 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
   }
   const companyHeadingStyle = {
     ...headingStyle,
-    fontSize: `${Math.max((typography.headingFontSize || 18) + 10, 28)}px`,
+    fontSize: `${Math.max(
+      Number(invoiceBranding.headingSize) || Number(typography.headingFontSize) || 18,
+      12,
+    )}px`,
   }
   const invoiceTitleStyle = {
     ...headingStyle,
-    fontSize: `${Math.max((typography.headingFontSize || 18) + 6, 24)}px`,
+    fontSize: `${Math.max(
+      Math.round((Number(invoiceBranding.headingSize) || Number(typography.headingFontSize) || 18) * 0.9),
+      14,
+    )}px`,
   }
   const renderMoney = (value, options = {}) => {
     const isSar = isSarCurrency(currency)

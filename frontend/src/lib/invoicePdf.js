@@ -1198,8 +1198,10 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
       doc.setFillColor(255, 255, 255)
       doc.rect(0, 0, pageW, headerH, 'F')
 
-      const logoW = 64
-      const logoH = 52
+      const logoPx = Math.max(28, Math.min(120, Number(invoiceBranding.logoSize) || 64))
+      // jsPDF uses mm-ish units via page points — map CSS px ≈ 0.35pt scale for letterhead
+      const logoH = Math.round(logoPx * 0.38)
+      const logoW = Math.round(logoH * 1.2)
       const logoX = (pageW - logoW) / 2
       if (logo && logoFormat) {
         doc.addImage(logo, logoFormat, logoX, 18, logoW, logoH)
@@ -1210,7 +1212,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
       const vatY = 74
       const nameMaxW = (contentW / 2) - 52
 
-      const headingPdfSize = Math.max(10, Math.min(24, Math.round((invoiceBranding.headingSize || 24) * 0.55)))
+      const headingPdfSize = Math.max(10, Math.min(28, Math.round((invoiceBranding.headingSize || 24) * 0.55)))
       const crVatPdfSize = Math.max(7, Math.min(14, Math.round((invoiceBranding.crVatSize || 14) * 0.6)))
 
       setHeadingFont(headingPdfSize, 'bold')

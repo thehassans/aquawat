@@ -42,17 +42,25 @@ export default function LetterheadChrome({
   const typography = getInvoiceTypography(tenant)
   const headingFontFamily = getInvoiceCssFontFamily(typography.headingFontFamily)
   const bodyFontFamily = getInvoiceCssFontFamily(typography.bodyFontFamily)
-  const logoHeight = Math.min(
-    Number(invoiceBranding.logoSize) || 112,
-    compact ? 72 : 300,
+  // Use configured sizes as-is so live preview / print match the sliders.
+  // Compact mode previously capped these (72 / 20) which made sliders look broken.
+  const logoHeight = Math.max(24, Math.min(300, Number(invoiceBranding.logoSize) || 112))
+  const headingFontSize = Math.max(
+    10,
+    Math.min(
+      72,
+      Number(invoiceBranding.headingSize)
+        || Number(typography.headingFontSize)
+        || 24,
+    ),
   )
-  const headingFontSize = Math.min(
-    Number(invoiceBranding.headingSize) || typography.headingFontSize || 24,
-    compact ? 20 : 72,
+  const crVatFontSize = Math.max(
+    8,
+    Math.min(48, Number(invoiceBranding.crVatSize) || Math.max(9, (typography.bodyFontSize || 12) + 2)),
   )
-  const crVatFontSize = invoiceBranding.crVatSize || Math.max(9, (typography.bodyFontSize || 12) + 2)
   const isSingleLine = invoiceBranding.singleLineHeading || false
   const bodyFontSize = typography.bodyFontSize || 12
+  const logoMaxWidth = Math.max(logoHeight * 1.75, compact ? 96 : 120)
 
   const { textColor, accentColor, headerTextEn, headerTextAr, footerTextEn, footerTextAr } = letterheadStyle
 
@@ -138,7 +146,16 @@ export default function LetterheadChrome({
 
           <div className="flex items-center justify-center self-center px-2">
             {logoSrc ? (
-              <img src={logoSrc} alt="Logo" className="w-auto max-w-[160px] object-contain" style={{ height: `${logoHeight}px` }} />
+              <img
+                src={logoSrc}
+                alt="Logo"
+                className="object-contain"
+                style={{
+                  height: `${logoHeight}px`,
+                  width: 'auto',
+                  maxWidth: `${logoMaxWidth}px`,
+                }}
+              />
             ) : (
               <div className={`flex items-center justify-center rounded-lg ${compact ? 'h-12 w-12' : 'h-16 w-16'}`} style={{ backgroundColor: `${accentColor}22` }}>
                 <Building2 className={compact ? 'h-6 w-6' : 'h-8 w-8'} style={{ color: accentColor }} />

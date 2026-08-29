@@ -62,7 +62,13 @@ export default function DocumentAppearancePanel({
   titleAr = 'المظهر',
   showTaglines = false,
 }) {
-  const set = (key, val) => onChange({ ...appearance, [key]: val })
+  const set = (key, val) => {
+    const next = { ...appearance, [key]: val }
+    // Keep typography.headingFontSize in sync with the company heading slider
+    if (key === 'headingSize') next.headingFontSize = val
+    if (key === 'bodyFontSize') next.bodyFontSize = val
+    onChange(next)
+  }
   const checkClass = 'flex items-center gap-2.5 rounded-xl border border-slate-200/90 bg-slate-50/60 px-3.5 py-3 text-sm font-medium text-slate-700 dark:border-dark-600 dark:bg-dark-800/60 dark:text-slate-200'
 
   return (
@@ -97,7 +103,7 @@ export default function DocumentAppearancePanel({
         <RangeField label={isAr ? 'حجم اسم الشركة' : 'Company heading size'} value={appearance.headingSize} min={12} max={48} suffix="px" onChange={(v) => set('headingSize', v)} />
         <RangeField label={isAr ? 'حجم السجل / الضريبة' : 'CR / VAT text size'} value={appearance.crVatSize} min={9} max={24} suffix="px" onChange={(v) => set('crVatSize', v)} />
         <RangeField label={isAr ? 'حجم نص المحتوى' : 'Body text size'} value={appearance.bodyFontSize} min={9} max={18} suffix="px" onChange={(v) => set('bodyFontSize', v)} />
-        <RangeField label={isAr ? 'ارتفاع الشعار' : 'Logo height'} value={appearance.logoSize} min={40} max={180} suffix="px" onChange={(v) => set('logoSize', v)} />
+        <RangeField label={isAr ? 'حجم الشعار' : 'Logo size'} value={appearance.logoSize} min={40} max={240} suffix="px" onChange={(v) => set('logoSize', v)} />
 
         <div className="grid gap-4 sm:grid-cols-2">
           <ColorField
@@ -167,7 +173,7 @@ export function buildAppearanceFromTenant(tenant) {
   const typography = getInvoiceTypography(tenant)
   return {
     logoSize: b.logoSize ?? 112,
-    headingSize: b.headingSize ?? 24,
+    headingSize: b.headingSize ?? typography.headingFontSize ?? 24,
     crVatSize: b.crVatSize ?? 14,
     singleLineHeading: !!b.singleLineHeading,
     headerTextEn: b.headerTextEn || '',
@@ -179,7 +185,7 @@ export function buildAppearanceFromTenant(tenant) {
     bodyFontFamily: typography.bodyFontFamily,
     headingFontFamily: typography.headingFontFamily,
     bodyFontSize: typography.bodyFontSize,
-    headingFontSize: typography.headingFontSize,
+    headingFontSize: b.headingSize ?? typography.headingFontSize,
   }
 }
 
@@ -205,7 +211,8 @@ export function applyAppearanceToTenant(baseTenant, appearance) {
           bodyFontFamily: appearance.bodyFontFamily,
           headingFontFamily: appearance.headingFontFamily,
           bodyFontSize: appearance.bodyFontSize,
-          headingFontSize: appearance.headingFontSize,
+          // Keep typography heading in sync with company heading size slider
+          headingFontSize: appearance.headingSize ?? appearance.headingFontSize,
         },
       },
     },
@@ -214,21 +221,21 @@ export function applyAppearanceToTenant(baseTenant, appearance) {
 
 export function appearancePayload(appearance) {
   return {
-    logoSize: appearance.logoSize,
-    headingSize: appearance.headingSize,
-    crVatSize: appearance.crVatSize,
-    singleLineHeading: appearance.singleLineHeading,
-    headerTextEn: appearance.headerTextEn,
-    headerTextAr: appearance.headerTextAr,
-    footerTextEn: appearance.footerTextEn,
-    footerTextAr: appearance.footerTextAr,
-    letterheadTextColor: appearance.letterheadTextColor,
-    letterheadAccentColor: appearance.letterheadAccentColor,
+    logoSize: Number(appearance.logoSize) || 112,
+    headingSize: Number(appearance.headingSize) || 24,
+    crVatSize: Number(appearance.crVatSize) || 14,
+    singleLineHeading: Boolean(appearance.singleLineHeading),
+    headerTextEn: appearance.headerTextEn || '',
+    headerTextAr: appearance.headerTextAr || '',
+    footerTextEn: appearance.footerTextEn || '',
+    footerTextAr: appearance.footerTextAr || '',
+    letterheadTextColor: appearance.letterheadTextColor || '#0F172A',
+    letterheadAccentColor: appearance.letterheadAccentColor || '#0F172A',
     typography: {
       bodyFontFamily: appearance.bodyFontFamily,
       headingFontFamily: appearance.headingFontFamily,
-      bodyFontSize: appearance.bodyFontSize,
-      headingFontSize: appearance.headingFontSize,
+      bodyFontSize: Number(appearance.bodyFontSize) || 12,
+      headingFontSize: Number(appearance.headingSize ?? appearance.headingFontSize) || 24,
     },
   }
 }

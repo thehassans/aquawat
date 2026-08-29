@@ -91,17 +91,34 @@ export default function SalesSettingsPage() {
   const save = useMutation({
     mutationFn: async () => {
       const base = tenantFresh || tenant
+      const existingBranding = base?.settings?.invoiceBranding || {}
+      // Prefer hosted URLs; avoid re-sending huge base64 that exceeds JSON limits
+      const keepAsset = (next, prev) => {
+        const v = next == null ? prev : next
+        if (typeof v === 'string' && v.startsWith('data:')) {
+          // Small inline assets OK; oversized base64 was blowing the PUT body limit
+          if (v.length < 350_000) return v
+          return prev || ''
+        }
+        return v || ''
+      }
       const [salesRes, tenantRes] = await Promise.all([
         api.patch('/sales/settings', form),
         api.put('/tenants/current', {
           settings: {
-            ...(base?.settings || {}),
             termsAndConditions: form.invoiceDefaultTerms ?? '',
             notes: form.invoiceDefaultNotes ?? '',
             invoiceBranding: {
-              ...(base?.settings?.invoiceBranding || {}),
               ...appearancePayload(appearance),
-              ...signatory,
+              logo: existingBranding.logo || base?.branding?.logo || '',
+              presetSignature: keepAsset(signatory.presetSignature, existingBranding.presetSignature || existingBranding.signatureImage),
+              signatureImage: keepAsset(signatory.presetSignature, existingBranding.presetSignature || existingBranding.signatureImage),
+              presetStamp: keepAsset(signatory.presetStamp, existingBranding.presetStamp || existingBranding.stampImage),
+              stampImage: keepAsset(signatory.presetStamp, existingBranding.presetStamp || existingBranding.stampImage),
+              presetAuthorizedPersonName: signatory.presetAuthorizedPersonName || '',
+              presetAuthorizedPersonNameAr: signatory.presetAuthorizedPersonNameAr || '',
+              presetAuthorizedPersonDesignation: signatory.presetAuthorizedPersonDesignation || '',
+              presetAuthorizedPersonDesignationAr: signatory.presetAuthorizedPersonDesignationAr || '',
               termsAndConditions: form.invoiceDefaultTerms ?? '',
               defaultNotes: form.invoiceDefaultNotes ?? '',
             },
@@ -115,7 +132,10 @@ export default function SalesSettingsPage() {
       qc.invalidateQueries({ queryKey: ['sales-settings'] })
       qc.invalidateQueries({ queryKey: ['sales-configuration'] })
       qc.invalidateQueries({ queryKey: ['tenant-current-sales-settings'] })
-      if (nextTenant) dispatch(updateTenant(nextTenant))
+      if (nextTenant) {
+        dispatch(updateTenant(nextTenant))
+        setAppearance(buildAppearanceFromTenant(nextTenant))
+      }
     },
     onError: (e) => toast.error(e?.response?.data?.error || e.message),
   })
@@ -202,6 +222,30 @@ export default function SalesSettingsPage() {
             <input type="checkbox" checked={!!form.requireOnlineSignature} onChange={(e) => set('requireOnlineSignature', e.target.checked)} />
             {isAr ? 'يتطلب توقيعاً قبل التأكيد' : 'Require online signature before confirm'}
           </label>
+          <div>
+            <label className={fieldLabelClass}>{isAr ? 'الحد الأدنى لهامش الربح %' : 'Minimum margin %'}</label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step="0.1"
+              className={fieldControlClass}
+              value={form.minMarginPercent ?? 0}
+              onChange={(e) => set('minMarginPercent', Number(e.target.value))}
+            />
+          </div>
+          <div>
+            <label className={fieldLabelClass}>{isAr ? 'سياسة تجاوز المخزون' : 'Oversell policy'}</label>
+            <select
+              className={fieldControlClass}
+              value={form.oversellPolicy || 'warn'}
+              onChange={(e) => set('oversellPolicy', e.target.value)}
+            >
+              <option value="warn">{isAr ? 'تحذير والسماح' : 'Warn and allow'}</option>
+              <option value="block">{isAr ? 'منع التأكيد' : 'Block confirm'}</option>
+              <option value="allow">{isAr ? 'السماح دائماً' : 'Always allow'}</option>
+            </select>
+          </div>
         </div>
       ) : null}
 
