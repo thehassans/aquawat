@@ -24,7 +24,7 @@ import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
 import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../../lib/uomOptions'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
-import { normalizeProductType, productPickerLabel } from '../../lib/productType'
+import { normalizeProductType, productPickerLabel, productDisplayName, resolveProductSalePrice, hasArabicScript } from '../../lib/productType'
 import ProductTypeToggle from '../ui/ProductTypeToggle'
 import RichTextNoteField from './RichTextNoteField'
 import MarqueeEventFields from '../marquee/MarqueeEventFields'
@@ -579,7 +579,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const { data: products = [] } = useQuery({
     queryKey: ['products-list'],
     queryFn: async () => {
-      const res = await api.get('/products', { params: { limit: 200 } })
+      const res = await api.get('/products', { params: { limit: 500 } })
       const list = res.data?.products ?? res.data?.items ?? res.data
       return Array.isArray(list) ? list : []
     },
@@ -919,15 +919,23 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const onSelectProduct = (index, productId) => {
     const product = productList.find((item) => item._id === productId)
     if (!product) return
-    setValue(`lineItems.${index}.productId`, product._id)
-    setValue(`lineItems.${index}.variantId`, '')
-    setValue(`lineItems.${index}.productName`, product.nameEn)
-    setValue(`lineItems.${index}.productNameAr`, product.nameAr || product.nameEn)
-    setValue(`lineItems.${index}.unitCode`, product.unitOfMeasure || 'PCE')
-    setValue(`lineItems.${index}.taxRate`, typeof product.saleTaxRate === 'number' ? product.saleTaxRate : (typeof product.taxRate === 'number' ? product.taxRate : 15))
-    setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType))
-    if (typeof product.sellingPrice === 'number') {
-      setValue(`lineItems.${index}.unitPrice`, product.sellingPrice)
+    const nameEn = productDisplayName(product, 'en')
+    const nameAr = hasArabicScript(product.nameAr) ? String(product.nameAr).trim() : ''
+    const tax = typeof product.saleTaxRate === 'number'
+      ? product.saleTaxRate
+      : (typeof product.taxRate === 'number' ? product.taxRate : 15)
+    const opts = { shouldDirty: true, shouldTouch: true }
+    setValue(`lineItems.${index}.productId`, product._id, opts)
+    setValue(`lineItems.${index}.variantId`, '', opts)
+    setValue(`lineItems.${index}.productName`, nameEn, opts)
+    setValue(`lineItems.${index}.productNameAr`, nameAr, opts)
+    setValue(`lineItems.${index}.unitCode`, product.unitOfMeasure || 'PCE', opts)
+    setValue(`lineItems.${index}.taxRate`, tax, opts)
+    setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType), opts)
+    setValue(`lineItems.${index}.unitPrice`, resolveProductSalePrice(product), opts)
+    const qty = Number(getValues(`lineItems.${index}.quantity`))
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setValue(`lineItems.${index}.quantity`, 1, opts)
     }
   }
 
@@ -949,11 +957,11 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     append({
       ...getEmptyLine(tenant),
       productId: product._id,
-      productName: product.nameEn || product.name || '',
-      productNameAr: product.nameAr || product.nameEn || '',
+      productName: productDisplayName(product, 'en'),
+      productNameAr: hasArabicScript(product.nameAr) ? String(product.nameAr).trim() : '',
       unitCode: product.unitOfMeasure || 'PCE',
       taxRate: typeof product.saleTaxRate === 'number' ? product.saleTaxRate : (typeof product.taxRate === 'number' ? product.taxRate : 15),
-      unitPrice: typeof product.sellingPrice === 'number' ? product.sellingPrice : 0,
+      unitPrice: resolveProductSalePrice(product),
       productType: normalizeProductType(product.productType),
       quantity: 1,
     })
@@ -1445,7 +1453,15 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               ) : null}
               {fields.map((field, index) => (
                 <div key={field.fieldId || field.id || `line-${index}`} className="rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-dark-600 dark:bg-dark-900/40">
-                  <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} initialNameAr={initialInvoice?.lineItems?.[index]?.productNameAr || ''} initialName={initialInvoice?.lineItems?.[index]?.productName || ''} />
+                  <LineItemTranslator
+                    index={index}
+                    control={control}
+                    watch={watch}
+                    setValue={setValue}
+                    enabled={!watch(`lineItems.${index}.productId`)}
+                    initialNameAr={initialInvoice?.lineItems?.[index]?.productNameAr || ''}
+                    initialName={initialInvoice?.lineItems?.[index]?.productName || ''}
+                  />
                   <input type="hidden" {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} />
                   <input type="hidden" {...register(`lineItems.${index}.isTravelMargin`)} />
                   <input type="hidden" {...register(`lineItems.${index}.productType`)} />
@@ -1454,44 +1470,75 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       ? (showArabicFields ? 'lg:col-span-3' : 'lg:col-span-4')
                       : (showArabicFields ? 'lg:col-span-3' : 'lg:col-span-4')}`}>
                       {isTradingContext ? (
-                        <div className="flex min-h-[40px] items-center gap-1 rounded-xl border border-slate-200/80 bg-white pe-1 ps-1.5 dark:border-white/10 dark:bg-dark-800">
+                        <div className="flex min-h-[40px] items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white pe-1 ps-1 dark:border-white/10 dark:bg-dark-800">
                           <ProductTypeToggle
                             value={watch(`lineItems.${index}.productType`)}
-                            onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
+                            onChange={(next) => {
+                              const opts = { shouldDirty: true, shouldTouch: true }
+                              setValue(`lineItems.${index}.productType`, next, opts)
+                              const pid = watch(`lineItems.${index}.productId`)
+                              if (!pid) return
+                              const selected = productList.find((p) => p._id === pid)
+                              if (selected && normalizeProductType(selected.productType) !== next) {
+                                setValue(`lineItems.${index}.productId`, '', opts)
+                                setValue(`lineItems.${index}.variantId`, '', opts)
+                                setValue(`lineItems.${index}.productName`, '', opts)
+                                setValue(`lineItems.${index}.productNameAr`, '', opts)
+                                setValue(`lineItems.${index}.unitPrice`, 0, opts)
+                              }
+                            }}
                             language={language}
                             bare
                           />
-                          <div className="mx-0.5 h-4 w-px shrink-0 bg-slate-200/90 dark:bg-white/10" aria-hidden />
+                          <div className="h-5 w-px shrink-0 bg-slate-200/90 dark:bg-white/10" aria-hidden />
                           <div className="min-w-0 flex-1 overflow-hidden">
                             <CreatableSelect
                               inputId={`product-select-${index}`}
                               name={`react-select-product-${index}`}
-                              options={productList.map(p => ({ value: p._id, label: productPickerLabel(p, language) }))}
-                              value={
-                                (productList.find(p => p._id === watch(`lineItems.${index}.productId`)))
-                                  ? {
-                                      value: watch(`lineItems.${index}.productId`),
-                                      label: productPickerLabel(productList.find(p => p._id === watch(`lineItems.${index}.productId`)), language),
-                                    }
-                                  : (watch(`lineItems.${index}.productName`) && !watch(`lineItems.${index}.productId`)
-                                    ? { value: watch(`lineItems.${index}.productName`), label: watch(`lineItems.${index}.productName`), __isNew__: true }
-                                    : null)
-                              }
+                              options={productList
+                                .filter((p) => normalizeProductType(p.productType) === normalizeProductType(watch(`lineItems.${index}.productType`)))
+                                .map((p) => ({
+                                  value: p._id,
+                                  label: productPickerLabel(p, language, { includeType: false }),
+                                }))}
+                              value={(() => {
+                                const pid = watch(`lineItems.${index}.productId`)
+                                const product = productList.find((p) => p._id === pid)
+                                if (product) {
+                                  return {
+                                    value: product._id,
+                                    label: productDisplayName(product, language),
+                                  }
+                                }
+                                const typed = watch(`lineItems.${index}.productName`)
+                                if (typed && !pid) {
+                                  return { value: typed, label: typed, __isNew__: true }
+                                }
+                                return null
+                              })()}
                               onChange={(selected) => {
                                 if (selected) {
                                   if (selected.__isNew__) {
-                                    setValue(`lineItems.${index}.productId`, '')
-                                    setValue(`lineItems.${index}.productName`, selected.value)
+                                    setValue(`lineItems.${index}.productId`, '', { shouldDirty: true })
+                                    setValue(`lineItems.${index}.productName`, selected.value, { shouldDirty: true })
+                                    setValue(`lineItems.${index}.productNameAr`, '', { shouldDirty: true })
                                   } else {
                                     onSelectProduct(index, selected.value)
                                   }
                                 } else {
-                                  setValue(`lineItems.${index}.productId`, '')
-                                  setValue(`lineItems.${index}.productName`, '')
+                                  setValue(`lineItems.${index}.productId`, '', { shouldDirty: true })
+                                  setValue(`lineItems.${index}.productName`, '', { shouldDirty: true })
+                                  setValue(`lineItems.${index}.productNameAr`, '', { shouldDirty: true })
+                                  setValue(`lineItems.${index}.variantId`, '', { shouldDirty: true })
+                                  setValue(`lineItems.${index}.unitPrice`, 0, { shouldDirty: true })
                                 }
                               }}
                               formatCreateLabel={(inputValue) => language === 'ar' ? `إضافة "${inputValue}"` : `Add "${inputValue}"`}
-                              placeholder={language === 'ar' ? 'منتج / خدمة…' : 'Product / service…'}
+                              placeholder={
+                                normalizeProductType(watch(`lineItems.${index}.productType`)) === 'service'
+                                  ? (language === 'ar' ? 'اختر خدمة…' : 'Select service…')
+                                  : (language === 'ar' ? 'اختر منتج…' : 'Select product…')
+                              }
                               isClearable
                               isSearchable
                               menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
@@ -1531,14 +1578,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                                   maxWidth: '100%',
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
+                                  fontWeight: 500,
+                                  color: '#0f172a',
                                 }),
                                 indicatorsContainer: (base) => ({ ...base, height: 34, flexShrink: 0 }),
                                 menuPortal: (base) => ({ ...base, zIndex: 9999 }),
                                 menu: (base) => ({
                                   ...base,
-                                  minWidth: 280,
-                                  width: 'max(280px, 100%)',
-                                  maxWidth: 'min(92vw, 420px)',
+                                  minWidth: 320,
+                                  width: 'max(320px, 100%)',
+                                  maxWidth: 'min(92vw, 480px)',
                                   borderRadius: '0.75rem',
                                   overflow: 'hidden',
                                   boxShadow: '0 12px 40px -12px rgba(15,23,42,0.28)',
@@ -1558,14 +1607,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                           <input type="hidden" {...register(`lineItems.${index}.variantId`)} />
                         </div>
                       ) : (
-                        <div className="flex min-h-[40px] items-center gap-1 rounded-xl border border-slate-200/80 bg-white pe-1 ps-1.5 dark:border-white/10 dark:bg-dark-800">
+                        <div className="flex min-h-[40px] items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white pe-1 ps-1 dark:border-white/10 dark:bg-dark-800">
                           <ProductTypeToggle
                             value={watch(`lineItems.${index}.productType`)}
                             onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
                             language={language}
                             bare
                           />
-                          <div className="mx-0.5 h-4 w-px shrink-0 bg-slate-200/90 dark:bg-white/10" aria-hidden />
+                          <div className="h-5 w-px shrink-0 bg-slate-200/90 dark:bg-white/10" aria-hidden />
                           <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`)} className="min-w-0 flex-1 border-0 bg-transparent px-1 py-2 text-sm outline-none" placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                         </div>
                       )}
@@ -1590,7 +1639,13 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     </div>
                     {showArabicFields ? (
                       <div className={`col-span-2 ${isTravelContext ? 'lg:col-span-3' : 'lg:col-span-3'}`}>
-                        <input {...register(`lineItems.${index}.productNameAr`)} className={denseControlClass} dir="rtl" placeholder="اسم البند" aria-label="Arabic name" />
+                        <input
+                          {...register(`lineItems.${index}.productNameAr`)}
+                          className={denseControlClass}
+                          dir="auto"
+                          placeholder="اسم البند"
+                          aria-label="Arabic name"
+                        />
                       </div>
                     ) : (
                       <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />

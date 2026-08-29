@@ -40,12 +40,38 @@ export function productTypeOptions(language = 'en') {
   }))
 }
 
-export function productPickerLabel(product, language = 'en') {
+export function productPickerLabel(product, language = 'en', { includeType = true } = {}) {
   const name = language === 'ar'
     ? (product?.nameAr || product?.nameEn || product?.name || '')
     : (product?.nameEn || product?.name || product?.nameAr || '')
+  const code = product?.sku || product?.productCode || product?.code || ''
+  const base = [name, code].filter(Boolean).join(' · ')
+  if (!includeType) return base || name
   const type = formatProductTypeLabel(product?.productType, language)
-  return name ? `${name} · ${type}` : type
+  return base ? `${base} · ${type}` : type
+}
+
+export function productDisplayName(product, language = 'en') {
+  if (!product) return ''
+  if (language === 'ar') return product.nameAr || product.nameEn || product.name || ''
+  return product.nameEn || product.name || product.nameAr || ''
+}
+
+export function resolveProductSalePrice(product) {
+  const raw = product?.sellingPrice ?? product?.price ?? product?.salePrice ?? product?.unitPrice
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : 0
+}
+
+export function resolveProductPurchasePrice(product) {
+  const raw = product?.costPrice ?? product?.cost ?? product?.purchasePrice ?? product?.sellingPrice
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : 0
+}
+
+/** True when string contains Arabic letters (not just Latin mirrored into an AR field). */
+export function hasArabicScript(value) {
+  return /[\u0600-\u06FF]/.test(String(value || ''))
 }
 
 export function productTypeBadgeClass(value) {

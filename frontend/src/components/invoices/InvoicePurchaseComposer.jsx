@@ -24,7 +24,7 @@ import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { formPaymentStatusFromInvoice, applyFormPaymentToPayload } from '../../lib/invoicePaymentTerms'
-import { normalizeProductType, productPickerLabel } from '../../lib/productType'
+import { normalizeProductType, productPickerLabel, productDisplayName, resolveProductPurchasePrice, hasArabicScript } from '../../lib/productType'
 import ProductTypeToggle from '../ui/ProductTypeToggle'
 import VariantLineSelect from '../inventory/VariantLineSelect'
 import RichTextNoteField from './RichTextNoteField'
@@ -498,16 +498,15 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const onSelectProduct = (index, productId) => {
     const product = productList.find((item) => item._id === productId)
     if (!product) return
-    setValue(`lineItems.${index}.productId`, product._id)
-    setValue(`lineItems.${index}.variantId`, '')
-    setValue(`lineItems.${index}.productName`, product.nameEn)
-    setValue(`lineItems.${index}.productNameAr`, product.nameAr || product.nameEn)
-    setValue(`lineItems.${index}.unitCode`, product.unitOfMeasure || 'PCE')
-    setValue(`lineItems.${index}.taxRate`, typeof product.purchaseTaxRate === 'number' ? product.purchaseTaxRate : (typeof product.taxRate === 'number' ? product.taxRate : 15))
-    setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType))
-    if (typeof product.costPrice === 'number' && product.costPrice > 0) {
-      setValue(`lineItems.${index}.unitPrice`, product.costPrice)
-    }
+    const opts = { shouldDirty: true, shouldTouch: true }
+    setValue(`lineItems.${index}.productId`, product._id, opts)
+    setValue(`lineItems.${index}.variantId`, '', opts)
+    setValue(`lineItems.${index}.productName`, productDisplayName(product, 'en'), opts)
+    setValue(`lineItems.${index}.productNameAr`, hasArabicScript(product.nameAr) ? String(product.nameAr).trim() : '', opts)
+    setValue(`lineItems.${index}.unitCode`, product.unitOfMeasure || 'PCE', opts)
+    setValue(`lineItems.${index}.taxRate`, typeof product.purchaseTaxRate === 'number' ? product.purchaseTaxRate : (typeof product.taxRate === 'number' ? product.taxRate : 15), opts)
+    setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType), opts)
+    setValue(`lineItems.${index}.unitPrice`, resolveProductPurchasePrice(product), opts)
   }
 
   const fillSellerFromParty = (supplier) => {

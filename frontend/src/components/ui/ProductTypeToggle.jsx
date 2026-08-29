@@ -11,13 +11,14 @@ export default function ProductTypeToggle({ value, onChange, language = 'en', cl
       aria-label={aria}
       className={
         bare
-          ? `inline-flex shrink-0 items-center gap-0.5 ${className}`.trim()
+          ? `inline-flex shrink-0 items-center gap-0.5 rounded-lg bg-slate-100/90 p-0.5 dark:bg-white/10 ${className}`.trim()
           : `inline-flex shrink-0 items-center gap-0.5 rounded-lg bg-slate-100/80 p-0.5 dark:bg-white/5 ${className}`.trim()
       }
     >
       {PRODUCT_TYPES.map((type) => {
         const selected = current === type
         const { en, ar } = PRODUCT_TYPE_LABELS[type]
+        const label = language === 'ar' ? ar : en
         return (
           <button
             key={type}
@@ -26,13 +27,13 @@ export default function ProductTypeToggle({ value, onChange, language = 'en', cl
             aria-checked={selected}
             title={`${en} / ${ar}`}
             onClick={() => { if (!selected) onChange?.(type) }}
-            className={`rounded-md px-2 py-1 text-[10px] font-semibold leading-none tracking-wide transition ${
+            className={`rounded-md px-2.5 py-1.5 text-[11px] font-semibold leading-none tracking-wide transition ${
               selected
-                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
-                : 'text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200'
+                ? 'bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900'
+                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
             }`}
           >
-            {en}
+            {label}
           </button>
         )
       })}
