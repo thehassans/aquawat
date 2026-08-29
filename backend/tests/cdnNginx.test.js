@@ -65,9 +65,13 @@ test('updating.html is an English light deploy holding page with the Maqder mark
   assert.doesNotMatch(html, /شكراً|مقدر|الرجاء/);
 });
 
-test('edge nginx serves the updating page on 502/503/504', () => {
+test('edge nginx serves the updating page on 502/503/504 for HTML, not for socket/api', () => {
   const conf = fs.readFileSync(path.resolve(frontendDir, '../ops/updating/nginx.conf'), 'utf8');
   assert.match(conf, /error_page 502 503 504 =200 \/updating\.html;/);
+  assert.match(conf, /location \/socket\.io\//);
+  assert.match(conf, /@socket_unavailable/);
+  assert.match(conf, /@api_unavailable/);
+  assert.match(conf, /return 503/);
   assert.match(conf, /resolver 127\.0\.0\.11/);
   let depth = 0;
   const stripped = conf.replace(/#[^\n]*/g, '');
@@ -77,6 +81,17 @@ test('edge nginx serves the updating page on 502/503/504', () => {
     assert.ok(depth >= 0, 'closing brace without opener');
   }
   assert.equal(depth, 0);
+});
+
+test('frontend nginx does not remap socket.io failures to HTML 200', () => {
+  const conf = fs.readFileSync(path.join(frontendDir, 'nginx.conf'), 'utf8');
+  assert.match(conf, /location \/socket\.io\//);
+  assert.match(conf, /proxy_intercept_errors off/);
+  assert.match(conf, /@socket_unavailable/);
+  assert.match(conf, /map \$http_upgrade \$connection_upgrade/);
+  const socketBlock = conf.match(/location \/socket\.io\/ \{[\s\S]*?\n    \}/)?.[0] || '';
+  assert.match(socketBlock, /proxy_intercept_errors off/);
+  assert.match(socketBlock, /error_page 502 503 504 = @socket_unavailable/);
 });
 
 test('compose keeps host 8080 on the edge proxy, not the frontend app', () => {
