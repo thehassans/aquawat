@@ -11,6 +11,7 @@ export default function PromotionsPage() {
         { key: 'code', label: 'Code' },
         { key: 'promoType', label: 'Type' },
         { key: 'discountValue', label: 'Value' },
+        { key: 'usedCount', label: 'Used', render: (r) => `${r.usedCount ?? 0}${r.maxUses != null ? ` / ${r.maxUses}` : ''}` },
       ]}
       fields={[
         { key: 'name', label: 'Name' },
@@ -27,6 +28,11 @@ export default function PromotionsPage() {
         ] },
         { key: 'discountValue', label: 'Discount value', type: 'number', default: 0 },
         { key: 'minOrderAmount', label: 'Min order', type: 'number', default: 0 },
+        { key: 'maxUses', label: 'Max uses', type: 'number', default: '' },
+        { key: 'validFrom', label: 'Valid from', type: 'date', default: '' },
+        { key: 'validTo', label: 'Valid to', type: 'date', default: '' },
+        { key: 'partnerIds', label: 'Partner IDs (comma-separated)', default: '', csvIds: true },
+        { key: 'productIds', label: 'Product IDs (comma-separated)', default: '', csvIds: true },
       ]}
     />
   )

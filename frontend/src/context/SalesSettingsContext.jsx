@@ -60,6 +60,11 @@ export function SalesSettingsProvider({ children }) {
       showComputeShipping: data?.show_compute_shipping === true || raw?.showComputeShipping === true,
       showPromoCodes: data?.show_promo_codes === true || raw?.showPromoCodes === true,
       showCrmTagsOnDocuments: data?.show_crm_tags_on_documents === true || raw?.showCrmTagsOnDocuments === true,
+      defaultInvoicingPolicy: String(
+        data?.invoicing_policy || raw?.defaultInvoicingPolicy || 'ordered',
+      ).toLowerCase(),
+      minMarginPercent: Number(raw?.minMarginPercent || 0),
+      oversellPolicy: raw?.oversellPolicy || 'warn',
     }),
     [data, raw, isLoading, refetch],
   )

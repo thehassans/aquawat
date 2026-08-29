@@ -1,6 +1,7 @@
 import { PRODUCT_TYPES, PRODUCT_TYPE_LABELS, normalizeProductType } from '../../lib/productType'
 
-export default function ProductTypeToggle({ value, onChange, language = 'en', className = '' }) {
+/** Compact Goods / Service switch — use bare inside a shared product picker shell */
+export default function ProductTypeToggle({ value, onChange, language = 'en', className = '', bare = false }) {
   const current = normalizeProductType(value)
   const aria = language === 'ar' ? 'نوع المنتج' : 'Product type'
 
@@ -8,7 +9,11 @@ export default function ProductTypeToggle({ value, onChange, language = 'en', cl
     <div
       role="radiogroup"
       aria-label={aria}
-      className={`inline-flex shrink-0 items-center rounded border border-slate-200/80 bg-transparent p-px dark:border-dark-500 ${className}`.trim()}
+      className={
+        bare
+          ? `inline-flex shrink-0 items-center gap-0.5 ${className}`.trim()
+          : `inline-flex shrink-0 items-center gap-0.5 rounded-lg bg-slate-100/80 p-0.5 dark:bg-white/5 ${className}`.trim()
+      }
     >
       {PRODUCT_TYPES.map((type) => {
         const selected = current === type
@@ -21,10 +26,10 @@ export default function ProductTypeToggle({ value, onChange, language = 'en', cl
             aria-checked={selected}
             title={`${en} / ${ar}`}
             onClick={() => { if (!selected) onChange?.(type) }}
-            className={`rounded px-1.5 py-[3px] text-[10px] font-medium leading-none tracking-wide transition ${
+            className={`rounded-md px-2 py-1 text-[10px] font-semibold leading-none tracking-wide transition ${
               selected
-                ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900'
-                : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                : 'text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200'
             }`}
           >
             {en}

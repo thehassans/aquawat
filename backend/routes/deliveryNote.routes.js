@@ -86,11 +86,25 @@ router.post('/:id/mark-delivered', checkPermission('invoicing', 'update'), async
 
     if (dn.inventoryTransferId) {
       const { validateTransfer } = await import('../services/inventory/transferService.js');
+      const createBackorder = Object.prototype.hasOwnProperty.call(req.body || {}, 'createBackorder')
+        ? req.body.createBackorder
+        : null;
       try {
-        await validateTransfer(req.user.tenantId, dn.inventoryTransferId, { userId: req.user._id });
+        await validateTransfer(req.user.tenantId, dn.inventoryTransferId, {
+          userId: req.user._id,
+          createBackorder,
+        });
       } catch (err) {
+        if (err?.code === 'BACKORDER_REQUIRED' || /BACKORDER_REQUIRED|Partial validation/i.test(String(err.message || ''))) {
+          return res.status(409).json({
+            error: err.message,
+            code: 'BACKORDER_REQUIRED',
+            message: 'You are processing less than the initial demand. Create a Backorder?',
+          });
+        }
         if (!/already done|VALIDATE_LOCK|done/i.test(String(err.message || err.code || ''))) {
           console.warn('[dn] validate transfer:', err.message);
+          return res.status(400).json({ error: err.message, code: err.code });
         }
       }
     }

@@ -76,6 +76,8 @@ const getEmptyLine = (tenant) => {
     taxRate: defaultRate,
     agencyPrice: '',
     isTravelMargin: false,
+    sourcePoItemId: '',
+    sourceDnItemId: '',
   }
 }
 
@@ -268,6 +270,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const [searchParams] = useSearchParams()
   const isProformaCreate = searchParams.get('proforma') === '1'
   const partnerIdParam = String(searchParams.get('partnerId') || '').trim()
+  const deliveryNoteIdParam = String(searchParams.get('deliveryNoteId') || '').trim()
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
   const { tenant, user } = useSelector((state) => state.auth)
@@ -622,6 +625,60 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partnerIdParam, isEdit])
+
+  useEffect(() => {
+    if (!deliveryNoteIdParam || isEdit) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data: dn } = await api.get(`/delivery-notes/${deliveryNoteIdParam}`)
+        if (cancelled || !dn) return
+        const poId = dn.purchaseOrderId?._id || dn.purchaseOrderId
+        let po = null
+        if (poId) {
+          try {
+            po = (await api.get(`/purchase-orders/${poId}`)).data
+          } catch { /* optional */ }
+        }
+        const cust = dn.customerId && typeof dn.customerId === 'object' ? dn.customerId : null
+        if (cust) {
+          fillBuyerFromParty(cust)
+          setSelectedCustomer(cust)
+        } else if (dn.customerId) {
+          try {
+            const c = (await api.get(`/customers/${dn.customerId}`)).data
+            if (c) {
+              fillBuyerFromParty(c)
+              setSelectedCustomer(c)
+            }
+          } catch { /* optional */ }
+        }
+        setValue('sourcePurchaseOrderId', poId || '')
+        setValue('sourceDeliveryNoteId', dn._id)
+        const lines = (dn.lineItems || []).map((li) => {
+          const remaining = Math.max(0, Number(li.quantityDelivered || 0) - Number(li.quantityInvoiced || 0))
+          const poItem = (po?.lineItems || []).find((p) => String(p._id) === String(li.poItemId))
+          return {
+            ...emptyLine,
+            productId: li.productId?._id || li.productId || '',
+            productName: poItem?.manualName || li.productName || li.productId?.nameEn || 'Item',
+            quantity: remaining || Number(li.quantityDelivered || 0),
+            unitPrice: Number(poItem?.unitCost ?? li.unitPrice ?? 0),
+            taxRate: Number(poItem?.taxRate ?? li.taxRate ?? 15),
+            productType: poItem?.productType || 'goods',
+            sourcePoItemId: li.poItemId || poItem?._id || '',
+            sourceDnItemId: li._id || '',
+          }
+        }).filter((l) => Number(l.quantity) > 0)
+        replace(lines.length ? lines : [emptyLine])
+        toast.success(language === 'ar' ? 'تم تحميل سند التسليم' : 'Delivery note loaded')
+      } catch (e) {
+        toast.error(e?.response?.data?.error || e.message)
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deliveryNoteIdParam, isEdit])
 
   useEffect(() => {
     const c = initialInvoice?.customerId
@@ -996,6 +1053,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           taxAmount: toNumber(summaryLine.taxAmount, 0),
           lineTotal: toNumber(summaryLine.lineTotal, 0),
           lineTotalWithTax: toNumber(summaryLine.lineTotalWithTax, 0),
+          sourcePoItemId: line.sourcePoItemId || undefined,
+          sourceDnItemId: line.sourceDnItemId || undefined,
         }
       }),
       subtotal: namedTotals.subtotal,
@@ -1003,6 +1062,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       taxableAmount: namedTotals.taxableAmount,
       totalTax: namedTotals.totalTax,
       grandTotal: namedTotals.grandTotal,
+      sourcePurchaseOrderId: data?.sourcePurchaseOrderId || undefined,
+      sourceDeliveryNoteId: data?.sourceDeliveryNoteId || undefined,
     }
     applyFormPaymentToPayload(payload, {
       paymentStatus: data?.paymentStatus,
@@ -1165,14 +1226,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
 
   return (
     <div className="space-y-4">
-      {showArabicFields ? (
-        <div className="flex justify-end">
-          <span className="rounded-full border border-slate-200/90 bg-white px-2.5 py-1 text-[10px] font-semibold tracking-wide text-slate-500 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300">
-            EN · AR
-          </span>
-        </div>
-      ) : null}
-
       <div className="mx-auto w-full max-w-6xl space-y-2.5">
         <form onSubmit={handleSubmit(onSubmit, () => toast.error(language === 'ar' ? 'أكمل البنود المطلوبة قبل الحفظ' : 'Complete the billing lines before saving'))} className="space-y-2.5">
           <div className={`${sectionCardClass} !p-3 space-y-2`}>
@@ -1272,7 +1325,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             </div>
           )}
 
-          <div className={`${sectionCardClass} space-y-2 !p-3.5`}>
+          <div className={`${sectionCardClass} space-y-2.5 !p-3.5`}>
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
                 {language === 'ar' ? 'العميل' : 'Customer'}
@@ -1290,209 +1343,68 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               ar={language === 'ar'}
               language={language}
               onChange={onSelectCustomer}
+              showNewButton
             />
-            {selectedCustomer?._id && invoiceType === 'B2B' ? (
-              <div className="mt-1.5">
-                <CustomerSummaryCard
-                  customer={selectedCustomer}
-                  language={language}
-                  onEdit={() => setSelectedCustomer(null)}
-                />
-              </div>
-            ) : null}
+            {selectedCustomer?._id ? (
+              <CustomerSummaryCard
+                customer={selectedCustomer}
+                language={language}
+                onEdit={() => {
+                  const returnTo = `${window.location.pathname}${window.location.search}`
+                  navigate(`/app/dashboard/customers/${selectedCustomer._id}?returnTo=${encodeURIComponent(returnTo)}`)
+                }}
+                onClear={() => onSelectCustomer('', null)}
+              />
+            ) : (
+              <p className="text-[11px] text-slate-400">
+                {language === 'ar'
+                  ? 'اختر عميلاً من القائمة أو أنشئ عميلاً جديداً في النافذة المنبثقة'
+                  : 'Pick a customer or tap New to create one in a pop-out'}
+              </p>
+            )}
             <input type="hidden" {...register('customerId')} />
+            {/* Party data lives on the contact — kept as hidden for submit/ZATCA */}
+            <input type="hidden" {...register('buyer.name', { required: invoiceType === 'B2B' && invoiceSubtype !== 'travel_ticket' })} />
+            <input type="hidden" {...register('buyer.nameAr')} />
+            <input type="hidden" {...register('buyer.vatNumber', { required: invoiceType === 'B2B' && invoiceSubtype !== 'travel_ticket' })} />
+            <input type="hidden" {...register('buyer.crNumber')} />
+            <input type="hidden" {...register('buyer.contactPhone')} />
+            <input type="hidden" {...register('buyer.contactEmail')} />
+            <input type="hidden" {...register('buyer.address.city')} />
+            <input type="hidden" {...register('buyer.address.cityAr')} />
+            <input type="hidden" {...register('buyer.address.district')} />
+            <input type="hidden" {...register('buyer.address.districtAr')} />
+            <input type="hidden" {...register('buyer.address.street')} />
+            <input type="hidden" {...register('buyer.address.streetAr')} />
+            <input type="hidden" {...register('buyer.address.postalCode')} />
+            <input type="hidden" {...register('buyer.address.country')} />
+            <input type="hidden" {...register('buyer.address.buildingNumber')} />
+            <input type="hidden" {...register('buyer.address.additionalNumber')} />
+            <input type="hidden" {...register('buyer.address.shortAddress')} />
             {invoiceSubtype === 'travel_ticket' ? (
-              <>
-                <TravelInvoiceFields language={language} register={register} control={control} watch={watch} setValue={setValue} />
-                {invoiceType === 'B2B' && (
-                  <div className={`mt-2 ${bilingualPairGridClass}`} dir="ltr">
-                    <div>
-                      <FieldLabel en={isPk ? "NTN / STRN" : "VAT Number"} ar="الرقم الضريبي" />
-                      <input {...register('buyer.vatNumber')} className={compactFieldClass} />
-                    </div>
-                    <div>
-                      <FieldLabel en="CR Number" ar="السجل التجاري" />
-                      <input {...register('buyer.crNumber')} className={compactFieldClass} />
-                    </div>
-                    {isSaudiTenant(tenant) ? (
-                      <>
-                        <div>
-                          <FieldLabel en="Short Address" ar="العنوان الوطني المختصر" />
-                          <input {...register('buyer.address.shortAddress')} className={compactFieldClass} placeholder="RRRD2929" maxLength={8} />
-                        </div>
-                        <div>
-                          <FieldLabel en="Building No." ar="رقم المبنى" />
-                          <input {...register('buyer.address.buildingNumber')} className={compactFieldClass} />
-                        </div>
-                        <div>
-                          <FieldLabel en="Street" ar="الشارع" />
-                          <input {...register('buyer.address.street')} className={compactFieldClass} />
-                        </div>
-                        <div>
-                          <FieldLabel en="District" ar="الحي" />
-                          <input {...register('buyer.address.district')} className={compactFieldClass} />
-                        </div>
-                        <div>
-                          <FieldLabel en="City" ar="المدينة" />
-                          <input {...register('buyer.address.city')} className={compactFieldClass} />
-                        </div>
-                        <div>
-                          <FieldLabel en="Postal Code" ar="الرمز البريدي" />
-                          <input {...register('buyer.address.postalCode')} className={compactFieldClass} />
-                        </div>
-                        <div>
-                          <FieldLabel en="Country" ar="الدولة" />
-                          <input {...register('buyer.address.country')} className={compactFieldClass} placeholder="SA" />
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div>
-                          <FieldLabel en="City" ar="المدينة" />
-                          <input {...register('buyer.address.city')} className={compactFieldClass} />
-                        </div>
-                        <div>
-                          <FieldLabel en="Street" ar="الشارع" />
-                          <input {...register('buyer.address.street')} className={compactFieldClass} />
-                        </div>
-                        <div>
-                          <FieldLabel en="Country" ar="الدولة" />
-                          <input {...register('buyer.address.country')} className={compactFieldClass} placeholder={getTenantCountryCode(tenant)} />
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </>
-            ) : invoiceType === 'B2C' ? (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" dir="ltr">
-                <div className="sm:col-span-1">
-                  <FieldLabel en="Name" ar="الاسم" />
-                  <input {...register('buyer.name')} className={compactFieldClass} placeholder={language === 'ar' ? 'عميل نقدي' : 'Cash customer'} />
+              <TravelInvoiceFields language={language} register={register} control={control} watch={watch} setValue={setValue} />
+            ) : null}
+            {invoiceType === 'B2C' && !selectedCustomer?._id ? (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" dir="ltr">
+                <div>
+                  <FieldLabel en="Walk-in name" ar="اسم نقدي" />
+                  <input
+                    className={compactFieldClass}
+                    placeholder={language === 'ar' ? 'عميل نقدي' : 'Cash customer'}
+                    value={watch('buyer.name') || ''}
+                    onChange={(e) => setValue('buyer.name', e.target.value, { shouldDirty: true })}
+                  />
                 </div>
-                {showArabicFields ? (
-                  <div>
-                    <FieldLabel en="Name (AR)" ar="الاسم عربي" />
-                    <input {...register('buyer.nameAr')} className={compactFieldClass} dir="rtl" />
-                  </div>
-                ) : null}
                 <div>
                   <FieldLabel en="Phone" ar="الهاتف" />
-                  <input {...register('buyer.contactPhone')} className={compactFieldClass} />
+                  <input
+                    className={compactFieldClass}
+                    value={watch('buyer.contactPhone') || ''}
+                    onChange={(e) => setValue('buyer.contactPhone', e.target.value, { shouldDirty: true })}
+                  />
                 </div>
-                <input type="hidden" {...register('buyer.vatNumber')} />
-                <input type="hidden" {...register('buyer.crNumber')} />
-                <input type="hidden" {...register('buyer.contactEmail')} />
-                <input type="hidden" {...register('buyer.address.city')} />
-                <input type="hidden" {...register('buyer.address.cityAr')} />
-                <input type="hidden" {...register('buyer.address.district')} />
-                <input type="hidden" {...register('buyer.address.districtAr')} />
-                <input type="hidden" {...register('buyer.address.street')} />
-                <input type="hidden" {...register('buyer.address.streetAr')} />
-                <input type="hidden" {...register('buyer.address.postalCode')} />
-                <input type="hidden" {...register('buyer.address.country')} />
-                <input type="hidden" {...register('buyer.address.buildingNumber')} />
-                <input type="hidden" {...register('buyer.address.additionalNumber')} />
-                <input type="hidden" {...register('buyer.address.shortAddress')} />
               </div>
-            ) : (
-              <div className={bilingualPairGridClass} dir="ltr">
-                <div>
-                  <FieldLabel en="Name / Company" ar="الاسم / الشركة" />
-                  <input {...register('buyer.name', { required: true })} className={compactFieldClass} />
-                </div>
-                {showArabicFields ? (
-                  <div>
-                    <FieldLabel en="Name (Arabic)" ar="الاسم بالعربية" />
-                    <input {...register('buyer.nameAr')} className={compactFieldClass} dir="rtl" />
-                  </div>
-                ) : null}
-                <div>
-                  <FieldLabel en={isPk ? "NTN / STRN" : "VAT Number"} ar="الرقم الضريبي" />
-                  <input {...register('buyer.vatNumber', { required: true })} className={compactFieldClass} />
-                </div>
-                <div>
-                  <FieldLabel en="Phone Number" ar="رقم الهاتف" />
-                  <input {...register('buyer.contactPhone')} className={compactFieldClass} />
-                </div>
-                <div>
-                  <FieldLabel en="Email" ar="البريد الإلكتروني" />
-                  <input type="email" {...register('buyer.contactEmail')} className={compactFieldClass} />
-                </div>
-                <div>
-                  <FieldLabel en="CR Number" ar="السجل التجاري" />
-                  <input {...register('buyer.crNumber')} className={compactFieldClass} />
-                </div>
-                {isSaudiTenant(tenant) ? (
-                  <>
-                    <div>
-                      <FieldLabel en="Short Address" ar="العنوان الوطني المختصر" />
-                      <input {...register('buyer.address.shortAddress')} className={compactFieldClass} placeholder="RRRD2929" maxLength={8} />
-                    </div>
-                    <div>
-                      <FieldLabel en="Building No." ar="رقم المبنى" />
-                      <input {...register('buyer.address.buildingNumber')} className={compactFieldClass} />
-                    </div>
-                    <div>
-                      <FieldLabel en="Street" ar="الشارع" />
-                      <input {...register('buyer.address.street')} className={compactFieldClass} />
-                    </div>
-                    <div>
-                      <FieldLabel en="District" ar="الحي" />
-                      <input {...register('buyer.address.district')} className={compactFieldClass} />
-                    </div>
-                    <div>
-                      <FieldLabel en="City" ar="المدينة" />
-                      <input {...register('buyer.address.city')} className={compactFieldClass} />
-                    </div>
-                    <div>
-                      <FieldLabel en="Postal Code" ar="الرمز البريدي" />
-                      <input {...register('buyer.address.postalCode')} className={compactFieldClass} />
-                    </div>
-                    <div>
-                      <FieldLabel en="Additional No." ar="الرقم الإضافي" />
-                      <input {...register('buyer.address.additionalNumber')} className={compactFieldClass} />
-                    </div>
-                    <div>
-                      <FieldLabel en="Country" ar="الدولة" />
-                      <input {...register('buyer.address.country')} className={compactFieldClass} placeholder="SA" />
-                    </div>
-                    <input type="hidden" {...register('buyer.address.cityAr')} />
-                    <input type="hidden" {...register('buyer.address.districtAr')} />
-                    <input type="hidden" {...register('buyer.address.streetAr')} />
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      <FieldLabel en="City" ar="المدينة" />
-                      <input {...register('buyer.address.city')} className={compactFieldClass} />
-                    </div>
-                    <div>
-                      <FieldLabel en="Street" ar="الشارع" />
-                      <input {...register('buyer.address.street')} className={compactFieldClass} />
-                    </div>
-                    <div>
-                      <FieldLabel en="District" ar="الحي" />
-                      <input {...register('buyer.address.district')} className={compactFieldClass} />
-                    </div>
-                    <div>
-                      <FieldLabel en="Postal / ZIP" ar="الرمز البريدي" />
-                      <input {...register('buyer.address.postalCode')} className={compactFieldClass} />
-                    </div>
-                    <div>
-                      <FieldLabel en="Country" ar="الدولة" />
-                      <input {...register('buyer.address.country')} className={compactFieldClass} placeholder={getTenantCountryCode(tenant)} />
-                    </div>
-                    <input type="hidden" {...register('buyer.address.buildingNumber')} />
-                    <input type="hidden" {...register('buyer.address.additionalNumber')} />
-                    <input type="hidden" {...register('buyer.address.shortAddress')} />
-                    <input type="hidden" {...register('buyer.address.cityAr')} />
-                    <input type="hidden" {...register('buyer.address.districtAr')} />
-                    <input type="hidden" {...register('buyer.address.streetAr')} />
-                  </>
-                )}
-              </div>
-            )}
+            ) : null}
           </div>
 
           {isMarqueeContext && (
@@ -1541,81 +1453,144 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     <div className={`col-span-2 ${isTravelContext
                       ? (showArabicFields ? 'lg:col-span-3' : 'lg:col-span-4')
                       : (showArabicFields ? 'lg:col-span-3' : 'lg:col-span-4')}`}>
-                      <div className="mb-0.5 flex items-center gap-2" dir="ltr">
-                        <label htmlFor={`product-select-${index}`} className="min-w-0 flex-1 text-[11px] font-semibold text-slate-700 dark:text-slate-200">
-                          <span>Product *</span>
-                          <span className="ms-1 font-medium text-slate-500 dark:text-slate-400" dir="rtl">المنتج</span>
-                        </label>
-                        <ProductTypeToggle
-                          value={watch(`lineItems.${index}.productType`)}
-                          onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
-                          language={language}
-                        />
-                      </div>
                       {isTradingContext ? (
-                        <div className="space-y-1">
-                          <CreatableSelect
-                            inputId={`product-select-${index}`}
-                            name={`react-select-product-${index}`}
-                            options={productList.map(p => ({ value: p._id, label: productPickerLabel(p, language) }))}
-                            value={(productList.find(p => p._id === watch(`lineItems.${index}.productId`))) ? { value: watch(`lineItems.${index}.productId`), label: productPickerLabel(productList.find(p => p._id === watch(`lineItems.${index}.productId`)), language) } : null}
-                            onChange={(selected) => {
-                              if (selected) {
-                                if (selected.__isNew__) {
-                                  setValue(`lineItems.${index}.productId`, '')
-                                  setValue(`lineItems.${index}.productName`, selected.value)
-                                  setValue(`lineItems.${index}.productType`, 'goods')
-                                } else {
-                                  onSelectProduct(index, selected.value)
-                                }
-                              } else {
-                                setValue(`lineItems.${index}.productId`, '')
-                                setValue(`lineItems.${index}.productName`, '')
-                                setValue(`lineItems.${index}.productType`, 'goods')
+                        <div className="flex min-h-[40px] items-center gap-1 rounded-xl border border-slate-200/80 bg-white pe-1 ps-1.5 dark:border-white/10 dark:bg-dark-800">
+                          <ProductTypeToggle
+                            value={watch(`lineItems.${index}.productType`)}
+                            onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
+                            language={language}
+                            bare
+                          />
+                          <div className="mx-0.5 h-4 w-px shrink-0 bg-slate-200/90 dark:bg-white/10" aria-hidden />
+                          <div className="min-w-0 flex-1 overflow-hidden">
+                            <CreatableSelect
+                              inputId={`product-select-${index}`}
+                              name={`react-select-product-${index}`}
+                              options={productList.map(p => ({ value: p._id, label: productPickerLabel(p, language) }))}
+                              value={
+                                (productList.find(p => p._id === watch(`lineItems.${index}.productId`)))
+                                  ? {
+                                      value: watch(`lineItems.${index}.productId`),
+                                      label: productPickerLabel(productList.find(p => p._id === watch(`lineItems.${index}.productId`)), language),
+                                    }
+                                  : (watch(`lineItems.${index}.productName`) && !watch(`lineItems.${index}.productId`)
+                                    ? { value: watch(`lineItems.${index}.productName`), label: watch(`lineItems.${index}.productName`), __isNew__: true }
+                                    : null)
                               }
-                            }}
-                            formatCreateLabel={(inputValue) => language === 'ar' ? `إضافة "${inputValue}" كمنتج جديد` : `Add "${inputValue}" as new product`}
-                            placeholder={language === 'ar' ? 'اختر أو اكتب…' : 'Select or type…'}
-                            isClearable
-                            isSearchable
-                            styles={denseSelectStyles}
-                          />
-                          <input
-                            type={watch(`lineItems.${index}.productId`) ? 'hidden' : 'text'}
-                            {...register(`lineItems.${index}.productName`)}
-                            className={watch(`lineItems.${index}.productId`) ? undefined : denseControlClass}
-                            placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'}
-                          />
-                          <input type="hidden" {...register(`lineItems.${index}.productId`)} />
-                          <input type="hidden" {...register(`lineItems.${index}.variantId`)} />
-                          {isTradingContext && watch(`lineItems.${index}.productId`) ? (
-                            <VariantLineSelect
-                              productId={watch(`lineItems.${index}.productId`)}
-                              value={watch(`lineItems.${index}.variantId`)}
-                              language={language}
-                              onChange={(variantId, variant) => {
-                                setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })
-                                if (variant?.name) {
-                                  setValue(`lineItems.${index}.productName`, variant.name, { shouldDirty: true })
-                                }
-                                if (variant?.price != null && Number(variant.price) > 0) {
-                                  setValue(`lineItems.${index}.unitPrice`, Number(variant.price), { shouldDirty: true })
+                              onChange={(selected) => {
+                                if (selected) {
+                                  if (selected.__isNew__) {
+                                    setValue(`lineItems.${index}.productId`, '')
+                                    setValue(`lineItems.${index}.productName`, selected.value)
+                                  } else {
+                                    onSelectProduct(index, selected.value)
+                                  }
+                                } else {
+                                  setValue(`lineItems.${index}.productId`, '')
+                                  setValue(`lineItems.${index}.productName`, '')
                                 }
                               }}
+                              formatCreateLabel={(inputValue) => language === 'ar' ? `إضافة "${inputValue}"` : `Add "${inputValue}"`}
+                              placeholder={language === 'ar' ? 'منتج / خدمة…' : 'Product / service…'}
+                              isClearable
+                              isSearchable
+                              menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                              menuPosition="fixed"
+                              menuShouldScrollIntoView={false}
+                              styles={{
+                                ...denseSelectStyles,
+                                container: (base) => ({ ...base, width: '100%', minWidth: 0 }),
+                                control: (base, state) => ({
+                                  ...(denseSelectStyles.control?.(base, state) || base),
+                                  border: 'none',
+                                  boxShadow: 'none',
+                                  background: 'transparent',
+                                  minHeight: 34,
+                                  minWidth: 0,
+                                  padding: 0,
+                                  cursor: 'text',
+                                }),
+                                valueContainer: (base) => ({
+                                  ...base,
+                                  padding: '0 4px',
+                                  minWidth: 0,
+                                  overflow: 'hidden',
+                                }),
+                                input: (base) => ({ ...base, margin: 0, padding: 0, minWidth: '2ch' }),
+                                placeholder: (base) => ({
+                                  ...base,
+                                  color: '#94a3b8',
+                                  fontSize: '0.8125rem',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  maxWidth: '100%',
+                                }),
+                                singleValue: (base) => ({
+                                  ...base,
+                                  maxWidth: '100%',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }),
+                                indicatorsContainer: (base) => ({ ...base, height: 34, flexShrink: 0 }),
+                                menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                                menu: (base) => ({
+                                  ...base,
+                                  minWidth: 280,
+                                  width: 'max(280px, 100%)',
+                                  maxWidth: 'min(92vw, 420px)',
+                                  borderRadius: '0.75rem',
+                                  overflow: 'hidden',
+                                  boxShadow: '0 12px 40px -12px rgba(15,23,42,0.28)',
+                                }),
+                                option: (base, state) => ({
+                                  ...base,
+                                  fontSize: '0.875rem',
+                                  backgroundColor: state.isFocused ? '#f1f5f9' : '#fff',
+                                  color: '#0f172a',
+                                  cursor: 'pointer',
+                                }),
+                              }}
                             />
-                          ) : null}
+                          </div>
+                          <input type="hidden" {...register(`lineItems.${index}.productName`)} />
+                          <input type="hidden" {...register(`lineItems.${index}.productId`)} />
+                          <input type="hidden" {...register(`lineItems.${index}.variantId`)} />
                         </div>
                       ) : (
-                        <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`)} className={denseControlClass} placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
+                        <div className="flex min-h-[40px] items-center gap-1 rounded-xl border border-slate-200/80 bg-white pe-1 ps-1.5 dark:border-white/10 dark:bg-dark-800">
+                          <ProductTypeToggle
+                            value={watch(`lineItems.${index}.productType`)}
+                            onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
+                            language={language}
+                            bare
+                          />
+                          <div className="mx-0.5 h-4 w-px shrink-0 bg-slate-200/90 dark:bg-white/10" aria-hidden />
+                          <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`)} className="min-w-0 flex-1 border-0 bg-transparent px-1 py-2 text-sm outline-none" placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
+                        </div>
                       )}
+                      {isTradingContext && watch(`lineItems.${index}.productId`) ? (
+                        <div className="mt-1">
+                          <VariantLineSelect
+                            productId={watch(`lineItems.${index}.productId`)}
+                            value={watch(`lineItems.${index}.variantId`)}
+                            language={language}
+                            onChange={(variantId, variant) => {
+                              setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })
+                              if (variant?.name) {
+                                setValue(`lineItems.${index}.productName`, variant.name, { shouldDirty: true })
+                              }
+                              if (variant?.price != null && Number(variant.price) > 0) {
+                                setValue(`lineItems.${index}.unitPrice`, Number(variant.price), { shouldDirty: true })
+                              }
+                            }}
+                          />
+                        </div>
+                      ) : null}
                     </div>
                     {showArabicFields ? (
                       <div className={`col-span-2 ${isTravelContext ? 'lg:col-span-3' : 'lg:col-span-3'}`}>
-                        <label className={`${fieldLabelClass} !mb-0.5 !flex items-baseline justify-between gap-2 text-[11px]`} dir="ltr">
-                          <span>Arabic</span>
-                          <span className="font-medium text-slate-500 dark:text-slate-400" dir="rtl">عربي</span>
-                        </label>
-                        <input {...register(`lineItems.${index}.productNameAr`)} className={denseControlClass} dir="rtl" placeholder="اسم البند" />
+                        <input {...register(`lineItems.${index}.productNameAr`)} className={denseControlClass} dir="rtl" placeholder="اسم البند" aria-label="Arabic name" />
                       </div>
                     ) : (
                       <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
@@ -1811,12 +1786,12 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             })}
           />
 
-          <div className={`${sectionCardClass} space-y-2 !p-3.5`}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+          <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
+            <div className="flex items-center gap-1 border-b border-slate-100 px-2 py-1.5 dark:border-white/5">
+              <span className="px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
                 {language === 'ar' ? 'إضافات' : 'Extras'}
-              </h3>
-              <div className="flex flex-wrap gap-1.5">
+              </span>
+              <div className="ms-auto flex rounded-xl bg-slate-100/90 p-0.5 dark:bg-white/5">
                 {[
                   {
                     id: 'signature',
@@ -1851,10 +1826,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     key={pill.id}
                     type="button"
                     onClick={pill.onClick}
-                    className={`rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition ${
+                    className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold transition ${
                       pill.active
-                        ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
-                        : 'border-slate-200/90 bg-white text-slate-600 hover:border-slate-300 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300'
+                        ? 'bg-white text-slate-900 shadow-sm dark:bg-dark-800 dark:text-white'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                     }`}
                   >
                     {language === 'ar' ? pill.labelAr : pill.labelEn}
@@ -1863,6 +1838,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               </div>
             </div>
 
+            <div className="px-3.5 pb-3.5 pt-2">
             <AnimatePresence>
               {showAuthorizedPerson && (
                 <motion.div
@@ -1870,7 +1846,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
+                  className="overflow-hidden border-t border-slate-100 pt-4 dark:border-white/5"
                 >
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
@@ -1968,7 +1944,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
+                  className="overflow-hidden border-t border-slate-100 pt-4 dark:border-white/5"
                 >
                   <RichTextNoteField
                     label={language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}
@@ -1990,7 +1966,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
+                  className="overflow-hidden border-t border-slate-100 pt-4 dark:border-white/5"
                 >
                   <RichTextNoteField
                     label={language === 'ar' ? 'ملاحظات' : 'Notes'}
@@ -2012,7 +1988,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
+                  className="overflow-hidden border-t border-slate-100 pt-4 dark:border-white/5"
                 >
                   <div className="mb-3 flex items-center justify-between">
                     <label className={fieldLabelClass}>{language === 'ar' ? 'بيانات البنك' : 'Bank Details'}</label>
@@ -2058,16 +2034,52 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 <input type="hidden" {...register('bankDetails.iban')} />
               </>
             )}
+            </div>
           </div>
 
-          <div className={`${sectionCardClass} space-y-4 !py-4`}>
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
-                <div className="col-span-2 sm:col-span-2">
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'شرط الدفع' : 'Payment terms'}</label>
+          <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 lg:items-stretch">
+              <div className="flex flex-col border-b border-slate-100 px-5 py-5 dark:border-white/5 lg:border-b-0 lg:border-e">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  {language === 'ar' ? 'شروط الدفع' : 'Payment terms'}
+                </p>
+
+                <div className="mt-3 flex flex-wrap items-center gap-1 rounded-xl bg-slate-100/80 p-1 dark:bg-white/5">
+                  {INVOICE_PAYMENT_TERMS.slice(0, 5).map((term) => {
+                    const active = watch('paymentTerms') === term.id
+                    return (
+                      <button
+                        key={term.id}
+                        type="button"
+                        onClick={() => {
+                          setValue('paymentTerms', term.id, { shouldDirty: true })
+                          const issueRaw = getValues('issueDate')
+                          const issue = issueRaw ? new Date(issueRaw) : new Date()
+                          const due = computeDueDateFromPaymentTerms(issue, term.id)
+                          if (due) setValue('dueDate', due.toISOString().slice(0, 10), { shouldDirty: true })
+                          setValue('paymentStatus', isImmediatePaymentTerm(term.id) ? 'paid' : 'pending', { shouldDirty: true })
+                          if (isImmediatePaymentTerm(term.id)) {
+                            setValue('paidAmount', totals.grandTotal, { shouldDirty: true })
+                          }
+                        }}
+                        className={`rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition ${
+                          active
+                            ? 'bg-white text-slate-900 shadow-sm dark:bg-dark-800 dark:text-white'
+                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        {language === 'ar' ? term.labelAr : term.labelEn}
+                      </button>
+                    )
+                  })}
                   <select
                     {...register('paymentTerms')}
-                    className={`mt-1 ${fieldControlClass}`}
+                    aria-label={language === 'ar' ? 'شروط أخرى' : 'More terms'}
+                    className={`ms-auto max-w-[9.5rem] truncate rounded-lg border-0 bg-transparent py-1.5 pe-6 ps-2 text-[11px] font-semibold outline-none ${
+                      INVOICE_PAYMENT_TERMS.slice(0, 5).some((t) => t.id === watch('paymentTerms'))
+                        ? 'text-slate-400'
+                        : 'bg-white text-slate-900 shadow-sm dark:bg-dark-800 dark:text-white'
+                    }`}
                     onChange={(e) => {
                       const id = e.target.value
                       setValue('paymentTerms', id, { shouldDirty: true })
@@ -2076,141 +2088,96 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       const due = computeDueDateFromPaymentTerms(issue, id)
                       if (due) setValue('dueDate', due.toISOString().slice(0, 10), { shouldDirty: true })
                       setValue('paymentStatus', isImmediatePaymentTerm(id) ? 'paid' : 'pending', { shouldDirty: true })
-                      if (isImmediatePaymentTerm(id)) {
-                        setValue('paidAmount', totals.grandTotal, { shouldDirty: true })
-                      } else {
-                        const currentPaid = Number(getValues('paidAmount') || 0)
-                        if (currentPaid >= totals.grandTotal) setValue('paidAmount', 0, { shouldDirty: true })
-                      }
                     }}
                   >
-                    <optgroup label={language === 'ar' ? 'الأكثر استخداماً' : 'Most used'}>
-                      {INVOICE_PAYMENT_TERMS.slice(0, 8).map((term) => (
-                        <option key={term.id} value={term.id}>{language === 'ar' ? term.labelAr : term.labelEn}</option>
-                      ))}
-                    </optgroup>
-                    <optgroup label={language === 'ar' ? 'المزيد...' : 'More...'}>
-                      {INVOICE_PAYMENT_TERMS.slice(8).map((term) => (
-                        <option key={term.id} value={term.id}>{language === 'ar' ? term.labelAr : term.labelEn}</option>
-                      ))}
-                    </optgroup>
+                    {INVOICE_PAYMENT_TERMS.map((term) => (
+                      <option key={term.id} value={term.id}>{language === 'ar' ? term.labelAr : term.labelEn}</option>
+                    ))}
                   </select>
                 </div>
-                <div>
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'الاستحقاق' : 'Due'}</label>
-                  <input type="date" {...register('dueDate')} className={`mt-1 ${fieldControlClass}`} />
-                </div>
-                <div>
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'الحالة' : 'Status'}</label>
-                  <select
-                    {...register('paymentStatus')}
-                    className={`mt-1 ${fieldControlClass}`}
-                    onChange={(e) => {
-                      const status = e.target.value
-                      setValue('paymentStatus', status, { shouldDirty: true })
-                      if (status === 'paid') {
-                        setValue('paidAmount', totals.grandTotal, { shouldDirty: true })
-                      } else {
-                        const currentPaid = Number(getValues('paidAmount') || 0)
-                        if (currentPaid >= totals.grandTotal) setValue('paidAmount', 0, { shouldDirty: true })
-                      }
-                    }}
-                  >
-                    <option value="paid">{language === 'ar' ? 'مدفوعة' : 'Paid'}</option>
-                    <option value="pending">{language === 'ar' ? 'غير مدفوعة' : 'Unpaid'}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'الطريقة' : 'Method'}</label>
-                  <select {...register('paymentMethod')} className={`mt-1 ${fieldControlClass}`}>
-                    <option value="cash">{language === 'ar' ? 'نقداً' : 'Cash'}</option>
-                    <option value="card">{language === 'ar' ? 'بطاقة' : 'Card'}</option>
-                    <option value="bank_transfer">{language === 'ar' ? 'تحويل' : 'Transfer'}</option>
-                    <option value="credit">{language === 'ar' ? 'آجل' : 'Credit'}</option>
-                  </select>
-                </div>
-                {watch('paymentMethod') === 'credit' && watch('paymentStatus') !== 'paid' && (
-                  <div className="col-span-2">
-                    <label className={fieldLabelClass}>{language === 'ar' ? 'مقدم' : 'Advance'}</label>
-                    <input type="number" min="0" max={totals.grandTotal} step="0.01" {...register('paidAmount', { valueAsNumber: true, min: 0 })} className={`mt-1 ${fieldControlClass}`} placeholder="0.00" />
+
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  <div className="min-w-0">
+                    <label className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{language === 'ar' ? 'الاستحقاق' : 'Due'}</label>
+                    <input type="date" {...register('dueDate')} className={`mt-1.5 ${fieldControlClass} !rounded-xl !border-slate-200/70 !bg-slate-50/60 !px-2.5 !py-2 !text-[13px]`} />
                   </div>
-                )}
-                <div className="col-span-2">
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'خصم الفاتورة' : 'Invoice discount'}</label>
-                  <input type="number" min="0" step="0.01" {...register('invoiceDiscount', { valueAsNumber: true, min: 0 })} className={`mt-1 ${fieldControlClass}`} />
+                  <div className="min-w-0">
+                    <label className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{language === 'ar' ? 'الحالة' : 'Status'}</label>
+                    <select
+                      {...register('paymentStatus')}
+                      className={`mt-1.5 ${fieldControlClass} !rounded-xl !border-slate-200/70 !bg-slate-50/60 !px-2.5 !py-2 !text-[13px]`}
+                      onChange={(e) => {
+                        const status = e.target.value
+                        setValue('paymentStatus', status, { shouldDirty: true })
+                        if (status === 'paid') setValue('paidAmount', totals.grandTotal, { shouldDirty: true })
+                      }}
+                    >
+                      <option value="paid">{language === 'ar' ? 'مدفوعة' : 'Paid'}</option>
+                      <option value="pending">{language === 'ar' ? 'غير مدفوعة' : 'Unpaid'}</option>
+                    </select>
+                  </div>
+                  <div className="min-w-0">
+                    <label className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{language === 'ar' ? 'الطريقة' : 'Method'}</label>
+                    <select {...register('paymentMethod')} className={`mt-1.5 ${fieldControlClass} !rounded-xl !border-slate-200/70 !bg-slate-50/60 !px-2.5 !py-2 !text-[13px]`}>
+                      <option value="cash">{language === 'ar' ? 'نقداً' : 'Cash'}</option>
+                      <option value="card">{language === 'ar' ? 'بطاقة' : 'Card'}</option>
+                      <option value="bank_transfer">{language === 'ar' ? 'تحويل' : 'Transfer'}</option>
+                      <option value="credit">{language === 'ar' ? 'آجل' : 'Credit'}</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  {watch('paymentMethod') === 'credit' && watch('paymentStatus') !== 'paid' ? (
+                    <div>
+                      <label className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{language === 'ar' ? 'مقدم' : 'Advance'}</label>
+                      <input type="number" min="0" max={totals.grandTotal} step="0.01" {...register('paidAmount', { valueAsNumber: true, min: 0 })} className={`mt-1.5 ${fieldControlClass} !rounded-xl !border-slate-200/70 !bg-slate-50/60 !px-2.5 !py-2 !text-[13px]`} placeholder="0.00" />
+                    </div>
+                  ) : <div />}
+                  <div className={watch('paymentMethod') === 'credit' && watch('paymentStatus') !== 'paid' ? '' : 'col-span-2 max-w-[220px]'}>
+                    <label className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{language === 'ar' ? 'خصم الفاتورة' : 'Invoice discount'}</label>
+                    <input type="number" min="0" step="0.01" {...register('invoiceDiscount', { valueAsNumber: true, min: 0 })} className={`mt-1.5 ${fieldControlClass} !rounded-xl !border-slate-200/70 !bg-slate-50/60 !px-2.5 !py-2 !text-[13px]`} />
+                  </div>
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-slate-950 px-5 py-4 text-white dark:bg-white dark:text-slate-950 lg:sticky lg:top-4 self-start">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/50 dark:text-slate-400">
+              <div className="flex flex-col px-5 py-5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
                   {language === 'ar' ? 'الملخص' : 'Summary'}
                 </p>
-                <div className="mt-4 space-y-2.5 text-sm">
-                  <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{t('subtotal')}</span><span><Money value={totals.subtotal} /></span></div>
-                  <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{t('discount')}</span><span><Money value={totals.totalDiscount} /></span></div>
-                  <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{language === 'ar' ? 'المبلغ الخاضع للضريبة' : 'Taxable Amount'}</span><span><Money value={totals.taxableAmount} /></span></div>
-                  <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{isPk ? 'GST' : t('tax')}</span><span><Money value={totals.totalTax} /></span></div>
-                  {showMargin ? (
-                    <div className="flex justify-between"><span className="text-white/55 dark:text-slate-500">{language === 'ar' ? 'الهامش التقديري' : 'Est. margin'}</span><span><Money value={estimatedMargin} /></span></div>
-                  ) : null}
-                  <div className="flex justify-between border-t border-white/15 pt-3 text-lg font-semibold dark:border-slate-200"><span>{t('total')}</span><span><Money value={totals.grandTotal} /></span></div>
+                <div className="mt-3 flex flex-1 flex-col justify-between space-y-2.5 text-sm text-slate-600 dark:text-slate-300">
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between"><span>{t('subtotal')}</span><span className="tabular-nums text-slate-900 dark:text-white"><Money value={totals.subtotal} /></span></div>
+                    <div className="flex justify-between"><span>{t('discount')}</span><span className="tabular-nums text-slate-900 dark:text-white"><Money value={totals.totalDiscount} /></span></div>
+                    <div className="flex justify-between"><span>{language === 'ar' ? 'الخاضع للضريبة' : 'Taxable'}</span><span className="tabular-nums text-slate-900 dark:text-white"><Money value={totals.taxableAmount} /></span></div>
+                    <div className="flex justify-between"><span>{isPk ? 'GST' : t('tax')}</span><span className="tabular-nums text-slate-900 dark:text-white"><Money value={totals.totalTax} /></span></div>
+                    {showMargin ? (
+                      <div className="flex justify-between"><span>{language === 'ar' ? 'الهامش' : 'Margin'}</span><span className="tabular-nums text-slate-900 dark:text-white"><Money value={estimatedMargin} /></span></div>
+                    ) : null}
+                  </div>
+                  <div className="flex justify-between border-t border-slate-100 pt-3 text-base font-semibold text-slate-900 dark:border-white/10 dark:text-white">
+                    <span>{t('total')}</span>
+                    <span className="tabular-nums"><Money value={totals.grandTotal} /></span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {isTradingContext && (
-              <div className="space-y-3 border-t border-slate-200/80 pt-6 dark:border-dark-600">
-                <p className={sectionEyebrowClass}>
-                  {language === 'ar' ? 'المستودع' : 'Warehouse'}
-                  {engineRequiresWarehouse && <span className="ms-1 text-rose-500">*</span>}
-                </p>
-                {engineRequiresWarehouse && (
-                  <p className="text-xs text-slate-500">
-                    {language === 'ar'
-                      ? 'محرك المخزون مفعّل — يجب اختيار مستودع لخصم الكميات.'
-                      : 'Inventory engine is on — a warehouse is required to deduct stock.'}
-                  </p>
-                )}
-                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                  <div className="flex-1">
-                    <select
-                      {...register('warehouseId', {
-                        required: engineRequiresWarehouse
-                          ? (language === 'ar' ? 'المستودع مطلوب' : 'Warehouse required')
-                          : false,
-                      })}
-                      className={`mt-1.5 ${fieldControlClass}`}
-                    >
-                      <option value="">
-                        {engineRequiresWarehouse
-                          ? (language === 'ar' ? 'اختر المستودع…' : 'Select warehouse…')
-                          : (language === 'ar' ? 'بدون تحديد حالياً' : 'No warehouse selected yet')}
-                      </option>
-                      {warehouseList.map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}
-                    </select>
-                  </div>
-                  <div className="flex gap-2">
-                    {!engineRequiresWarehouse && (
-                      <button type="button" className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-dark-500" onClick={() => setValue('warehouseId', '')} disabled={!selectedWarehouseId}>
-                        {language === 'ar' ? 'إلغاء التحديد' : 'Clear'}
-                      </button>
-                    )}
-                    <button type="button" className="rounded-full bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white dark:bg-white dark:text-slate-900" onClick={() => navigate(`/app/dashboard/inventory/warehouses/new?returnTo=${encodeURIComponent('/app/dashboard/invoices/new/sell')}`)}>
-                      {language === 'ar' ? 'إضافة مستودع' : 'Add Warehouse'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Warehouse auto-selected in background when inventory engine requires it */}
+            <input type="hidden" {...register('warehouseId', {
+              required: engineRequiresWarehouse
+                ? (language === 'ar' ? 'المستودع مطلوب' : 'Warehouse required')
+                : false,
+            })} />
 
-            <div className="flex flex-col gap-3 border-t border-slate-200/80 pt-5 dark:border-dark-600 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-slate-500">
+            <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 dark:border-white/5 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-slate-400">
                 {language === 'ar'
                   ? 'اضغط معاينة لمراجعة الفاتورة قبل الحفظ'
                   : 'Tap Preview to review the invoice before saving'}
               </p>
               <div className="flex justify-end gap-3">
-                <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices')} className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:text-slate-300">{t('cancel')}</button>
+                <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices')} className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:bg-transparent dark:text-slate-300">{t('cancel')}</button>
                 <button type="submit" disabled={saveMutation.isPending} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 dark:bg-white dark:text-slate-900">
                   {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" /> : <><Eye className="w-4 h-4" />{language === 'ar' ? 'معاينة' : 'Preview'}</>}
                 </button>

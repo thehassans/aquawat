@@ -24,8 +24,17 @@ const purchaseOrderLineItemSchema = new mongoose.Schema({
 
   lineSubtotal: { type: Number, default: 0 },
   lineTax: { type: Number, default: 0 },
-  lineTotal: { type: Number, default: 0 }
-}, { _id: false });
+  lineTotal: { type: Number, default: 0 },
+
+  /** Sales: route hint for confirm orchestration (mts | mto | dropship) */
+  procurementRoute: {
+    type: String,
+    enum: ['mts', 'mto', 'dropship', ''],
+    default: '',
+  },
+  /** True when unit price was typed by a user with margin_override */
+  priceManuallyOverridden: { type: Boolean, default: false },
+}, { _id: true });
 
 const receivingEventSchema = new mongoose.Schema({
   receivedAt: { type: Date, default: Date.now },
@@ -50,8 +59,21 @@ const purchaseOrderSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['draft', 'sent', 'approved', 'partially_received', 'received', 'refunded', 'billed', 'partially_delivered', 'delivered', 'closed', 'cancelled'],
-    default: 'draft'
+    enum: [
+      'draft',
+      'sent',
+      'pending_approval',
+      'approved',
+      'partially_received',
+      'received',
+      'refunded',
+      'billed',
+      'partially_delivered',
+      'delivered',
+      'closed',
+      'cancelled',
+    ],
+    default: 'draft',
   },
 
   orderDate: { type: Date, default: Date.now },
@@ -119,6 +141,14 @@ const purchaseOrderSchema = new mongoose.Schema({
   paymentConfirmedAt: { type: Date, default: null },
   isLocked: { type: Boolean, default: false },
   quotationTemplateId: { type: mongoose.Schema.Types.ObjectId, ref: 'QuotationTemplate', default: null },
+
+  /** Credit / margin holds */
+  approvalReason: { type: String, default: '' },
+  approvalCode: { type: String, default: '' },
+  creditExposureAtHold: { type: Number, default: null },
+  rejectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  rejectedAt: { type: Date, default: null },
+  rejectionReason: { type: String, default: '' },
 
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

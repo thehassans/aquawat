@@ -32,7 +32,11 @@ export default function ConsolidateInvoiceModal({ isOpen, onClose, customerId })
   }
 
   const consolidateMutation = useMutation({
-    mutationFn: (deliveryNoteIds) => api.post('/invoices/consolidated', { deliveryNoteIds }),
+    mutationFn: (deliveryNoteIds) => api.post('/invoices/consolidated', {
+      customerId,
+      dnIds: deliveryNoteIds,
+      deliveryNoteIds,
+    }),
     onSuccess: (res) => {
       toast.success(language === 'ar' ? 'تم تجميع الفاتورة بنجاح' : 'Consolidated Invoice generated successfully')
       queryClient.invalidateQueries(['invoices'])

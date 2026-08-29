@@ -33,6 +33,12 @@ const salesSettingsSchema = new mongoose.Schema({
   /** Check partner/product warning flags before confirm */
   enableSaleWarnings: { type: Boolean, default: true },
 
+  /** When available stock < demand on confirm: warn | block */
+  oversellPolicy: { type: String, enum: ['warn', 'block'], default: 'warn' },
+
+  /** Margin % below this locks quote for sales-manager approval (0 = disabled) */
+  minMarginPercent: { type: Number, default: 0, min: 0, max: 100 },
+
   /** Composer UI feature toggles (invoice / quotation / SO) */
   showIncotermOnDocuments: { type: Boolean, default: false },
   showComputeShipping: { type: Boolean, default: false },

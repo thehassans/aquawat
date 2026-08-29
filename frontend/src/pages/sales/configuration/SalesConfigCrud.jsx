@@ -45,11 +45,23 @@ export default function SalesConfigCrud({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const payload = { ...form }
+      for (const f of fields) {
+        if (f.csvIds && typeof payload[f.key] === 'string') {
+          payload[f.key] = payload[f.key]
+            .split(/[,\s]+/)
+            .map((s) => s.trim())
+            .filter(Boolean)
+        }
+        if (f.type === 'number' && payload[f.key] === '') {
+          payload[f.key] = f.default === '' ? null : 0
+        }
+      }
       if (editingId) {
-        const { data: res } = await api.put(`${apiPath}/${editingId}`, form)
+        const { data: res } = await api.put(`${apiPath}/${editingId}`, payload)
         return res
       }
-      const { data: res } = await api.post(apiPath, form)
+      const { data: res } = await api.post(apiPath, payload)
       return res
     },
     onSuccess: () => {
@@ -73,7 +85,11 @@ export default function SalesConfigCrud({
   const startEdit = (row) => {
     setEditingId(row._id)
     const next = {}
-    for (const f of fields) next[f.key] = row[f.key] ?? f.default ?? ''
+    for (const f of fields) {
+      let val = row[f.key] ?? f.default ?? ''
+      if (f.csvIds && Array.isArray(val)) val = val.map(String).join(',')
+      next[f.key] = val
+    }
     setForm(next)
   }
 

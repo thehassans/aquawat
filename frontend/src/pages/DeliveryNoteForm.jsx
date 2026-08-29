@@ -31,6 +31,8 @@ import { useTranslation } from '../lib/translations'
 import { getUomLabel } from '../lib/uomOptions'
 import { DELIVERY_WINDOWS, getDeliveryWindowLabel } from '../lib/deliveryWindows'
 import { downloadDeliveryNotePdf } from '../lib/deliveryNotePdf'
+import DocumentChatter from '../components/sales/DocumentChatter'
+import RmaPanel from '../components/sales/RmaPanel'
 
 function DeliveryNoteSourcePicker({ language, navigate }) {
   const [activeTab, setActiveTab] = useState('quotations')
@@ -401,6 +403,37 @@ export default function DeliveryNoteForm() {
     },
   })
 
+  const markDeliveredMutation = useMutation({
+    mutationFn: ({ createBackorder } = {}) =>
+      api.post(`/delivery-notes/${id}/mark-delivered`, { createBackorder }),
+    onSuccess: () => {
+      toast.success(language === 'ar' ? 'تم تأكيد التسليم' : 'Delivery marked as done')
+      queryClient.invalidateQueries({ queryKey: ['delivery-note', id] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['sales-order-smart'] })
+    },
+    onError: async (err) => {
+      const data = err?.response?.data
+      if (err?.response?.status === 409 || data?.code === 'BACKORDER_REQUIRED') {
+        const create = window.confirm(
+          language === 'ar'
+            ? 'أنت تُسلّم أقل من الكمية المطلوبة. إنشاء أمر تسليم متبقٍ (Backorder)؟'
+            : (data?.message || 'You are processing less than the initial demand. Create a Backorder?'),
+        )
+        try {
+          await api.post(`/delivery-notes/${id}/mark-delivered`, { createBackorder: create })
+          toast.success(language === 'ar' ? 'تم تأكيد التسليم' : 'Delivery validated')
+          queryClient.invalidateQueries({ queryKey: ['delivery-note', id] })
+          queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
+        } catch (e2) {
+          toast.error(e2?.response?.data?.error || e2.message)
+        }
+        return
+      }
+      toast.error(data?.error || err.message)
+    },
+  })
+
   const handleSubmit = (e) => {
     e.preventDefault()
 
@@ -518,6 +551,17 @@ export default function DeliveryNoteForm() {
           </div>
 
           <div className="flex items-center gap-2">
+            {!['delivered', 'fully_invoiced', 'cancelled'].includes(String(dn.status || '').toLowerCase()) ? (
+              <button
+                type="button"
+                disabled={markDeliveredMutation.isPending}
+                onClick={() => markDeliveredMutation.mutate({})}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3.5 py-2 text-xs font-bold text-sky-800 shadow-sm transition hover:bg-sky-100 dark:border-sky-800/40 dark:bg-sky-950/40 dark:text-sky-200"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>{language === 'ar' ? 'تأكيد التسليم' : 'Mark delivered'}</span>
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => downloadDeliveryNotePdf({ deliveryNote: dn, tenant, language })}
@@ -678,6 +722,9 @@ export default function DeliveryNoteForm() {
             </div>
           </div>
         </div>
+
+        <RmaPanel deliveryNote={dn} language={language} />
+        <DocumentChatter docType="delivery_note" docId={dn._id} language={language} />
       </div>
     )
   }

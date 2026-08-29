@@ -119,11 +119,14 @@ export async function ensureDraftDeliveryForSellOrder({
       : null, created: false };
   }
 
+  // MTS only — dropship/MTO must not create warehouse DOs or reserve stock
   const goodsLines = (order.lineItems || []).filter((li) => {
+    const route = String(li.procurementRoute || 'mts').toLowerCase();
+    if (route === 'dropship' || route === 'mto') return false;
     const remaining = Number(li.quantityOrdered || 0) - Number(li.quantityDelivered || 0);
     return remaining > 0 && (li.productType || 'goods') !== 'service' && li.productId;
   });
-  if (!goodsLines.length) return { deliveryNote: null, transfer: null, created: false };
+  if (!goodsLines.length) return { deliveryNote: null, transfer: null, created: false, skippedNonMts: true };
 
   const warehouseId = order.warehouseId?._id || order.warehouseId;
   const dnNumber = await nextDnNumber(tenantFilter);
@@ -190,6 +193,7 @@ export async function ensureDraftDeliveryForSellOrder({
     lineItems: resolvedLines.map(({ li, resolved }) => ({
       productId: li.productId?._id || li.productId,
       variantId: resolved.variantId || li.variantId || undefined,
+      poItemId: li._id || undefined,
       description: li.description || li.manualName || 'Item',
       unitCode: li.uom || 'PCE',
       quantityDelivered: Number(resolved.displayQty || li.quantityOrdered || 0) - Number(li.quantityDelivered || 0) > 0

@@ -10,7 +10,7 @@ import AsyncCombobox from '../../components/ui/AsyncCombobox'
 import VariantLineSelect from '../../components/inventory/VariantLineSelect'
 import CustomerSummaryCard from '../../components/sales/CustomerSummaryCard'
 import { useSalesSettings } from '../../context/SalesSettingsContext'
-import { canViewSalesMargin } from '../../lib/salesPermissions'
+import { canViewSalesMargin, canOverrideSalesPrice } from '../../lib/salesPermissions'
 import { INCOTERMS } from './salesConfig.menu'
 import {
   fieldControlClass,
@@ -37,6 +37,8 @@ const emptyLine = (taxRate = 15) => ({
   uomId: '',
   packagingId: '',
   packagingQty: 1,
+  procurementRoute: 'mts',
+  priceManuallyOverridden: false,
   product: null,
 })
 
@@ -56,12 +58,15 @@ export default function SalesOrderCreatePage() {
   const isAr = language === 'ar'
   const { showMarginsByDefault, showIncotermOnDocuments } = useSalesSettings()
   const displayMargin = canViewSalesMargin(user) && !!showMarginsByDefault
+  const canOverridePrice = canOverrideSalesPrice(user)
   const defaultTax = Number(tenant?.settings?.taxRate ?? 15)
 
   const [customer, setCustomer] = useState(null)
   const [warehouseId, setWarehouseId] = useState('')
   const [warehouseOpt, setWarehouseOpt] = useState(null)
   const [incoterm, setIncoterm] = useState('EXW')
+  const [promoCode, setPromoCode] = useState('')
+  const [currencyRate, setCurrencyRate] = useState('1')
   const [lines, setLines] = useState([emptyLine(defaultTax)])
 
   const { data: settings } = useQuery({
@@ -125,6 +130,8 @@ export default function SalesOrderCreatePage() {
             uom: uom?.name || l.product?.uomLabel || '',
             packagingId: l.packagingId || undefined,
             packagingQty: Number(l.packagingQty) || 1,
+            procurementRoute: l.procurementRoute || 'mts',
+            priceManuallyOverridden: Boolean(l.priceManuallyOverridden),
           }
         }),
       }
@@ -141,7 +148,87 @@ export default function SalesOrderCreatePage() {
     setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)))
   }
 
-  const colCount = displayMargin ? 10 : 9
+  const resolvePriceForLine = useCallback(async (idx, line, customerId) => {
+    if (!line.productId) return
+    try {
+      const { data } = await api.post('/sales/pricing/resolve', {
+        productId: line.productId,
+        variantId: line.variantId || undefined,
+        quantity: Number(line.quantityOrdered) || 1,
+        basePrice: Number(line.product?.salePrice || line.unitCost || 0),
+        cost: Number(line.costPrice || 0),
+        partnerId: customerId || undefined,
+        uomId: line.uomId || undefined,
+        uomFactor: Number(line.packagingQty) || 1,
+        currencyRate: Number(currencyRate) || 1,
+        promoCode: promoCode.trim() || undefined,
+        pricelistId: undefined,
+        manualOverride: line.priceManuallyOverridden ? Number(line.unitCost) : null,
+        hasMarginOverridePermission: canOverridePrice,
+      })
+      if (data?.unitPrice != null && !line.priceManuallyOverridden) {
+        updateLine(idx, { unitCost: data.unitPrice })
+      }
+    } catch {
+      /* keep catalog price */
+    }
+  }, [canOverridePrice, currencyRate, promoCode])
+
+  const onLineGridKeyDown = (e, idx) => {
+    const cells = e.currentTarget.closest('tr')?.querySelectorAll('input, select, [tabindex]')
+    if (!cells?.length) return
+    const list = [...cells]
+    const i = list.indexOf(e.target)
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (idx === lines.length - 1) {
+        setLines((p) => [...p, emptyLine(defaultTax)])
+      }
+      return
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      if (e.shiftKey) {
+        if (i > 0) list[i - 1].focus()
+        else {
+          const prevRow = e.currentTarget.closest('tbody')?.children?.[idx - 1]
+          const prevCells = prevRow?.querySelectorAll('input, select')
+          if (prevCells?.length) prevCells[prevCells.length - 1].focus()
+        }
+      } else if (i >= 0 && i < list.length - 1) {
+        list[i + 1].focus()
+      } else {
+        if (idx === lines.length - 1) setLines((p) => [...p, emptyLine(defaultTax)])
+        const nextRow = e.currentTarget.closest('tbody')?.children?.[idx + 1]
+        nextRow?.querySelector('input, select')?.focus()
+      }
+      return
+    }
+    if (e.key === 'ArrowDown' && !e.altKey) {
+      e.preventDefault()
+      const nextRow = e.currentTarget.closest('tbody')?.children?.[idx + 1]
+      const nextCells = nextRow?.querySelectorAll('input, select')
+      if (nextCells?.[i]) nextCells[i].focus()
+      else nextRow?.querySelector('input, select')?.focus()
+    }
+    if (e.key === 'ArrowUp' && !e.altKey) {
+      e.preventDefault()
+      const prevRow = e.currentTarget.closest('tbody')?.children?.[idx - 1]
+      const prevCells = prevRow?.querySelectorAll('input, select')
+      if (prevCells?.[i]) prevCells[i].focus()
+      else prevRow?.querySelector('input, select')?.focus()
+    }
+    if (e.key === 'ArrowRight' && e.altKey && i >= 0 && i < list.length - 1) {
+      e.preventDefault()
+      list[i + 1].focus()
+    }
+    if (e.key === 'ArrowLeft' && e.altKey && i > 0) {
+      e.preventDefault()
+      list[i - 1].focus()
+    }
+  }
+
+  const colCount = displayMargin ? 11 : 10
 
   return (
     <div className="space-y-6">
@@ -170,7 +257,7 @@ export default function SalesOrderCreatePage() {
         </div>
         {customer?._id ? <CustomerSummaryCard customer={customer} language={language} onEdit={() => setCustomer(null)} /> : null}
 
-        <div className={`grid gap-4 ${showIncotermOnDocuments ? 'sm:grid-cols-2' : ''}`}>
+        <div className={`grid gap-4 ${showIncotermOnDocuments ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-2 lg:grid-cols-3'}`}>
           <div>
             <label className={fieldLabelClass}>{isAr ? 'المخزن' : 'Warehouse'}</label>
             <AsyncCombobox
@@ -191,6 +278,40 @@ export default function SalesOrderCreatePage() {
               </select>
             </div>
           ) : null}
+          <div>
+            <label className={fieldLabelClass}>{isAr ? 'كود عرض' : 'Promo code'}</label>
+            <input
+              className={fieldControlClass}
+              value={promoCode}
+              onChange={(e) => setPromoCode(e.target.value)}
+              onBlur={() => {
+                lines.forEach((line, idx) => {
+                  if (line.productId && !line.priceManuallyOverridden) {
+                    resolvePriceForLine(idx, line, customer?._id)
+                  }
+                })
+              }}
+              placeholder="SAVE10"
+            />
+          </div>
+          <div>
+            <label className={fieldLabelClass}>{isAr ? 'سعر الصرف' : 'FX rate'}</label>
+            <input
+              type="number"
+              min={0}
+              step="0.0001"
+              className={numInputClass}
+              value={currencyRate}
+              onChange={(e) => setCurrencyRate(e.target.value)}
+              onBlur={() => {
+                lines.forEach((line, idx) => {
+                  if (line.productId && !line.priceManuallyOverridden) {
+                    resolvePriceForLine(idx, line, customer?._id)
+                  }
+                })
+              }}
+            />
+          </div>
         </div>
       </div>
 
@@ -215,6 +336,7 @@ export default function SalesOrderCreatePage() {
                 <th className={`${salesThClass} w-[10%] text-end`}>{isAr ? 'السعر' : 'Price'}</th>
                 <th className={`${salesThClass} w-[8%] text-end`}>{isAr ? 'خصم %' : 'Disc %'}</th>
                 <th className={`${salesThClass} w-[8%] text-end`}>{isAr ? 'ضريبة %' : 'Tax %'}</th>
+                <th className={`${salesThClass} w-[8%]`}>{isAr ? 'المسار' : 'Route'}</th>
                 {displayMargin ? (
                   <th className={`${salesThClass} w-[8%] text-end`}>{isAr ? 'هامش' : 'Margin'}</th>
                 ) : null}
@@ -232,7 +354,10 @@ export default function SalesOrderCreatePage() {
                   displayMargin={displayMargin}
                   canRemove={lines.length > 1}
                   fetchProducts={fetchProducts}
+                  customerId={customer?._id}
                   onChange={(patch) => updateLine(idx, patch)}
+                  onResolvePrice={() => resolvePriceForLine(idx, lines[idx], customer?._id)}
+                  onKeyDown={(e) => onLineGridKeyDown(e, idx)}
                   onRemove={() => setLines((p) => p.filter((_, i) => i !== idx))}
                 />
               ))}
@@ -251,7 +376,20 @@ export default function SalesOrderCreatePage() {
   )
 }
 
-function SoLineRow({ line, idx, isAr, uoms, displayMargin, canRemove, fetchProducts, onChange, onRemove }) {
+function SoLineRow({
+  line,
+  idx,
+  isAr,
+  uoms,
+  displayMargin,
+  canRemove,
+  fetchProducts,
+  customerId,
+  onChange,
+  onResolvePrice,
+  onKeyDown,
+  onRemove,
+}) {
   const { data: packsData } = useQuery({
     queryKey: ['sales-packagings', line.productId],
     queryFn: async () => (await api.get('/sales/product-packagings', { params: { productId: line.productId } })).data,
@@ -262,25 +400,32 @@ function SoLineRow({ line, idx, isAr, uoms, displayMargin, canRemove, fetchProdu
   const margin = lineMarginPct(line)
 
   return (
-    <tr className={salesTrClass}>
+    <tr className={salesTrClass} onKeyDown={onKeyDown}>
       <td className={`${salesTdClass} !py-2.5`}>
         <AsyncCombobox
           value={line.productId}
           selectedOption={line.product}
-          onChange={(id, opt) => onChange({
-            productId: id || '',
-            product: opt,
-            manualName: opt?.name || '',
-            unitCost: opt?.salePrice != null && Number(opt.salePrice) > 0 ? opt.salePrice : '',
-            costPrice: opt?.costPrice ?? '',
-            productType: opt?.productType || 'goods',
-            taxRate: opt?.taxRate ?? line.taxRate,
-            uomId: opt?.uomId || '',
-            packagingId: '',
-            packagingQty: 1,
-            variantId: '',
-            quantityOrdered: line.quantityOrdered === '' ? 1 : line.quantityOrdered,
-          })}
+          onChange={async (id, opt) => {
+            const next = {
+              productId: id || '',
+              product: opt,
+              manualName: opt?.name || '',
+              unitCost: opt?.salePrice != null && Number(opt.salePrice) > 0 ? opt.salePrice : '',
+              costPrice: opt?.costPrice ?? '',
+              productType: opt?.productType || 'goods',
+              taxRate: opt?.taxRate ?? line.taxRate,
+              uomId: opt?.uomId || '',
+              packagingId: '',
+              packagingQty: 1,
+              variantId: '',
+              priceManuallyOverridden: false,
+              quantityOrdered: line.quantityOrdered === '' ? 1 : line.quantityOrdered,
+            }
+            onChange(next)
+            if (id) {
+              setTimeout(() => onResolvePrice?.(), 0)
+            }
+          }}
           fetchOptions={fetchProducts}
           queryKeyPrefix={`so-prod-${idx}`}
           placeholder={isAr ? 'بحث المنتج…' : 'Search product…'}
@@ -290,14 +435,20 @@ function SoLineRow({ line, idx, isAr, uoms, displayMargin, canRemove, fetchProdu
         <VariantLineSelect
           productId={line.productId}
           value={line.variantId}
-          onChange={(vid) => onChange({ variantId: vid || '' })}
+          onChange={(vid) => {
+            onChange({ variantId: vid || '', priceManuallyOverridden: false })
+            setTimeout(() => onResolvePrice?.(), 0)
+          }}
         />
       </td>
       <td className={`${salesTdClass} !py-2.5`}>
         <select
           className={fieldControlClass}
           value={line.uomId || ''}
-          onChange={(e) => onChange({ uomId: e.target.value })}
+          onChange={(e) => {
+            onChange({ uomId: e.target.value, priceManuallyOverridden: false })
+            setTimeout(() => onResolvePrice?.(), 0)
+          }}
         >
           <option value="">{line.product?.uomLabel || '—'}</option>
           {uoms.map((u) => (
@@ -313,7 +464,8 @@ function SoLineRow({ line, idx, isAr, uoms, displayMargin, canRemove, fetchProdu
           onChange={(e) => {
             const id = e.target.value
             const pack = packs.find((p) => String(p._id) === String(id))
-            onChange({ packagingId: id, packagingQty: Number(pack?.qty) || 1 })
+            onChange({ packagingId: id, packagingQty: Number(pack?.qty) || 1, priceManuallyOverridden: false })
+            setTimeout(() => onResolvePrice?.(), 0)
           }}
         >
           <option value="">—</option>
@@ -328,7 +480,8 @@ function SoLineRow({ line, idx, isAr, uoms, displayMargin, canRemove, fetchProdu
           min={0}
           className={numInputClass}
           value={line.quantityOrdered}
-          onChange={(e) => onChange({ quantityOrdered: e.target.value })}
+          onChange={(e) => onChange({ quantityOrdered: e.target.value, priceManuallyOverridden: false })}
+          onBlur={() => onResolvePrice?.()}
           placeholder="0"
         />
       </td>
@@ -339,8 +492,8 @@ function SoLineRow({ line, idx, isAr, uoms, displayMargin, canRemove, fetchProdu
           step="0.01"
           className={numInputClass}
           value={line.unitCost}
-          onChange={(e) => onChange({ unitCost: e.target.value })}
-          placeholder="0.00"
+          onChange={(e) => onChange({ unitCost: e.target.value, priceManuallyOverridden: true })}
+          placeholder="0"
         />
       </td>
       <td className={`${salesTdClass} !py-2.5`}>
@@ -351,7 +504,7 @@ function SoLineRow({ line, idx, isAr, uoms, displayMargin, canRemove, fetchProdu
           className={numInputClass}
           value={line.discountPercent}
           onChange={(e) => onChange({ discountPercent: e.target.value })}
-          placeholder="—"
+          placeholder="0"
         />
       </td>
       <td className={`${salesTdClass} !py-2.5`}>
@@ -361,27 +514,28 @@ function SoLineRow({ line, idx, isAr, uoms, displayMargin, canRemove, fetchProdu
           className={numInputClass}
           value={line.taxRate}
           onChange={(e) => onChange({ taxRate: e.target.value })}
-          placeholder="0"
         />
       </td>
+      <td className={`${salesTdClass} !py-2.5`}>
+        <select
+          className={fieldControlClass}
+          value={line.procurementRoute || 'mts'}
+          onChange={(e) => onChange({ procurementRoute: e.target.value })}
+          title={customerId ? '' : undefined}
+        >
+          <option value="mts">MTS</option>
+          <option value="mto">MTO</option>
+          <option value="dropship">Dropship</option>
+        </select>
+      </td>
       {displayMargin ? (
-        <td className={`${salesTdClass} !py-2.5 text-end`}>
-          <span
-            className={`text-xs font-semibold tabular-nums ${margin != null && margin < 0 ? 'text-red-600' : 'text-slate-600 dark:text-slate-300'}`}
-          >
-            {margin == null ? '—' : `${margin.toFixed(1)}%`}
-          </span>
+        <td className={`${salesTdClass} !py-2.5 text-end tabular-nums`}>
+          {margin == null ? '—' : `${margin.toFixed(1)}%`}
         </td>
       ) : null}
       <td className={`${salesTdClass} !py-2.5`}>
-        <button
-          type="button"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-30 dark:hover:bg-red-950/30"
-          disabled={!canRemove}
-          onClick={onRemove}
-          aria-label={isAr ? 'حذف' : 'Remove'}
-        >
-          <Trash2 className="h-4 w-4" />
+        <button type="button" className={ghostActionClass} disabled={!canRemove} onClick={onRemove}>
+          <Trash2 className="h-3.5 w-3.5" />
         </button>
       </td>
     </tr>

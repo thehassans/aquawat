@@ -1,5 +1,7 @@
 /**
- * Resolve unit price from pricelist rules for a product/variant/qty.
+ * Resolve unit price from pricelist item rules (volume / formula / fixed / %).
+ * Full SO hierarchy (manual → promo → contract → volume → UoM → FX → catalog)
+ * is applied in POST /sales/pricing/resolve.
  */
 export function evaluatePriceRules({ basePrice = 0, cost = 0, quantity = 1, rules = [], fixedPrice = null }) {
   if (fixedPrice != null && Number.isFinite(Number(fixedPrice))) {

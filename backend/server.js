@@ -180,6 +180,7 @@ import { getRateLimitConfig, loadRateLimitConfig } from './utils/rateLimitConfig
 import { startInvoicePdfWorker } from './services/invoicePdfQueue.js';
 import { ensureAtlasSearchIndex } from './utils/invoiceSearch.js';
 import { backfillMissingTrackTokens } from './models/khayyat/KhayyatStitching.js';
+import { backfillSellOrderLineIds } from './scripts/backfillSellOrderLineIds.js';
 import { sloSnapshot } from './utils/sloMetrics.js';
 import { evaluateSloAndAlert } from './jobs/sloAlertJob.js';
 
@@ -462,6 +463,11 @@ const connectToDatabase = async () => {
         }
       } catch (tokenErr) {
         logger.warn(`[khayyat] trackToken backfill failed: ${tokenErr.message}`);
+      }
+      try {
+        await backfillSellOrderLineIds({ limit: 2000 });
+      } catch (lineIdErr) {
+        logger.warn(`[migrate] sell PO line _ids failed: ${lineIdErr.message}`);
       }
       startJobs();
     })

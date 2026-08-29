@@ -10,12 +10,43 @@ export const createInvoiceFromMultipleDNs = async (req, res) => {
   session.startTransaction();
 
   try {
-    const { customerId, dnIds } = req.body;
+    const customerId = req.body.customerId;
+    const dnIds = req.body.dnIds || req.body.deliveryNoteIds || [];
     const tenantId = req.user.tenantId;
+
+    if (!customerId) {
+      throw new Error('customerId is required');
+    }
+    if (!Array.isArray(dnIds) || !dnIds.length) {
+      throw new Error('dnIds is required');
+    }
 
     const dns = await DeliveryNote.find({ _id: { $in: dnIds }, customerId, tenantId }).session(session);
     if (dns.length !== dnIds.length) {
       throw new Error('One or more Delivery Notes are invalid or belong to a different customer');
+    }
+
+    // B2B identity gate (VAT + CR)
+    const customerForGate = await Customer.findOne({ _id: customerId, tenantId }).session(session);
+    if (customerForGate) {
+      const isB2b = customerForGate.entityType === 'business'
+        || customerForGate.entityType === 'company'
+        || customerForGate.type === 'company'
+        || customerForGate.type === 'business'
+        || customerForGate.isCompany === true
+        || Boolean(customerForGate.vatNumber);
+      if (isB2b) {
+        const { assertB2bInvoiceReady } = await import('../services/sales/creditLimit.js');
+        const b2b = assertB2bInvoiceReady({
+          isCompany: true,
+          entityType: 'business',
+          vatNumber: customerForGate.vatNumber,
+          crNumber: customerForGate.crNumber,
+        });
+        if (!b2b.ok) {
+          throw Object.assign(new Error(b2b.error), { code: b2b.code, missing: b2b.missing });
+        }
+      }
     }
 
     let subtotal = 0;
@@ -45,28 +76,38 @@ export const createInvoiceFromMultipleDNs = async (req, res) => {
         const remainingToInvoice = dnItem.quantityDelivered - (dnItem.quantityInvoiced || 0);
         if (remainingToInvoice <= 0) continue; 
 
-        const poItem = po.lineItems.id(dnItem.poItemId);
-        const lineTotal = remainingToInvoice * poItem.unitCost;
+        const poItem = dnItem.poItemId ? po.lineItems.id(dnItem.poItemId) : null;
+        const sourcePoItemId = poItem?._id || dnItem.poItemId || null;
+        if (!sourcePoItemId) {
+          throw new Error(
+            `Delivery Note ${dn.dnNumber} line missing poItemId / sourcePoItemId — run sell line id backfill`,
+          );
+        }
+        const unitCost = Number(poItem?.unitCost ?? dnItem.unitPrice ?? 0);
+        const taxRate = Number(poItem?.taxRate ?? dnItem.taxRate ?? 15);
+        const lineTotal = remainingToInvoice * unitCost;
 
         invoiceLineItems.push({
           lineNumber: lineNumber++,
           productId: dnItem.productId,
-          productName: poItem.description || 'Product', // Should fetch actual product name ideally
+          productName: poItem?.manualName || poItem?.description || dnItem.productName || 'Product',
           quantity: remainingToInvoice,
-          unitPrice: poItem.unitCost,
+          unitPrice: unitCost,
           lineTotal: lineTotal,
-          lineTotalWithTax: lineTotal * (1 + (poItem.taxRate / 100)),
-          taxRate: poItem.taxRate,
-          taxAmount: lineTotal * (poItem.taxRate / 100),
+          lineTotalWithTax: lineTotal * (1 + (taxRate / 100)),
+          taxRate,
+          taxAmount: lineTotal * (taxRate / 100),
           sourceDnItemId: dnItem._id,
-          sourcePoItemId: poItem._id
+          sourcePoItemId,
         });
 
         subtotal += lineTotal;
 
         // Update quantities
         dnItem.quantityInvoiced = (dnItem.quantityInvoiced || 0) + remainingToInvoice;
-        poItem.quantityInvoiced = (poItem.quantityInvoiced || 0) + remainingToInvoice;
+        if (poItem) {
+          poItem.quantityInvoiced = (poItem.quantityInvoiced || 0) + remainingToInvoice;
+        }
 
         if (dnItem.quantityInvoiced < dnItem.quantityDelivered) {
           dnFullyInvoiced = false;
@@ -139,7 +180,11 @@ export const createInvoiceFromMultipleDNs = async (req, res) => {
 
   } catch (error) {
     await session.abortTransaction();
-    res.status(400).json({ error: error.message });
+    res.status(400).json({
+      error: error.message,
+      ...(error.code ? { code: error.code } : {}),
+      ...(error.missing ? { missing: error.missing } : {}),
+    });
   } finally {
     session.endSession();
   }

@@ -1,0 +1,133 @@
+import PurchaseOrder from '../../models/PurchaseOrder.js';
+import Partner from '../../models/Partner.js';
+import Invoice from '../../models/Invoice.js';
+
+/**
+ * Credit exposure = AR balance + uninvoiced confirmed sell orders + this SO total.
+ * Returns { ok, exposure, creditLimit, code, error } — ok:false means hold required.
+ */
+export async function evaluateCustomerCredit({ tenantId, customerId, orderTotal, excludeOrderId = null }) {
+  if (!customerId) {
+    return { ok: true, exposure: 0, creditLimit: 0, skipped: true };
+  }
+
+  const partner = await Partner.findOne({ _id: customerId, tenantId })
+    .select('creditLimit currentBalance name nameEn entityType type')
+    .lean();
+  if (!partner) {
+    return { ok: true, exposure: 0, creditLimit: 0, skipped: true };
+  }
+
+  const creditLimit = Number(partner.creditLimit || 0);
+  if (!(creditLimit > 0)) {
+    return { ok: true, exposure: 0, creditLimit: 0, skipped: true, partner };
+  }
+
+  const arBalance = Number(partner.currentBalance || 0);
+
+  const confirmedStatuses = [
+    'approved',
+    'partially_delivered',
+    'delivered',
+    'pending_approval',
+  ];
+  const openOrders = await PurchaseOrder.find({
+    tenantId,
+    flow: 'sell',
+    customerId,
+    status: { $in: confirmedStatuses },
+    ...(excludeOrderId ? { _id: { $ne: excludeOrderId } } : {}),
+  })
+    .select('grandTotal billedInvoiceId lineItems')
+    .lean();
+
+  let uninvoicedConfirmed = 0;
+  for (const o of openOrders) {
+    const remaining = (o.lineItems || []).reduce((sum, li) => {
+      const ordered = Number(li.quantityOrdered || 0);
+      const invoiced = Number(li.quantityInvoiced || 0);
+      const unit = Number(li.unitCost || 0);
+      const tax = Number(li.taxRate || 0) / 100;
+      const openQty = Math.max(0, ordered - invoiced);
+      return sum + openQty * unit * (1 + tax);
+    }, 0);
+    if (remaining > 0) uninvoicedConfirmed += remaining;
+    else if (!o.billedInvoiceId) uninvoicedConfirmed += Number(o.grandTotal || 0);
+  }
+
+  const thisTotal = Number(orderTotal || 0);
+  const exposure = arBalance + uninvoicedConfirmed + thisTotal;
+
+  if (exposure > creditLimit) {
+    return {
+      ok: false,
+      exposure,
+      creditLimit,
+      arBalance,
+      uninvoicedConfirmed,
+      thisTotal,
+      partner,
+      code: 'CREDIT_LIMIT_EXCEEDED',
+      error: `Credit limit exceeded: exposure ${exposure.toFixed(2)} exceeds limit ${creditLimit.toFixed(2)}`,
+    };
+  }
+
+  return {
+    ok: true,
+    exposure,
+    creditLimit,
+    arBalance,
+    uninvoicedConfirmed,
+    thisTotal,
+    partner,
+  };
+}
+
+/** B2B partners require VAT + CR before invoicing */
+export function assertB2bInvoiceReady(partnerOrBuyer = {}) {
+  const isCompany = Boolean(
+    partnerOrBuyer.isCompany
+    || partnerOrBuyer.entityType === 'business'
+    || partnerOrBuyer.entityType === 'company'
+    || partnerOrBuyer.type === 'company'
+    || partnerOrBuyer.type === 'business',
+  );
+  if (!isCompany) return { ok: true, isCompany: false };
+
+  const vat = String(partnerOrBuyer.vatNumber || '').trim();
+  const cr = String(partnerOrBuyer.crNumber || partnerOrBuyer.commercialRegistration?.crNumber || '').trim();
+  const missing = [];
+  if (!vat) missing.push('VAT number');
+  if (!cr) missing.push('CR number');
+  if (missing.length) {
+    return {
+      ok: false,
+      isCompany: true,
+      code: 'B2B_IDENTITY_REQUIRED',
+      error: `B2B customer requires ${missing.join(' and ')} before invoicing`,
+      missing,
+    };
+  }
+  return { ok: true, isCompany: true };
+}
+
+export async function sumInvoicedQtyForPoLine({ tenantId, sourcePoItemId }) {
+  if (!sourcePoItemId) return 0;
+  const invoices = await Invoice.find({
+    tenantId,
+    flow: 'sell',
+    status: { $nin: ['draft', 'cancelled', 'credited'] },
+    'lineItems.sourcePoItemId': sourcePoItemId,
+  })
+    .select('lineItems')
+    .lean();
+  let qty = 0;
+  for (const inv of invoices) {
+    for (const li of inv.lineItems || []) {
+      if (String(li.sourcePoItemId) === String(sourcePoItemId)) {
+        qty += Number(li.quantity || 0);
+      }
+    }
+  }
+  return qty;
+}

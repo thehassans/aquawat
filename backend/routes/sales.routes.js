@@ -276,23 +276,172 @@ router.post('/activity-plans/:id/apply-to-quotation/:quotationId', checkPermissi
   }
 });
 
-/** Resolve price from pricelist for product/qty */
+/** Resolve price from pricelist for product/qty (hierarchy-aware) */
 router.post('/pricing/resolve', checkPermission('sales', 'read'), async (req, res) => {
   try {
-    const { pricelistId, productId, variantId, quantity = 1, basePrice = 0, cost = 0 } = req.body;
+    const {
+      pricelistId,
+      productId,
+      variantId,
+      quantity = 1,
+      basePrice = 0,
+      cost = 0,
+      partnerId = null,
+      uomId = null,
+      uomFactor = 1,
+      currencyRate = 1,
+      manualOverride = null,
+      hasMarginOverridePermission = false,
+      promoCode = null,
+    } = req.body;
+
+    // 1) Manual override (requires margin_override / margin permission)
+    if (manualOverride != null && Number.isFinite(Number(manualOverride)) && hasMarginOverridePermission) {
+      return res.json({
+        unitPrice: Number(manualOverride),
+        source: 'manual_override',
+      });
+    }
+
+    const qty = Number(quantity) || 1;
+    let unitPrice = Number(basePrice) || 0;
+    let source = 'catalog';
+    let promoMeta = null;
+
+    // 2) Coupon / promo code (SKU-specific or order-level percent applied to unit)
+    if (promoCode) {
+      const promo = await SalesPromotion.findOne({
+        ...req.tenantFilter,
+        code: String(promoCode).trim(),
+        isActive: true,
+      }).lean();
+      const now = Date.now();
+      if (promo
+        && (!promo.validFrom || new Date(promo.validFrom).getTime() <= now)
+        && (!promo.validTo || new Date(promo.validTo).getTime() >= now)
+        && (promo.maxUses == null || Number(promo.usedCount || 0) < Number(promo.maxUses))
+        && (!promo.partnerIds?.length || (partnerId && promo.partnerIds.some((id) => String(id) === String(partnerId))))
+        && (!promo.productIds?.length || promo.productIds.some((id) => String(id) === String(productId)))) {
+        if (promo.discountType === 'fixed' && promo.discountValue != null) {
+          // Treat fixed promo as absolute unit discount from catalog base
+          unitPrice = Math.max(0, Number(basePrice) - Number(promo.discountValue));
+          source = 'promo_fixed';
+          promoMeta = { code: promo.code, promotionId: promo._id };
+          const factor = Number(uomFactor || 1) || 1;
+          unitPrice *= factor;
+          const rate = Number(currencyRate) || 1;
+          if (rate !== 1) {
+            unitPrice *= rate;
+            source = `${source}+fx`;
+          }
+          return res.json({
+            unitPrice: Math.round(unitPrice * 10000) / 10000,
+            source,
+            promo: promoMeta,
+            pricelistId: null,
+          });
+        }
+        if (promo.discountType === 'percent') {
+          promoMeta = {
+            code: promo.code,
+            promotionId: promo._id,
+            discountPercent: Number(promo.discountValue),
+          };
+        }
+      }
+    }
+
     const list = pricelistId
       ? await Pricelist.findOne({ _id: pricelistId, ...req.tenantFilter }).lean()
-      : await Pricelist.findOne({ tenantId: req.user.tenantId, isDefault: true, isActive: true }).lean();
-    if (!list) return res.json({ unitPrice: Number(basePrice) });
+      : null;
 
-    const item = (list.items || []).find((row) => {
-      if (String(row.productId) !== String(productId)) return false;
-      if (variantId && row.variantId && String(row.variantId) !== String(variantId)) return false;
-      return Number(quantity) >= Number(row.minQuantity || 1);
+    let resolvedList = list;
+    if (!resolvedList && partnerId) {
+      try {
+        const Partner = (await import('../models/Partner.js')).default;
+        const partner = await Partner.findOne({ _id: partnerId, ...req.tenantFilter })
+          .select('salesPricelistId')
+          .lean();
+        if (partner?.salesPricelistId) {
+          resolvedList = await Pricelist.findOne({
+            _id: partner.salesPricelistId,
+            ...req.tenantFilter,
+            isActive: true,
+          }).lean();
+        }
+      } catch { /* partner lookup optional */ }
+    }
+    if (!resolvedList) {
+      resolvedList = await Pricelist.findOne({
+        tenantId: req.user.tenantId,
+        isDefault: true,
+        isActive: true,
+      }).lean();
+    }
+
+    const now = Date.now();
+
+    if (resolvedList) {
+      const listValid = (!resolvedList.validFrom || new Date(resolvedList.validFrom).getTime() <= now)
+        && (!resolvedList.validTo || new Date(resolvedList.validTo).getTime() >= now);
+
+      if (listValid) {
+        // Prefer partner-scoped contract rules, then volume tiers
+        const candidates = (resolvedList.items || []).filter((row) => {
+          if (String(row.productId) !== String(productId)) return false;
+          if (variantId && row.variantId && String(row.variantId) !== String(variantId)) return false;
+          if (uomId && row.uomId && String(row.uomId) !== String(uomId)) return false;
+          if (row.partnerIds?.length && partnerId) {
+            if (!row.partnerIds.some((id) => String(id) === String(partnerId))) return false;
+          } else if (row.partnerIds?.length && !partnerId) {
+            return false;
+          }
+          if (row.validFrom && new Date(row.validFrom).getTime() > now) return false;
+          if (row.validTo && new Date(row.validTo).getTime() < now) return false;
+          return qty >= Number(row.minQuantity || 1);
+        }).sort((a, b) => {
+          const ap = a.partnerIds?.length ? 1 : 0;
+          const bp = b.partnerIds?.length ? 1 : 0;
+          if (bp !== ap) return bp - ap;
+          return Number(b.minQuantity || 0) - Number(a.minQuantity || 0);
+        });
+
+        const item = candidates[0];
+        if (item) {
+          unitPrice = resolvePricelistItemPrice(item, { basePrice, cost, quantity: qty });
+          source = item.partnerIds?.length ? 'customer_contract' : (
+            Number(item.minQuantity || 0) > 1 ? 'volume_tier' : 'pricelist'
+          );
+        }
+      }
+    }
+
+    // 3) Promo percent after catalog/contract resolution
+    if (promoMeta?.discountPercent != null) {
+      unitPrice = Math.max(0, unitPrice * (1 - Number(promoMeta.discountPercent) / 100));
+      source = `${source}+promo`;
+    }
+
+    // 4) UoM factor (e.g. Box of 12 → ×12)
+    const factor = Number(uomFactor || 1) || 1;
+    if (factor !== 1) {
+      unitPrice *= factor;
+      if (!String(source).includes('uom')) source = `${source}+uom`;
+    }
+
+    // 5) Currency conversion last
+    const rate = Number(currencyRate) || 1;
+    if (rate !== 1) {
+      unitPrice *= rate;
+      source = `${source}+fx`;
+    }
+
+    res.json({
+      unitPrice: Math.round(unitPrice * 10000) / 10000,
+      source,
+      promo: promoMeta,
+      pricelistId: resolvedList?._id || null,
     });
-
-    const unitPrice = resolvePricelistItemPrice(item, { basePrice, cost, quantity });
-    res.json({ unitPrice, pricelistId: list._id });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
@@ -301,12 +450,12 @@ router.post('/pricing/resolve', checkPermission('sales', 'read'), async (req, re
 /** Apply promotion code to order payload */
 router.post('/promotions/apply', checkPermission('sales', 'update'), async (req, res) => {
   try {
-    const { code, subtotal = 0 } = req.body;
+    const { code, subtotal = 0, partnerId = null, productIds = [] } = req.body;
     const promo = await SalesPromotion.findOne({
       ...req.tenantFilter,
       code: String(code || '').trim(),
       isActive: true,
-    }).lean();
+    });
     if (!promo) return res.status(404).json({ error: 'Invalid or expired promo code' });
     const now = Date.now();
     if (promo.validFrom && new Date(promo.validFrom).getTime() > now) {
@@ -321,6 +470,18 @@ router.post('/promotions/apply', checkPermission('sales', 'update'), async (req,
     if (Number(subtotal) < Number(promo.minOrderAmount || 0)) {
       return res.status(400).json({ error: 'Order below minimum for promotion' });
     }
+    if (promo.partnerIds?.length) {
+      if (!partnerId || !promo.partnerIds.some((id) => String(id) === String(partnerId))) {
+        return res.status(400).json({ error: 'Promotion not valid for this customer' });
+      }
+    }
+    if (promo.productIds?.length) {
+      const ids = (productIds || []).map(String);
+      const hit = promo.productIds.some((id) => ids.includes(String(id)));
+      if (!hit) {
+        return res.status(400).json({ error: 'Promotion not valid for selected products' });
+      }
+    }
 
     let discountAmount = 0;
     if (promo.discountType === 'percent') {
@@ -328,16 +489,21 @@ router.post('/promotions/apply', checkPermission('sales', 'update'), async (req,
     } else {
       discountAmount = Number(promo.discountValue);
     }
+    discountAmount = Math.min(discountAmount, Number(subtotal));
+
+    promo.usedCount = Number(promo.usedCount || 0) + 1;
+    await promo.save();
 
     res.json({
       promotionId: promo._id,
       code: promo.code,
       name: promo.name,
-      discountAmount: Math.min(discountAmount, Number(subtotal)),
+      discountAmount,
+      usedCount: promo.usedCount,
       discountLine: {
         productName: `Promotion: ${promo.name}`,
         quantity: 1,
-        unitPrice: -Math.min(discountAmount, Number(subtotal)),
+        unitPrice: -discountAmount,
         productType: 'service',
       },
     });
@@ -431,14 +597,43 @@ router.get('/orders/:id/smart-buttons', checkPermission('sales', 'read'), async 
     if (!order) return res.status(404).json({ error: 'Sales order not found' });
     const DeliveryNote = (await import('../models/DeliveryNote.js')).default;
     const Invoice = (await import('../models/Invoice.js')).default;
+    const InvTransfer = (await import('../models/inventory/InvTransfer.js')).default;
+
+    const dns = await DeliveryNote.find({ ...req.tenantFilter, purchaseOrderId: order._id })
+      .select('dnNumber status inventoryTransferId lineItems createdAt')
+      .sort({ createdAt: 1 })
+      .lean();
+
+    const transferIds = dns.map((d) => d.inventoryTransferId).filter(Boolean);
+    const transfers = transferIds.length
+      ? await InvTransfer.find({ _id: { $in: transferIds } })
+        .select('state backorderOfId origin')
+        .lean()
+      : [];
+    const transferMap = Object.fromEntries(transfers.map((t) => [String(t._id), t]));
+
+    const deliveryNotes = dns.map((d) => {
+      const t = d.inventoryTransferId ? transferMap[String(d.inventoryTransferId)] : null;
+      return {
+        _id: d._id,
+        dnNumber: d.dnNumber,
+        status: d.status,
+        inventoryTransferId: d.inventoryTransferId || null,
+        transferState: t?.state || null,
+        backorderOfId: t?.backorderOfId || null,
+        hasBackorder: Boolean(t?.backorderOfId) || String(t?.state || '') === 'waiting',
+      };
+    });
+
     const [deliveries, invoices] = await Promise.all([
-      DeliveryNote.countDocuments({ ...req.tenantFilter, purchaseOrderId: order._id }),
+      Promise.resolve(dns.length),
       Invoice.countDocuments({ ...req.tenantFilter, purchaseOrderId: order._id, flow: 'sell' }),
     ]);
     res.json({
       purchaseOrderId: order._id,
       deliveries,
       invoices,
+      deliveryNotes,
       deliveryHref: `/app/dashboard/delivery-notes?purchaseOrderId=${order._id}`,
       invoiceHref: `/app/dashboard/invoices?purchaseOrderId=${order._id}`,
     });
@@ -463,6 +658,142 @@ router.post('/activity-types/seed-defaults', checkPermission('sales', 'create'),
       }
     }
     res.status(201).json({ created });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+/** Document chatter */
+router.get('/chatter/:docType/:docId', checkPermission('sales', 'read'), async (req, res) => {
+  try {
+    const { listDocumentMessages } = await import('../services/sales/documentChatter.js');
+    const messages = await listDocumentMessages({
+      tenantId: req.user.tenantId,
+      docType: req.params.docType,
+      docId: req.params.docId,
+    });
+    res.json({ messages });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/chatter/:docType/:docId', checkPermission('sales', 'update'), async (req, res) => {
+  try {
+    const { appendDocumentMessage } = await import('../services/sales/documentChatter.js');
+    const msg = await appendDocumentMessage({
+      tenantId: req.user.tenantId,
+      docType: req.params.docType,
+      docId: req.params.docId,
+      userId: req.user._id,
+      body: req.body?.body || req.body?.message,
+      kind: 'note',
+    });
+    res.status(201).json(msg);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+/**
+ * RMA from done delivery: create return transfer + optional draft credit note.
+ * Body: { deliveryNoteId, invoiceId?, lines: [{ productId, quantity }], createCreditNote?: boolean }
+ */
+router.post('/rma', checkPermission('sales', 'create'), async (req, res) => {
+  try {
+    const DeliveryNote = (await import('../models/DeliveryNote.js')).default;
+    const InvoiceModel = (await import('../models/Invoice.js')).default;
+
+    const dn = await DeliveryNote.findOne({
+      _id: req.body.deliveryNoteId,
+      ...req.tenantFilter,
+    });
+    if (!dn) return res.status(404).json({ error: 'Delivery note not found' });
+
+    let returnTransfer = null;
+    if (dn.inventoryTransferId && Array.isArray(req.body.lines) && req.body.lines.length) {
+      try {
+        const { createReturnTransfer } = await import('../services/inventory/returns.js');
+        returnTransfer = await createReturnTransfer(
+          req.user.tenantId,
+          req.user._id,
+          dn.inventoryTransferId,
+          {
+            lines: req.body.lines,
+            note: `RMA from DN ${dn.dnNumber}`,
+          },
+        );
+      } catch (e) {
+        returnTransfer = { error: e.message };
+      }
+    }
+
+    let creditNote = null;
+    let invoiceId = req.body.invoiceId;
+    if (req.body.createCreditNote && !invoiceId && dn.purchaseOrderId) {
+      const linked = await InvoiceModel.findOne({
+        ...req.tenantFilter,
+        flow: 'sell',
+        purchaseOrderId: dn.purchaseOrderId,
+        invoiceType: { $ne: 'credit_note' },
+        status: { $nin: ['cancelled', 'draft'] },
+      }).sort({ createdAt: -1 });
+      if (linked) invoiceId = linked._id;
+    }
+    if (req.body.createCreditNote && invoiceId) {
+      const inv = await InvoiceModel.findOne({ _id: invoiceId, ...req.tenantFilter });
+      if (inv) {
+        const lines = (req.body.lines || []).map((l) => {
+          const src = (inv.lineItems || []).find(
+            (li) => String(li.productId) === String(l.productId),
+          );
+          return {
+            productId: l.productId,
+            productName: src?.productName || 'Return',
+            quantity: Number(l.quantity || 0),
+            unitPrice: src?.unitPrice || 0,
+            taxRate: src?.taxRate ?? 15,
+            productType: src?.productType || 'goods',
+            sourcePoItemId: src?.sourcePoItemId || l.sourcePoItemId,
+          };
+        }).filter((l) => l.quantity > 0);
+
+        if (lines.length) {
+          creditNote = await InvoiceModel.create({
+            tenantId: req.user.tenantId,
+            flow: 'sell',
+            transactionType: inv.transactionType || 'B2B',
+            status: 'draft',
+            invoiceNumber: `CN-${Date.now().toString(36).toUpperCase()}`,
+            invoiceType: 'credit_note',
+            relatedInvoiceId: inv._id,
+            sourcePurchaseOrderId: dn.purchaseOrderId,
+            purchaseOrderId: dn.purchaseOrderId,
+            customerId: inv.customerId,
+            buyer: inv.buyer,
+            lineItems: lines,
+            createdBy: req.user._id,
+            notes: `RMA credit for DN ${dn.dnNumber}`,
+          });
+        }
+      }
+    }
+
+    try {
+      const { appendDocumentMessage } = await import('../services/sales/documentChatter.js');
+      if (dn.purchaseOrderId) {
+        await appendDocumentMessage({
+          tenantId: req.user.tenantId,
+          docType: 'sales_order',
+          docId: dn.purchaseOrderId,
+          userId: req.user._id,
+          body: `RMA opened from ${dn.dnNumber}`,
+          kind: 'system',
+        });
+      }
+    } catch { /* optional */ }
+
+    res.status(201).json({ returnTransfer, creditNote, deliveryNoteId: dn._id });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }

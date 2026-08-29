@@ -1,6 +1,7 @@
 import SalesSettings from '../../models/sales/SalesSettings.js';
 import Partner from '../../models/Partner.js';
 import Product from '../../models/Product.js';
+import { evaluateCustomerCredit } from './creditLimit.js';
 
 export async function getSalesSettings(tenantId) {
   let doc = await SalesSettings.findOne({ tenantId }).lean();
@@ -67,19 +68,59 @@ export async function resolveSaleWarnings({ tenantId, customerId, productIds = [
   return { warnings, blocks, hasBlock: blocks.length > 0 };
 }
 
-export async function assertSellOrderCanConfirm(order, tenantId) {
+/**
+ * Pre-confirm gates for sell orders.
+ * @param {{ skipCredit?: boolean }} opts — finance release skips credit re-hold
+ */
+export async function assertSellOrderCanConfirm(order, tenantId, opts = {}) {
   const settings = await getSalesSettings(tenantId);
   if (order.flow !== 'sell') return { ok: true, settings };
 
   if (settings.requireOnlineSignature && !order.signedAt) {
-    return { ok: false, error: 'Customer digital signature is required before confirmation', code: 'SIGNATURE_REQUIRED' };
+    return { ok: false, error: 'Customer digital signature is required before confirmation', code: 'SIGNATURE_REQUIRED', settings };
   }
   if (settings.requireOnlinePayment && !order.paymentConfirmedAt) {
-    return { ok: false, error: 'Online payment must be confirmed before order confirmation', code: 'PAYMENT_REQUIRED' };
+    return { ok: false, error: 'Online payment must be confirmed before order confirmation', code: 'PAYMENT_REQUIRED', settings };
   }
+
+  if (!opts.skipCredit) {
+    const credit = await evaluateCustomerCredit({
+      tenantId,
+      customerId: order.customerId?._id || order.customerId,
+      orderTotal: order.grandTotal,
+      excludeOrderId: order._id,
+    });
+    if (!credit.ok) {
+      return {
+        ok: false,
+        hold: true,
+        error: credit.error,
+        code: credit.code,
+        credit,
+        settings,
+      };
+    }
+  }
+
   return { ok: true, settings };
 }
 
 export function shouldLockSellOrder(order, settings) {
   return order.flow === 'sell' && order.status === 'approved' && settings?.lockConfirmedOrders !== false;
+}
+
+/** Order-level margin % from line costs vs selling prices (unitCost field is sell price on SO) */
+export function estimateOrderMarginPercent(order, costByProductId = {}) {
+  let revenue = 0;
+  let cost = 0;
+  for (const li of order.lineItems || []) {
+    const qty = Number(li.quantityOrdered || 0);
+    const sell = Number(li.unitCost || 0) * qty;
+    revenue += sell;
+    const pid = String(li.productId?._id || li.productId || '');
+    const unitCost = Number(costByProductId[pid] ?? li.productCost ?? 0);
+    cost += unitCost * qty;
+  }
+  if (!(revenue > 0)) return 100;
+  return ((revenue - cost) / revenue) * 100;
 }

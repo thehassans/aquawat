@@ -635,6 +635,42 @@ router.post('/:id/approve', sellOrSupply('approve'), async (req, res) => {
 
     if (order.flow === 'sell') {
       const gate = await assertSellOrderCanConfirm(order, req.user.tenantId);
+      if (!gate.ok && gate.hold) {
+        order.status = 'pending_approval';
+        order.approvalReason = gate.error;
+        order.approvalCode = gate.code;
+        order.creditExposureAtHold = gate.credit?.exposure ?? null;
+        order.isLocked = false;
+        await order.save();
+        try {
+          const { appendDocumentMessage } = await import('../services/sales/documentChatter.js');
+          await appendDocumentMessage({
+            tenantId: req.user.tenantId,
+            docType: 'sales_order',
+            docId: order._id,
+            userId: req.user._id,
+            body: `Credit hold: ${gate.error}`,
+            kind: 'system',
+          });
+        } catch { /* chatter optional */ }
+        try {
+          const { notifyFinanceApprovalHold } = await import('../services/sales/financeNotify.js');
+          await notifyFinanceApprovalHold({
+            tenantId: req.user.tenantId,
+            order,
+            reason: gate.error,
+            code: gate.code || 'CREDIT_LIMIT_EXCEEDED',
+            userId: req.user._id,
+          });
+        } catch { /* notify optional */ }
+        return res.status(402).json({
+          error: gate.error,
+          code: gate.code,
+          status: 'pending_approval',
+          credit: gate.credit,
+          order,
+        });
+      }
       if (!gate.ok) {
         return res.status(400).json({ error: gate.error, code: gate.code });
       }
@@ -642,6 +678,74 @@ router.post('/:id/approve', sellOrSupply('approve'), async (req, res) => {
       const binding = await assertSellLineVariantBinding(order.lineItems || [], req.user.tenantId);
       if (!binding.ok) {
         return res.status(400).json({ error: binding.errors.join('; '), code: 'VARIANT_REQUIRED' });
+      }
+
+      // Margin threshold → pending approval (sales manager)
+      const minMargin = Number(gate.settings?.minMarginPercent || 0);
+      if (minMargin > 0) {
+        const Product = (await import('../models/Product.js')).default;
+        const pids = [...new Set((order.lineItems || []).map((l) => l.productId).filter(Boolean))];
+        const products = await Product.find({ _id: { $in: pids }, tenantId: req.user.tenantId })
+          .select('costPrice')
+          .lean();
+        const costMap = Object.fromEntries(products.map((p) => [String(p._id), Number(p.costPrice || 0)]));
+        const { estimateOrderMarginPercent } = await import('../services/sales/salesLifecycle.js');
+        const margin = estimateOrderMarginPercent(order, costMap);
+        if (margin < minMargin) {
+          order.status = 'pending_approval';
+          order.approvalReason = `Margin ${margin.toFixed(1)}% is below threshold ${minMargin}%`;
+          order.approvalCode = 'MARGIN_BELOW_THRESHOLD';
+          await order.save();
+          try {
+            const { appendDocumentMessage } = await import('../services/sales/documentChatter.js');
+            await appendDocumentMessage({
+              tenantId: req.user.tenantId,
+              docType: 'sales_order',
+              docId: order._id,
+              userId: req.user._id,
+              body: `Margin hold: ${order.approvalReason}`,
+              kind: 'system',
+            });
+          } catch { /* optional */ }
+          try {
+            const { notifyFinanceApprovalHold } = await import('../services/sales/financeNotify.js');
+            await notifyFinanceApprovalHold({
+              tenantId: req.user.tenantId,
+              order,
+              reason: order.approvalReason,
+              code: 'MARGIN_BELOW_THRESHOLD',
+              userId: req.user._id,
+            });
+          } catch { /* optional */ }
+          return res.status(402).json({
+            error: order.approvalReason,
+            code: 'MARGIN_BELOW_THRESHOLD',
+            status: 'pending_approval',
+            margin,
+            order,
+          });
+        }
+      }
+
+      // Oversell gate for MTS lines
+      try {
+        const { evaluateSellOrderOversell } = await import('../services/sales/oversellGate.js');
+        const stockGate = await evaluateSellOrderOversell(order, req.user.tenantId, {
+          allowOversell: Boolean(req.body?.allowOversell),
+        });
+        if (!stockGate.ok) {
+          return res.status(400).json({
+            error: stockGate.error,
+            code: stockGate.code,
+            shortages: stockGate.shortages,
+            policy: stockGate.policy,
+          });
+        }
+        if (stockGate.warning) {
+          req._oversellWarning = stockGate;
+        }
+      } catch (stockErr) {
+        console.warn('[po] oversell gate skipped:', stockErr.message);
       }
     }
 
@@ -713,6 +817,36 @@ router.post('/:id/approve', sellOrSupply('approve'), async (req, res) => {
             created: result.created,
             inventoryTransferId: result.transfer?._id || result.deliveryNote.inventoryTransferId,
           };
+          // Hard reservation: confirm draft outgoing transfer so Available drops
+          const transferId = draftDelivery.inventoryTransferId;
+          if (transferId) {
+            try {
+              const { confirmTransfer } = await import('../services/inventory/transferService.js');
+              const confirmed = await confirmTransfer(req.user.tenantId, transferId, req.user._id);
+              draftDelivery.transferState = confirmed?.state || 'confirmed';
+              draftDelivery.reserved = true;
+            } catch (reserveErr) {
+              console.warn('[po] auto-reserve on SO confirm failed:', reserveErr.message);
+              draftDelivery.reserveError = reserveErr.message;
+              draftDelivery.reserved = false;
+            }
+          }
+        }
+
+        // Dropship / MTO orchestration for lines with procurementRoute
+        try {
+          const { orchestrateSellOrderRoutes } = await import('../services/sales/routeOrchestration.js');
+          draftDelivery = {
+            ...(draftDelivery || {}),
+            routes: await orchestrateSellOrderRoutes({
+              tenantId: req.user.tenantId,
+              userId: req.user._id,
+              order: populated || order,
+              tenantFilter: req.tenantFilter,
+            }),
+          };
+        } catch (routeErr) {
+          console.warn('[po] route orchestration failed:', routeErr.message);
         }
       }
     } catch (draftErr) {
@@ -720,7 +854,138 @@ router.post('/:id/approve', sellOrSupply('approve'), async (req, res) => {
     }
 
     const payload = typeof order.toJSON === 'function' ? order.toJSON() : order;
-    res.json({ ...payload, draftGrn, draftDelivery });
+    res.json({
+      ...payload,
+      draftGrn,
+      draftDelivery,
+      ...(req._oversellWarning
+        ? { oversellWarning: req._oversellWarning.warning, shortages: req._oversellWarning.shortages }
+        : {}),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/** Finance / sales-manager: release credit or margin hold and confirm the SO */
+router.post('/:id/release-approval', sellOrSupply('approve'), async (req, res) => {
+  try {
+    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!order) return res.status(404).json({ error: 'Purchase order not found' });
+    if (order.flow !== 'sell' || order.status !== 'pending_approval') {
+      return res.status(400).json({ error: 'Order is not pending approval' });
+    }
+
+    const { canReleaseSalesApproval } = await import('../services/sales/financeNotify.js');
+    if (!canReleaseSalesApproval(req.user, order.approvalCode)) {
+      return res.status(403).json({
+        error: 'Only finance/sales managers can release this hold',
+        code: 'RELEASE_FORBIDDEN',
+      });
+    }
+
+    const gate = await assertSellOrderCanConfirm(order, req.user.tenantId, { skipCredit: true });
+    if (!gate.ok) {
+      return res.status(400).json({ error: gate.error, code: gate.code });
+    }
+
+    order.status = 'approved';
+    order.approvedBy = req.user._id;
+    order.approvedAt = new Date();
+    order.approvalReason = '';
+    order.approvalCode = '';
+    if (shouldLockSellOrder(order, gate.settings)) order.isLocked = true;
+    await order.save();
+
+    let draftDelivery = null;
+    try {
+      const populated = await PurchaseOrder.findOne({ _id: order._id, ...req.tenantFilter })
+        .populate('lineItems.productId', 'sku nameEn nameAr barcode unitOfMeasure productType costPrice')
+        .populate('customerId', 'name nameAr');
+      const { ensureDraftDeliveryForSellOrder } = await import('../services/inventory/documentLinks.js');
+      const result = await ensureDraftDeliveryForSellOrder({
+        tenantId: req.user.tenantId,
+        userId: req.user._id,
+        purchaseOrder: populated || order,
+        tenantFilter: req.tenantFilter,
+      });
+      if (result.deliveryNote) {
+        draftDelivery = {
+          _id: result.deliveryNote._id,
+          dnNumber: result.deliveryNote.dnNumber,
+          inventoryTransferId: result.transfer?._id || result.deliveryNote.inventoryTransferId,
+        };
+        if (draftDelivery.inventoryTransferId) {
+          try {
+            const { confirmTransfer } = await import('../services/inventory/transferService.js');
+            await confirmTransfer(req.user.tenantId, draftDelivery.inventoryTransferId, req.user._id);
+            draftDelivery.reserved = true;
+          } catch (e) {
+            draftDelivery.reserveError = e.message;
+          }
+        }
+      }
+      try {
+        const { orchestrateSellOrderRoutes } = await import('../services/sales/routeOrchestration.js');
+        draftDelivery = {
+          ...(draftDelivery || {}),
+          routes: await orchestrateSellOrderRoutes({
+            tenantId: req.user.tenantId,
+            userId: req.user._id,
+            order: populated || order,
+            tenantFilter: req.tenantFilter,
+          }),
+        };
+      } catch { /* optional */ }
+    } catch (e) {
+      console.warn('[po] release-approval fulfillment failed:', e.message);
+    }
+
+    try {
+      const { appendDocumentMessage } = await import('../services/sales/documentChatter.js');
+      await appendDocumentMessage({
+        tenantId: req.user.tenantId,
+        docType: 'sales_order',
+        docId: order._id,
+        userId: req.user._id,
+        body: 'Credit/margin hold released — order confirmed',
+        kind: 'system',
+      });
+    } catch { /* optional */ }
+
+    res.json({ ...(typeof order.toJSON === 'function' ? order.toJSON() : order), draftDelivery });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/:id/reject-approval', sellOrSupply('approve'), async (req, res) => {
+  try {
+    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!order) return res.status(404).json({ error: 'Purchase order not found' });
+    if (order.flow !== 'sell' || order.status !== 'pending_approval') {
+      return res.status(400).json({ error: 'Order is not pending approval' });
+    }
+    order.status = 'draft';
+    order.rejectedBy = req.user._id;
+    order.rejectedAt = new Date();
+    order.rejectionReason = String(req.body?.reason || '').trim();
+    order.approvalReason = '';
+    order.approvalCode = '';
+    order.isLocked = false;
+    await order.save();
+    try {
+      const { appendDocumentMessage } = await import('../services/sales/documentChatter.js');
+      await appendDocumentMessage({
+        tenantId: req.user.tenantId,
+        docType: 'sales_order',
+        docId: order._id,
+        userId: req.user._id,
+        body: `Approval rejected${order.rejectionReason ? `: ${order.rejectionReason}` : ''}`,
+        kind: 'system',
+      });
+    } catch { /* optional */ }
+    res.json(order);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

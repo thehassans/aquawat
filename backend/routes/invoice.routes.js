@@ -1410,6 +1410,68 @@ router.post('/', invoiceWriteLimiter, checkTrialLimits('invoices'), checkPermiss
       buyer.address = { ...(customer.address || {}), ...(buyer.address || {}) };
     }
 
+    // B2B identity gate before invoice create
+    {
+      const isB2b = req.body.transactionType === 'B2B'
+        || customer?.entityType === 'business'
+        || customer?.entityType === 'company'
+        || customer?.type === 'company'
+        || customer?.type === 'business'
+        || customer?.isCompany === true;
+      if (isB2b && (req.body.flow || 'sell') === 'sell') {
+        const { assertB2bInvoiceReady } = await import('../services/sales/creditLimit.js');
+        const b2b = assertB2bInvoiceReady({
+          ...buyer,
+          isCompany: true,
+          entityType: 'business',
+          vatNumber: buyer.vatNumber || customer?.vatNumber,
+          crNumber: buyer.crNumber || customer?.crNumber,
+        });
+        if (!b2b.ok) {
+          return res.status(400).json({ error: b2b.error, code: b2b.code, missing: b2b.missing });
+        }
+      }
+    }
+
+    // Ensure invoice lines from a sell SO carry sourcePoItemId (sale_line_ids)
+    {
+      const poId = cleanObjectId(req.body.sourcePurchaseOrderId || req.body.purchaseOrderId);
+      if (poId && Array.isArray(req.body.lineItems) && (req.body.flow || 'sell') === 'sell') {
+        const PurchaseOrder = (await import('../models/PurchaseOrder.js')).default;
+        const po = await PurchaseOrder.findOne({ _id: poId, ...req.tenantFilter }).select('lineItems flow');
+        if (po?.flow === 'sell') {
+          const used = new Set();
+          req.body.lineItems = req.body.lineItems.map((li) => {
+            if (cleanObjectId(li.sourcePoItemId)) return li;
+            const match = (po.lineItems || []).find((pli) => {
+              const id = String(pli._id);
+              if (used.has(id)) return false;
+              if (li.productId && pli.productId && String(li.productId) === String(pli.productId)) {
+                return true;
+              }
+              const name = String(li.productName || li.manualName || '').trim().toLowerCase();
+              const poName = String(pli.manualName || pli.description || '').trim().toLowerCase();
+              return name && poName && name === poName;
+            });
+            if (match?._id) {
+              used.add(String(match._id));
+              return { ...li, sourcePoItemId: match._id };
+            }
+            return li;
+          });
+          const missing = req.body.lineItems.filter(
+            (li) => Number(li.quantity) > 0 && !cleanObjectId(li.sourcePoItemId),
+          );
+          if (missing.length) {
+            return res.status(400).json({
+              error: 'Invoice lines must reference sales order line ids (sourcePoItemId)',
+              code: 'SOURCE_PO_ITEM_REQUIRED',
+            });
+          }
+        }
+      }
+    }
+
     if (!buyer.name || !String(buyer.name).trim()) {
       buyer.name = 'Cash Customer';
       buyer.nameAr = buyer.nameAr || 'عميل نقدي';

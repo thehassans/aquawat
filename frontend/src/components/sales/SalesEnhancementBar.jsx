@@ -27,7 +27,6 @@ export default function SalesEnhancementBar({
     showIncotermOnDocuments,
     showComputeShipping,
     showPromoCodes,
-    enableSaleWarnings,
     showCrmTagsOnDocuments,
   } = useSalesSettings()
 
@@ -40,29 +39,9 @@ export default function SalesEnhancementBar({
     enabled: showCrmTagsOnDocuments,
   })
 
-  const checkWarnings = async (productIds = []) => {
-    if (!customerId && !productIds.length) return
-    try {
-      const { data } = await api.get('/sales/sale-warnings', {
-        params: { customerId, productIds: productIds.join(',') },
-      })
-      if (data.hasBlock) {
-        toast.error(data.blocks[0]?.message || 'Sale blocked')
-        return false
-      }
-      if (data.warnings?.length) {
-        toast(data.warnings[0].message, { icon: '⚠️' })
-      }
-      return true
-    } catch {
-      return true
-    }
-  }
-
   const showToolbar =
     showIncotermOnDocuments ||
     showComputeShipping ||
-    enableSaleWarnings ||
     showMatrix
 
   if (!showToolbar && !showPromoCodes && !(showCrmTagsOnDocuments && (tags || []).length)) {
@@ -97,11 +76,6 @@ export default function SalesEnhancementBar({
           {showComputeShipping ? (
             <button type="button" className={ghostActionClass} onClick={() => setShippingOpen(true)}>
               Compute shipping
-            </button>
-          ) : null}
-          {enableSaleWarnings ? (
-            <button type="button" className={ghostActionClass} onClick={() => checkWarnings()}>
-              Check sale warnings
             </button>
           ) : null}
         </div>

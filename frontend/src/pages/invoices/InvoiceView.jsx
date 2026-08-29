@@ -20,6 +20,7 @@ import { tenantHasEmailAddon } from '../../lib/emailAddon'
 import { tenantHasSmsAddon } from '../../lib/smsAddon'
 import { printThermalElement, getThermalPrinterSettings } from '../../lib/thermalPrinter'
 import { getTaxQrLabel, isSaudiTenant } from '../../lib/saudiTenant'
+import DocumentChatter from '../../components/sales/DocumentChatter'
 import {
   actionBarClass,
   backBtnClass,
@@ -859,6 +860,12 @@ export default function InvoiceView() {
           )}
         </div>
       </div>
+
+      {id ? (
+        <div className="mt-6">
+          <DocumentChatter docType="invoice" docId={id} language={language} />
+        </div>
+      ) : null}
 
       {printModalOpen && showThermal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 print:bg-white print:static print:inset-auto">

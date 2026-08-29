@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { Plus } from 'lucide-react'
 import AsyncCombobox from '../ui/AsyncCombobox'
 import QuickCreateContactModal from './QuickCreateContactModal'
 import api from '../../lib/api'
@@ -18,6 +19,8 @@ export default function PartnerCombobox({
   disabled = false,
   placeholder,
   queryKeyPrefix,
+  /** Show a compact "+ New" button that opens the create popout */
+  showNewButton = true,
 }) {
   const isVendor = role === 'vendor'
   const navigate = useNavigate()
@@ -45,6 +48,8 @@ export default function PartnerCombobox({
         phone: c.phone,
         mobile: c.phone,
         email: c.email,
+        crNumber: c.crNumber,
+        address: c.address,
       }))
   }, [isVendor])
 
@@ -61,55 +66,75 @@ export default function PartnerCombobox({
     }
   }
 
+  const openQuick = (term = '') => {
+    setQuickName(term)
+    setQuickOpen(true)
+  }
+
   return (
     <>
-      <AsyncCombobox
-        value={value}
-        selectedOption={selectedOption}
-        disabled={disabled}
-        debounceMs={300}
-        minChars={2}
-        queryKeyPrefix={queryKeyPrefix || (isVendor ? 'vendor-search' : 'customer-search')}
-        fetchOptions={fetchOptions}
-        placeholder={placeholder || (ar
-          ? (isVendor ? 'ابحث عن جهة اتصال (مورد)…' : 'ابحث عن جهة اتصال (عميل)…')
-          : (isVendor ? 'Search contact (vendor)…' : 'Search contact (customer)…'))}
-        noResultsText={ar ? 'لا توجد نتائج' : 'No results found'}
-        getOptionLabel={(c) => (ar && c.nameAr ? c.nameAr : c.name || c.nameEn) || c.customerCode || c.code || '—'}
-        getOptionSub={(c) => [c.customerCode || c.code, c.vatNumber || c.taxNumber, c.phone || c.mobile, c.email]
-          .filter(Boolean)
-          .join(' · ')}
-        onChange={onChange}
-        emptyActions={({ query, close }) => (
-          <div className="border-t border-slate-100 dark:border-dark-600">
-            <button
-              type="button"
-              className="flex w-full px-3 py-2.5 text-start text-sm font-medium text-sky-800 hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-950/30"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                close?.()
-                setQuickName(query || '')
-                setQuickOpen(true)
-              }}
-            >
-              {ar
-                ? `+ إنشاء سريع «${query || '…'}»`
-                : `+ Quick Create "${query || '…'}"`}
-            </button>
-            <button
-              type="button"
-              className="flex w-full px-3 py-2.5 text-start text-sm text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-dark-700"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                close?.()
-                goAdvanced(query)
-              }}
-            >
-              {ar ? 'المزيد / إنشاء متقدم…' : 'View More / Advanced Create…'}
-            </button>
-          </div>
-        )}
-      />
+      <div className="flex items-stretch gap-2">
+        <div className="min-w-0 flex-1">
+          <AsyncCombobox
+            value={value}
+            selectedOption={selectedOption}
+            disabled={disabled}
+            debounceMs={300}
+            minChars={2}
+            queryKeyPrefix={queryKeyPrefix || (isVendor ? 'vendor-search' : 'customer-search')}
+            fetchOptions={fetchOptions}
+            placeholder={placeholder || (ar
+              ? (isVendor ? 'ابحث عن مورد…' : 'ابحث عن عميل…')
+              : (isVendor ? 'Search vendor…' : 'Search customer…'))}
+            noResultsText={ar ? 'لا توجد نتائج' : 'No results found'}
+            getOptionLabel={(c) => (ar && c.nameAr ? c.nameAr : c.name || c.nameEn) || c.customerCode || c.code || '—'}
+            getOptionSub={(c) => [c.customerCode || c.code, c.vatNumber || c.taxNumber, c.phone || c.mobile, c.email]
+              .filter(Boolean)
+              .join(' · ')}
+            onChange={onChange}
+            emptyActions={({ query, close }) => (
+              <div className="border-t border-slate-100 dark:border-dark-600">
+                <button
+                  type="button"
+                  className="flex w-full px-3 py-2.5 text-start text-sm font-medium text-sky-800 hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-950/30"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    close?.()
+                    openQuick(query || '')
+                  }}
+                >
+                  {ar
+                    ? `+ إنشاء سريع «${query || '…'}»`
+                    : `+ Create new "${query || '…'}"`}
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full px-3 py-2.5 text-start text-sm text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-dark-700"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    close?.()
+                    goAdvanced(query)
+                  }}
+                >
+                  {ar ? 'المزيد / إنشاء متقدم…' : 'Advanced create…'}
+                </button>
+              </div>
+            )}
+          />
+        </div>
+        {showNewButton ? (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => openQuick('')}
+            className="inline-flex shrink-0 items-center gap-1 rounded-xl border border-slate-200/90 bg-white px-3 text-xs font-semibold text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-dark-800 dark:text-slate-200"
+            title={ar ? (isVendor ? 'مورد جديد' : 'عميل جديد') : (isVendor ? 'New vendor' : 'New customer')}
+          >
+            <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+            {ar ? 'جديد' : 'New'}
+          </button>
+        ) : null}
+      </div>
       <QuickCreateContactModal
         open={quickOpen}
         onClose={() => setQuickOpen(false)}

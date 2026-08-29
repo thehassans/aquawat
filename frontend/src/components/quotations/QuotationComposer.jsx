@@ -907,104 +907,57 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
           </div>
 
           <div className={sectionShell}>
-            <div className="mb-5">
+            <div className="mb-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
                 {language === 'ar' ? 'المشتري' : 'Buyer'}
               </p>
-              <h3 className="mt-1 flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
-                <UserRound className="h-4 w-4 text-emerald-500" />
-                {language === 'ar' ? 'بيانات العميل' : 'Who is this for?'}
+              <h3 className="mt-1 text-base font-semibold text-slate-900 dark:text-white">
+                {language === 'ar' ? 'العميل' : 'Customer'}
               </h3>
             </div>
-            <div className="mb-4">
-              <label className="label">{language === 'ar' ? 'اختر عميل موجود' : 'Select Existing Customer'}</label>
-              <PartnerCombobox
-                role="customer"
-                value={customerLookupId || values?.customerId || ''}
-                selectedOption={selectedCustomer}
-                ar={language === 'ar'}
-                language={language}
-                onChange={onSelectCustomer}
-              />
-            </div>
+            <PartnerCombobox
+              role="customer"
+              value={customerLookupId || values?.customerId || ''}
+              selectedOption={selectedCustomer}
+              ar={language === 'ar'}
+              language={language}
+              onChange={onSelectCustomer}
+              showNewButton
+            />
             {selectedCustomer?._id ? (
-              <div className="mb-4">
+              <div className="mt-3">
                 <CustomerSummaryCard
                   customer={selectedCustomer}
                   language={language}
-                  onEdit={() => setSelectedCustomer(null)}
+                  onEdit={() => {
+                    const returnTo = `${window.location.pathname}${window.location.search}`
+                    navigate(`/app/dashboard/customers/${selectedCustomer._id}?returnTo=${encodeURIComponent(returnTo)}`)
+                  }}
+                  onClear={() => onSelectCustomer('', null)}
                 />
               </div>
-            ) : null}
+            ) : (
+              <p className="mt-2 text-[11px] text-slate-400">
+                {language === 'ar'
+                  ? 'اختر عميلاً أو أنشئ عميلاً جديداً'
+                  : 'Select a customer or tap New to create one'}
+              </p>
+            )}
             <input type="hidden" {...register('customerId')} />
-            {!selectedCustomer?._id ? (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2" dir="ltr">
-              <div>
-                <FormLabel en="Name / Company" ar="الاسم / الشركة" as="label" />
-                <input {...register('buyer.name', { required: values?.transactionType === 'B2B' })} className="input" />
-              </div>
-              {showArabicFields ? (
-                <div>
-                  <FormLabel en="Name (Arabic)" ar="الاسم بالعربية" as="label" />
-                  <input {...register('buyer.nameAr')} className="input" dir="rtl" />
-                </div>
-              ) : null}
-              <div>
-                <FormLabel en={isPk ? "NTN / STRN" : "VAT Number"} ar="الرقم الضريبي" as="label" />
-                <input {...register('buyer.vatNumber')} className="input" />
-              </div>
-              <div>
-                <FormLabel en="CR Number" ar="السجل التجاري" as="label" />
-                <input {...register('buyer.crNumber')} className="input" />
-              </div>
-              <div>
-                <FormLabel en="Phone" ar="الهاتف" as="label" />
-                <input {...register('buyer.contactPhone')} className="input" />
-              </div>
-              <div>
-                <FormLabel en="Email" ar="البريد الإلكتروني" as="label" />
-                <input type="email" {...register('buyer.contactEmail')} className="input" />
-              </div>
-              <div>
-                <FormLabel en="City" ar="المدينة" as="label" />
-                <input {...register('buyer.address.city')} className="input" />
-              </div>
-              {showArabicFields ? (
-                <div>
-                  <FormLabel en="City (Arabic)" ar="المدينة بالعربية" as="label" />
-                  <input {...register('buyer.address.cityAr')} className="input" dir="rtl" />
-                </div>
-              ) : null}
-              <div>
-                <FormLabel en="District" ar="الحي" as="label" />
-                <input {...register('buyer.address.district')} className="input" />
-              </div>
-              {showArabicFields ? (
-                <div>
-                  <FormLabel en="District (Arabic)" ar="الحي بالعربية" as="label" />
-                  <input {...register('buyer.address.districtAr')} className="input" dir="rtl" />
-                </div>
-              ) : null}
-              <div>
-                <FormLabel en="Street" ar="الشارع" as="label" />
-                <input {...register('buyer.address.street')} className="input" />
-              </div>
-              {showArabicFields ? (
-                <div>
-                  <FormLabel en="Street (Arabic)" ar="الشارع بالعربية" as="label" />
-                  <input {...register('buyer.address.streetAr')} className="input" dir="rtl" />
-                </div>
-              ) : null}
-              <div>
-                <FormLabel en="Postal Code" ar="الرمز البريدي" as="label" />
-                <input {...register('buyer.address.postalCode')} className="input" />
-              </div>
-              <div>
-                <FormLabel en="Country" ar="الدولة" as="label" />
-                <input {...register('buyer.address.country')} className="input" placeholder={getTenantCountryCode(tenant)} />
-              </div>
-            </div>
-            ) : null}
+            <input type="hidden" {...register('buyer.name', { required: values?.transactionType === 'B2B' })} />
+            <input type="hidden" {...register('buyer.nameAr')} />
+            <input type="hidden" {...register('buyer.vatNumber')} />
+            <input type="hidden" {...register('buyer.crNumber')} />
+            <input type="hidden" {...register('buyer.contactPhone')} />
+            <input type="hidden" {...register('buyer.contactEmail')} />
+            <input type="hidden" {...register('buyer.address.city')} />
+            <input type="hidden" {...register('buyer.address.cityAr')} />
+            <input type="hidden" {...register('buyer.address.district')} />
+            <input type="hidden" {...register('buyer.address.districtAr')} />
+            <input type="hidden" {...register('buyer.address.street')} />
+            <input type="hidden" {...register('buyer.address.streetAr')} />
+            <input type="hidden" {...register('buyer.address.postalCode')} />
+            <input type="hidden" {...register('buyer.address.country')} />
           </div>
 
           {isMarqueeContext && (
@@ -1051,20 +1004,21 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                     <input type="hidden" {...register(`lineItems.${index}.variantId`)} />
                     <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12" dir="ltr">
                       <div className={showArabicFields ? 'md:col-span-6' : 'md:col-span-12'}>
-                        <div className="mb-1.5 flex items-center gap-2" dir="ltr">
-                          <label className="label !mb-0 min-w-0 flex-1">
-                            <span>Item Name *</span>
-                            <span className="ms-1.5 font-medium text-gray-500" dir="rtl">اسم البند</span>
-                          </label>
-                          <ProductTypeToggle
-                            value={watch(`lineItems.${index}.productType`)}
-                            onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
-                            language={language}
-                          />
-                        </div>
-                        {isTradingContext ? (
-                          <>
-                            <div className="mb-2">
+                        <label className="label !mb-1">
+                          <span>Item *</span>
+                          <span className="ms-1.5 font-medium text-gray-500" dir="rtl">البند</span>
+                        </label>
+                        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-dark-800">
+                          <div className="border-b border-slate-100 px-2 py-1.5 dark:border-white/5">
+                            <ProductTypeToggle
+                              value={watch(`lineItems.${index}.productType`)}
+                              onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
+                              language={language}
+                              className="!border-0"
+                            />
+                          </div>
+                          {isTradingContext ? (
+                            <div className="px-1 py-1">
                               <Select
                                 className="react-select-container"
                                 classNamePrefix="react-select"
@@ -1084,32 +1038,42 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                                   value: item._id,
                                   label: productPickerLabel(item, language)
                                 }))}
-                                placeholder={language === 'ar' ? 'ابحث عن منتج...' : 'Search for a product...'}
+                                placeholder={language === 'ar' ? 'ابحث عن منتج أو اكتب اسماً…' : 'Search product or type a name…'}
                                 isClearable
                                 isSearchable
                               />
-                            </div>
-                            {watch(`lineItems.${index}.productId`) ? (
-                              <div className="mb-2">
-                                <VariantLineSelect
-                                  productId={watch(`lineItems.${index}.productId`)}
-                                  value={watch(`lineItems.${index}.variantId`)}
-                                  language={language}
-                                  onChange={(variantId, variant) => {
-                                    setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })
-                                    if (variant?.name) {
-                                      setValue(`lineItems.${index}.productName`, variant.name, { shouldDirty: true })
-                                    }
-                                    if (variant?.price != null && Number(variant.price) > 0) {
-                                      setValue(`lineItems.${index}.unitPrice`, Number(variant.price), { shouldDirty: true })
-                                    }
-                                  }}
+                              {watch(`lineItems.${index}.productId`) ? (
+                                <div className="mt-1 px-1">
+                                  <VariantLineSelect
+                                    productId={watch(`lineItems.${index}.productId`)}
+                                    value={watch(`lineItems.${index}.variantId`)}
+                                    language={language}
+                                    onChange={(variantId, variant) => {
+                                      setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })
+                                      if (variant?.name) {
+                                        setValue(`lineItems.${index}.productName`, variant.name, { shouldDirty: true })
+                                      }
+                                      if (variant?.price != null && Number(variant.price) > 0) {
+                                        setValue(`lineItems.${index}.unitPrice`, Number(variant.price), { shouldDirty: true })
+                                      }
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                <input
+                                  {...register(`lineItems.${index}.productName`)}
+                                  className="input !mt-1 !border-0 !shadow-none"
+                                  placeholder={language === 'ar' ? 'أو اكتب اسم المنتج / الخدمة' : 'Or type product / service name'}
                                 />
-                              </div>
-                            ) : null}
-                          </>
-                        ) : null}
-                        <input {...register(`lineItems.${index}.productName`)} className="input" placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'} />
+                              )}
+                              {watch(`lineItems.${index}.productId`) ? (
+                                <input type="hidden" {...register(`lineItems.${index}.productName`)} />
+                              ) : null}
+                            </div>
+                          ) : (
+                            <input {...register(`lineItems.${index}.productName`)} className="input !border-0 !shadow-none" placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'} />
+                          )}
+                        </div>
                       </div>
                       {showArabicFields ? (
                         <div className="md:col-span-6">

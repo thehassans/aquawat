@@ -17,8 +17,14 @@ const pricelistItemSchema = new mongoose.Schema({
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
   variantId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvProductVariant', default: null },
   uomId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvUom', default: null },
+  /** Optional partner scope = time-bound customer contract when combined with dates */
+  partnerIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Partner' }],
   minQuantity: { type: Number, default: 1, min: 0 },
   fixedPrice: { type: Number, default: null, min: 0 },
+  /** UoM ratio multiplier applied after rule resolve (Box of 12 → 12) */
+  uomFactor: { type: Number, default: 1, min: 0 },
+  validFrom: { type: Date, default: null },
+  validTo: { type: Date, default: null },
   rules: { type: [priceRuleSchema], default: [] },
 }, { _id: true });
 
