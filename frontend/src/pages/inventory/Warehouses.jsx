@@ -27,14 +27,14 @@ export default function Warehouses() {
     { key: 'city', label: ar ? 'المدينة' : 'City', value: (r) => r?.address?.city || '' },
   ]
 
-  const { data: warehousesRaw, isLoading: loadingWarehouses } = useQuery({
+  const { data: warehouses = [], isLoading: loadingWarehouses } = useQuery({
     queryKey: ['warehouses'],
-    queryFn: () => api.get('/warehouses').then((res) => res.data),
+    queryFn: async () => {
+      const res = await api.get('/warehouses')
+      const list = res.data?.warehouses ?? res.data?.items ?? res.data
+      return Array.isArray(list) ? list : []
+    },
   })
-
-  const warehouses = Array.isArray(warehousesRaw)
-    ? warehousesRaw
-    : (warehousesRaw?.warehouses || warehousesRaw?.data || [])
 
   const { data: stockStats } = useQuery({
     queryKey: ['warehouses-stock-stats'],

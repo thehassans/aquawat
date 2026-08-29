@@ -573,15 +573,23 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     })
   }, [isTravelContext, lineItems, setValue])
 
-  const { data: products } = useQuery({
+  const { data: products = [] } = useQuery({
     queryKey: ['products-list'],
-    queryFn: () => api.get('/products', { params: { limit: 200 } }).then((res) => res.data.products),
+    queryFn: async () => {
+      const res = await api.get('/products', { params: { limit: 200 } })
+      const list = res.data?.products ?? res.data?.items ?? res.data
+      return Array.isArray(list) ? list : []
+    },
     enabled: isTradingContext,
   })
 
-  const { data: warehouses } = useQuery({
+  const { data: warehouses = [] } = useQuery({
     queryKey: ['warehouses'],
-    queryFn: () => api.get('/warehouses').then((res) => res.data),
+    queryFn: async () => {
+      const res = await api.get('/warehouses')
+      const list = res.data?.warehouses ?? res.data?.items ?? res.data
+      return Array.isArray(list) ? list : []
+    },
     enabled: isTradingContext,
   })
 
@@ -599,6 +607,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     const primary = list.find((w) => w.isPrimary || w.isDefault) || list[0]
     if (primary?._id) setValue('warehouseId', String(primary._id))
   }, [engineRequiresWarehouse, warehouses, selectedWarehouseId, setValue])
+
+  const productList = Array.isArray(products) ? products : []
+  const warehouseList = Array.isArray(warehouses) ? warehouses : []
 
   useEffect(() => {
     if (!partnerIdParam || isEdit) return
@@ -849,7 +860,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   })
 
   const onSelectProduct = (index, productId) => {
-    const product = (products || []).find((item) => item._id === productId)
+    const product = productList.find((item) => item._id === productId)
     if (!product) return
     setValue(`lineItems.${index}.productId`, product._id)
     setValue(`lineItems.${index}.variantId`, '')
@@ -867,7 +878,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     const rel = row?.relatedProductId
     const id = String(rel?._id || rel || '')
     if (!id) return null
-    return (products || []).find((p) => String(p._id) === id) || (typeof rel === 'object' ? rel : null)
+    return productList.find((p) => String(p._id) === id) || (typeof rel === 'object' ? rel : null)
   }
 
   const appendRelatedProduct = (row) => {
@@ -1114,7 +1125,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     taxableAmount: totals.taxableAmount,
     totalTax: totals.totalTax,
     grandTotal: totals.grandTotal,
-    lineItems: totals.lines.map((line, index) => ({
+    lineItems: (Array.isArray(totals.lines) ? totals.lines : []).map((line, index) => ({
       ...line.raw,
       lineNumber: index + 1,
       lineTotal: line.lineTotal,
@@ -1229,13 +1240,13 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <select value={sourceId} onChange={(e) => setSourceId(e.target.value)} className={`mt-1 ${fieldControlClass}`}>
                     <option value="">{language === 'ar' ? 'اختر…' : 'Select…'}</option>
                     {isRestaurantContext
-                      ? (restaurantOrders || []).map((item) => <option key={item._id} value={item._id}>{item.orderNumber} - {Number(item.grandTotal || 0).toFixed(2)}</option>)
+                      ? (Array.isArray(restaurantOrders) ? restaurantOrders : []).map((item) => <option key={item._id} value={item._id}>{item.orderNumber} - {Number(item.grandTotal || 0).toFixed(2)}</option>)
                       : null}
                     {isTravelContext
-                      ? (travelBookings || []).map((item) => <option key={item._id} value={item._id}>{item.bookingNumber} - {Number(item.grandTotal || 0).toFixed(2)}</option>)
+                      ? (Array.isArray(travelBookings) ? travelBookings : []).map((item) => <option key={item._id} value={item._id}>{item.bookingNumber} - {Number(item.grandTotal || 0).toFixed(2)}</option>)
                       : null}
                     {isManpowerContext
-                      ? (manpowerAssignments || []).map((item) => <option key={item._id} value={item._id}>{item.assignmentNumber} - {item.clientId?.name || 'Customer'}</option>)
+                      ? (Array.isArray(manpowerAssignments) ? manpowerAssignments : []).map((item) => <option key={item._id} value={item._id}>{item.assignmentNumber} - {item.clientId?.name || 'Customer'}</option>)
                       : null}
                   </select>
                 </div>
@@ -1546,8 +1557,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                           <CreatableSelect
                             inputId={`product-select-${index}`}
                             name={`react-select-product-${index}`}
-                            options={(products || []).map(p => ({ value: p._id, label: productPickerLabel(p, language) }))}
-                            value={((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))) ? { value: watch(`lineItems.${index}.productId`), label: productPickerLabel((products || []).find(p => p._id === watch(`lineItems.${index}.productId`)), language) } : null}
+                            options={productList.map(p => ({ value: p._id, label: productPickerLabel(p, language) }))}
+                            value={(productList.find(p => p._id === watch(`lineItems.${index}.productId`))) ? { value: watch(`lineItems.${index}.productId`), label: productPickerLabel(productList.find(p => p._id === watch(`lineItems.${index}.productId`)), language) } : null}
                             onChange={(selected) => {
                               if (selected) {
                                 if (selected.__isNew__) {
@@ -1720,7 +1731,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       <LineRelationSuggestions
                         productId={lineItems[index].productId}
                         currentUnitPrice={lineItems[index].unitPrice}
-                        products={products || []}
+                        products={productList}
                         language={language}
                         onAdd={appendRelatedProduct}
                         onSwap={(row) => swapLineProduct(index, row)}
@@ -2175,7 +2186,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                           ? (language === 'ar' ? 'اختر المستودع…' : 'Select warehouse…')
                           : (language === 'ar' ? 'بدون تحديد حالياً' : 'No warehouse selected yet')}
                       </option>
-                      {(warehouses || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}
+                      {warehouseList.map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}
                     </select>
                   </div>
                   <div className="flex gap-2">

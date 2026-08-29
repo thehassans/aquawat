@@ -432,9 +432,13 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     return () => { cancelled = true }
   }, [initialQuotation?.customerId])
 
-  const { data: products } = useQuery({
+  const { data: products = [] } = useQuery({
     queryKey: ['products-list'],
-    queryFn: () => api.get('/products', { params: { limit: 200 } }).then((res) => res.data.products),
+    queryFn: async () => {
+      const res = await api.get('/products', { params: { limit: 200 } })
+      const list = res.data?.products ?? res.data?.items ?? res.data
+      return Array.isArray(list) ? list : []
+    },
     enabled: isTradingContext,
   })
 

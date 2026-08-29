@@ -362,15 +362,23 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     setValue('pdfTemplateId', getInvoiceTemplateId(tenant, businessContext))
   }, [businessContext, setValue])
 
-  const { data: products } = useQuery({
+  const { data: products = [] } = useQuery({
     queryKey: ['products-list'],
-    queryFn: () => api.get('/products', { params: { limit: 200 } }).then((res) => res.data.products),
+    queryFn: async () => {
+      const res = await api.get('/products', { params: { limit: 200 } })
+      const list = res.data?.products ?? res.data?.items ?? res.data
+      return Array.isArray(list) ? list : []
+    },
     enabled: isTradingContext,
   })
 
-  const { data: warehouses } = useQuery({
+  const { data: warehouses = [] } = useQuery({
     queryKey: ['warehouses'],
-    queryFn: () => api.get('/warehouses').then((res) => res.data),
+    queryFn: async () => {
+      const res = await api.get('/warehouses')
+      const list = res.data?.warehouses ?? res.data?.items ?? res.data
+      return Array.isArray(list) ? list : []
+    },
     enabled: isTradingContext,
   })
 
