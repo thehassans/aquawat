@@ -441,6 +441,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     },
     enabled: isTradingContext,
   })
+  const productList = Array.isArray(products) ? products : []
 
   const fillBuyerFromParty = (customer) => {
     if (!customer) return
@@ -519,7 +520,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
   })
 
   const onSelectProduct = (index, productId) => {
-    const product = (products || []).find((item) => String(item._id) === String(productId))
+    const product = productList.find((item) => String(item._id) === String(productId))
     if (!product) return
     setValue(`lineItems.${index}.productId`, product._id)
     setValue(`lineItems.${index}.variantId`, '')
@@ -537,7 +538,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     const rel = row?.relatedProductId
     const id = String(rel?._id || rel || '')
     if (!id) return null
-    return (products || []).find((p) => String(p._id) === id) || (typeof rel === 'object' ? rel : null)
+    return productList.find((p) => String(p._id) === id) || (typeof rel === 'object' ? rel : null)
   }
 
   const appendRelatedProduct = (row) => {
@@ -1072,14 +1073,14 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                                     ? {
                                         value: values.lineItems[index].productId,
                                         label: productPickerLabel(
-                                          (products || []).find((p) => p._id === values.lineItems[index].productId) || {},
+                                          productList.find((p) => p._id === values.lineItems[index].productId) || {},
                                           language
                                         )
                                       }
                                     : null
                                 }
                                 onChange={(option) => onSelectProduct(index, option ? option.value : '')}
-                                options={(products || []).map((item) => ({
+                                options={productList.map((item) => ({
                                   value: item._id,
                                   label: productPickerLabel(item, language)
                                 }))}
@@ -1201,7 +1202,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                       <LineRelationSuggestions
                         productId={values.lineItems[index].productId}
                         currentUnitPrice={values.lineItems[index].unitPrice}
-                        products={products || []}
+                        products={productList}
                         language={language}
                         includeOptional
                         onAdd={appendRelatedProduct}

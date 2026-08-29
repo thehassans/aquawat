@@ -382,6 +382,9 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     enabled: isTradingContext,
   })
 
+  const productList = Array.isArray(products) ? products : []
+  const warehouseList = Array.isArray(warehouses) ? warehouses : []
+
   const { data: suppliers } = useQuery({
     queryKey: ['suppliers-lookup'],
     queryFn: async () => {
@@ -492,7 +495,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   })
 
   const onSelectProduct = (index, productId) => {
-    const product = (products || []).find((item) => item._id === productId)
+    const product = productList.find((item) => item._id === productId)
     if (!product) return
     setValue(`lineItems.${index}.productId`, product._id)
     setValue(`lineItems.${index}.variantId`, '')
@@ -857,7 +860,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                   </div>
                   <div>
                     <label className={fieldLabelClass}>{language === 'ar' ? 'المستودع' : 'Warehouse'}</label>
-                    <select {...register('warehouseId')} className={fieldControlClass}><option value="">{language === 'ar' ? 'بدون تحديد حالياً' : 'No warehouse selected yet'}</option>{(Array.isArray(warehouses) ? warehouses : warehouses?.warehouses || []).map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}</select>
+                    <select {...register('warehouseId')} className={fieldControlClass}><option value="">{language === 'ar' ? 'بدون تحديد حالياً' : 'No warehouse selected yet'}</option>{warehouseList.map((item) => <option key={item._id} value={item._id}>{language === 'ar' ? (item.nameAr || item.nameEn) : item.nameEn}</option>)}</select>
                     <div className="mt-2 flex gap-2">
                       <button type="button" className="btn btn-secondary" onClick={() => setValue('warehouseId', '')} disabled={!selectedWarehouseId}>{language === 'ar' ? 'إلغاء التحديد' : 'Clear'}</button>
                       <button type="button" className="btn btn-action-dark" onClick={() => navigate(`/app/dashboard/inventory/warehouses/new?returnTo=${encodeURIComponent('/app/dashboard/invoices/new/purchase')}`)}>{language === 'ar' ? 'إضافة مستودع' : 'Add Warehouse'}</button>
@@ -1101,8 +1104,8 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                           <CreatableSelect
                             inputId={`product-select-${index}`}
                             name={`react-select-product-${index}`}
-                            options={(products || []).map(p => ({ value: p._id, label: productPickerLabel(p, language) }))}
-                            value={((products || []).find(p => p._id === watch(`lineItems.${index}.productId`))) ? { value: watch(`lineItems.${index}.productId`), label: productPickerLabel((products || []).find(p => p._id === watch(`lineItems.${index}.productId`)), language) } : null}
+                            options={productList.map(p => ({ value: p._id, label: productPickerLabel(p, language) }))}
+                            value={(productList.find(p => p._id === watch(`lineItems.${index}.productId`))) ? { value: watch(`lineItems.${index}.productId`), label: productPickerLabel(productList.find(p => p._id === watch(`lineItems.${index}.productId`)), language) } : null}
                             onChange={(selected) => {
                               if (selected) {
                                 if (selected.__isNew__) {
