@@ -78,8 +78,8 @@ function groupKey(date, granularity) {
 
 function lineAmounts(line) {
   const qty = Number(line?.quantity || 0);
-  const untaxed = Number(line?.lineTotal ?? (Number(line?.unitPrice || 0) * qty) || 0);
-  const taxed = Number(line?.lineTotalWithTax ?? untaxed);
+  const untaxed = Number(line?.lineTotal ?? (Number(line?.unitPrice || 0) * qty)) || 0;
+  const taxed = Number(line?.lineTotalWithTax ?? untaxed) || 0;
   return { qty, untaxed, taxed };
 }
 
