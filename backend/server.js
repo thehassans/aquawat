@@ -702,7 +702,7 @@ app.use('/api/', requestTimeout(Number.isFinite(apiTimeoutMs) && apiTimeoutMs > 
 // Body parsing — Stripe webhook needs the raw body for signature verification
 app.post('/api/payments/stripe-webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
 
-const jsonBodyLimit = process.env.JSON_BODY_LIMIT || '2mb';
+const jsonBodyLimit = process.env.JSON_BODY_LIMIT || '10mb';
 app.use(express.json({
   limit: jsonBodyLimit,
   verify: (req, _res, buf) => {

@@ -40,7 +40,16 @@ const mergeTenantState = (prev, incoming) => {
     ...prev,
     ...patch,
     settings: patch.settings
-      ? { ...(prev.settings || {}), ...patch.settings }
+      ? {
+          ...(prev.settings || {}),
+          ...patch.settings,
+          invoiceBranding: patch.settings.invoiceBranding
+            ? {
+                ...(prev.settings?.invoiceBranding || {}),
+                ...patch.settings.invoiceBranding,
+              }
+            : prev.settings?.invoiceBranding,
+        }
       : prev.settings,
     branding: patch.branding
       ? { ...(prev.branding || {}), ...patch.branding }

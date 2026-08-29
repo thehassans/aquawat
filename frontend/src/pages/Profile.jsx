@@ -60,7 +60,7 @@ import {
   ArrowLeft
 } from 'lucide-react'
 
-import api from '../lib/api'
+import api, { getImageUrl } from '../lib/api'
 import { updateTenant, updateUser } from '../store/slices/authSlice'
 import { getBusinessTypeOptions, getPrimaryBusinessType, getTenantBusinessTypes, normalizeBusinessTypes } from '../lib/businessTypes'
 import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../lib/uomOptions'
@@ -175,7 +175,10 @@ export default function Profile() {
   const vatCertificate = business?.vatCertificate || {}
   const bankDetails = business?.bankDetails || {}
   const subscription = tenant?.subscription || {}
-  const branding = tenant?.branding || {}
+  const branding = {
+    ...(tenant?.branding || {}),
+    logo: tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo || '',
+  }
   const invoiceBranding = tenant?.settings?.invoiceBranding || {}
 
   const businessTypes = getTenantBusinessTypes(tenant)
@@ -286,20 +289,47 @@ export default function Profile() {
     setStampPreview(stampUrl || null)
   }, [tenant, isEditModalOpen, reset])
 
-  const handleLogoUpload = (e) => {
+  const uploadBrandingFile = async (file, kind) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('kind', kind)
+    const { data } = await api.post('/tenants/upload-branding', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return data?.url || ''
+  }
+
+  /** Convert legacy base64 data-URLs to hosted /uploads URLs so PUT stays small. */
+  const ensureHostedUrl = async (value, kind) => {
+    const s = String(value || '')
+    if (!s) return ''
+    if (!s.startsWith('data:')) return s
+    const res = await fetch(s)
+    const blob = await res.blob()
+    const ext = (blob.type || 'image/png').split('/')[1] || 'png'
+    const file = new File([blob], `${kind}.${ext}`, { type: blob.type || 'image/png' })
+    return uploadBrandingFile(file, kind)
+  }
+
+  const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
-    if (file.size > 3 * 1024 * 1024) {
-      toast.error(language === 'ar' ? 'حجم الصورة يجب أن لا يتجاوز 3 ميجابايت' : 'Image size must not exceed 3MB')
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error(language === 'ar' ? 'حجم الصورة يجب أن لا يتجاوز 5 ميجابايت' : 'Image size must not exceed 5MB')
       return
     }
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result
-      setLogoPreview(dataUrl)
-      setValue('branding.logo', dataUrl, { shouldDirty: true })
+    const previous = logoPreview
+    setLogoPreview(URL.createObjectURL(file))
+    try {
+      const url = await uploadBrandingFile(file, 'logo')
+      setLogoPreview(url)
+      setValue('branding.logo', url, { shouldDirty: true })
+      toast.success(language === 'ar' ? 'تم رفع الشعار' : 'Logo uploaded')
+    } catch (err) {
+      setLogoPreview(previous)
+      toast.error(err?.response?.data?.error || (language === 'ar' ? 'فشل رفع الشعار' : 'Failed to upload logo'))
     }
-    reader.readAsDataURL(file)
   }
 
   const handleRemoveLogo = () => {
@@ -307,20 +337,25 @@ export default function Profile() {
     setValue('branding.logo', '', { shouldDirty: true })
   }
 
-  const handleSignatureUpload = (e) => {
+  const handleSignatureUpload = async (e) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error(language === 'ar' ? 'حجم التوقيع يجب أن لا يتجاوز 2 ميجابايت' : 'Signature size must not exceed 2MB')
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error(language === 'ar' ? 'حجم التوقيع يجب أن لا يتجاوز 5 ميجابايت' : 'Signature size must not exceed 5MB')
       return
     }
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result
-      setSignaturePreview(dataUrl)
-      setValue('settings.invoiceBranding.presetSignature', dataUrl, { shouldDirty: true })
+    const previous = signaturePreview
+    setSignaturePreview(URL.createObjectURL(file))
+    try {
+      const url = await uploadBrandingFile(file, 'signature')
+      setSignaturePreview(url)
+      setValue('settings.invoiceBranding.presetSignature', url, { shouldDirty: true })
+      toast.success(language === 'ar' ? 'تم رفع التوقيع' : 'Signature uploaded')
+    } catch (err) {
+      setSignaturePreview(previous)
+      toast.error(err?.response?.data?.error || (language === 'ar' ? 'فشل رفع التوقيع' : 'Failed to upload signature'))
     }
-    reader.readAsDataURL(file)
   }
 
   const handleRemoveSignature = () => {
@@ -328,20 +363,25 @@ export default function Profile() {
     setValue('settings.invoiceBranding.presetSignature', '', { shouldDirty: true })
   }
 
-  const handleStampUpload = (e) => {
+  const handleStampUpload = async (e) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error(language === 'ar' ? 'حجم الختم يجب أن لا يتجاوز 2 ميجابايت' : 'Stamp size must not exceed 2MB')
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error(language === 'ar' ? 'حجم الختم يجب أن لا يتجاوز 5 ميجابايت' : 'Stamp size must not exceed 5MB')
       return
     }
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result
-      setStampPreview(dataUrl)
-      setValue('settings.invoiceBranding.presetStamp', dataUrl, { shouldDirty: true })
+    const previous = stampPreview
+    setStampPreview(URL.createObjectURL(file))
+    try {
+      const url = await uploadBrandingFile(file, 'stamp')
+      setStampPreview(url)
+      setValue('settings.invoiceBranding.presetStamp', url, { shouldDirty: true })
+      toast.success(language === 'ar' ? 'تم رفع الختم' : 'Stamp uploaded')
+    } catch (err) {
+      setStampPreview(previous)
+      toast.error(err?.response?.data?.error || (language === 'ar' ? 'فشل رفع الختم' : 'Failed to upload stamp'))
     }
-    reader.readAsDataURL(file)
   }
 
   const handleRemoveStamp = () => {
@@ -352,37 +392,45 @@ export default function Profile() {
   const updateProfileMutation = useMutation({
     mutationFn: async (formData) => {
       const crVal = formData.business?.crNumber || ''
-      const nextLogo = logoPreview == null ? String(formData.branding?.logo || '') : String(logoPreview || '')
-      const nextSig = signaturePreview == null ? String(formData.settings?.invoiceBranding?.presetSignature || '') : String(signaturePreview || '')
-      const nextStamp = stampPreview == null ? String(formData.settings?.invoiceBranding?.presetStamp || '') : String(stampPreview || '')
+      const rawLogo = logoPreview == null ? formData.branding?.logo : logoPreview
+      const rawSig = signaturePreview == null
+        ? formData.settings?.invoiceBranding?.presetSignature
+        : signaturePreview
+      const rawStamp = stampPreview == null
+        ? formData.settings?.invoiceBranding?.presetStamp
+        : stampPreview
+
+      const [nextLogo, nextSig, nextStamp] = await Promise.all([
+        ensureHostedUrl(rawLogo, 'logo'),
+        ensureHostedUrl(rawSig, 'signature'),
+        ensureHostedUrl(rawStamp, 'stamp'),
+      ])
+
       const nextUom = formData.settings?.defaultUom ?? (getDefaultUom(tenant) || '')
       const nextTerms = formData.settings?.termsAndConditions || formData.settings?.invoiceBranding?.termsAndConditions || ''
       const nextNotes = formData.settings?.notes || formData.settings?.invoiceBranding?.defaultNotes || ''
+      // Slim payload — backend merges; do not resend entire tenant.settings (was blowing body limit)
       const payload = {
-        ...formData,
         business: {
           ...formData.business,
           crNumber: crVal,
           defaultUom: nextUom,
           commercialRegistration: {
-            ...formData.business.commercialRegistration,
+            ...formData.business?.commercialRegistration,
             crNumber: crVal,
-          }
+          },
         },
         branding: {
-          ...(tenant.branding || {}),
-          ...formData.branding,
+          primaryColor: formData.branding?.primaryColor || tenant?.branding?.primaryColor || '#0284c7',
           logo: nextLogo,
         },
         settings: {
-          ...(tenant.settings || {}),
-          ...(formData.settings || {}),
+          currency: formData.settings?.currency || tenant?.settings?.currency || 'SAR',
+          timezone: formData.settings?.timezone || tenant?.settings?.timezone || 'Asia/Riyadh',
           defaultUom: nextUom,
           termsAndConditions: nextTerms,
           notes: nextNotes,
           invoiceBranding: {
-            ...(tenant.settings?.invoiceBranding || {}),
-            ...(formData.settings?.invoiceBranding || {}),
             logo: nextLogo,
             presetSignature: nextSig,
             signatureImage: nextSig,
@@ -408,7 +456,13 @@ export default function Profile() {
       refetch()
     },
     onError: (err) => {
-      toast.error(err.response?.data?.error || (language === 'ar' ? 'فشل تحديث البيانات' : 'Failed to update profile'))
+      const status = err?.response?.status
+      const msg = err?.response?.data?.error
+        || (status === 413
+          ? (language === 'ar' ? 'الملف كبير جداً — ارفع الشعار كصورة أصغر' : 'Payload too large — upload a smaller logo image')
+          : null)
+        || (language === 'ar' ? 'فشل تحديث البيانات' : 'Failed to update profile')
+      toast.error(msg)
     }
   })
 
@@ -568,7 +622,7 @@ export default function Profile() {
               <div className="relative group">
                 <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[1.35rem] border border-white/15 bg-white/95 p-2.5 shadow-[0_20px_40px_-24px_rgba(0,0,0,0.55)] sm:h-28 sm:w-28">
                   {branding.logo ? (
-                    <img src={branding.logo} alt="Company Logo" className="h-full w-full object-contain" />
+                    <img src={getImageUrl(branding.logo)} alt="Company Logo" className="h-full w-full object-contain" />
                   ) : (
                     <Building2 className="h-10 w-10 text-slate-400" />
                   )}
@@ -1975,7 +2029,7 @@ export default function Profile() {
                   <div className="flex items-center gap-6">
                     <div className="w-24 h-24 rounded-2xl bg-gray-100 dark:bg-dark-700 border border-gray-200 dark:border-dark-600 flex items-center justify-center overflow-hidden p-2">
                       {logoPreview ? (
-                        <img src={logoPreview} alt="Preview" className="w-full h-full object-contain" />
+                        <img src={getImageUrl(logoPreview)} alt="Preview" className="w-full h-full object-contain" />
                       ) : (
                         <Building2 className="w-8 h-8 text-gray-400" />
                       )}
@@ -2249,7 +2303,7 @@ export default function Profile() {
                       <div className="flex items-center gap-4">
                         <div className="w-20 h-20 rounded-xl bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-600 flex items-center justify-center overflow-hidden p-1.5">
                           {signaturePreview ? (
-                            <img src={signaturePreview} alt="Signature" className="w-full h-full object-contain" />
+                            <img src={getImageUrl(signaturePreview)} alt="Signature" className="w-full h-full object-contain" />
                           ) : (
                             <FileText className="w-6 h-6 text-gray-400" />
                           )}
@@ -2280,7 +2334,7 @@ export default function Profile() {
                       <div className="flex items-center gap-4">
                         <div className="w-20 h-20 rounded-xl bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-600 flex items-center justify-center overflow-hidden p-1.5">
                           {stampPreview ? (
-                            <img src={stampPreview} alt="Stamp" className="w-full h-full object-contain" />
+                            <img src={getImageUrl(stampPreview)} alt="Stamp" className="w-full h-full object-contain" />
                           ) : (
                             <Shield className="w-6 h-6 text-gray-400" />
                           )}

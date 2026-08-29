@@ -343,6 +343,44 @@ router.put('/current', authorize('admin'), async (req, res) => {
 
 const upload = multer({ storage: multer.memoryStorage(), fileFilter: imageFileFilter });
 
+// @route   POST /api/tenants/upload-branding
+// Upload logo / stamp / signature as compressed webp; returns { url, kind }
+router.post('/upload-branding', authorize('admin'), upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file?.buffer) {
+      return res.status(400).json({ error: 'No image uploaded' });
+    }
+    const kind = String(req.body?.kind || req.query?.kind || 'logo').toLowerCase();
+    if (!['logo', 'stamp', 'signature'].includes(kind)) {
+      return res.status(400).json({ error: 'kind must be logo, stamp, or signature' });
+    }
+
+    const tenantIdStr = String(tenantIdOf(req));
+    const filename = `${kind}-${Date.now()}-${Math.round(Math.random() * 1e9)}.webp`;
+    const key = `branding/${tenantIdStr}/${filename}`;
+
+    const size = kind === 'logo' ? 512 : 800;
+    const buffer = await sharp(req.file.buffer)
+      .rotate()
+      .resize(size, size, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: kind === 'logo' ? 88 : 85 })
+      .toBuffer();
+
+    const { url } = await saveUploadBuffer({
+      buffer,
+      key,
+      contentType: 'image/webp',
+      publicUrlPath: `/uploads/${key}`,
+    });
+
+    res.json({ url, kind });
+  } catch (error) {
+    if (handleTenantScopeError(res, error)) return;
+    console.error('Branding upload error:', error);
+    res.status(500).json({ error: error.message || 'Failed to process image' });
+  }
+});
+
 // @route   POST /api/tenants/upload-qr-hero
 router.post('/upload-qr-hero', authorize('admin'), upload.single('image'), async (req, res) => {
   try {
