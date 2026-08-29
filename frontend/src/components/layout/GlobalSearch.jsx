@@ -186,7 +186,7 @@ export default function GlobalSearch({ language }) {
   const showPanel = isOpen && query.trim() && panelStyle;
 
   return (
-    <div ref={wrapperRef} className="relative z-[60] w-full max-w-md">
+    <div ref={wrapperRef} className="relative z-[60] w-full max-w-2xl min-w-[28rem] sm:min-w-[36rem]">
       <div className="relative group">
         <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary-500 transition-colors" />
         <input
