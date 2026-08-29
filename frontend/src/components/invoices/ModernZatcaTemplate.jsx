@@ -4,7 +4,7 @@ import DocumentExtras from './DocumentExtras'
 import { resolveTaxInvoiceQr } from '../../lib/taxInvoiceQr'
 import { getUomLabel } from '../../lib/uomOptions'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
-import { getInvoiceBranding, getLetterheadContact } from '../../lib/invoiceBranding'
+import { getInvoiceBranding, getLetterheadContact, hexColorToRgb } from '../../lib/invoiceBranding'
 import { formatCurrencyAmount } from '../../lib/currency'
 import { Calendar, Hash, User, Phone, MapPin, CreditCard, FileText, Mail, Info } from 'lucide-react'
 import { getAmountInWords } from '../../lib/amountInWords'
@@ -35,6 +35,16 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
   const currency = invoice?.currency || tenant?.settings?.currency || 'SAR'
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
   const letterheadContact = getLetterheadContact(tenant, invoice)
+  const textColor = invoiceBranding.primaryColor || '#0F172A'
+  const accentColor = invoiceBranding.secondaryColor || textColor
+  const accentRgb = hexColorToRgb(accentColor)
+  const brandBodyStyle = {
+    color: textColor,
+    '--inv-text': textColor,
+    '--inv-accent': accentColor,
+    '--inv-accent-soft': `rgba(${accentRgb.r}, ${accentRgb.g}, ${accentRgb.b}, 0.12)`,
+    '--inv-accent-border': `rgba(${accentRgb.r}, ${accentRgb.g}, ${accentRgb.b}, 0.28)`,
+  }
   
   const isVendorBill = documentType === 'vendor_bill'
   const isPurchaseFlow = invoice?.flow === 'purchase' || documentType === 'purchase_invoice' || documentType === 'purchase_order' || isVendorBill
@@ -154,21 +164,33 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
       {invoiceBranding.letterheadImage && (
         <img src={invoiceBranding.letterheadImage} alt="" className="absolute inset-0 w-full h-full object-cover z-0 pointer-events-none" />
       )}
-      <div className="relative z-10">
+      <div className="inv-branded-body relative z-10" style={brandBodyStyle}>
+        <style>{`
+          .inv-branded-body .text-gray-900,
+          .inv-branded-body .text-gray-800,
+          .inv-branded-body .text-gray-700 { color: var(--inv-text); }
+          .inv-branded-body .text-primary-700,
+          .inv-branded-body .text-primary-600 { color: var(--inv-accent); }
+        `}</style>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
-          <div className={`inline-flex items-center justify-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-wider w-fit text-center align-middle ${
-            isPurchaseOrder
-              ? 'bg-slate-900 text-white border-slate-900'
-              : isPurchaseFlow
-              ? 'bg-slate-900 text-white border-slate-900'
-              : invoice?.businessContext === 'furniture' || window.location.pathname.includes('/furniture')
-              ? 'bg-blue-50 text-blue-700 border-blue-200'
-              : invoice?.businessContext === 'boutique'
-              ? invoice?.boutiqueDetails?.transactionType === 'sale'
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                : 'bg-rose-50 text-rose-700 border-rose-200'
-              : 'bg-primary-50 text-primary-700'
-          }`}>
+          <div
+            className={`inline-flex w-fit items-center justify-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-center align-middle ${
+              isPurchaseOrder || isPurchaseFlow
+                ? 'bg-slate-900 text-white border-slate-900'
+                : invoice?.businessContext === 'furniture' || (typeof window !== 'undefined' && window.location.pathname.includes('/furniture'))
+                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                : invoice?.businessContext === 'boutique'
+                ? invoice?.boutiqueDetails?.transactionType === 'sale'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-rose-50 text-rose-700 border-rose-200'
+                : ''
+            }`}
+            style={
+              !(isPurchaseOrder || isPurchaseFlow || invoice?.businessContext === 'furniture' || invoice?.businessContext === 'boutique')
+                ? { backgroundColor: 'var(--inv-accent-soft)', color: 'var(--inv-accent)', borderColor: 'var(--inv-accent-border)' }
+                : undefined
+            }
+          >
             <FileText className="h-4 w-4 shrink-0" />
             <span className="inline-flex items-center gap-1.5 leading-none">
               {isPurchaseOrder
@@ -177,7 +199,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                 ? L('Purchase Order Bill', 'فاتورة أمر الشراء')
                 : isPurchaseFlow
                 ? L('Purchase Invoice', 'فاتورة شراء')
-                : invoice?.businessContext === 'furniture' || window.location.pathname.includes('/furniture')
+                : invoice?.businessContext === 'furniture' || (typeof window !== 'undefined' && window.location.pathname.includes('/furniture'))
                 ? L('Furniture Sale Invoice', 'فاتورة بيع مفروشات')
                 : invoice?.businessContext === 'boutique'
                 ? invoice?.boutiqueDetails?.transactionType === 'sale'
@@ -511,7 +533,10 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                 </>
               )}
               
-              <div className="flex justify-between rounded-lg bg-primary-100/50 p-3 border border-primary-100">
+              <div
+                className="flex justify-between rounded-lg p-3 border"
+                style={{ backgroundColor: 'var(--inv-accent-soft)', borderColor: 'var(--inv-accent-border)' }}
+              >
                 <div className="flex flex-col">
                   <span className="font-bold text-gray-900">Total</span>
                   {bilingual && S('الإجمالي') && <span className="text-xs font-semibold text-gray-600" dir={secondaryDir}>{S('الإجمالي')}</span>}
@@ -545,7 +570,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
 
           {showZatcaQr && qrValue && (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50/50 p-3 w-full md:w-56">
-              <QRCodeSVG value={qrValue} size={100} bgColor="transparent" fgColor="#111827" />
+              <QRCodeSVG value={qrValue} size={100} bgColor="transparent" fgColor={textColor} />
               <p className="mt-2 text-xs text-center text-gray-500">{getTaxQrLabel(tenant, currency, language === 'ar')}</p>
             </div>
           )}

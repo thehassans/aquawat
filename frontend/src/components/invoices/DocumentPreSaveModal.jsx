@@ -1,17 +1,20 @@
+import { createPortal } from 'react-dom'
+import { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Edit3, Eye, Save, X } from 'lucide-react'
 import InvoiceLivePreview from './InvoiceLivePreview'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 
 /**
- * Ultra-premium preview sheet: slides up from bottom with Edit / Save / Cancel.
+ * Full-viewport preview: portals to document.body so SalesComposerChrome
+ * (sibling stacking context) cannot sit above the sheet.
  */
 export default function DocumentPreSaveModal({
   isOpen,
   onClose,
   onConfirm,
   isPending = false,
-  document,
+  document: previewDoc,
   tenant,
   language = 'en',
   documentType = 'invoice',
@@ -19,6 +22,15 @@ export default function DocumentPreSaveModal({
   title,
 }) {
   const isAr = language === 'ar'
+
+  useEffect(() => {
+    if (!isOpen) return undefined
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [isOpen])
 
   const defaultTitle = isAr
     ? (documentType === 'quotation'
@@ -36,14 +48,14 @@ export default function DocumentPreSaveModal({
     ? (documentType === 'quotation' ? 'حفظ العرض' : 'حفظ الفاتورة')
     : (documentType === 'quotation' ? 'Save quotation' : 'Save invoice')
 
-  return (
+  const modal = (
     <AnimatePresence>
       {isOpen ? (
-        <div className="fixed inset-0 z-[120] flex flex-col justify-end" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-[9999] flex flex-col" role="dialog" aria-modal="true">
           <motion.button
             type="button"
             aria-label={isAr ? 'إغلاق' : 'Close'}
-            className="absolute inset-0 bg-slate-950/55 backdrop-blur-[6px]"
+            className="absolute inset-0 bg-slate-950/70 backdrop-blur-[8px]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -52,17 +64,13 @@ export default function DocumentPreSaveModal({
           />
 
           <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
             transition={{ type: 'spring', damping: 28, stiffness: 320, mass: 0.85 }}
-            className="relative z-10 flex max-h-[92vh] flex-col overflow-hidden rounded-t-[1.75rem] border border-slate-200/80 bg-[#f4f5f7] shadow-[0_-24px_80px_-28px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#0b0f16]"
+            className="relative z-10 flex h-full max-h-none w-full flex-col overflow-hidden bg-[#f4f5f7] dark:bg-[#0b0f16] sm:m-3 sm:h-auto sm:max-h-[calc(100vh-1.5rem)] sm:rounded-[1.75rem] sm:border sm:border-slate-200/80 sm:shadow-[0_24px_80px_-28px_rgba(15,23,42,0.45)] dark:sm:border-white/10"
           >
-            <div className="flex shrink-0 justify-center pt-3 pb-1">
-              <div className="h-1 w-10 rounded-full bg-slate-300/90 dark:bg-white/20" />
-            </div>
-
-            <div className="flex shrink-0 items-center justify-between gap-3 px-5 pb-3 pt-1">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200/80 px-5 py-3 dark:border-white/10">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-900/20 dark:bg-white dark:text-slate-900">
                   <Eye className="h-4.5 w-4.5" strokeWidth={1.75} />
@@ -85,7 +93,7 @@ export default function DocumentPreSaveModal({
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-28 sm:px-6">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-28 pt-4 sm:px-6">
               <motion.div
                 initial={{ opacity: 0, y: 18, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -93,7 +101,7 @@ export default function DocumentPreSaveModal({
                 className="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-[0_20px_60px_-28px_rgba(15,23,42,0.35)] ring-1 ring-slate-900/5 dark:bg-dark-800 dark:ring-white/10"
               >
                 <InvoiceLivePreview
-                  invoice={document}
+                  invoice={previewDoc}
                   tenant={tenant}
                   language={language}
                   templateId={templateId}
@@ -144,4 +152,7 @@ export default function DocumentPreSaveModal({
       ) : null}
     </AnimatePresence>
   )
+
+  if (typeof document === 'undefined' || !document.body) return null
+  return createPortal(modal, document.body)
 }
