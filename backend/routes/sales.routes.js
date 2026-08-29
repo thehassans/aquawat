@@ -635,7 +635,7 @@ router.get('/orders/:id/smart-buttons', checkPermission('sales', 'read'), async 
       invoices,
       deliveryNotes,
       deliveryHref: `/app/dashboard/delivery-notes?purchaseOrderId=${order._id}`,
-      invoiceHref: `/app/dashboard/invoices?purchaseOrderId=${order._id}`,
+      invoiceHref: `/app/dashboard/accounting/invoices?purchaseOrderId=${order._id}`,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });

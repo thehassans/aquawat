@@ -409,7 +409,7 @@ export function AppVerticalView({
       quickActions: [
         { label: isAr ? 'لوحة المشاريع الإنشائية' : 'Projects Hub', route: '/app/dashboard/projects', icon: Building, primary: true },
         { label: isAr ? 'مشروع جديد' : 'New Project', route: '/app/dashboard/projects/new', icon: PlusCircle },
-        { label: isAr ? 'فواتير ومستخلصات المقاولات' : 'Contracting Invoices', route: '/app/dashboard/invoices', icon: Receipt },
+        { label: isAr ? 'فواتير ومستخلصات المقاولات' : 'Contracting Invoices', route: '/app/dashboard/accounting/invoices', icon: Receipt },
         { label: isAr ? 'عروض الأسعار وجداول الكميات' : 'Quotations & BOQ', route: '/app/dashboard/quotations', icon: FileText },
       ],
       recentList: {
@@ -440,7 +440,7 @@ export function AppVerticalView({
       quickActions: [
         { label: isAr ? 'حجز سفر جديد' : 'New Travel Booking', route: '/app/dashboard/travel/bookings/new', icon: PlusCircle, primary: true },
         { label: isAr ? 'سجل الحجوزات والتذاكر' : 'All Bookings', route: '/app/dashboard/travel/bookings', icon: Plane },
-        { label: isAr ? 'فواتير هامش الربح' : 'Margin Invoices', route: '/app/dashboard/invoices', icon: Receipt },
+        { label: isAr ? 'فواتير هامش الربح' : 'Margin Invoices', route: '/app/dashboard/accounting/invoices', icon: Receipt },
       ],
       recentList: {
         title: isAr ? 'أحدث حجوزات السفر' : 'Recent Travel Bookings',

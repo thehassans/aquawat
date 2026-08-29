@@ -18,6 +18,19 @@ import { demandInProductUom } from './uomConvert.js';
 
 const MAX_CANDIDATE_RETRIES = 5;
 
+/** Cached: null unknown, true replica-set/mongos, false standalone local Mongo. */
+let mongoTransactionsSupported = null;
+
+function isStandaloneTransactionError(err) {
+  const msg = String(err?.message || err || '');
+  return (
+    err?.code === 20
+    || msg.includes('Transaction numbers are only allowed')
+    || msg.includes('replica set member')
+    || msg.includes('mongos')
+  );
+}
+
 async function runTransactionOnce(fn) {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -26,7 +39,11 @@ async function runTransactionOnce(fn) {
     await session.commitTransaction();
     return result;
   } catch (err) {
-    await session.abortTransaction();
+    try {
+      await session.abortTransaction();
+    } catch {
+      /* ignore abort after failed start */
+    }
     throw err;
   } finally {
     session.endSession();
@@ -36,14 +53,27 @@ async function runTransactionOnce(fn) {
 /**
  * Mongo transaction with one automatic write-conflict retry + jitter.
  * Exhausted retries → typed WRITE_CONFLICT (409).
+ * Standalone Mongo (no replica set): runs the work without a multi-doc transaction.
  */
 export async function runWithTransaction(fn) {
+  const runPlain = () => fn(null);
+
+  if (mongoTransactionsSupported === false) {
+    return runPlain();
+  }
+
   try {
-    return await withWriteConflictRetry(async (attempt) => {
+    const result = await withWriteConflictRetry(async (attempt) => {
       if (attempt > 0) recordWriteConflictRetry();
       return runTransactionOnce(fn);
     }, { retries: 1 });
+    mongoTransactionsSupported = true;
+    return result;
   } catch (err) {
+    if (isStandaloneTransactionError(err)) {
+      mongoTransactionsSupported = false;
+      return runPlain();
+    }
     if (err?.code === 112 || err?.codeName === 'WriteConflict'
       || err?.errorLabels?.includes?.('TransientTransactionError')) {
       throw new InventoryConflictError(

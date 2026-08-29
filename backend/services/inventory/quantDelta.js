@@ -59,11 +59,11 @@ export async function applyQuantDelta(
     setDecimalPair(doc, 'reservedQuantity', reservedDelta);
     setDecimalPair(doc, 'value', '0');
     try {
-      [quant] = await InvQuant.create([doc], { session });
+      [quant] = await InvQuant.create([doc], session ? { session } : undefined);
       return quant;
     } catch (err) {
       if (err?.code === 11000) {
-        quant = await InvQuant.findOne(filter).session(session);
+        quant = await InvQuant.findOne(filter).session(session || null);
         if (!quant) throw err;
       } else {
         throw err;

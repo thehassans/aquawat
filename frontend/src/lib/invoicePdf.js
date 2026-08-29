@@ -40,6 +40,9 @@ const resolveDocumentNumber = (invoice, documentType = 'invoice') => {
   if (documentType === 'vendor_bill') {
     return invoice?.billNumber || (invoice?.poNumber ? `BILL-${invoice.poNumber}` : 'vendor_bill')
   }
+  if (documentType === 'sales_order') {
+    return invoice?.poNumber || invoice?.invoiceNumber || 'sales_order'
+  }
   return invoice?.invoiceNumber || invoice?.quotationNumber || 'invoice'
 }
 
@@ -268,6 +271,7 @@ const shouldRenderBilingualInvoice = (invoice, documentType = 'invoice', tenant 
   const contextBilingual = documentType === 'quotation'
     || documentType === 'purchase_order'
     || documentType === 'vendor_bill'
+    || documentType === 'sales_order'
     || invoice?.invoiceSubtype === 'travel_ticket'
     || ['travel_agency', 'trading', 'construction', 'boutique'].includes(invoice?.businessContext)
   return resolveInvoiceBilingual(tenant, contextBilingual)
@@ -813,6 +817,9 @@ const getInvoiceEyebrow = (invoice, language = 'en', documentType = 'invoice') =
   if (documentType === 'vendor_bill') {
     return language === 'ar' ? 'فاتورة أمر الشراء' : 'Purchase Order Bill'
   }
+  if (documentType === 'sales_order') {
+    return language === 'ar' ? 'فاتورة أمر البيع' : 'Sales Order Bill'
+  }
   if (invoice?.quotationNumber) {
     if (invoice?.businessContext === 'construction') {
       return language === 'ar' ? 'عرض سعر للمقاولات' : 'Construction Quotation'
@@ -854,6 +861,9 @@ const getInvoiceTitle = (invoice, language = 'en', documentType = 'invoice') => 
   }
   if (documentType === 'vendor_bill') {
     return language === 'ar' ? 'فاتورة أمر الشراء' : 'Purchase Order Bill'
+  }
+  if (documentType === 'sales_order') {
+    return language === 'ar' ? 'فاتورة أمر البيع' : 'Sales Order Bill'
   }
   if (invoice?.quotationNumber) {
     if (invoice?.businessContext === 'construction') {
@@ -1122,8 +1132,9 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   const travelDetailsAr = normalizeTravelDetails(invoice.travelDetails || {}, buyerNameAr || buyerNameEn, 'ar')
   const isQuotationPdf = Boolean(invoice?.quotationNumber) || documentType === 'quotation'
   const isPurchaseOrderPdf = documentType === 'purchase_order'
-  const isTravelInvoicePdf = !isQuotationPdf && !isPurchaseOrderPdf && (invoice?.invoiceSubtype === 'travel_ticket' || invoice?.businessContext === 'travel_agency')
-  const skipDocumentQr = isTravelInvoicePdf || isQuotationPdf || isPurchaseOrderPdf
+  const isSalesOrderPdf = documentType === 'sales_order'
+  const isTravelInvoicePdf = !isQuotationPdf && !isPurchaseOrderPdf && !isSalesOrderPdf && (invoice?.invoiceSubtype === 'travel_ticket' || invoice?.businessContext === 'travel_agency')
+  const skipDocumentQr = isTravelInvoicePdf || isQuotationPdf || isPurchaseOrderPdf || isSalesOrderPdf || documentType === 'vendor_bill'
   const isZatcaApplicablePdf = String(invoice?.currency || tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
   const qrValue = skipDocumentQr
     ? null
@@ -1918,6 +1929,122 @@ export const downloadQuotationPdf = async ({ quotation, language = 'en', tenant,
 
 export const printQuotationSnapshot = async ({ quotation, language = 'en', tenant, sourceElement = null }) => {
   return await printInvoiceSnapshot({ invoice: quotation, language, tenant, sourceElement, documentType: 'quotation' })
+}
+
+export const mapSalesOrderForPdf = (salesOrder, tenant) => {
+  if (!salesOrder || typeof salesOrder !== 'object') {
+    throw new Error('Sales order is required')
+  }
+
+  const customer = salesOrder.customerId && typeof salesOrder.customerId === 'object'
+    ? salesOrder.customerId
+    : {}
+  const business = tenant?.business || {}
+
+  const lineItems = (Array.isArray(salesOrder.lineItems) ? salesOrder.lineItems : []).map((li) => {
+    const product = (li?.productId && typeof li.productId === 'object') ? li.productId : null
+    const rawManual = li?.manualName || li?.description || ''
+    const isManualArabic = /[\u0600-\u06FF]/.test(rawManual)
+    const productName =
+      product?.nameEn ||
+      (!isManualArabic ? rawManual : autoTranslateText(rawManual, 'ar', 'en')) ||
+      li?.productName ||
+      product?.nameAr ||
+      'Item'
+    const productNameAr =
+      product?.nameAr ||
+      li?.productNameAr ||
+      li?.manualNameAr ||
+      (isManualArabic ? rawManual : autoTranslateText(rawManual, 'en', 'ar')) ||
+      (product?.nameEn ? autoTranslateText(product.nameEn, 'en', 'ar') : '') ||
+      productName
+
+    return {
+      productId: product?._id || (typeof li?.productId === 'string' ? li.productId : '') || '',
+      productName,
+      productNameAr,
+      description: li?.description || '',
+      unitCode: li?.uom || li?.unitCode || product?.unitOfMeasure || 'PCE',
+      quantity: Number(li?.quantityOrdered ?? li?.quantity ?? 0),
+      unitPrice: Number(li?.unitCost ?? li?.unitPrice ?? 0),
+      taxRate: Number(li?.taxRate ?? 15),
+      productType: li?.productType || product?.productType || 'goods',
+    }
+  })
+
+  const buyerNameEn = customer.nameEn || customer.name || ''
+  const buyerNameAr = customer.nameAr || ''
+
+  return {
+    ...salesOrder,
+    poNumber: salesOrder.poNumber || salesOrder.invoiceNumber || 'sales_order',
+    invoiceNumber: salesOrder.poNumber || salesOrder.invoiceNumber || 'sales_order',
+    issueDate: salesOrder.orderDate || salesOrder.issueDate || salesOrder.approvedAt || salesOrder.createdAt || new Date(),
+    dueDate: salesOrder.expectedDate || salesOrder.dueDate || null,
+    currency: salesOrder.currency || tenant?.settings?.currency || 'SAR',
+    transactionType: salesOrder.transactionType
+      || (customer.entityType === 'business' || customer.vatNumber ? 'B2B' : 'B2C'),
+    flow: 'sell',
+    lineItems,
+    seller: {
+      name: business.legalNameEn || business.legalNameAr || tenant?.name || '',
+      nameEn: business.legalNameEn || tenant?.name || '',
+      nameAr: business.legalNameAr || '',
+      vatNumber: business.vatNumber || '',
+      crNumber: business.crNumber || business.commercialRegistration?.crNumber || '',
+      contactPhone: business.contactPhone || '',
+      contactEmail: business.contactEmail || '',
+      address: business.address || {},
+    },
+    buyer: {
+      name: buyerNameEn || buyerNameAr || '',
+      nameEn: buyerNameEn || '',
+      nameAr: buyerNameAr || '',
+      vatNumber: customer.vatNumber || '',
+      crNumber: customer.crNumber || '',
+      contactPhone: customer.phone || customer.contactPhone || customer.mobile || '',
+      contactEmail: customer.email || customer.contactEmail || '',
+      address: customer.address || {},
+    },
+    subtotal: salesOrder.subtotal,
+    totalTax: salesOrder.totalTax,
+    grandTotal: salesOrder.grandTotal,
+  }
+}
+
+export const buildSalesOrderPdfBlob = async ({ salesOrder, language = 'en', tenant, sourceElement = null }) => {
+  const mapped = mapSalesOrderForPdf(salesOrder, tenant)
+  return await generateInvoicePdf({ invoice: mapped, language, tenant, sourceElement, output: 'blob', documentType: 'sales_order' })
+}
+
+export const downloadSalesOrderPdf = async ({ salesOrder, language = 'en', tenant, sourceElement = null }) => {
+  const mapped = mapSalesOrderForPdf(salesOrder, tenant)
+  const result = await generateInvoicePdf({ invoice: mapped, language, tenant, sourceElement, output: 'save', documentType: 'sales_order' })
+  if (!result) throw new Error('Failed to generate sales order PDF')
+  return result
+}
+
+export const printSalesOrderPdf = async ({ salesOrder, language = 'en', tenant, sourceElement = null }) => {
+  const mapped = mapSalesOrderForPdf(salesOrder, tenant)
+  try {
+    const snapshotOk = await printInvoiceSnapshot({
+      invoice: mapped,
+      language,
+      tenant,
+      sourceElement,
+      documentType: 'sales_order',
+    })
+    if (snapshotOk) return true
+  } catch (error) {
+    console.warn('[printSalesOrderPdf] snapshot print failed, using PDF blob', error)
+  }
+
+  const blob = await generateInvoicePdf({ invoice: mapped, language, tenant, output: 'blob', documentType: 'sales_order' })
+  if (!blob) throw new Error('Failed to generate sales order PDF')
+  const title = resolveDocumentNumber(mapped, 'sales_order')
+  const printed = await printPdfBlob(blob, title)
+  if (!printed) throw new Error('Failed to open print dialog')
+  return true
 }
 
 export const mapPurchaseOrderForPdf = (purchaseOrder, tenant) => {

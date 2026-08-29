@@ -580,7 +580,7 @@ export default function DeliveryNoteForm() {
             </button>
             <button
               type="button"
-              onClick={() => navigate(`/app/dashboard/invoices/new?deliveryNoteId=${dn._id}`)}
+              onClick={() => navigate(`/app/dashboard/accounting/invoices/new?deliveryNoteId=${dn._id}`)}
               className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"
             >
               <Receipt className="h-3.5 w-3.5" />

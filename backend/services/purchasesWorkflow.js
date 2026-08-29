@@ -286,12 +286,71 @@ export async function postGrnStock({ tenantId, warehouseId, lines, direction = '
   return posted;
 }
 
+function grnHasStorableReceiveLines(lines) {
+  return (lines || []).some((line) => {
+    if (line.isDelayed || !line.productId) return false;
+    if (normalizeProductType(line.productType) === 'service') return false;
+    return toNumber(line.quantityReceived ?? line.quantityOrdered, 0) > 0;
+  });
+}
+
+/**
+ * Received GRNs that only bumped legacy Product.stocks (engine was off) never
+ * create InvQuant rows — Physical Inventory stays empty. Post them through the
+ * engine once it is enabled (idempotent via transfer origin key).
+ */
+export async function repairOrphanReceivedGrnsToEngine({ tenantId, userId, limit = 50 } = {}) {
+  if (!(await isInvEngineEnabled(tenantId))) return { repaired: 0, skipped: true };
+  const orphans = await GRN.find({
+    tenantId,
+    status: { $in: ['received', 'completed', 'partially_received'] },
+    stockPostedAt: { $ne: null },
+    $or: [{ inventoryTransferId: null }, { inventoryTransferId: { $exists: false } }],
+  })
+    .sort({ dateReceived: -1 })
+    .limit(limit);
+
+  let repaired = 0;
+  const errors = [];
+  for (const grn of orphans) {
+    if (!grn.warehouseId || !grnHasStorableReceiveLines(grn.lines)) continue;
+    try {
+      const posted = await postLinesViaEngine({
+        tenantId,
+        userId,
+        warehouseId: grn.warehouseId,
+        direction: 'in',
+        lines: grn.lines,
+        origin: grn.grnNumber,
+        note: grn.notes,
+        partnerId: grn.supplierId,
+        sourceModel: 'grn',
+        sourceDocId: grn._id,
+        idempotencyKey: `GRN ${grn.grnNumber}`,
+      });
+      if (posted.transfer) {
+        grn.inventoryTransferId = posted.transfer._id;
+        await grn.save();
+        repaired += 1;
+      }
+    } catch (err) {
+      errors.push({ grnNumber: grn.grnNumber, message: err.message });
+      console.warn('[grn] repair orphan stock', grn.grnNumber, err.message);
+    }
+  }
+  return { repaired, errors };
+}
+
 export async function confirmGrnReceive({ tenantFilter, user, grn, warehouseId }) {
   if (grn.stockPostedAt) return grn;
   const whId = warehouseId || grn.warehouseId;
+  if (!whId) {
+    throw new PurchasesValidationError('Warehouse is required to receive stock', 'WAREHOUSE_REQUIRED');
+  }
 
   if (await isInvEngineEnabled(user.tenantId)) {
     let transfer = null;
+    let bakalaPosted = 0;
     // Prefer validating the draft receipt linked on PO approve (avoids double stock)
     if (grn.inventoryTransferId) {
       const InvTransfer = (await import('../models/inventory/InvTransfer.js')).default;
@@ -361,8 +420,15 @@ export async function confirmGrnReceive({ tenantFilter, user, grn, warehouseId }
         idempotencyKey: `GRN ${grn.grnNumber}`,
       });
       transfer = posted.transfer;
+      bakalaPosted = posted.bakalaPosted || 0;
     }
     if (transfer) grn.inventoryTransferId = transfer._id;
+    else if (grnHasStorableReceiveLines(grn.lines) && !bakalaPosted) {
+      throw new PurchasesValidationError(
+        'Inventory engine did not post stock for this GRN — check warehouse bootstrap and product UoM',
+        'STOCK_POST_FAILED',
+      );
+    }
   } else {
     await postGrnStock({
       tenantId: user.tenantId,

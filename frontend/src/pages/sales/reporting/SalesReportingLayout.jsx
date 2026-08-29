@@ -77,7 +77,10 @@ export default function SalesReportingLayout() {
       <div className="overflow-x-auto border-b border-slate-200/90 dark:border-dark-600">
         <nav className="flex min-w-max items-center gap-1">
           {SALES_REPORT_SECTIONS.map((item) => {
-            const active = location.pathname.startsWith(item.href)
+            const active =
+              item.id === 'overview'
+                ? location.pathname === item.href || location.pathname === `${item.href}/`
+                : location.pathname.startsWith(item.href)
             return (
               <NavLink key={item.id} to={item.href} className={() => salesTabClass(active)}>
                 {isAr ? item.labelAr : item.label}

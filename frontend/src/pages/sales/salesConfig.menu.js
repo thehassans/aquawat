@@ -3,7 +3,13 @@
 export const SALES_CONFIG_SECTIONS = [
   { id: 'settings', href: '/app/dashboard/sales/configuration/settings', label: 'Settings', labelAr: 'الإعدادات' },
   { id: 'teams', href: '/app/dashboard/sales/configuration/teams', label: 'Sales Teams', labelAr: 'فرق المبيعات' },
-  { id: 'tags', href: '/app/dashboard/sales/configuration/tags', label: 'Tags', labelAr: 'الوسوم' },
+  { id: 'products', href: '/app/dashboard/inventory/products', label: 'Products', labelAr: 'المنتجات', external: true },
+  { id: 'attributes', href: '/app/dashboard/inventory/attributes', label: 'Attributes', labelAr: 'السمات', external: true },
+  { id: 'categories', href: '/app/dashboard/inventory/product-categories', label: 'Categories', labelAr: 'التصنيفات', external: true },
+  { id: 'uom', href: '/app/dashboard/inventory/uom', label: 'Units', labelAr: 'الوحدات', external: true },
+  { id: 'packagings', href: '/app/dashboard/inventory/product-packagings', label: 'Packagings', labelAr: 'التعبئة', external: true },
+  { id: 'tags', href: '/app/dashboard/sales/configuration/tags', label: 'Product Tags', labelAr: 'وسوم المنتجات' },
+  { id: 'combos', href: '/app/dashboard/restaurant/combos', label: 'Combo Choices', labelAr: 'اختيارات الكومبو', external: true, requireRestaurant: true },
   { id: 'activity-types', href: '/app/dashboard/sales/configuration/activity-types', label: 'Activity Types', labelAr: 'أنواع النشاط' },
   { id: 'activity-plans', href: '/app/dashboard/sales/configuration/activity-plans', label: 'Activity Plans', labelAr: 'خطط النشاط' },
   { id: 'pricelists', href: '/app/dashboard/sales/configuration/pricelists', label: 'Pricelists', labelAr: 'قوائم الأسعار' },
@@ -16,6 +22,7 @@ export const SALES_CONFIG_SECTIONS = [
 ]
 
 export const SALES_REPORT_SECTIONS = [
+  { id: 'overview', href: '/app/dashboard/sales/reporting', label: 'Overview', labelAr: 'نظرة عامة' },
   { id: 'analysis', href: '/app/dashboard/sales/reporting/analysis', label: 'Sales Analysis', labelAr: 'تحليل المبيعات' },
   { id: 'matrix', href: '/app/dashboard/sales/reporting/matrix', label: 'Matrix', labelAr: 'مصفوفة' },
   { id: 'salespeople', href: '/app/dashboard/sales/reporting/salespeople', label: 'Salespeople', labelAr: 'مندوبي المبيعات' },
@@ -24,3 +31,11 @@ export const SALES_REPORT_SECTIONS = [
 ]
 
 export const INCOTERMS = ['EXW', 'FCA', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP', 'FAS', 'FOB', 'CFR', 'CIF']
+
+export const SALES_TEAM_TYPES = [
+  { id: 'field', labelEn: 'Field sales', labelAr: 'مبيعات ميدانية' },
+  { id: 'pos', labelEn: 'POS sales', labelAr: 'نقطة بيع' },
+  { id: 'kiosk', labelEn: 'Kiosk sales', labelAr: 'كiosk' },
+  { id: 'ecommerce', labelEn: 'E-commerce', labelAr: 'تجارة إلكترونية' },
+  { id: 'other', labelEn: 'Other', labelAr: 'أخرى' },
+]

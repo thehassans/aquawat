@@ -13,6 +13,13 @@ const salesTeamSchema = new mongoose.Schema({
   /** Quarterly revenue target */
   quarterlyTarget: { type: Number, default: 0, min: 0 },
   isActive: { type: Boolean, default: true },
+  /** Channel / fulfillment style for the team */
+  teamType: {
+    type: String,
+    enum: ['field', 'pos', 'kiosk', 'ecommerce', 'other'],
+    default: 'field',
+    index: true,
+  },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 

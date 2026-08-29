@@ -20,6 +20,9 @@ import { recordUserActivity } from '../utils/auditLogger.js';
 import { syncMarqueeBookingFromDocument } from '../utils/marqueeSync.js';
 import { computeQuotationValidUntil, getSalesSettings, resolveSaleWarnings } from '../services/sales/salesLifecycle.js';
 import QuotationTemplate from '../models/sales/QuotationTemplate.js';
+import PurchaseOrder from '../models/PurchaseOrder.js';
+import { nextDailyDocNumber } from '../services/inventory/sequence.js';
+import { computePurchaseLineTotals } from '../services/purchasesLogic.js';
 
 const router = express.Router();
 
@@ -136,17 +139,130 @@ function resolveEditableQuotationStatus(status, existingStatus = 'draft') {
 
 function canApproveQuotation(quotation) {
   const status = String(quotation?.status || '').trim().toLowerCase();
-  return ['draft', 'sent', 'accepted', 'rejected'].includes(status) && !quotation?.convertedInvoiceId;
+  return ['draft', 'sent', 'accepted', 'rejected'].includes(status) && !quotation?.convertedInvoiceId && !quotation?.convertedOrderId;
 }
 
 function canRejectQuotation(quotation) {
   const status = String(quotation?.status || '').trim().toLowerCase();
-  return ['draft', 'sent', 'accepted', 'approved'].includes(status) && !quotation?.convertedInvoiceId;
+  return ['draft', 'sent', 'accepted', 'approved'].includes(status) && !quotation?.convertedInvoiceId && !quotation?.convertedOrderId;
 }
 
 function canConvertQuotationToInvoice(quotation) {
   const status = String(quotation?.status || '').trim().toLowerCase();
-  return status === 'approved' && !quotation?.convertedInvoiceId;
+  return status === 'approved' && !quotation?.convertedInvoiceId && !quotation?.convertedOrderId;
+}
+
+function canConvertQuotationToSalesOrder(quotation) {
+  const status = String(quotation?.status || '').trim().toLowerCase();
+  return status === 'approved' && !quotation?.convertedOrderId && !quotation?.convertedInvoiceId;
+}
+
+async function createSalesOrderFromQuotation(quotation, user) {
+  if (!quotation.customerId) {
+    throw new Error('Quotation customer is required to create a sales order');
+  }
+
+  const poNumber = await nextDailyDocNumber(quotation.tenantId, 'SO', { padding: 3 });
+  const rawLines = (quotation.lineItems || []).map((line) => {
+    const li = line?.toObject?.() || line || {};
+    return {
+      productId: li.productId || undefined,
+      variantId: li.variantId || undefined,
+      manualName: li.productName || li.manualName || '',
+      description: li.description || '',
+      productType: normalizeProductType(li.productType),
+      quantityOrdered: toNumber(li.quantity, 1),
+      unitCost: toNumber(li.unitPrice, 0),
+      taxRate: toNumber(li.taxRate, 15),
+      uom: li.unitCode || li.uom || '',
+    };
+  });
+
+  if (!rawLines.length) {
+    throw new Error('Quotation has no line items');
+  }
+
+  const totals = computePurchaseLineTotals(rawLines);
+  const normalized = rawLines.map((li, index) => {
+    const computed = totals.lines[index] || { lineSubtotal: 0, lineTax: 0, lineTotal: 0 };
+    return {
+      ...li,
+      quantityReceived: 0,
+      quantityReturned: 0,
+      lineSubtotal: computed.lineSubtotal,
+      lineTax: computed.lineTax,
+      lineTotal: computed.lineTotal,
+    };
+  });
+
+  // Quotation approval = sales-order validation: create already confirmed.
+  const order = await PurchaseOrder.create({
+    tenantId: quotation.tenantId,
+    flow: 'sell',
+    poNumber,
+    customerId: quotation.customerId,
+    status: 'approved',
+    orderDate: new Date(),
+    currency: quotation.currency || 'SAR',
+    lineItems: normalized,
+    subtotal: totals.subtotal,
+    totalTax: totals.totalTax,
+    grandTotal: totals.grandTotal,
+    paidAmount: 0,
+    balanceDue: totals.grandTotal,
+    paymentStatus: 'pending',
+    salesTeamId: quotation.salesTeamId || null,
+    salespersonId: quotation.salespersonId || null,
+    notes: quotation.notes || '',
+    sourceQuotationId: quotation._id,
+    createdBy: user._id,
+    approvedBy: user._id,
+    approvedAt: new Date(),
+  });
+
+  try {
+    const settings = await getSalesSettings(quotation.tenantId);
+    if (settings?.lockConfirmedOrders !== false) {
+      order.isLocked = true;
+      await order.save();
+    }
+  } catch {
+    /* lock settings optional */
+  }
+
+  try {
+    const { fulfillSellOrderStockOut } = await import('../services/inventory/documentLinks.js');
+    const populated = await PurchaseOrder.findById(order._id)
+      .populate('lineItems.productId', 'sku nameEn nameAr barcode unitOfMeasure productType costPrice')
+      .populate('customerId', 'name nameAr nameEn');
+    const result = await fulfillSellOrderStockOut({
+      tenantId: quotation.tenantId,
+      userId: user._id,
+      purchaseOrder: populated || order,
+      tenantFilter: { tenantId: quotation.tenantId },
+    });
+    if (result.error) {
+      console.warn('[quotation→SO] stock-out failed:', result.error);
+    }
+  } catch (dnErr) {
+    console.warn('[quotation→SO] stock fulfillment failed:', dnErr.message);
+  }
+
+  try {
+    const { appendDocumentMessage } = await import('../services/sales/documentChatter.js');
+    await appendDocumentMessage({
+      tenantId: quotation.tenantId,
+      docType: 'sales_order',
+      docId: order._id,
+      userId: user._id,
+      body: `Confirmed from quotation ${quotation.quotationNumber || quotation._id}`,
+      kind: 'system',
+    });
+  } catch {
+    /* chatter optional */
+  }
+
+  return order;
 }
 
 async function generateInvoiceNumber(tenantId) {
@@ -334,7 +450,8 @@ router.get('/:id', checkPermission('invoicing', 'read'), async (req, res) => {
     const quotation = await Quotation.findOne({ _id: req.params.id, ...req.tenantFilter })
       .populate('customerId', 'name nameAr email phone mobile vatNumber crNumber address')
       .populate('createdBy', 'firstName lastName firstNameAr lastNameAr')
-      .populate('convertedInvoiceId', 'invoiceNumber');
+      .populate('convertedInvoiceId', 'invoiceNumber')
+      .populate('convertedOrderId', 'poNumber status');
 
     if (!quotation) {
       return res.status(404).json({ error: 'Quotation not found' });
@@ -606,19 +723,33 @@ router.post('/:id/approve', checkPermission('invoicing', 'update'), async (req, 
       return res.status(404).json({ error: 'Quotation not found' });
     }
 
+    if (quotation.convertedOrderId) {
+      return res.json({
+        success: true,
+        alreadyConverted: true,
+        orderId: quotation.convertedOrderId,
+        quotation,
+      });
+    }
+
     if (!canApproveQuotation(quotation)) {
       return res.status(400).json({ error: 'This quotation cannot be approved' });
     }
 
-    quotation.status = 'approved';
+    const names = getUserDisplayNames(req.user);
     quotation.approvedAt = new Date();
     quotation.approvedBy = req.user._id;
-    quotation.approvedByName = getUserDisplayNames(req.user).createdByName;
-    quotation.approvedByNameAr = getUserDisplayNames(req.user).createdByNameAr;
+    quotation.approvedByName = names.createdByName;
+    quotation.approvedByNameAr = names.createdByNameAr;
     quotation.rejectedAt = undefined;
     quotation.rejectedBy = undefined;
     quotation.rejectedByName = undefined;
     quotation.rejectedByNameAr = undefined;
+
+    const order = await createSalesOrderFromQuotation(quotation, req.user);
+    quotation.status = 'converted';
+    quotation.convertedOrderId = order._id;
+    quotation.convertedAt = new Date();
     await quotation.save();
 
     let emailDelivery = { sent: false, reason: 'disabled' };
@@ -650,9 +781,16 @@ router.post('/:id/approve', checkPermission('invoicing', 'update'), async (req, 
       emailDelivery = { sent: false, reason: emailError.message };
     }
 
-    res.json({ success: true, quotation, emailDelivery });
+    res.json({
+      success: true,
+      quotation,
+      orderId: order._id,
+      orderNumber: order.poNumber,
+      emailDelivery,
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    const statusCode = /invalid|not found|required|no line/i.test(error.message) ? 400 : 500;
+    res.status(statusCode).json({ error: error.message });
   }
 });
 
@@ -684,45 +822,62 @@ router.post('/:id/reject', checkPermission('invoicing', 'update'), async (req, r
   }
 });
 
-router.post('/:id/convert-to-invoice', checkPermission('invoicing', 'create'), async (req, res) => {
+router.post('/:id/convert-to-invoice', checkPermission('invoicing', 'create'), async (_req, res) => {
+  return res.status(410).json({
+    error: 'Quotations no longer convert to invoices. Approve the quotation to create a sales order; invoice from Accounting after fulfillment.',
+  });
+});
+
+router.post('/:id/convert-to-sales-order', checkPermission('invoicing', 'create'), async (req, res) => {
   try {
     const quotation = await Quotation.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!quotation) {
       return res.status(404).json({ error: 'Quotation not found' });
     }
 
+    if (quotation.convertedOrderId) {
+      return res.status(409).json({
+        error: 'Quotation has already been converted to a sales order',
+        orderId: quotation.convertedOrderId,
+      });
+    }
+
     if (quotation.convertedInvoiceId) {
       return res.status(409).json({
-        error: 'Quotation has already been converted to an invoice',
+        error: 'Quotation was already converted to an invoice',
         invoiceId: quotation.convertedInvoiceId,
       });
     }
 
-    if (!canConvertQuotationToInvoice(quotation)) {
-      return res.status(400).json({ error: 'Quotation must be approved before it can be converted to an invoice' });
+    // Legacy: allow converting already-approved quotes that never got an SO
+    const status = String(quotation.status || '').toLowerCase();
+    if (!['approved', 'draft', 'sent', 'accepted'].includes(status)) {
+      return res.status(400).json({ error: 'Quotation cannot be converted to a sales order' });
     }
 
-    const tenant = await Tenant.findById(req.user.tenantId);
-    if (!tenant) {
-      return res.status(404).json({ error: 'Tenant not found' });
+    if (!quotation.approvedAt) {
+      const names = getUserDisplayNames(req.user);
+      quotation.approvedAt = new Date();
+      quotation.approvedBy = req.user._id;
+      quotation.approvedByName = names.createdByName;
+      quotation.approvedByNameAr = names.createdByNameAr;
     }
 
-    const invoice = await buildInvoiceFromQuotation({ quotation, tenant, user: req.user });
-
+    const order = await createSalesOrderFromQuotation(quotation, req.user);
     quotation.status = 'converted';
-    quotation.convertedInvoiceId = invoice._id;
+    quotation.convertedOrderId = order._id;
     quotation.convertedAt = new Date();
     await quotation.save();
 
     res.status(201).json({
       success: true,
-      invoiceId: invoice._id,
-      invoiceNumber: invoice.invoiceNumber,
+      orderId: order._id,
+      orderNumber: order.poNumber,
       quotationId: quotation._id,
       quotationNumber: quotation.quotationNumber,
     });
   } catch (error) {
-    const statusCode = /invalid|not found/i.test(error.message) ? 400 : 500;
+    const statusCode = /invalid|not found|required|no line/i.test(error.message) ? 400 : 500;
     res.status(statusCode).json({ error: error.message });
   }
 });
@@ -861,60 +1016,11 @@ router.post('/:id/send-whatsapp', checkPermission('invoicing', 'read'), async (r
   }
 });
 
-/** Send pro-forma invoice PDF data — creates draft proforma without ZATCA sequence burn */
-router.post('/:id/send-proforma', checkPermission('invoicing', 'create'), async (req, res) => {
-  try {
-    const { getSalesSettings } = await import('../services/sales/salesLifecycle.js');
-    const settings = await getSalesSettings(req.user.tenantId);
-    if (settings.enableProforma === false) {
-      return res.status(403).json({ error: 'Pro-forma invoices are disabled in Sales settings' });
-    }
-
-    const quotation = await Quotation.findOne({ _id: req.params.id, ...req.tenantFilter });
-    if (!quotation) return res.status(404).json({ error: 'Quotation not found' });
-
-    const tenant = await Tenant.findById(req.user.tenantId);
-    const lastProforma = await Invoice.findOne({ tenantId: req.user.tenantId, invoiceSubtype: 'proforma' })
-      .sort({ createdAt: -1 })
-      .select('invoiceNumber');
-    const seq = lastProforma
-      ? parseInt(String(lastProforma.invoiceNumber || '').split('-').pop(), 10) + 1
-      : 1;
-    const invoiceNumber = `PRO-${new Date().getFullYear()}-${String(seq).padStart(6, '0')}`;
-
-    const invoiceData = {
-      tenantId: req.user.tenantId,
-      flow: 'sell',
-      invoiceSubtype: 'proforma',
-      invoiceNumber,
-      quotationId: quotation._id,
-      customerId: quotation.customerId,
-      buyer: quotation.buyer,
-      seller: quotation.seller,
-      lineItems: quotation.lineItems || [],
-      subtotal: quotation.subtotal,
-      totalTax: quotation.totalTax,
-      grandTotal: quotation.grandTotal,
-      currency: quotation.currency || 'SAR',
-      transactionType: quotation.transactionType || 'B2C',
-      status: 'draft',
-      issueDate: new Date(),
-      notes: req.body?.notes || `Pro-forma from quotation ${quotation.quotationNumber}`,
-      createdBy: req.user._id,
-      pdfTemplateId: quotation.pdfTemplateId,
-    };
-
-    const enriched = await enrichInvoiceArabicFields(invoiceData);
-    const invoice = await Invoice.create(enriched);
-
-    res.status(201).json({
-      invoice,
-      message: 'Pro-forma invoice created (no ZATCA sequence consumed)',
-      viewUrl: `/app/dashboard/invoices/${invoice._id}`,
-    });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+/** Pro-forma from quotations is retired — invoice only from Accounting / sales orders */
+router.post('/:id/send-proforma', checkPermission('invoicing', 'create'), async (_req, res) => {
+  return res.status(410).json({
+    error: 'Pro-forma from quotations is no longer available. Create invoices from Accounting after the sales order.',
+  });
 });
 
 export default router;

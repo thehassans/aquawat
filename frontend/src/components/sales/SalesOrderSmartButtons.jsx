@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { FileText, Truck } from 'lucide-react'
+import { Truck } from 'lucide-react'
 import api from '../../lib/api'
 import { ghostActionClass } from '../../pages/sales/salesUi'
 
-/** Smart buttons: Delivery / Invoice counts linking from a sell order */
+/** Smart buttons: Delivery count linking from a sell order */
 export default function SalesOrderSmartButtons({ purchaseOrderId, language = 'en' }) {
   const isAr = language === 'ar'
   const { data } = useQuery({
@@ -20,10 +20,6 @@ export default function SalesOrderSmartButtons({ purchaseOrderId, language = 'en
       <Link to={data.deliveryHref} className={ghostActionClass}>
         <Truck className="h-3.5 w-3.5" />
         {isAr ? `${data.deliveries} تسليم` : `${data.deliveries} Delivery`}
-      </Link>
-      <Link to={data.invoiceHref} className={ghostActionClass}>
-        <FileText className="h-3.5 w-3.5" />
-        {isAr ? `${data.invoices} فاتورة` : `${data.invoices} Invoice`}
       </Link>
     </div>
   )

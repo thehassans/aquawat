@@ -39,6 +39,7 @@ export const applyCountsBody = z.object({
   accountingDate: z.union([z.string(), z.coerce.date()]).optional().nullable(),
   reason: z.string().max(500).optional().nullable(),
   reasonCode: z.enum([
+    'equal',
     'damage',
     'theft_loss',
     'expiry',

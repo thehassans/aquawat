@@ -57,6 +57,8 @@ const salesSettingsSchema = new mongoose.Schema({
   quotationDefaultTerms: { type: String, default: '' },
   quotationDefaultNotes: { type: String, default: '' },
   quotationAutoSendOnCreate: { type: Boolean, default: false },
+  /** PDF layout: 1 = Essential, 9 = Letterhead (default) */
+  defaultQuotationTemplateId: { type: Number, default: 9, enum: [1, 9] },
 
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });

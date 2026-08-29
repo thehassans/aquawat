@@ -1693,6 +1693,18 @@ router.get('/products/:productId/kit-availability', checkPermission('inventory',
 
 router.get('/physical-inventory', checkPermission('inventory', 'read'), async (req, res) => {
   try {
+    // Heal GRNs received while the engine was off (legacy Product.stocks only)
+    try {
+      const { repairOrphanReceivedGrnsToEngine } = await import('../services/purchasesWorkflow.js');
+      await repairOrphanReceivedGrnsToEngine({
+        tenantId: req.user.tenantId,
+        userId: req.user._id,
+        limit: 25,
+      });
+    } catch (healErr) {
+      console.warn('[physical-inventory] orphan GRN repair:', healErr.message);
+    }
+
     const result = await listInventoryQuants(req.user.tenantId, {
       locationId: req.query.locationId,
       warehouseId: req.query.warehouseId,

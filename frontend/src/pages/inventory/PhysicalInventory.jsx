@@ -105,7 +105,7 @@ export default function PhysicalInventory() {
   const [clearConfirm, setClearConfirm] = useState(null) // { ids: string[], label: string }
   const [accountingDate, setAccountingDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [reason, setReason] = useState('Physical inventory')
-  const [reasonCode, setReasonCode] = useState('data_entry_error')
+  const [reasonCode, setReasonCode] = useState('equal')
   const [blindMode, setBlindMode] = useState(false)
   const [groupBy, setGroupBy] = useState('')
   const [colOptsOpen, setColOptsOpen] = useState(false)
@@ -121,6 +121,7 @@ export default function PhysicalInventory() {
   })
 
   const REASON_CODES = [
+    { code: 'equal', en: 'Equal / matched', ar: 'متطابق' },
     { code: 'damage', en: 'Damage', ar: 'تلف' },
     { code: 'theft_loss', en: 'Theft/Loss', ar: 'سرقة/فقدان' },
     { code: 'expiry', en: 'Expiry', ar: 'انتهاء صلاحية' },
@@ -442,12 +443,79 @@ export default function PhysicalInventory() {
     })
   }
 
+  const buildClientPreview = (ids) => {
+    let positiveDiff = 0
+    let negativeDiff = 0
+    let valuationImpact = 0
+    let equalLines = 0
+    let varianceLines = 0
+    let lines = 0
+    for (const id of ids) {
+      const row = list.find((r) => String(r._id) === String(id))
+      if (!row) continue
+      const countedRaw = edits[row._id] ?? row.countedQuantity
+      if ((countedRaw === '' || countedRaw == null) && !row.isCountSet) continue
+      const counted = Number(countedRaw ?? row.countedQuantity ?? 0)
+      const onHand = Number(row.quantity || 0)
+      const diff = counted - onHand
+      const cost = Number(row.productId?.costPrice || 0)
+      lines += 1
+      if (Math.abs(diff) < 1e-9) {
+        equalLines += 1
+      } else {
+        varianceLines += 1
+        if (diff > 0) positiveDiff += diff
+        if (diff < 0) negativeDiff += diff
+        valuationImpact += diff * cost
+      }
+    }
+    return {
+      lines,
+      equalLines,
+      varianceLines,
+      positiveDiff: String(positiveDiff),
+      negativeDiff: String(negativeDiff),
+      valuationImpact: String(valuationImpact),
+      hasVariance: varianceLines > 0,
+    }
+  }
+
   const openApply = async (ids) => {
-    if (!ids.length) return
+    const unique = [...new Set(ids.map(String))]
+    if (!unique.length) return
     try {
-      const res = await api.post('/stock/physical-inventory/apply-preview', { ids })
-      setApplyPreview(res.data)
-      setApplyIds(ids)
+      const dirtyIds = unique.filter((id) => edits[id] != null && edits[id] !== '')
+      if (dirtyIds.length) {
+        await Promise.all(dirtyIds.map((id) => {
+          const row = list.find((r) => String(r._id) === String(id))
+          return api.post('/stock/physical-inventory/set', {
+            quantId: id,
+            productId: row?.productId?._id || row?.productId,
+            variantId: row?.variantId?._id || row?.variantId || undefined,
+            countedQty: edits[id],
+          })
+        }))
+        setDirty(false)
+        await qc.invalidateQueries({ queryKey: ['physical-inventory'] })
+      }
+      const client = buildClientPreview(unique)
+      const res = await api.post('/stock/physical-inventory/apply-preview', { ids: unique })
+      const server = res.data || {}
+      const pickMag = (a, b) => (Math.abs(Number(a) || 0) >= Math.abs(Number(b) || 0) ? a : b)
+      const preview = {
+        lines: Math.max(Number(server.lines) || 0, client.lines),
+        equalLines: server.equalLines ?? client.equalLines,
+        varianceLines: server.varianceLines ?? client.varianceLines,
+        positiveDiff: pickMag(server.positiveDiff, client.positiveDiff),
+        negativeDiff: pickMag(server.negativeDiff, client.negativeDiff),
+        valuationImpact: pickMag(server.valuationImpact, client.valuationImpact),
+        hasVariance: Boolean(server.hasVariance) || client.hasVariance
+          || Math.abs(Number(pickMag(server.positiveDiff, client.positiveDiff)) || 0) > 0
+          || Math.abs(Number(pickMag(server.negativeDiff, client.negativeDiff)) || 0) > 0,
+      }
+      setApplyPreview(preview)
+      setApplyIds(unique)
+      setReasonCode(preview.hasVariance ? 'data_entry_error' : 'equal')
       setApplyOpen(true)
     } catch (e) {
       toast.error(formatInvError(e, language))
@@ -653,124 +721,159 @@ export default function PhysicalInventory() {
             {blindMode ? (ar ? ' · عد أعمى' : ' · Blind count') : ''}
           </p>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          <button type="button" className="btn btn-secondary btn-sm" disabled={!dirty} onClick={discardLocal}>
-            {ar ? 'تجاهل' : 'Discard'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={!dirty || setCount.isPending}
-            onClick={() => {
-              Object.entries(edits).forEach(([id, countedQty]) => {
-                if (countedQty === '' || countedQty == null) return
-                const row = list.find((r) => String(r._id) === String(id))
-                setCount.mutate({
-                  quantId: id,
-                  productId: row?.productId?._id || row?.productId,
-                  variantId: row?.variantId?._id || row?.variantId || undefined,
-                  countedQty,
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-stretch overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm dark:border-dark-600 dark:bg-dark-800">
+            <button
+              type="button"
+              className="px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-dark-700"
+              disabled={!dirty}
+              onClick={discardLocal}
+            >
+              {ar ? 'تجاهل' : 'Discard'}
+            </button>
+            <span className="w-px self-stretch bg-slate-200 dark:bg-dark-600" />
+            <button
+              type="button"
+              className="px-3 py-1.5 text-xs font-semibold text-slate-800 transition hover:bg-slate-50 disabled:opacity-40 dark:text-slate-100 dark:hover:bg-dark-700"
+              disabled={!dirty || setCount.isPending}
+              onClick={() => {
+                Object.entries(edits).forEach(([id, countedQty]) => {
+                  if (countedQty === '' || countedQty == null) return
+                  const row = list.find((r) => String(r._id) === String(id))
+                  setCount.mutate({
+                    quantId: id,
+                    productId: row?.productId?._id || row?.productId,
+                    variantId: row?.variantId?._id || row?.variantId || undefined,
+                    countedQty,
+                  })
                 })
-              })
-            }}
-          >
-            {ar ? 'حفظ' : 'Save'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            disabled={!list.some((r) => r.isCountSet)}
-            onClick={() => openApply(list.filter((r) => r.isCountSet).map((r) => r._id))}
-          >
-            {ar ? 'تطبيق الكل' : 'Apply All'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={!list.some((r) => r.isCountSet || (edits[r._id] != null && edits[r._id] !== ''))}
-            onClick={() => {
-              const ids = list
-                .filter((r) => r.isCountSet || (edits[r._id] != null && edits[r._id] !== ''))
-                .map((r) => r._id)
-              requestClearLines(ids, { forceConfirm: ids.length > 5 })
-            }}
-          >
-            {ar ? 'مسح الكل' : 'Clear All'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={selected.size === 0}
-            title={selected.size === 0 ? (ar ? 'حدد أسطراً أولاً' : 'Select rows first') : undefined}
-            onClick={() => openApply([...selected])}
-          >
-            {ar ? `تطبيق المحدد (${selected.size})` : `Apply Selected (${selected.size})`}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={selected.size === 0 || clear.isPending}
-            title={selected.size === 0 ? (ar ? 'حدد أسطراً أولاً' : 'Select rows first') : undefined}
-            onClick={() => requestClearLines([...selected])}
-          >
-            {ar
-              ? (selected.size ? `مسح المحدد (${selected.size})` : 'مسح المحدد')
-              : (selected.size ? `Clear Selected (${selected.size})` : 'Clear Selected')}
-          </button>
-          <button
-            type="button"
-            className={`btn btn-sm ${blindMode ? 'btn-primary' : 'btn-secondary'}`}
-            aria-pressed={blindMode}
-            onClick={() => setBlindMode((v) => !v)}
-          >
-            {ar ? (blindMode ? 'عد أعمى: تشغيل' : 'عد أعمى') : (blindMode ? 'Blind: ON' : 'Blind count')}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={async () => {
-              try {
-                const res = await api.post('/stock/print', {
-                  layout: blindMode ? 'count_sheet_blind' : 'count_sheet_open',
-                  lang: ar ? 'ar' : 'en',
-                  filters: {
-                    warehouseId: warehouseId || undefined,
-                    locationId: locationId || undefined,
-                    filter: filter || undefined,
-                  },
-                }, { responseType: 'blob' })
-                const url = URL.createObjectURL(res.data)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = 'count-sheet.pdf'
-                a.click()
-                URL.revokeObjectURL(url)
-              } catch (e) {
-                toast.error(formatInvError(e, language))
-              }
-            }}
-          >
-            {ar ? 'طباعة' : 'Print'}
-          </button>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setRequestOpen(true)}>
-            {ar ? 'طلب جرد' : 'Request count'}
-          </button>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={exportAllFields}>
-            {ar ? 'تصدير' : 'Export'}
-          </button>
-          <InventoryIeButtons
-            model="physical_inventory"
-            ar={ar}
-            filters={{
-              warehouseId: warehouseId || undefined,
-              locationId: locationId || undefined,
-              filter: filter || undefined,
-            }}
-            onImported={() => {
-              setFilter('toApply')
-              invalidate()
-            }}
-          />
+              }}
+            >
+              {ar ? 'حفظ' : 'Save'}
+            </button>
+          </div>
+
+          <div className="inline-flex items-stretch overflow-hidden rounded-xl border border-teal-200/80 bg-teal-50/40 shadow-sm dark:border-teal-900/50 dark:bg-teal-950/30">
+            <button
+              type="button"
+              className="bg-teal-700 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-teal-800 disabled:opacity-40"
+              disabled={!list.some((r) => r.isCountSet)}
+              onClick={() => openApply(list.filter((r) => r.isCountSet).map((r) => r._id))}
+            >
+              {ar ? 'تطبيق الكل' : 'Apply All'}
+            </button>
+            <span className="w-px self-stretch bg-teal-200/80 dark:bg-teal-900/60" />
+            <button
+              type="button"
+              className="px-3 py-1.5 text-xs font-medium text-teal-900 transition hover:bg-teal-100/70 disabled:opacity-40 dark:text-teal-200 dark:hover:bg-teal-950/50"
+              disabled={!list.some((r) => r.isCountSet || (edits[r._id] != null && edits[r._id] !== ''))}
+              onClick={() => {
+                const ids = list
+                  .filter((r) => r.isCountSet || (edits[r._id] != null && edits[r._id] !== ''))
+                  .map((r) => r._id)
+                requestClearLines(ids, { forceConfirm: ids.length > 5 })
+              }}
+            >
+              {ar ? 'مسح الكل' : 'Clear All'}
+            </button>
+          </div>
+
+          <div className="inline-flex items-stretch overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm dark:border-dark-600 dark:bg-dark-800">
+            <button
+              type="button"
+              className="px-3 py-1.5 text-xs font-semibold text-slate-800 transition hover:bg-slate-50 disabled:opacity-40 dark:text-slate-100 dark:hover:bg-dark-700"
+              disabled={selected.size === 0}
+              title={selected.size === 0 ? (ar ? 'حدد أسطراً أولاً' : 'Select rows first') : undefined}
+              onClick={() => openApply([...selected])}
+            >
+              {ar ? `تطبيق المحدد (${selected.size})` : `Apply Selected (${selected.size})`}
+            </button>
+            <span className="w-px self-stretch bg-slate-200 dark:bg-dark-600" />
+            <button
+              type="button"
+              className="px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-40 dark:text-rose-400 dark:hover:bg-rose-950/30"
+              disabled={selected.size === 0 || clear.isPending}
+              title={selected.size === 0 ? (ar ? 'حدد أسطراً أولاً' : 'Select rows first') : undefined}
+              onClick={() => requestClearLines([...selected])}
+            >
+              {ar
+                ? (selected.size ? `مسح المحدد (${selected.size})` : 'مسح المحدد')
+                : (selected.size ? `Clear Selected (${selected.size})` : 'Clear Selected')}
+            </button>
+          </div>
+
+          <div className="hidden h-7 w-px bg-slate-200 sm:block dark:bg-dark-600" />
+
+          <div className="inline-flex flex-wrap items-center gap-1 rounded-xl border border-slate-200/80 bg-slate-50/80 p-0.5 dark:border-dark-600 dark:bg-dark-900/40">
+            <button
+              type="button"
+              className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${
+                blindMode
+                  ? 'bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900'
+                  : 'text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-dark-800'
+              }`}
+              aria-pressed={blindMode}
+              onClick={() => setBlindMode((v) => !v)}
+            >
+              {ar ? (blindMode ? 'عد أعمى: تشغيل' : 'عد أعمى') : (blindMode ? 'Blind: ON' : 'Blind count')}
+            </button>
+            <button
+              type="button"
+              className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-white dark:text-slate-300 dark:hover:bg-dark-800"
+              onClick={async () => {
+                try {
+                  const res = await api.post('/stock/print', {
+                    layout: blindMode ? 'count_sheet_blind' : 'count_sheet_open',
+                    lang: ar ? 'ar' : 'en',
+                    filters: {
+                      warehouseId: warehouseId || undefined,
+                      locationId: locationId || undefined,
+                      filter: filter || undefined,
+                    },
+                  }, { responseType: 'blob' })
+                  const url = URL.createObjectURL(res.data)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = 'count-sheet.pdf'
+                  a.click()
+                  URL.revokeObjectURL(url)
+                } catch (e) {
+                  toast.error(formatInvError(e, language))
+                }
+              }}
+            >
+              {ar ? 'طباعة' : 'Print'}
+            </button>
+            <button
+              type="button"
+              className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-white dark:text-slate-300 dark:hover:bg-dark-800"
+              onClick={() => setRequestOpen(true)}
+            >
+              {ar ? 'طلب جرد' : 'Request count'}
+            </button>
+            <button
+              type="button"
+              className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-white dark:text-slate-300 dark:hover:bg-dark-800"
+              onClick={exportAllFields}
+            >
+              {ar ? 'تصدير' : 'Export'}
+            </button>
+            <InventoryIeButtons
+              model="physical_inventory"
+              ar={ar}
+              hideExport
+              className="!gap-0.5 [&_button]:!rounded-lg [&_button]:!border-0 [&_button]:!bg-transparent [&_button]:!px-2.5 [&_button]:!py-1.5 [&_button]:!text-xs [&_button]:!font-medium [&_button]:!shadow-none [&_button]:!text-slate-600 hover:[&_button]:!bg-white dark:[&_button]:!text-slate-300 dark:hover:[&_button]:!bg-dark-800"
+              filters={{
+                warehouseId: warehouseId || undefined,
+                locationId: locationId || undefined,
+                filter: filter || undefined,
+              }}
+              onImported={() => {
+                setFilter('toApply')
+                invalidate()
+              }}
+            />
+          </div>
         </div>
       </div>
 
@@ -958,11 +1061,11 @@ export default function PhysicalInventory() {
               <tr>
                 <td colSpan={14} className="p-8">
                   <EmptyState
-                    title={ar ? 'لا أسطر جرد' : 'No count lines'}
+                    title={ar ? 'لا أسطر جرد' : 'No on-hand lines'}
                     description={
                       ar
-                        ? 'امسح باركوداً أو استخدم «طلب جرد».'
-                        : 'Scan a barcode or use Request count.'
+                        ? 'يظهر المخزون هنا بعد استلام GRN (أو تحويل وارد). امسح باركوداً أو استخدم «طلب جرد» بعد وجود كميات.'
+                        : 'Stock appears here after a GRN receive (or incoming transfer). Scan a barcode, or use Request count once quantities exist.'
                     }
                   />
                 </td>
@@ -1079,23 +1182,27 @@ export default function PhysicalInventory() {
                       )}
                       {visibleCols.lastCount && <td className="px-3 py-1.5 text-xs text-slate-500">{fmtDate(row.lastCountDate) || '—'}</td>}
                       <td className="px-3 py-1.5">
-                        <div className="flex flex-wrap items-center gap-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <button
                             type="button"
-                            className="text-xs text-primary-600 hover:underline"
+                            className="rounded-md px-1.5 py-0.5 text-[11px] font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-dark-700 dark:hover:text-slate-200"
                             onClick={() => setHistoryOpen({ productId: pid, locationId: lid, variantId: vid || undefined, label: pname })}
                           >
                             {ar ? 'سجل' : 'History'}
                           </button>
                           {row.isCountSet && (
-                            <button type="button" className="text-xs text-emerald-600 hover:underline" onClick={() => openApply([row._id])}>
+                            <button
+                              type="button"
+                              className="rounded-md bg-teal-50 px-1.5 py-0.5 text-[11px] font-semibold text-teal-800 transition hover:bg-teal-100 dark:bg-teal-950/40 dark:text-teal-300"
+                              onClick={() => openApply([row._id])}
+                            >
                               {ar ? 'تطبيق' : 'Apply'}
                             </button>
                           )}
                           {(row.isCountSet || (edits[row._id] != null && edits[row._id] !== '')) && (
                             <button
                               type="button"
-                              className="inline-flex items-center gap-0.5 text-xs text-rose-500 hover:underline"
+                              className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-rose-600 transition hover:bg-rose-50 dark:hover:bg-rose-950/30"
                               title={ar ? 'مسح العد (لا يصفر المخزون)' : 'Clear count (does not zero stock)'}
                               onClick={() => requestClearLines([row._id])}
                             >
@@ -1116,27 +1223,36 @@ export default function PhysicalInventory() {
 
       {/* Clear counted confirm */}
       {clearConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-dark-800">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-              {ar ? 'مسح الكميات المعدودة؟' : 'Clear Counted Quantities?'}
-            </h3>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-              {ar
-                ? `هل أنت متأكد من مسح الكميات المعدودة لـ ${clearConfirm.count} سطر محدد؟ هذا الإجراء لا يمكن التراجع عنه. لن يُصفَّر المخزون الفعلي.`
-                : `Are you sure you want to clear the counted quantities for ${clearConfirm.count} selected lines? This action cannot be undone. Physical stock is not zeroed.`}
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setClearConfirm(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_24px_80px_-24px_rgba(15,23,42,0.45)] dark:border-dark-600 dark:bg-dark-800">
+            <div className="border-b border-slate-100 px-6 py-4 dark:border-dark-600">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-rose-600/80">
+                {ar ? 'جرد' : 'Count'}
+              </p>
+              <h3 className="mt-1 text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
+                {ar ? 'مسح الكميات المعدودة؟' : 'Clear counted quantities?'}
+              </h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+                {ar
+                  ? `سيتم مسح العد لـ ${clearConfirm.count} سطر. المخزون الفعلي لن يُصفَّر.`
+                  : `Clears counted values for ${clearConfirm.count} line${clearConfirm.count === 1 ? '' : 's'}. On-hand stock is not zeroed.`}
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 bg-slate-50/80 px-6 py-4 dark:bg-dark-900/40">
+              <button
+                type="button"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-dark-600 dark:bg-dark-800 dark:text-slate-200"
+                onClick={() => setClearConfirm(null)}
+              >
                 {ar ? 'إلغاء' : 'Cancel'}
               </button>
               <button
                 type="button"
-                className="btn btn-primary btn-sm"
+                className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:opacity-50"
                 disabled={clear.isPending}
                 onClick={confirmClearLines}
               >
-                {ar ? 'مسح الأسطر' : 'Clear Lines'}
+                {ar ? 'مسح الأسطر' : 'Clear lines'}
               </button>
             </div>
           </div>
@@ -1145,36 +1261,111 @@ export default function PhysicalInventory() {
 
       {/* Apply confirm */}
       {applyOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-dark-800">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-              {ar ? 'تأكيد التطبيق' : 'Confirm apply'}
-            </h3>
-            <dl className="mt-3 space-y-1 text-sm text-slate-600 dark:text-slate-300">
-              <div className="flex justify-between"><dt>{ar ? 'الأسطر' : 'Lines'}</dt><dd className="tabular-nums">{applyPreview?.lines ?? applyIds.length}</dd></div>
-              <div className="flex justify-between"><dt>{ar ? 'فرق موجب' : 'Positive diff'}</dt><dd className="tabular-nums text-emerald-600">{applyPreview?.positiveDiff}</dd></div>
-              <div className="flex justify-between"><dt>{ar ? 'فرق سالب' : 'Negative diff'}</dt><dd className="tabular-nums text-rose-600">{applyPreview?.negativeDiff}</dd></div>
-              <div className="flex justify-between"><dt>{ar ? 'أثر التقييم' : 'Valuation impact'}</dt><dd className="tabular-nums">{applyPreview?.valuationImpact}</dd></div>
-            </dl>
-            <label className="mt-4 block text-xs font-medium text-slate-500">{ar ? 'تاريخ المحاسبة' : 'Accounting date'}</label>
-            <input type="date" className="input mt-1 w-full" value={accountingDate} onChange={(e) => setAccountingDate(e.target.value)} />
-            <label className="mt-3 block text-xs font-medium text-slate-500">{ar ? 'سبب الفرق *' : 'Reason code *'}</label>
-            <select className="select mt-1 w-full" value={reasonCode} onChange={(e) => setReasonCode(e.target.value)}>
-              {REASON_CODES.map((c) => (
-                <option key={c.code} value={c.code}>{ar ? c.ar : c.en}</option>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_24px_80px_-24px_rgba(15,23,42,0.45)] dark:border-dark-600 dark:bg-dark-800">
+            <div className="border-b border-slate-100 px-6 py-5 dark:border-dark-600">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-400">
+                {ar ? 'جرد فعلي' : 'Physical inventory'}
+              </p>
+              <h3 className="mt-1 text-xl font-semibold tracking-tight text-slate-900 dark:text-white">
+                {ar ? 'تأكيد التطبيق' : 'Confirm apply'}
+              </h3>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                {applyPreview?.hasVariance
+                  ? (ar ? 'ترحيل فروقات العد إلى المخزون المتاح' : 'Post count variances to on-hand stock')
+                  : (ar ? 'العد مطابق — سيتم إقفال الأسطر دون حركة مخزون' : 'Counts match on-hand — lines will close with no stock move')}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 px-6 py-4 sm:grid-cols-5">
+              {[
+                { label: ar ? 'أسطر' : 'Lines', value: applyPreview?.lines ?? applyIds.length, tone: 'text-slate-900 dark:text-white' },
+                { label: ar ? 'متطابق' : 'Equal', value: applyPreview?.equalLines ?? 0, tone: 'text-slate-700 dark:text-slate-200' },
+                { label: ar ? 'فرق +' : 'Positive Δ', value: applyPreview?.positiveDiff ?? '0', tone: 'text-emerald-600 dark:text-emerald-400' },
+                { label: ar ? 'فرق −' : 'Negative Δ', value: applyPreview?.negativeDiff ?? '0', tone: 'text-rose-600 dark:text-rose-400' },
+                { label: ar ? 'القيمة' : 'Value', value: applyPreview?.valuationImpact ?? '0', tone: 'text-slate-900 dark:text-white' },
+              ].map((kpi) => (
+                <div
+                  key={kpi.label}
+                  className="rounded-xl border border-slate-100 bg-slate-50/90 px-2.5 py-2 dark:border-dark-600 dark:bg-dark-900/50"
+                >
+                  <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">{kpi.label}</div>
+                  <div className={`mt-0.5 text-sm font-semibold tabular-nums tracking-tight ${kpi.tone}`}>{kpi.value}</div>
+                </div>
               ))}
-            </select>
-            <label className="mt-3 block text-xs font-medium text-slate-500">{ar ? 'ملاحظة' : 'Note'}</label>
-            <input className="input mt-1 w-full" value={reason} onChange={(e) => setReason(e.target.value)} />
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="btn btn-secondary" onClick={() => setApplyOpen(false)}>{ar ? 'إلغاء' : 'Cancel'}</button>
+            </div>
+
+            <div className="space-y-3 px-6 pb-2">
+              <div>
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                  {ar ? 'تاريخ المحاسبة' : 'Accounting date'}
+                </label>
+                <input
+                  type="date"
+                  className="input w-full rounded-xl border-slate-200 shadow-sm dark:border-dark-600"
+                  value={accountingDate}
+                  onChange={(e) => setAccountingDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                  {ar ? 'رمز السبب *' : 'Reason code *'}
+                </label>
+                <select
+                  className="select w-full rounded-xl border-slate-200 shadow-sm dark:border-dark-600"
+                  value={reasonCode}
+                  onChange={(e) => setReasonCode(e.target.value)}
+                >
+                  {REASON_CODES.map((c) => (
+                    <option key={c.code} value={c.code}>{ar ? c.ar : c.en}</option>
+                  ))}
+                </select>
+                {!applyPreview?.hasVariance && reasonCode !== 'equal' && (
+                  <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400">
+                    {ar ? 'لا يوجد فرق — يُفضّل اختيار «متطابق».' : 'No variance — prefer “Equal / matched”.'}
+                  </p>
+                )}
+                {applyPreview?.hasVariance && reasonCode === 'equal' && (
+                  <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400">
+                    {ar ? 'يوجد فرق — اختر سبباً يشرح التباين.' : 'Variance present — choose a reason that explains the difference.'}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                  {ar ? 'ملاحظة' : 'Note'}
+                </label>
+                <input
+                  className="input w-full rounded-xl border-slate-200 shadow-sm dark:border-dark-600"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder={ar ? 'ملاحظة اختيارية' : 'Optional note'}
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 bg-slate-50/80 px-6 py-4 dark:border-dark-600 dark:bg-dark-900/40">
               <button
                 type="button"
-                className="btn btn-primary"
-                disabled={apply.isPending || !reasonCode}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-dark-600 dark:bg-dark-800 dark:text-slate-200"
+                onClick={() => setApplyOpen(false)}
+              >
+                {ar ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                className="rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800 disabled:opacity-50"
+                disabled={
+                  apply.isPending
+                  || !reasonCode
+                  || (applyPreview?.hasVariance && reasonCode === 'equal')
+                  || (!applyPreview?.hasVariance && reasonCode !== 'equal')
+                }
                 onClick={() => apply.mutate({ ids: applyIds, accountingDate, reason, reasonCode })}
               >
-                {ar ? 'تطبيق' : 'Apply'}
+                {apply.isPending
+                  ? (ar ? 'جارٍ التطبيق…' : 'Applying…')
+                  : (ar ? 'تطبيق' : 'Apply')}
               </button>
             </div>
           </div>

@@ -13,8 +13,8 @@ import {
   Clock,
   Download,
   Printer,
-  Truck,
   MessageCircle,
+  ShoppingCart,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
@@ -70,13 +70,15 @@ function PartyNames({ party, fallback = '-' }) {
 
 const isEditableQuotation = (q) =>
   ['draft', 'sent', 'rejected'].includes(String(q?.status || '').toLowerCase())
-const hasConvertedInvoice = (q) => Boolean(q?.convertedInvoiceId)
+const hasConvertedOrder = (q) => Boolean(q?.convertedOrderId)
 const canApproveQuotation = (q) =>
   ['draft', 'sent', 'accepted', 'rejected'].includes(String(q?.status || '').toLowerCase()) &&
-  !q?.convertedInvoiceId
+  !q?.convertedInvoiceId &&
+  !q?.convertedOrderId
 const canRejectQuotation = (q) =>
   ['draft', 'sent', 'accepted', 'approved'].includes(String(q?.status || '').toLowerCase()) &&
-  !q?.convertedInvoiceId
+  !q?.convertedInvoiceId &&
+  !q?.convertedOrderId
 
 const getQuotationStatusMeta = (q, language = 'en') => {
   const status = String(q?.status || 'draft').toLowerCase()
@@ -160,10 +162,17 @@ export default function Quotations() {
 
   const approveMutation = useMutation({
     mutationFn: (id) => api.post(`/quotations/${id}/approve`),
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['quotations'] })
-      toast.success(language === 'ar' ? 'تم اعتماد عرض السعر' : 'Quotation approved')
+      queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+      toast.success(
+        language === 'ar'
+          ? 'تم الاعتماد وإنشاء أمر البيع'
+          : 'Approved — sales order created',
+      )
       setApproveModalQ(null)
+      const orderId = response?.data?.orderId
+      if (orderId) navigate(`/app/dashboard/sales/orders/${orderId}`)
     },
     onError: (e) =>
       toast.error(
@@ -303,8 +312,8 @@ export default function Quotations() {
               <div className="p-5">
                 <p className="text-sm text-gray-600 dark:text-gray-300">
                   {language === 'ar'
-                    ? 'هل تريد اعتماد عرض السعر هذا؟ سيصبح جاهزاً للتحويل إلى فاتورة.'
-                    : 'Approve this quotation? It will become ready to convert into an invoice.'}
+                    ? 'هل تريد اعتماد عرض السعر هذا؟ سيتم إنشاء أمر بيع تلقائياً.'
+                    : 'Approve this quotation? A sales order will be created automatically.'}
                 </p>
               </div>
               <div className="flex gap-3 p-5 pt-0">
@@ -404,7 +413,7 @@ export default function Quotations() {
           <p className={pageSubtitleClass}>
             {language === 'ar'
               ? 'إدارة عروض الأسعار وتحويلها إلى فواتير'
-              : 'Manage quotations and convert them to invoices'}
+              : 'Manage quotations and convert them to sales orders'}
           </p>
         </div>
         <div className="flex gap-2">
@@ -571,23 +580,15 @@ export default function Quotations() {
                               </button>
                             )}
 
-                            {hasConvertedInvoice(q) && (
+                            {hasConvertedOrder(q) && (
                               <Link
-                                to={`/app/dashboard/invoices/${q.convertedInvoiceId}`}
+                                to={`/app/dashboard/sales/orders/${q.convertedOrderId?._id || q.convertedOrderId}`}
                                 className={rowActionBtnClass}
-                                title={language === 'ar' ? 'عرض الفاتورة' : 'View Invoice'}
+                                title={language === 'ar' ? 'عرض أمر البيع' : 'View sales order'}
                               >
-                                <FileText className="w-4 h-4" />
+                                <ShoppingCart className="w-4 h-4" />
                               </Link>
                             )}
-
-                            <Link
-                              to={`/app/dashboard/delivery-notes/new?quotationId=${q._id}`}
-                              className={rowActionBtnClass}
-                              title={language === 'ar' ? 'إنشاء سند تسليم' : 'Create Delivery Note'}
-                            >
-                              <Truck className="w-4 h-4" />
-                            </Link>
 
                             <button
                               type="button"

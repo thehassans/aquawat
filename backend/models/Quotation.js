@@ -123,6 +123,7 @@ const quotationSchema = new mongoose.Schema({
   rejectedByName: { type: String },
   rejectedByNameAr: { type: String },
   convertedInvoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', index: true },
+  convertedOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'PurchaseOrder', index: true },
   convertedAt: { type: Date },
   /** Sales CRM */
   salesTeamId: { type: mongoose.Schema.Types.ObjectId, ref: 'SalesTeam', default: null },

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Clock3, PackageCheck, Plus, Save, Trash2, UploadCloud, Eye } from 'lucide-react'
+import { Clock3, PackageCheck, Plus, Trash2, UploadCloud, FileText, Receipt, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { contactToSupplier, fetchContactsList } from '../../lib/contactMappers'
@@ -12,18 +12,15 @@ import { useTranslation } from '../../lib/translations'
 import Money from '../ui/Money'
 import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/businessTypes'
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
-import { isGccArabicMarket } from '../../lib/invoiceLanguage'
 import { isPakistanTenant, getTaxLabel, getTaxIdLabel, getTenantCountryCode, showArabicFields as isArabicTenantMarket } from '../../lib/saudiTenant'
 import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../../lib/uomOptions'
 import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
-import InvoiceLivePreview from './InvoiceLivePreview'
 import DocumentPreSaveModal from './DocumentPreSaveModal'
-import InvoiceTemplateSelector from './InvoiceTemplateSelector'
 import TravelInvoiceFields from './TravelInvoiceFields'
 import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
-import { formPaymentStatusFromInvoice, applyFormPaymentToPayload } from '../../lib/invoicePaymentTerms'
+import { INVOICE_PAYMENT_TERMS, computeDueDateFromPaymentTerms, isImmediatePaymentTerm, formPaymentStatusFromInvoice, applyFormPaymentToPayload } from '../../lib/invoicePaymentTerms'
 import { normalizeProductType, productPickerLabel, productDisplayName, resolveProductPurchasePrice, hasArabicScript } from '../../lib/productType'
 import ProductTypeToggle from '../ui/ProductTypeToggle'
 import VariantLineSelect from '../inventory/VariantLineSelect'
@@ -33,16 +30,51 @@ import PartnerCombobox from '../inventory/PartnerCombobox'
 import CustomerSummaryCard from '../sales/CustomerSummaryCard'
 import { PURCHASES_PATH, formatDay, ghostBtn, primaryBtn } from '../../pages/purchases/purchasesUi'
 import {
-  backBtnClass,
   fieldControlClass,
   fieldLabelClass,
-  pageSubtitleClass,
-  pageTitleClass,
   sectionCardClass,
-  sectionEyebrowClass,
-  sectionTitleClass,
-  selectTileClass,
 } from '../../pages/sales/salesUi'
+import { normalizeGrnList } from '../../lib/grnApi'
+import InvoiceJournalItemsPanel, { InvoiceDocumentReferencesBar } from './InvoiceJournalItemsPanel'
+
+const denseControlClass =
+  'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-900/10 dark:border-dark-500 dark:bg-dark-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-400'
+const lineGhostInputClass =
+  'w-full rounded-md border-0 bg-transparent px-1.5 py-1.5 text-[13px] font-medium text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:bg-slate-50 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-white/5'
+const compactFieldClass = `mt-0.5 ${denseControlClass}`
+const lineSelectStyles = {
+  control: (base, state) => ({
+    ...base,
+    border: 'none',
+    boxShadow: 'none',
+    minHeight: 32,
+    backgroundColor: state.isFocused ? 'rgba(248,250,252,0.9)' : 'transparent',
+    borderRadius: '0.375rem',
+    cursor: 'pointer',
+  }),
+  valueContainer: (base) => ({ ...base, padding: '0 4px' }),
+  indicatorsContainer: (base) => ({ ...base, height: 32 }),
+  dropdownIndicator: (base) => ({ ...base, padding: 4, color: '#94a3b8' }),
+  clearIndicator: (base) => ({ ...base, padding: 4 }),
+  indicatorSeparator: () => ({ display: 'none' }),
+  singleValue: (base) => ({ ...base, color: '#0f172a', fontWeight: 500, fontSize: '0.8125rem' }),
+  placeholder: (base) => ({ ...base, color: '#94a3b8', fontSize: '0.8125rem' }),
+  menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+  menu: (base) => ({
+    ...base,
+    borderRadius: '0.75rem',
+    overflow: 'hidden',
+    boxShadow: '0 12px 40px -12px rgba(15,23,42,0.28)',
+    minWidth: 160,
+  }),
+}
+
+const toDateInput = (value) => {
+  if (!value) return ''
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toISOString().slice(0, 10)
+}
 
 const getEmptyLine = (tenant) => ({
   productId: '',
@@ -54,13 +86,14 @@ const getEmptyLine = (tenant) => ({
   quantity: 1,
   unitPrice: '',
   taxRate: 15,
+  sourcePoItemId: '',
 })
 
 const purchaseContexts = ['trading', 'construction', 'travel_agency', 'furniture', 'furniture_shop']
 
 function BilingualLabel({ en, ar, showArabic = true }) {
   return (
-    <label className={`${fieldLabelClass} !mb-1.5 !flex items-baseline justify-between gap-3`} dir="ltr">
+    <label className={`${fieldLabelClass} !mb-0.5 !flex items-baseline justify-between gap-2 text-[11px]`} dir="ltr">
       <span>{en}</span>
       {showArabic && ar ? <span dir="rtl" className="font-medium text-slate-500 dark:text-slate-400">{ar}</span> : null}
     </label>
@@ -87,7 +120,14 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
     authorizedPersonDesignationAr: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonDesignationAr || '') : '',
     authorizedPersonSignature: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonSignature || '') : '',
     stampImage: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.stampImage || '') : '',
-    paymentTerms: invoice?.paymentTerms || '',
+    paymentTerms: invoice?.paymentTerms || 'immediate',
+    printFormat: invoice?.printFormat === 'thermal' ? 'thermal' : 'a4',
+    dueDate: (() => {
+      if (invoice?.dueDate) return toDateInput(invoice.dueDate)
+      const issue = invoice?.issueDate ? new Date(invoice.issueDate) : new Date()
+      const due = computeDueDateFromPaymentTerms(issue, invoice?.paymentTerms || 'immediate')
+      return due ? due.toISOString().slice(0, 10) : ''
+    })(),
     paymentMethod: invoice?.paymentMethod || 'cash',
     paymentStatus: formPaymentStatusFromInvoice(invoice),
     paidAmount: toNumber(invoice?.paidAmount, 0),
@@ -114,6 +154,7 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
           quantity: Math.max(0.0001, toNumber(line?.quantity, 1)),
           unitPrice: Math.max(0, toNumber(line?.unitPrice, 0)),
           taxRate: Math.max(0, toNumber(line?.taxRate, 15)),
+          sourcePoItemId: line?.sourcePoItemId || '',
         }))
       : [empty],
   }
@@ -156,6 +197,17 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   )
   const filledPoIdRef = useRef('')
   const shouldFillFromPoRef = useRef(Boolean(poIdParam) && !isEdit)
+  const [documentReferences, setDocumentReferences] = useState(
+    () => (Array.isArray(initialInvoice?.documentReferences) ? initialInvoice.documentReferences : [])
+  )
+  const [accountingLines, setAccountingLines] = useState(
+    () => (Array.isArray(initialInvoice?.accountingLines) ? initialInvoice.accountingLines : [])
+  )
+  const [sourceGrnIds, setSourceGrnIds] = useState(
+    () => (Array.isArray(initialInvoice?.sourceGrnIds)
+      ? initialInvoice.sourceGrnIds.map((id) => (id && typeof id === 'object' ? String(id._id) : String(id))).filter(Boolean)
+      : [])
+  )
   const [showAuthorizedPerson, setShowAuthorizedPerson] = useState(() => {
     return Boolean(
       initialInvoice?.authorizedPersonName ||
@@ -408,6 +460,14 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     enabled: Boolean(selectedPoId) && isTradingContext,
   })
 
+  const { data: relatedGrns = [] } = useQuery({
+    queryKey: ['grn', 'by-po', selectedPoId],
+    queryFn: () => api.get('/grn', {
+      params: { purchaseOrderId: selectedPoId, limit: 50 },
+    }).then((res) => normalizeGrnList(res.data)),
+    enabled: Boolean(selectedPoId) && isTradingContext,
+  })
+
   const isSubmittedRef = useRef(false)
   const latestValues = useRef(values)
 
@@ -454,9 +514,9 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         queryClient.invalidateQueries(['invoice', invoiceId])
       }
       if (res.data?.offline) {
-        navigate('/app/dashboard/invoices')
+        navigate('/app/dashboard/accounting/invoices')
       } else {
-        navigate(`/app/dashboard/invoices/${res.data?._id || invoiceId}`)
+        navigate(`/app/dashboard/accounting/invoices/${res.data?._id || invoiceId}`)
       }
     },
     onError: (error) => {
@@ -600,9 +660,27 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         quantity: Math.max(0.0001, toNumber(li?.quantityOrdered ?? li?.quantity, 1) - toNumber(li?.quantityReturned, 0)),
         unitPrice: Math.max(0, toNumber(li?.unitCost ?? li?.unitPrice, 0)),
         taxRate: Math.max(0, toNumber(li?.taxRate, 15)),
+        sourcePoItemId: li?._id || '',
       }
     })
     replace(items.length ? items : [emptyLine])
+    const grnList = Array.isArray(relatedGrns) ? relatedGrns : []
+    const grnIds = grnList.map((g) => g._id).filter(Boolean)
+    setSourceGrnIds(grnIds)
+    setDocumentReferences([
+      {
+        kind: 'purchase_order',
+        docId: po._id,
+        number: po.poNumber || '',
+        label: po.poNumber || '',
+      },
+      ...grnList.map((g) => ({
+        kind: 'grn',
+        docId: g._id,
+        number: g.grnNumber || '',
+        label: g.grnNumber || '',
+      })),
+    ])
     toast.success(language === 'ar' ? 'تم تعبئة الفاتورة من طلب الشراء' : 'Invoice filled from purchase order')
   }
 
@@ -616,6 +694,36 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     applyPurchaseOrder(selectedPo)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPo])
+
+  useEffect(() => {
+    if (!selectedPoId || !selectedPo?._id) return
+    const grnList = Array.isArray(relatedGrns) ? relatedGrns : []
+    const grnIds = grnList.map((g) => g._id).filter(Boolean)
+    setSourceGrnIds(grnIds)
+    setDocumentReferences((prev) => {
+      const withoutGrns = (Array.isArray(prev) ? prev : []).filter((r) => r.kind !== 'grn')
+      const hasPo = withoutGrns.some((r) => r.kind === 'purchase_order')
+      const next = [...withoutGrns]
+      if (!hasPo) {
+        next.unshift({
+          kind: 'purchase_order',
+          docId: selectedPo._id,
+          number: selectedPo.poNumber || '',
+          label: selectedPo.poNumber || '',
+        })
+      }
+      return [
+        ...next,
+        ...grnList.map((g) => ({
+          kind: 'grn',
+          docId: g._id,
+          number: g.grnNumber || '',
+          label: g.grnNumber || '',
+        })),
+      ]
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [relatedGrns, selectedPoId, selectedPo?._id, selectedPo?.poNumber])
 
   const summary = useMemo(
     () => calculateInvoiceSummary({
@@ -654,6 +762,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       invoiceDiscount: toNumber(data.invoiceDiscount, 0),
     })
     const sellerName = String(data.seller?.name || data.seller?.nameAr || '').trim() || (language === 'ar' ? 'مورد نقدي' : 'Cash Supplier')
+    const issueDate = isEdit ? (initialInvoice?.issueDate || new Date()) : new Date()
     const payload = {
       ...data,
       flow: 'purchase',
@@ -663,7 +772,14 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       transactionType,
       invoiceTypeCode: transactionType === 'B2C' ? '0200000' : '0100000',
       status: 'approved',
-      issueDate: isEdit ? (initialInvoice?.issueDate || new Date()) : new Date(),
+      issueDate,
+      printFormat: data?.printFormat === 'thermal' ? 'thermal' : 'a4',
+      paymentTerms: data?.paymentTerms || 'immediate',
+      dueDate: (() => {
+        const raw = typeof data?.dueDate === 'string' ? data.dueDate.trim() : ''
+        if (raw) return new Date(`${raw}T12:00:00`)
+        return computeDueDateFromPaymentTerms(issueDate, data?.paymentTerms || 'immediate') || undefined
+      })(),
       seller: {
         ...(data.seller || {}),
         name: sellerName,
@@ -701,6 +817,18 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       if (!payload.supplierId) delete payload.supplierId
       payload.sourcePurchaseOrderId = selectedPoId || data.sourcePurchaseOrderId || undefined
       if (!payload.sourcePurchaseOrderId) delete payload.sourcePurchaseOrderId
+      if (selectedPo?.poNumber || data.purchaseOrderNumber) {
+        payload.purchaseOrderNumber = selectedPo?.poNumber || data.purchaseOrderNumber
+      }
+      if (Array.isArray(sourceGrnIds) && sourceGrnIds.length) {
+        payload.sourceGrnIds = sourceGrnIds
+      }
+      if (Array.isArray(documentReferences) && documentReferences.length) {
+        payload.documentReferences = documentReferences
+      }
+      if (Array.isArray(accountingLines) && accountingLines.length) {
+        payload.accountingLines = accountingLines
+      }
     }
     if (invoiceSubtype !== 'travel_ticket') delete payload.travelDetails
     payload.showAuthorizedPerson = Boolean(showAuthorizedPerson)
@@ -792,225 +920,328 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     }),
   }
 
+  const availablePurchaseContexts = tenantBusinessTypes.filter((type) => purchaseContexts.includes(type))
+  const segmentWrapClass =
+    'inline-flex items-center rounded-xl border border-slate-200/90 bg-slate-50/80 p-0.5 dark:border-white/10 dark:bg-dark-900/50'
+  const segmentBtnClass = (active) =>
+    `rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+      active
+        ? 'bg-white text-slate-900 shadow-sm dark:bg-dark-700 dark:text-white'
+        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+    }`
+  const companyLine = [
+    tenant?.business?.legalNameEn || tenant?.name,
+    tenant?.business?.vatNumber || tenant?.fbr?.ntn || tenant?.business?.ntn
+      ? `${isPk ? 'NTN' : 'VAT'} ${tenant?.business?.vatNumber || tenant?.fbr?.ntn || tenant?.business?.ntn}`
+      : null,
+    tenant?.business?.crNumber ? `CR ${tenant.business.crNumber}` : null,
+  ].filter(Boolean).join(' · ')
+
+  const setTxnType = (next) => {
+    setTransactionType(next)
+    setValue('transactionType', next, { shouldDirty: true })
+    setValue('invoiceTypeCode', next === 'B2C' ? '0200000' : '0100000', { shouldDirty: true })
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="mx-auto w-full max-w-6xl space-y-6">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className={sectionCardClass}>
-            <p className={sectionEyebrowClass}>{language === 'ar' ? 'السياق' : 'Context'}</p>
-            <h3 className={`${sectionTitleClass} mb-4`}>{language === 'ar' ? 'سياق الشراء' : 'Purchase context'}</h3>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              {tenantBusinessTypes.filter((type) => purchaseContexts.includes(type)).map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setValue('businessContext', type)}
-                  className={selectTileClass(businessContext === type)}
-                >
-                  <span className={`block text-sm font-semibold ${businessContext === type ? '' : 'text-slate-900 dark:text-white'}`}>
-                    {type === 'trading'
-                      ? (language === 'ar' ? 'تجارة' : 'Trading')
-                      : type === 'construction'
-                        ? (language === 'ar' ? 'مقاولات' : 'Construction')
-                        : type === 'furniture' || type === 'furniture_shop'
-                          ? (language === 'ar' ? 'أثاث' : 'Furniture')
-                          : (language === 'ar' ? 'سفر' : 'Travel Agency')}
-                  </span>
+    <div className="space-y-4">
+      <div className="mx-auto w-full max-w-6xl space-y-2.5">
+        <form
+          onSubmit={handleSubmit(onSubmit, () => toast.error(language === 'ar' ? 'أكمل البنود المطلوبة قبل الحفظ' : 'Complete the billing lines before saving'))}
+          className="space-y-2.5"
+        >
+          <div className={`${sectionCardClass} !p-3 space-y-2`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className={segmentWrapClass}>
+                {[
+                  { id: 'a4', labelEn: 'A4', labelAr: 'A4', Icon: FileText },
+                  { id: 'thermal', labelEn: 'Thermal', labelAr: 'حراري', Icon: Receipt },
+                ].map((fmt) => {
+                  const active = (values?.printFormat || 'a4') === fmt.id
+                  const Icon = fmt.Icon
+                  return (
+                    <button
+                      key={fmt.id}
+                      type="button"
+                      onClick={() => setValue('printFormat', fmt.id, { shouldDirty: true, shouldTouch: true })}
+                      className={`${segmentBtnClass(active)} inline-flex items-center gap-1.5`}
+                    >
+                      <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      {language === 'ar' ? fmt.labelAr : fmt.labelEn}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className={segmentWrapClass}>
+                <button type="button" onClick={() => setTxnType('B2B')} className={segmentBtnClass(transactionType === 'B2B')}>
+                  B2B
                 </button>
-              ))}
+                <button type="button" onClick={() => setTxnType('B2C')} className={segmentBtnClass(transactionType === 'B2C')}>
+                  B2C
+                </button>
+              </div>
+
+              <div className="ms-auto flex min-w-0 max-w-full items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
+                  <img
+                    src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo}
+                    alt=""
+                    className="h-7 w-7 shrink-0 rounded-lg border border-slate-200/80 object-contain bg-white p-0.5 dark:border-white/10"
+                  />
+                ) : null}
+                <span className="truncate font-medium text-slate-700 dark:text-slate-200" title={companyLine}>
+                  {companyLine || (language === 'ar' ? 'بيانات المنشأة' : 'Company')}
+                </span>
+              </div>
             </div>
+            <input type="hidden" {...register('printFormat')} />
             <input type="hidden" {...register('businessContext')} />
+            <input type="hidden" {...register('invoiceSubtype')} />
+            <input type="hidden" {...register('pdfTemplateId')} />
+            <input type="hidden" {...register('transactionType')} />
           </div>
 
-          <div className={sectionCardClass}>
-            <p className={sectionEyebrowClass}>{language === 'ar' ? 'الإعدادات' : 'Settings'}</p>
-            <h3 className={`${sectionTitleClass} mb-4`}>{language === 'ar' ? 'الإعدادات الأساسية' : 'Basic settings'}</h3>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div>
-                <label className={fieldLabelClass}>{language === 'ar' ? 'النوع' : 'Type'}</label>
-                <select value={transactionType} onChange={(e) => { setTransactionType(e.target.value); setValue('transactionType', e.target.value) }} className={fieldControlClass}>
-                  <option value="B2B">{t('b2bInvoice')}</option>
-                  <option value="B2C">{t('b2cInvoice')}</option>
-                </select>
-              </div>
-              {isTradingContext && (
-                <>
-                  <div>
-                    <label className={fieldLabelClass}>{language === 'ar' ? 'طلب الشراء' : 'Purchase order'}</label>
-                    <select
-                      value={selectedPoId}
-                      onChange={(e) => {
-                        const next = e.target.value
-                        setSelectedPoId(next)
-                        setValue('sourcePurchaseOrderId', next)
-                        filledPoIdRef.current = ''
-                        shouldFillFromPoRef.current = Boolean(next)
-                        if (!next) replace([emptyLine])
-                      }}
-                      className={fieldControlClass}
+          {availablePurchaseContexts.length > 1 ? (
+            <div className={`${sectionCardClass} !p-2.5`}>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                  {language === 'ar' ? 'السياق' : 'Context'}
+                </span>
+                <div className={segmentWrapClass}>
+                  {availablePurchaseContexts.map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setValue('businessContext', type, { shouldDirty: true })}
+                      className={segmentBtnClass(businessContext === type)}
                     >
-                      <option value="">{language === 'ar' ? 'اختر طلب شراء لتعبئة الفاتورة' : 'Select a purchase order to fill the invoice'}</option>
-                      {(Array.isArray(purchaseOrders) ? purchaseOrders : []).map((po) => (
-                        <option key={po._id} value={po._id}>
-                          {po.poNumber} — {language === 'ar' ? (po.supplierId?.nameAr || po.supplierId?.nameEn || '') : (po.supplierId?.nameEn || po.supplierId?.nameAr || '')}
-                        </option>
-                      ))}
-                    </select>
-                    <input type="hidden" {...register('sourcePurchaseOrderId')} />
-                  </div>
-                  <div>
-                    <label className={fieldLabelClass}>{language === 'ar' ? 'المورد' : 'Supplier'}</label>
-                    <PartnerCombobox
-                      role="vendor"
-                      value={values?.supplierId || ''}
-                      selectedOption={selectedSupplier}
-                      ar={language === 'ar'}
-                      language={language}
-                      onChange={onSelectSupplier}
-                      showNewButton
-                    />
-                    {selectedSupplier?._id ? (
-                      <div className="mt-2">
-                        <CustomerSummaryCard
-                          customer={{
-                            ...selectedSupplier,
-                            name: selectedSupplier.nameEn || selectedSupplier.name || selectedSupplier.nameAr,
-                          }}
-                          language={language}
-                          onClear={() => onSelectSupplier('', null)}
-                        />
-                      </div>
-                    ) : null}
-                    <input type="hidden" {...register('supplierId')} />
-                    <input type="hidden" {...register('warehouseId')} />
-                  </div>
-                </>
-              )}
+                      {type === 'trading'
+                        ? (language === 'ar' ? 'تجارة' : 'Trading')
+                        : type === 'construction'
+                          ? (language === 'ar' ? 'مقاولات' : 'Construction')
+                          : type === 'furniture' || type === 'furniture_shop'
+                            ? (language === 'ar' ? 'أثاث' : 'Furniture')
+                            : (language === 'ar' ? 'سفر' : 'Travel')}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-            {isTradingContext && selectedPo?._id ? (
-              <div className="mt-5 space-y-4">
-              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="grid flex-1 gap-3 sm:grid-cols-3">
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'تاريخ الاستلام المتوقع' : 'Estimated receive date'}</p>
-                      <p className="mt-1 text-[13px] font-medium text-slate-900 dark:text-white">{formatDay(selectedPo.expectedDate, language)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'الاستلام الجزئي' : 'Partial received'}</p>
-                      <p className="mt-1 text-[13px] font-medium text-slate-900 dark:text-white">
-                        {selectedPo.status === 'partially_received' || Number(selectedPo.receivingLedger?.receivedCount || 0) > 0
-                          ? (language === 'ar' ? 'نعم' : 'Yes')
-                          : (language === 'ar' ? 'لا' : 'No')}
-                        {selectedPo.receivingLedger ? ` · ${selectedPo.receivingLedger.receivedCount || 0}/${(selectedPo.receivingLedger.lines || []).length}` : ''}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'تواريخ التأخير' : 'Delayed receive dates'}</p>
-                      <p className="mt-1 text-[13px] font-medium text-slate-900 dark:text-white">
-                        {(() => {
-                          const dates = (selectedPo.receivingLedger?.lines || [])
-                            .flatMap((line) => (line.delayedEvents || []).map((event) => event.delayedUntil))
-                            .filter(Boolean)
-                          if (!dates.length) return '—'
-                          return [...new Set(dates.map((value) => formatDay(value, language)))].join(' · ')
-                        })()}
-                      </p>
-                    </div>
-                  </div>
-                  {isFutureDate(selectedPo.expectedDate) ? (
-                    <Link
-                      to={`${PURCHASES_PATH.grn}/new?poId=${selectedPo._id}&early=1`}
-                      className={primaryBtn.replace('px-4 py-2.5', 'px-3.5 py-2 text-[12px]')}
-                    >
-                      <Clock3 className="h-3.5 w-3.5" />
-                      {language === 'ar' ? 'استلام قبل التاريخ المتوقع' : 'Receive before estimated date'}
-                    </Link>
-                  ) : (
-                    <Link
-                      to={`${PURCHASES_PATH.grn}/new?poId=${selectedPo._id}`}
-                      className={ghostBtn.replace('px-3.5 py-2.5', 'px-3.5 py-2 text-[12px]')}
-                    >
-                      <PackageCheck className="h-3.5 w-3.5" />
-                      {language === 'ar' ? 'استلام' : 'Receive'}
-                    </Link>
-                  )}
+          ) : null}
+
+          <div className={`${sectionCardClass} space-y-2.5 !p-3.5`}>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                {language === 'ar' ? 'المورد' : 'Supplier'}
+              </h3>
+              {transactionType === 'B2C' ? (
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  {language === 'ar' ? 'نقدي' : 'Cash'}
+                </span>
+              ) : null}
+            </div>
+
+            {isTravelContext ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className={segmentWrapClass}>
+                  <button
+                    type="button"
+                    onClick={() => setValue('invoiceSubtype', 'travel_ticket', { shouldDirty: true })}
+                    className={segmentBtnClass(invoiceSubtype === 'travel_ticket')}
+                  >
+                    {language === 'ar' ? 'سفر / تذاكر' : 'Travel / Ticket'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setValue('invoiceSubtype', 'standard', { shouldDirty: true })}
+                    className={segmentBtnClass(invoiceSubtype === 'standard')}
+                  >
+                    {language === 'ar' ? 'قياسية' : 'Standard'}
+                  </button>
                 </div>
-                <div className="mt-4">
-                  <PurchaseReceivingLedger order={selectedPo} language={language} />
-                </div>
-              </div>
-              {!isEdit && billLinesForMatch.length > 0 && (
-                <div
-                  className={`rounded-2xl border p-4 ${
-                    threeWayQuery.data?.ok === false
-                      ? 'border-rose-200 bg-rose-50/80 dark:border-rose-500/30 dark:bg-rose-500/10'
-                      : threeWayQuery.data?.ok
-                        ? 'border-teal-200 bg-teal-50/70 dark:border-teal-500/30 dark:bg-teal-500/10'
-                        : 'border-slate-200/80 bg-white dark:border-white/10 dark:bg-white/[0.03]'
-                  }`}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                      {language === 'ar' ? 'مطابقة ثلاثية (طلب ↔ استلام ↔ فاتورة)' : 'Three-way match (PO ↔ received ↔ bill)'}
-                    </p>
-                    {threeWayQuery.isFetching ? (
-                      <span className="text-xs text-slate-500">{language === 'ar' ? 'جارٍ التحقق…' : 'Checking…'}</span>
-                    ) : threeWayQuery.data?.ok ? (
-                      <span className="text-xs font-semibold text-teal-700 dark:text-teal-300">
-                        {language === 'ar' ? 'مطابقة ناجحة' : 'Match OK'}
-                      </span>
-                    ) : threeWayQuery.data?.ok === false ? (
-                      <span className="text-xs font-semibold text-rose-700 dark:text-rose-300">
-                        {language === 'ar' ? 'محظورة حتى الإصلاح' : 'Blocked until fixed'}
-                      </span>
-                    ) : null}
-                  </div>
-                  {Array.isArray(threeWayQuery.data?.exceptions) && threeWayQuery.data.exceptions.length > 0 && (
-                    <ul className="mt-3 space-y-1.5 text-sm text-rose-800 dark:text-rose-200">
-                      {threeWayQuery.data.exceptions.map((ex, i) => (
-                        <li key={`${ex.type}-${ex.productId}-${i}`}>
-                          • {ex.message || ex.type}
-                          {ex.billedQty != null && ex.remainingBillable != null
-                            ? ` (${language === 'ar' ? 'المفوتر' : 'billed'} ${ex.billedQty} / ${language === 'ar' ? 'المتبقي' : 'remaining'} ${ex.remainingBillable})`
-                            : ''}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <p className="mt-2 text-xs text-slate-500">
-                    {language === 'ar'
-                      ? 'الفوترة فوق الكمية المستلمة تُرفض عند الحفظ.'
-                      : 'Billing more than received quantity is rejected on save.'}
-                  </p>
-                </div>
-              )}
               </div>
             ) : null}
-            {isTravelContext && (
-              <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
-                <button type="button" onClick={() => setValue('invoiceSubtype', 'travel_ticket')} className={`rounded-2xl border p-4 text-start ${invoiceSubtype === 'travel_ticket' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-600'}`}><p className="font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'فاتورة سفر / تذاكر' : 'Travel / Ticket Invoice'}</p></button>
-                <button type="button" onClick={() => setValue('invoiceSubtype', 'standard')} className={`rounded-2xl border p-4 text-start ${invoiceSubtype === 'standard' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-600'}`}><p className="font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'فاتورة قياسية' : 'Standard Invoice'}</p></button>
-              </div>
-            )}
-            <input type="hidden" {...register('invoiceSubtype')} />
-          </div>
 
-          <input type="hidden" {...register('pdfTemplateId')} />
+            {isTradingContext ? (
+              <>
+                <PartnerCombobox
+                  role="vendor"
+                  value={values?.supplierId || ''}
+                  selectedOption={selectedSupplier}
+                  ar={language === 'ar'}
+                  language={language}
+                  onChange={onSelectSupplier}
+                  showNewButton
+                />
+                {selectedSupplier?._id ? (
+                  <CustomerSummaryCard
+                    customer={{
+                      ...selectedSupplier,
+                      name: selectedSupplier.nameEn || selectedSupplier.name || selectedSupplier.nameAr,
+                    }}
+                    language={language}
+                    onClear={() => onSelectSupplier('', null)}
+                  />
+                ) : (
+                  <p className="text-[11px] text-slate-400">
+                    {language === 'ar'
+                      ? 'اختر مورداً من القائمة أو أنشئ مورداً جديداً'
+                      : 'Pick a supplier or tap New to create one'}
+                  </p>
+                )}
+                <input type="hidden" {...register('supplierId')} />
+                <input type="hidden" {...register('warehouseId')} />
 
-          <div className={sectionCardClass}>
-            <h3 className="mb-3 text-base font-semibold text-gray-900 dark:text-white">
-              {language === 'ar' ? 'المورد' : 'Vendor'}
-            </h3>
+                <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2 dark:border-white/5 dark:bg-white/[0.02]">
+                  <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    {language === 'ar' ? 'طلب الشراء' : 'Purchase order'}
+                  </label>
+                  <select
+                    value={selectedPoId}
+                    onChange={(e) => {
+                      const next = e.target.value
+                      setSelectedPoId(next)
+                      setValue('sourcePurchaseOrderId', next)
+                      filledPoIdRef.current = ''
+                      shouldFillFromPoRef.current = Boolean(next)
+                      if (!next) {
+                        replace([emptyLine])
+                        setDocumentReferences([])
+                        setSourceGrnIds([])
+                      }
+                    }}
+                    className={`mt-1 ${denseControlClass}`}
+                  >
+                    <option value="">{language === 'ar' ? 'اختر طلب شراء…' : 'Select a purchase order…'}</option>
+                    {(Array.isArray(purchaseOrders) ? purchaseOrders : []).map((po) => (
+                      <option key={po._id} value={po._id}>
+                        {po.poNumber} — {language === 'ar' ? (po.supplierId?.nameAr || po.supplierId?.nameEn || '') : (po.supplierId?.nameEn || po.supplierId?.nameAr || '')}
+                      </option>
+                    ))}
+                  </select>
+                  <input type="hidden" {...register('sourcePurchaseOrderId')} />
+                </div>
+
+                {documentReferences.length ? (
+                  <InvoiceDocumentReferencesBar references={documentReferences} language={language} />
+                ) : null}
+
+                {selectedPo?._id ? (
+                  <div className="space-y-2.5">
+                    <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="grid flex-1 gap-2 sm:grid-cols-3">
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'تاريخ الاستلام المتوقع' : 'Estimated receive date'}</p>
+                            <p className="mt-0.5 text-[13px] font-medium text-slate-900 dark:text-white">{formatDay(selectedPo.expectedDate, language)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'الاستلام الجزئي' : 'Partial received'}</p>
+                            <p className="mt-0.5 text-[13px] font-medium text-slate-900 dark:text-white">
+                              {selectedPo.status === 'partially_received' || Number(selectedPo.receivingLedger?.receivedCount || 0) > 0
+                                ? (language === 'ar' ? 'نعم' : 'Yes')
+                                : (language === 'ar' ? 'لا' : 'No')}
+                              {selectedPo.receivingLedger ? ` · ${selectedPo.receivingLedger.receivedCount || 0}/${(selectedPo.receivingLedger.lines || []).length}` : ''}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{language === 'ar' ? 'تواريخ التأخير' : 'Delayed receive dates'}</p>
+                            <p className="mt-0.5 text-[13px] font-medium text-slate-900 dark:text-white">
+                              {(() => {
+                                const dates = (selectedPo.receivingLedger?.lines || [])
+                                  .flatMap((line) => (line.delayedEvents || []).map((event) => event.delayedUntil))
+                                  .filter(Boolean)
+                                if (!dates.length) return '—'
+                                return [...new Set(dates.map((value) => formatDay(value, language)))].join(' · ')
+                              })()}
+                            </p>
+                          </div>
+                        </div>
+                        {isFutureDate(selectedPo.expectedDate) ? (
+                          <Link
+                            to={`${PURCHASES_PATH.grn}/new?poId=${selectedPo._id}&early=1`}
+                            className={primaryBtn.replace('px-4 py-2.5', 'px-3 py-1.5 text-[12px]')}
+                          >
+                            <Clock3 className="h-3.5 w-3.5" />
+                            {language === 'ar' ? 'استلام مبكر' : 'Receive early'}
+                          </Link>
+                        ) : (
+                          <Link
+                            to={`${PURCHASES_PATH.grn}/new?poId=${selectedPo._id}`}
+                            className={ghostBtn.replace('px-3.5 py-2.5', 'px-3 py-1.5 text-[12px]')}
+                          >
+                            <PackageCheck className="h-3.5 w-3.5" />
+                            {language === 'ar' ? 'استلام' : 'Receive'}
+                          </Link>
+                        )}
+                      </div>
+                      <div className="mt-3">
+                        <PurchaseReceivingLedger order={selectedPo} language={language} />
+                      </div>
+                    </div>
+                    {!isEdit && billLinesForMatch.length > 0 ? (
+                      <div
+                        className={`rounded-xl border p-3 ${
+                          threeWayQuery.data?.ok === false
+                            ? 'border-rose-200 bg-rose-50/80 dark:border-rose-500/30 dark:bg-rose-500/10'
+                            : threeWayQuery.data?.ok
+                              ? 'border-teal-200 bg-teal-50/70 dark:border-teal-500/30 dark:bg-teal-500/10'
+                              : 'border-slate-200/80 bg-white dark:border-white/10 dark:bg-white/[0.03]'
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                            {language === 'ar' ? 'مطابقة ثلاثية (طلب ↔ استلام ↔ فاتورة)' : 'Three-way match (PO ↔ received ↔ bill)'}
+                          </p>
+                          {threeWayQuery.isFetching ? (
+                            <span className="text-xs text-slate-500">{language === 'ar' ? 'جارٍ التحقق…' : 'Checking…'}</span>
+                          ) : threeWayQuery.data?.ok ? (
+                            <span className="text-xs font-semibold text-teal-700 dark:text-teal-300">
+                              {language === 'ar' ? 'مطابقة ناجحة' : 'Match OK'}
+                            </span>
+                          ) : threeWayQuery.data?.ok === false ? (
+                            <span className="text-xs font-semibold text-rose-700 dark:text-rose-300">
+                              {language === 'ar' ? 'محظورة حتى الإصلاح' : 'Blocked until fixed'}
+                            </span>
+                          ) : null}
+                        </div>
+                        {Array.isArray(threeWayQuery.data?.exceptions) && threeWayQuery.data.exceptions.length > 0 ? (
+                          <ul className="mt-2 space-y-1 text-sm text-rose-800 dark:text-rose-200">
+                            {threeWayQuery.data.exceptions.map((ex, i) => (
+                              <li key={`${ex.type}-${ex.productId}-${i}`}>
+                                • {ex.message || ex.type}
+                                {ex.billedQty != null && ex.remainingBillable != null
+                                  ? ` (${language === 'ar' ? 'المفوتر' : 'billed'} ${ex.billedQty} / ${language === 'ar' ? 'المتبقي' : 'remaining'} ${ex.remainingBillable})`
+                                  : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                        <p className="mt-1.5 text-xs text-slate-500">
+                          {language === 'ar'
+                            ? 'الفوترة فوق الكمية المستلمة تُرفض عند الحفظ.'
+                            : 'Billing more than received quantity is rejected on save.'}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+
             {invoiceSubtype === 'travel_ticket' ? (
-              <TravelInvoiceFields language={language} register={register} control={control} watch={watch} setValue={setValue} partyPrefix="seller" partyNameLabel={language === 'ar' ? 'اسم المورد / الجهة' : 'Vendor / Supplier Name'} />
+              <TravelInvoiceFields
+                language={language}
+                register={register}
+                control={control}
+                watch={watch}
+                setValue={setValue}
+                partyPrefix="seller"
+                partyNameLabel={language === 'ar' ? 'اسم المورد / الجهة' : 'Vendor / Supplier Name'}
+              />
             ) : (
               <>
-                <p className="mb-3 text-[11px] text-slate-400">
-                  {language === 'ar'
-                    ? 'اختر المورد من الأعلى أو أنشئ مورداً جديداً — لا حاجة لملء الحقول هنا'
-                    : 'Use the supplier picker above or New — no need to fill fields here'}
-                </p>
                 <input type="hidden" {...register('seller.name')} />
                 <input type="hidden" {...register('seller.nameAr')} />
                 <input type="hidden" {...register('seller.vatNumber')} />
@@ -1029,62 +1260,199 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 <input type="hidden" {...register('seller.address.additionalNumber')} />
               </>
             )}
+
+            {transactionType === 'B2C' && !selectedSupplier?._id && invoiceSubtype !== 'travel_ticket' ? (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" dir="ltr">
+                <div>
+                  <FieldLabel en="Walk-in supplier" ar="مورد نقدي" />
+                  <input
+                    className={compactFieldClass}
+                    placeholder={language === 'ar' ? 'مورد نقدي' : 'Cash supplier'}
+                    value={watch('seller.name') || ''}
+                    onChange={(e) => setValue('seller.name', e.target.value, { shouldDirty: true })}
+                  />
+                </div>
+                <div>
+                  <FieldLabel en="Phone" ar="الهاتف" />
+                  <input
+                    className={compactFieldClass}
+                    value={watch('seller.contactPhone') || ''}
+                    onChange={(e) => setValue('seller.contactPhone', e.target.value, { shouldDirty: true })}
+                  />
+                </div>
+              </div>
+            ) : null}
           </div>
 
-          <div className={sectionCardClass}>
-            <div className="mb-4 flex items-center justify-between"><h3 className="text-lg font-semibold text-gray-900 dark:text-white">{language === 'ar' ? 'بنود الفاتورة' : 'Line Items'}</h3><button type="button" onClick={() => append(getEmptyLine(tenant))} className="btn btn-secondary"><Plus className="w-4 h-4" />{t('add')}</button></div>
-            <div className="space-y-4">
-              {fields.map((field, index) => (
-                <motion.div key={field.id} initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
-                  <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} />
-                  <input type="hidden" {...register(`lineItems.${index}.productType`)} />
-                  <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12" dir="ltr">
-                    <div className={showArabicFields ? 'md:col-span-3' : 'md:col-span-4'}>
-                      <div className="mb-1.5 flex items-center gap-2" dir="ltr">
-                        <label htmlFor={`product-select-${index}`} className={`${fieldLabelClass} !mb-0 min-w-0 flex-1`}>
-                          <span>Product *</span>
-                          <span className="ms-1.5 font-medium text-gray-500" dir="rtl">المنتج</span>
-                        </label>
-                        <ProductTypeToggle
-                          value={watch(`lineItems.${index}.productType`)}
-                          onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
-                          language={language}
-                        />
-                      </div>
-                      {isTradingContext ? (
-                        <div className="mb-2 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-dark-800">
-                          <CreatableSelect
-                            inputId={`product-select-${index}`}
-                            name={`react-select-product-${index}`}
-                            options={productList.map(p => ({ value: p._id, label: productPickerLabel(p, language) }))}
-                            value={(productList.find(p => p._id === watch(`lineItems.${index}.productId`))) ? { value: watch(`lineItems.${index}.productId`), label: productPickerLabel(productList.find(p => p._id === watch(`lineItems.${index}.productId`)), language) } : null}
-                            onChange={(selected) => {
-                              if (selected) {
-                                if (selected.__isNew__) {
-                                  setValue(`lineItems.${index}.productId`, '')
-                                  setValue(`lineItems.${index}.productName`, selected.value)
-                                  setValue(`lineItems.${index}.productType`, 'goods')
-                                } else {
-                                  onSelectProduct(index, selected.value)
-                                }
-                              } else {
-                                setValue(`lineItems.${index}.productId`, '')
-                                setValue(`lineItems.${index}.productName`, '')
-                                setValue(`lineItems.${index}.productType`, 'goods')
-                              }
-                            }}
-                            formatCreateLabel={(inputValue) => language === 'ar' ? `إضافة "${inputValue}"` : `Add "${inputValue}"`}
-                            placeholder={language === 'ar' ? 'اختر أو اكتب منتج / خدمة…' : 'Select or type product / service…'}
-                            isClearable
-                            isSearchable
-                            styles={{
-                              control: (base) => ({ ...base, border: 'none', boxShadow: 'none', borderRadius: '0.75rem', minHeight: 38 })
-                            }}
-                          />
-                          <input type="hidden" {...register(`lineItems.${index}.productId`)} />
-                          <input type="hidden" {...register(`lineItems.${index}.variantId`)} />
-                          {watch(`lineItems.${index}.productId`) && (
-                            <div className="border-t border-slate-100 px-2 py-1.5 dark:border-white/5">
+          <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
+            <div className="flex items-center justify-between gap-3 px-4 py-3">
+              <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                {language === 'ar' ? 'البنود' : 'Lines'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => append(getEmptyLine(tenant))}
+                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200"
+              >
+                <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+                {t('add')}
+              </button>
+            </div>
+
+            {fields.length === 0 ? (
+              <div className="mx-4 mb-4 rounded-xl border border-dashed border-slate-200/90 px-3 py-8 text-center dark:border-white/10">
+                <p className="text-xs text-slate-400">
+                  {language === 'ar' ? 'لا توجد بنود بعد' : 'No lines yet'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => append(getEmptyLine(tenant))}
+                  className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 underline-offset-2 hover:underline dark:text-slate-200"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {language === 'ar' ? 'إضافة بند' : 'Add line'}
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <div
+                  className="hidden gap-1 border-y border-slate-100 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5 lg:grid lg:grid-cols-12"
+                  dir="ltr"
+                >
+                  <div className={showArabicFields ? 'lg:col-span-4' : 'lg:col-span-5'}>
+                    {language === 'ar' ? 'المنتج' : 'Product'}
+                  </div>
+                  {showArabicFields ? <div className="lg:col-span-2">عربي</div> : null}
+                  <div className="lg:col-span-1">{language === 'ar' ? 'وحدة' : 'UOM'}</div>
+                  <div className="lg:col-span-1">{t('quantity')}</div>
+                  <div className="lg:col-span-1">{t('unitPrice')}</div>
+                  <div className="lg:col-span-1">{t('tax')} %</div>
+                  <div className="text-end lg:col-span-2">{t('total')}</div>
+                </div>
+
+                <div className="divide-y divide-slate-100 dark:divide-white/5">
+                  {fields.map((field, index) => (
+                    <div key={field.id} className="group px-3 py-2 transition hover:bg-slate-50/70 dark:hover:bg-white/[0.02] sm:px-4">
+                      <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} />
+                      <input type="hidden" {...register(`lineItems.${index}.productType`)} />
+                      <div className="grid grid-cols-2 items-center gap-1.5 lg:grid-cols-12" dir="ltr">
+                        <div className={`col-span-2 ${showArabicFields ? 'lg:col-span-4' : 'lg:col-span-5'}`}>
+                          {isTradingContext ? (
+                            <div className="flex min-h-[36px] items-center gap-1 rounded-lg bg-slate-50/80 pe-0.5 ps-1 dark:bg-white/[0.03]">
+                              <ProductTypeToggle
+                                value={watch(`lineItems.${index}.productType`)}
+                                onChange={(next) => {
+                                  const opts = { shouldDirty: true, shouldTouch: true }
+                                  setValue(`lineItems.${index}.productType`, next, opts)
+                                  const pid = watch(`lineItems.${index}.productId`)
+                                  if (!pid) return
+                                  const selected = productList.find((p) => p._id === pid)
+                                  if (selected && normalizeProductType(selected.productType) !== next) {
+                                    setValue(`lineItems.${index}.productId`, '', opts)
+                                    setValue(`lineItems.${index}.variantId`, '', opts)
+                                    setValue(`lineItems.${index}.productName`, '', opts)
+                                    setValue(`lineItems.${index}.productNameAr`, '', opts)
+                                    setValue(`lineItems.${index}.unitPrice`, 0, opts)
+                                  }
+                                }}
+                                language={language}
+                                bare
+                              />
+                              <div className="h-4 w-px shrink-0 bg-slate-200/80 dark:bg-white/10" aria-hidden />
+                              <div className="min-w-0 flex-1 overflow-hidden">
+                                <CreatableSelect
+                                  inputId={`product-select-${index}`}
+                                  name={`react-select-product-${index}`}
+                                  options={productList
+                                    .filter((p) => normalizeProductType(p.productType) === normalizeProductType(watch(`lineItems.${index}.productType`)))
+                                    .map((p) => ({
+                                      value: p._id,
+                                      label: productPickerLabel(p, language, { includeType: false }),
+                                    }))}
+                                  value={(() => {
+                                    const pid = watch(`lineItems.${index}.productId`)
+                                    const product = productList.find((p) => p._id === pid)
+                                    if (product) {
+                                      return {
+                                        value: product._id,
+                                        label: productDisplayName(product, language),
+                                      }
+                                    }
+                                    const typed = watch(`lineItems.${index}.productName`)
+                                    if (typed && !pid) {
+                                      return { value: typed, label: typed, __isNew__: true }
+                                    }
+                                    return null
+                                  })()}
+                                  onChange={(selected) => {
+                                    if (selected) {
+                                      if (selected.__isNew__) {
+                                        setValue(`lineItems.${index}.productId`, '', { shouldDirty: true })
+                                        setValue(`lineItems.${index}.productName`, selected.value, { shouldDirty: true })
+                                        setValue(`lineItems.${index}.productNameAr`, '', { shouldDirty: true })
+                                      } else {
+                                        onSelectProduct(index, selected.value)
+                                      }
+                                    } else {
+                                      setValue(`lineItems.${index}.productId`, '', { shouldDirty: true })
+                                      setValue(`lineItems.${index}.productName`, '', { shouldDirty: true })
+                                      setValue(`lineItems.${index}.productNameAr`, '', { shouldDirty: true })
+                                      setValue(`lineItems.${index}.variantId`, '', { shouldDirty: true })
+                                      setValue(`lineItems.${index}.unitPrice`, 0, { shouldDirty: true })
+                                    }
+                                  }}
+                                  formatCreateLabel={(inputValue) => language === 'ar' ? `إضافة "${inputValue}"` : `Add "${inputValue}"`}
+                                  placeholder={
+                                    normalizeProductType(watch(`lineItems.${index}.productType`)) === 'service'
+                                      ? (language === 'ar' ? 'خدمة…' : 'Service…')
+                                      : (language === 'ar' ? 'منتج…' : 'Product…')
+                                  }
+                                  isClearable
+                                  isSearchable
+                                  menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                                  menuPosition="fixed"
+                                  menuShouldScrollIntoView={false}
+                                  styles={{
+                                    ...lineSelectStyles,
+                                    container: (base) => ({ ...base, width: '100%', minWidth: 0 }),
+                                    control: (base, state) => ({
+                                      ...lineSelectStyles.control(base, state),
+                                      minHeight: 32,
+                                      minWidth: 0,
+                                    }),
+                                    menu: (base) => ({
+                                      ...lineSelectStyles.menu(base),
+                                      minWidth: 320,
+                                      maxWidth: 'min(92vw, 480px)',
+                                    }),
+                                    option: (base, state) => ({
+                                      ...base,
+                                      fontSize: '0.8125rem',
+                                      backgroundColor: state.isFocused ? '#f1f5f9' : '#fff',
+                                      color: '#0f172a',
+                                      cursor: 'pointer',
+                                    }),
+                                  }}
+                                />
+                              </div>
+                              <input type="hidden" {...register(`lineItems.${index}.productName`)} />
+                              <input type="hidden" {...register(`lineItems.${index}.productId`)} />
+                              <input type="hidden" {...register(`lineItems.${index}.variantId`)} />
+                            </div>
+                          ) : (
+                            <div className="flex min-h-[36px] items-center gap-1 rounded-lg bg-slate-50/80 pe-0.5 ps-1 dark:bg-white/[0.03]">
+                              <ProductTypeToggle
+                                value={watch(`lineItems.${index}.productType`)}
+                                onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
+                                language={language}
+                                bare
+                              />
+                              <div className="h-4 w-px shrink-0 bg-slate-200/80 dark:bg-white/10" aria-hidden />
+                              <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`, { required: true })} className={`${lineGhostInputClass} flex-1`} placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
+                            </div>
+                          )}
+                          {isTradingContext && watch(`lineItems.${index}.productId`) ? (
+                            <div className="mt-1 ps-1">
                               <VariantLineSelect
                                 productId={watch(`lineItems.${index}.productId`)}
                                 value={watch(`lineItems.${index}.variantId`) || ''}
@@ -1092,113 +1460,133 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                                 onChange={(variantId) => setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })}
                               />
                             </div>
-                          )}
-                          <input
-                            type={watch(`lineItems.${index}.productId`) ? 'hidden' : 'text'}
-                            {...register(`lineItems.${index}.productName`, { required: true })}
-                            className={watch(`lineItems.${index}.productId`) ? undefined : `${fieldControlClass} !rounded-none !border-0 !border-t border-slate-100`}
-                            placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'}
+                          ) : null}
+                        </div>
+                        {showArabicFields ? (
+                          <div className="col-span-2 lg:col-span-2">
+                            <input
+                              {...register(`lineItems.${index}.productNameAr`)}
+                              className={lineGhostInputClass}
+                              dir="auto"
+                              placeholder="اسم البند"
+                              aria-label="Arabic name"
+                            />
+                          </div>
+                        ) : (
+                          <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
+                        )}
+                        <div className="col-span-1 lg:col-span-1">
+                          <Select
+                            className="react-select-container"
+                            classNamePrefix="react-select"
+                            isClearable
+                            isSearchable
+                            placeholder="—"
+                            styles={lineSelectStyles}
+                            menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                            menuPosition="fixed"
+                            value={
+                              watch(`lineItems.${index}.unitCode`)
+                                ? {
+                                    value: watch(`lineItems.${index}.unitCode`),
+                                    label: getUomLabel(watch(`lineItems.${index}.unitCode`), language),
+                                  }
+                                : null
+                            }
+                            onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : '', { shouldValidate: true })}
+                            options={[
+                              { value: '', label: '—' },
+                              ...getAvailableUomOptions(tenant).map((uom) => ({
+                                value: uom.code,
+                                label: language === 'ar' ? uom.labelAr : uom.labelEn,
+                              })),
+                            ]}
                           />
                         </div>
-                      ) : (
-                        <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`, { required: true })} className={fieldControlClass} placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
-                      )}
-                    </div>
-                    {showArabicFields ? (
-                      <div className="md:col-span-3">
-                        <label className={`${fieldLabelClass} flex items-baseline justify-between gap-2`} dir="ltr">
-                          <span>Arabic name</span>
-                          <span dir="rtl" className="font-medium text-gray-500">اسم البند بالعربية</span>
-                        </label>
-                        <input {...register(`lineItems.${index}.productNameAr`)} className={fieldControlClass} dir="rtl" placeholder="اسم المنتج أو الخدمة" />
+                        <div className="col-span-1 lg:col-span-1">
+                          <input id={`qty-${index}`} type="number" min="0.0001" step="any" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} className={`${lineGhostInputClass} tabular-nums`} />
+                        </div>
+                        <div className="col-span-1 lg:col-span-1">
+                          <input id={`price-${index}`} type="number" step="0.01" {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })} className={`${lineGhostInputClass} tabular-nums`} />
+                        </div>
+                        <div className="col-span-1 lg:col-span-1">
+                          {(() => {
+                            const pkRate = Number(tenant?.fbr?.defaultSalesTaxRate || 18)
+                            return (
+                              <select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className={`${lineGhostInputClass} cursor-pointer`}>
+                                {isPk ? (
+                                  <>
+                                    <option value={pkRate}>{pkRate}%</option>
+                                    {pkRate !== 16 && <option value={16}>16%</option>}
+                                    {pkRate !== 15 && <option value={15}>15%</option>}
+                                    <option value={0}>0%</option>
+                                  </>
+                                ) : (
+                                  <>
+                                    <option value={15}>15%</option>
+                                    <option value={0}>0%</option>
+                                  </>
+                                )}
+                              </select>
+                            )
+                          })()}
+                        </div>
+                        <div className="col-span-2 flex items-center justify-end gap-1 lg:col-span-2">
+                          <p className="text-[13px] font-semibold tabular-nums text-slate-900 dark:text-white">
+                            <Money value={getLineTotal(index)} />
+                          </p>
+                          {fields.length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => remove(index)}
+                              className="rounded-md p-1.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-950/30"
+                              aria-label="Remove line"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
-                    ) : (
-                      <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
-                    )}
-                    <div className="md:col-span-2">
-                      <label htmlFor={`unit-${index}`} className={fieldLabelClass}>{language === 'ar' ? 'الوحدة (اختياري)' : 'UOM (Optional)'}</label>
-                      <Select
-                        className="react-select-container"
-                        classNamePrefix="react-select"
-                        isClearable
-                        isSearchable
-                        placeholder={language === 'ar' ? 'بدون وحدة' : 'None (Optional)'}
-                        value={
-                          watch(`lineItems.${index}.unitCode`)
-                            ? {
-                                value: watch(`lineItems.${index}.unitCode`),
-                                label: getUomLabel(watch(`lineItems.${index}.unitCode`), language)
-                              }
-                            : null
-                        }
-                        onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : '', { shouldValidate: true })}
-                        options={[
-                          { value: '', label: language === 'ar' ? 'بدون وحدة (اختياري)' : 'None (Optional)' },
-                          ...getAvailableUomOptions(tenant).map((uom) => ({
-                            value: uom.code,
-                            label: language === 'ar' ? uom.labelAr : uom.labelEn
-                          }))
-                        ]}
-                      />
                     </div>
-                    <div className="md:col-span-1">
-                      <label htmlFor={`qty-${index}`} className={fieldLabelClass}>{t('quantity')}</label>
-                      <input id={`qty-${index}`} type="number" min="0.0001" step="any" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} className={fieldControlClass} />
-                    </div>
-                    <div className="md:col-span-2"><label htmlFor={`price-${index}`} className={fieldLabelClass}>{t('unitPrice')}</label><input id={`price-${index}`} type="number" step="0.01" {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })} className={fieldControlClass} /></div>
-                    <div className="md:col-span-2"><label className={fieldLabelClass}>{t('tax')} %</label><select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className={fieldControlClass}><option value={15}>15%</option><option value={0}>0%</option></select></div>
-                    <div className="md:col-span-2 flex items-center gap-2">
-                      <div className="flex-1 text-end">
-                        <p className="mb-1 text-xs text-gray-500">{t('total')}</p>
-                        <p className="font-bold text-gray-900 dark:text-white">
-                          <Money value={getLineTotal(index)} />
-                        </p>
-                      </div>
-                      {fields.length > 1 && (
-                        <button type="button" onClick={() => remove(index)} className="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className={`${sectionCardClass} space-y-5`}>
-            <div>
-              <h3 className="text-lg font-semibold tracking-[-0.02em] text-slate-950 dark:text-white">
-                {language === 'ar' ? 'معلومات إضافية' : 'Additional Information'}
-              </h3>
-              <div className="mt-4 flex flex-wrap gap-2.5">
+          <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
+            <div className="flex items-center gap-1 border-b border-slate-100 px-2 py-1.5 dark:border-white/5">
+              <span className="px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                {language === 'ar' ? 'إضافات' : 'Extras'}
+              </span>
+              <div className="ms-auto flex rounded-xl bg-slate-100/90 p-0.5 dark:bg-white/5">
                 {[
                   {
                     id: 'signature',
                     active: showAuthorizedPerson,
-                    labelEn: '+ Add Signature',
-                    labelAr: '+ إضافة توقيع',
+                    labelEn: 'Signature',
+                    labelAr: 'توقيع',
                     onClick: () => handleToggleAuthorizedPerson(!showAuthorizedPerson),
                   },
                   {
                     id: 'terms',
                     active: showTermsPanel,
-                    labelEn: '+ Add Terms & Conditions',
-                    labelAr: '+ إضافة الشروط والأحكام',
+                    labelEn: 'Terms',
+                    labelAr: 'شروط',
                     onClick: () => handleToggleTerms(!showTermsPanel),
                   },
                   {
                     id: 'notes',
                     active: showNotesPanel,
-                    labelEn: '+ Add Notes',
-                    labelAr: '+ إضافة ملاحظات',
+                    labelEn: 'Notes',
+                    labelAr: 'ملاحظات',
                     onClick: () => handleToggleNotes(!showNotesPanel),
                   },
                   {
                     id: 'bank',
                     active: showBankPanel,
-                    labelEn: '+ Add Bank Details',
-                    labelAr: '+ إضافة بيانات البنك',
+                    labelEn: 'Bank',
+                    labelAr: 'بنك',
                     onClick: () => handleToggleBankDetails(!showBankPanel),
                   },
                 ].map((pill) => (
@@ -1206,10 +1594,10 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                     key={pill.id}
                     type="button"
                     onClick={pill.onClick}
-                    className={`rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.12em] transition ${
+                    className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold transition ${
                       pill.active
-                        ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
-                        : 'border-slate-300 bg-white text-slate-800 hover:border-slate-500 dark:border-dark-500 dark:bg-dark-800 dark:text-slate-100'
+                        ? 'bg-white text-slate-900 shadow-sm dark:bg-dark-800 dark:text-white'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                     }`}
                   >
                     {language === 'ar' ? pill.labelAr : pill.labelEn}
@@ -1218,268 +1606,346 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               </div>
             </div>
 
-            <AnimatePresence>
-              {showAuthorizedPerson && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
-                >
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
-                      {language === 'ar' ? 'الموثّق / المفوّض والختم' : 'Authorized Person & Stamp'}
-                    </h4>
-                    <button type="button" onClick={() => handleToggleAuthorizedPerson(false)} className="text-xs font-semibold text-slate-500 hover:text-red-600">
-                      {language === 'ar' ? 'إزالة' : 'Remove'}
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div>
-                      <label className={fieldLabelClass}>{language === 'ar' ? 'الاسم' : 'Name'}</label>
-                      <input {...register('authorizedPersonName')} className={`${fieldControlClass} mt-1.5`} placeholder={language === 'ar' ? 'مثال: Arthur Michael' : 'e.g. Arthur Michael'} />
+            <div className="px-3.5 pb-3.5 pt-2">
+              <AnimatePresence>
+                {showAuthorizedPerson && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden border-t border-slate-100 pt-4 dark:border-white/5"
+                  >
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+                        {language === 'ar' ? 'الموثّق / المفوّض والختم' : 'Authorized Person & Stamp'}
+                      </h4>
+                      <button type="button" onClick={() => handleToggleAuthorizedPerson(false)} className="text-xs font-semibold text-slate-500 hover:text-red-600">
+                        {language === 'ar' ? 'إزالة' : 'Remove'}
+                      </button>
                     </div>
-                    <div>
-                      <label className={fieldLabelClass}>{language === 'ar' ? 'الاسم بالعربية' : 'Arabic Name'}</label>
-                      <input {...register('authorizedPersonNameAr')} className={`${fieldControlClass} mt-1.5`} dir="rtl" />
-                    </div>
-                    <div>
-                      <label className={fieldLabelClass}>{language === 'ar' ? 'المسمى الوظيفي' : 'Designation'}</label>
-                      <input {...register('authorizedPersonDesignation')} className={`${fieldControlClass} mt-1.5`} placeholder={language === 'ar' ? 'مثال: Coordinator' : 'e.g. Coordinator'} />
-                    </div>
-                    <div>
-                      <label className={fieldLabelClass}>{language === 'ar' ? 'المسمى الوظيفي بالعربية' : 'Arabic Designation'}</label>
-                      <input {...register('authorizedPersonDesignationAr')} className={`${fieldControlClass} mt-1.5`} dir="rtl" />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className={fieldLabelClass}>{language === 'ar' ? 'التوقيع' : 'Signature'}</label>
-                      <div className="flex items-center gap-3 mt-1.5">
-                        <input type="file" accept="image/*" className="hidden" id="purchase-signature-upload" onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (!file) return
-                          if (file.size > 2 * 1024 * 1024) {
-                            toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2MB' : 'Image must be less than 2MB')
-                            return
-                          }
-                          const reader = new FileReader()
-                          reader.onload = () => setValue('authorizedPersonSignature', String(reader.result || ''))
-                          reader.readAsDataURL(file)
-                        }} />
-                        <label htmlFor="purchase-signature-upload" className="btn btn-secondary cursor-pointer">
-                          <UploadCloud className="w-4 h-4" />
-                          {language === 'ar' ? 'رفع توقيع' : 'Upload Signature'}
-                        </label>
-                        {values?.authorizedPersonSignature ? (
-                          <div className="relative">
-                            <img src={values.authorizedPersonSignature} alt="Signature" className="h-16 max-w-[200px] object-contain border rounded-lg p-1 bg-white" />
-                            <button type="button" onClick={() => setValue('authorizedPersonSignature', '')} className="absolute -top-2 -end-2 p-1 bg-red-100 text-red-600 rounded-full">
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-400">{language === 'ar' ? 'لم يتم رفع توقيع' : 'No signature uploaded'}</span>
-                        )}
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div>
+                        <label className={fieldLabelClass}>{language === 'ar' ? 'الاسم' : 'Name'}</label>
+                        <input {...register('authorizedPersonName')} className={`mt-1.5 ${fieldControlClass}`} placeholder={language === 'ar' ? 'مثال: Arthur Michael' : 'e.g. Arthur Michael'} />
                       </div>
-                      <p className="text-xs text-gray-400 mt-2">{language === 'ar' ? 'يجب أن تكون صورة التوقيع بخلفية شفافة أو بيضاء.' : 'Signature image should have a transparent or white background.'}</p>
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className={fieldLabelClass}>{language === 'ar' ? 'الختم' : 'Stamp'}</label>
-                      <div className="flex items-center gap-3 mt-1.5">
-                        <input type="file" accept="image/*" className="hidden" id="purchase-stamp-upload" onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (!file) return
-                          if (file.size > 2 * 1024 * 1024) {
-                            toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2MB' : 'Image must be less than 2MB')
-                            return
-                          }
-                          const reader = new FileReader()
-                          reader.onload = () => setValue('stampImage', String(reader.result || ''))
-                          reader.readAsDataURL(file)
-                        }} />
-                        <label htmlFor="purchase-stamp-upload" className="btn btn-secondary cursor-pointer">
-                          <UploadCloud className="w-4 h-4" />
-                          {language === 'ar' ? 'رفع ختم' : 'Upload Stamp'}
-                        </label>
-                        {values?.stampImage ? (
-                          <div className="relative">
-                            <img src={values.stampImage} alt="Stamp" className="h-16 max-w-[200px] object-contain border rounded-lg p-1 bg-white" />
-                            <button type="button" onClick={() => setValue('stampImage', '')} className="absolute -top-2 -end-2 p-1 bg-red-100 text-red-600 rounded-full">
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-400">{language === 'ar' ? 'لم يتم رفع ختم' : 'No stamp uploaded'}</span>
-                        )}
+                      <div>
+                        <label className={fieldLabelClass}>{language === 'ar' ? 'الاسم بالعربية' : 'Arabic Name'}</label>
+                        <input {...register('authorizedPersonNameAr')} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" />
                       </div>
-                      <p className="text-xs text-gray-400 mt-2">{language === 'ar' ? 'يجب أن يكون الختم بخلفية شفافة.' : 'Stamp image should have a transparent background.'}</p>
+                      <div>
+                        <label className={fieldLabelClass}>{language === 'ar' ? 'المسمى الوظيفي' : 'Designation'}</label>
+                        <input {...register('authorizedPersonDesignation')} className={`mt-1.5 ${fieldControlClass}`} placeholder={language === 'ar' ? 'مثال: Coordinator' : 'e.g. Coordinator'} />
+                      </div>
+                      <div>
+                        <label className={fieldLabelClass}>{language === 'ar' ? 'المسمى الوظيفي بالعربية' : 'Arabic Designation'}</label>
+                        <input {...register('authorizedPersonDesignationAr')} className={`mt-1.5 ${fieldControlClass}`} dir="rtl" />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className={fieldLabelClass}>{language === 'ar' ? 'التوقيع' : 'Signature'}</label>
+                        <div className="mt-1.5 flex items-center gap-3">
+                          <input type="file" accept="image/*" className="hidden" id="purchase-signature-upload" onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            if (file.size > 2 * 1024 * 1024) {
+                              toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2MB' : 'Image must be less than 2MB')
+                              return
+                            }
+                            const reader = new FileReader()
+                            reader.onload = () => setValue('authorizedPersonSignature', String(reader.result || ''))
+                            reader.readAsDataURL(file)
+                          }} />
+                          <label htmlFor="purchase-signature-upload" className="btn btn-secondary cursor-pointer">
+                            <UploadCloud className="w-4 h-4" />
+                            {language === 'ar' ? 'رفع توقيع' : 'Upload Signature'}
+                          </label>
+                          {values?.authorizedPersonSignature ? (
+                            <div className="relative">
+                              <img src={values.authorizedPersonSignature} alt="Signature" className="h-16 max-w-[200px] rounded-lg border bg-white object-contain p-1" />
+                              <button type="button" onClick={() => setValue('authorizedPersonSignature', '')} className="absolute -top-2 -end-2 rounded-full bg-red-100 p-1 text-red-600">
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-sm font-medium text-slate-600 dark:text-slate-300">{language === 'ar' ? 'لم يتم رفع توقيع' : 'No signature uploaded'}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className={fieldLabelClass}>{language === 'ar' ? 'الختم' : 'Stamp'}</label>
+                        <div className="mt-1.5 flex items-center gap-3">
+                          <input type="file" accept="image/*" className="hidden" id="purchase-stamp-upload" onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            if (file.size > 2 * 1024 * 1024) {
+                              toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2MB' : 'Image must be less than 2MB')
+                              return
+                            }
+                            const reader = new FileReader()
+                            reader.onload = () => setValue('stampImage', String(reader.result || ''))
+                            reader.readAsDataURL(file)
+                          }} />
+                          <label htmlFor="purchase-stamp-upload" className="btn btn-secondary cursor-pointer">
+                            <UploadCloud className="w-4 h-4" />
+                            {language === 'ar' ? 'رفع ختم' : 'Upload Stamp'}
+                          </label>
+                          {values?.stampImage ? (
+                            <div className="relative">
+                              <img src={values.stampImage} alt="Stamp" className="h-16 max-w-[200px] rounded-lg border bg-white object-contain p-1" />
+                              <button type="button" onClick={() => setValue('stampImage', '')} className="absolute -top-2 -end-2 rounded-full bg-red-100 p-1 text-red-600">
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-sm font-medium text-slate-600 dark:text-slate-300">{language === 'ar' ? 'لم يتم رفع ختم' : 'No stamp uploaded'}</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-            <AnimatePresence>
-              {showTermsPanel && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
-                >
-                  <RichTextNoteField
-                    label={language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}
-                    value={watch('termsAndConditions')}
-                    onChange={(val) => setValue('termsAndConditions', val, { shouldDirty: true })}
-                    onRemove={() => handleToggleTerms(false)}
-                    placeholder={language === 'ar' ? 'أدخل الشروط والأحكام... حدد النص واضغط على عريض أو تمييز' : 'Enter terms and conditions... select text and click Bold or Highlight'}
-                    rows={5}
-                    language={language}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
+              <AnimatePresence>
+                {showTermsPanel && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden border-t border-slate-100 pt-4 dark:border-white/5"
+                  >
+                    <RichTextNoteField
+                      label={language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}
+                      value={watch('termsAndConditions')}
+                      onChange={(val) => setValue('termsAndConditions', val, { shouldDirty: true })}
+                      onRemove={() => handleToggleTerms(false)}
+                      placeholder={language === 'ar' ? 'أدخل الشروط والأحكام... حدد النص واضغط على عريض أو تمييز' : 'Enter terms and conditions... select text and click Bold or Highlight'}
+                      rows={5}
+                      language={language}
+                      fieldControlClass={fieldControlClass}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-            <AnimatePresence>
-              {showNotesPanel && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
-                >
-                  <RichTextNoteField
-                    label={language === 'ar' ? 'ملاحظات' : 'Notes'}
-                    value={watch('notes')}
-                    onChange={(val) => setValue('notes', val, { shouldDirty: true })}
-                    onRemove={() => handleToggleNotes(false)}
-                    placeholder={language === 'ar' ? 'أدخل ملاحظات إضافية...' : 'Enter additional notes...'}
-                    rows={4}
-                    language={language}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
+              <AnimatePresence>
+                {showNotesPanel && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden border-t border-slate-100 pt-4 dark:border-white/5"
+                  >
+                    <RichTextNoteField
+                      label={language === 'ar' ? 'ملاحظات' : 'Notes'}
+                      value={watch('notes')}
+                      onChange={(val) => setValue('notes', val, { shouldDirty: true })}
+                      onRemove={() => handleToggleNotes(false)}
+                      placeholder={language === 'ar' ? 'أدخل ملاحظات إضافية...' : 'Enter additional notes...'}
+                      rows={4}
+                      language={language}
+                      fieldControlClass={fieldControlClass}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-            <AnimatePresence>
-              {showBankPanel && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden border-t border-slate-200 pt-5 dark:border-dark-600"
-                >
-                  <div className="mb-3 flex items-center justify-between">
-                    <label className={`${fieldLabelClass} font-semibold`}>{language === 'ar' ? 'بيانات البنك' : 'Bank Details'}</label>
-                    <button type="button" onClick={() => handleToggleBankDetails(false)} className="text-xs font-semibold text-slate-500 hover:text-red-600">
-                      {language === 'ar' ? 'إزالة' : 'Remove'}
-                    </button>
-                  </div>
-                  <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
-                    {language === 'ar'
-                      ? 'تُؤخذ تلقائياً من ملف الشركة ويمكن تعديلها لهذه الفاتورة فقط.'
-                      : 'Prefills from your company profile. You can edit values for this document only.'}
-                  </p>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2" dir="ltr">
-                    <div>
-                      <FieldLabel en="Bank Name" ar="اسم البنك" />
-                      <input {...register('bankDetails.bankName')} className={`${fieldControlClass} mt-1.5`} placeholder={showArabicFields ? "Al Rajhi Bank / SNB" : "Habib Bank / Standard Chartered"} />
+              <AnimatePresence>
+                {showBankPanel && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden border-t border-slate-100 pt-4 dark:border-white/5"
+                  >
+                    <div className="mb-3 flex items-center justify-between">
+                      <label className={fieldLabelClass}>{language === 'ar' ? 'بيانات البنك' : 'Bank Details'}</label>
+                      <button type="button" onClick={() => handleToggleBankDetails(false)} className="text-xs font-semibold text-slate-500 hover:text-red-600">
+                        {language === 'ar' ? 'إزالة' : 'Remove'}
+                      </button>
                     </div>
-                    <div>
-                      <FieldLabel en="Account Name" ar="اسم الحساب" />
-                      <input {...register('bankDetails.accountName')} className={`${fieldControlClass} mt-1.5`} />
+                    <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+                      {language === 'ar'
+                        ? 'تُؤخذ تلقائياً من ملف الشركة ويمكن تعديلها لهذه الفاتورة فقط.'
+                        : 'Prefills from your company profile. You can edit values for this document only.'}
+                    </p>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2" dir="ltr">
+                      <div>
+                        <FieldLabel en="Bank Name" ar="اسم البنك" />
+                        <input {...register('bankDetails.bankName')} className={`mt-1.5 ${fieldControlClass}`} placeholder={showArabicFields ? 'Al Rajhi Bank / SNB' : 'Habib Bank / Standard Chartered'} />
+                      </div>
+                      <div>
+                        <FieldLabel en="Account Name" ar="اسم الحساب" />
+                        <input {...register('bankDetails.accountName')} className={`mt-1.5 ${fieldControlClass}`} />
+                      </div>
+                      <div>
+                        <FieldLabel en="Account Number" ar="رقم الحساب" />
+                        <input {...register('bankDetails.accountNumber')} className={`mt-1.5 ${fieldControlClass} font-mono`} />
+                      </div>
+                      <div>
+                        <FieldLabel en={showArabicFields ? 'IBAN' : 'IBAN / Swift'} ar="الآيبان" />
+                        <input {...register('bankDetails.iban')} className={`mt-1.5 ${fieldControlClass} font-mono`} placeholder={showArabicFields ? 'SA0000000000000000000000' : 'PK00XXXX0000000000000000'} />
+                      </div>
                     </div>
-                    <div>
-                      <FieldLabel en="Account Number" ar="رقم الحساب" />
-                      <input {...register('bankDetails.accountNumber')} className={`${fieldControlClass} mt-1.5 font-mono`} />
-                    </div>
-                    <div>
-                      <FieldLabel en={showArabicFields ? "IBAN" : "IBAN / Swift"} ar="الآيبان" />
-                      <input {...register('bankDetails.iban')} className={`${fieldControlClass} mt-1.5 font-mono`} placeholder={showArabicFields ? "SA0000000000000000000000" : "PK00XXXX0000000000000000"} />
-                    </div>
-                  </div>
+                    <input type="hidden" {...register('includeBankDetails')} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              {!showNotesPanel && <input type="hidden" {...register('notes')} />}
+              {!showTermsPanel && <input type="hidden" {...register('termsAndConditions')} />}
+              {!showBankPanel && (
+                <>
                   <input type="hidden" {...register('includeBankDetails')} />
-                </motion.div>
+                  <input type="hidden" {...register('bankDetails.bankName')} />
+                  <input type="hidden" {...register('bankDetails.accountName')} />
+                  <input type="hidden" {...register('bankDetails.accountNumber')} />
+                  <input type="hidden" {...register('bankDetails.iban')} />
+                </>
               )}
-            </AnimatePresence>
-            {!showNotesPanel && <input type="hidden" {...register('notes')} />}
-            {!showTermsPanel && <input type="hidden" {...register('termsAndConditions')} />}
-            {!showBankPanel && (
-              <>
-                <input type="hidden" {...register('includeBankDetails')} />
-                <input type="hidden" {...register('bankDetails.bankName')} />
-                <input type="hidden" {...register('bankDetails.accountName')} />
-                <input type="hidden" {...register('bankDetails.accountNumber')} />
-                <input type="hidden" {...register('bankDetails.iban')} />
-              </>
-            )}
+            </div>
           </div>
 
-          <div className={sectionCardClass}>
-            <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-              <div className="space-y-3 md:w-80">
-                <div>
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'طريقة الدفع' : 'Payment Method'}</label>
-                  <select {...register('paymentMethod')} className={fieldControlClass}>
-                    <option value="cash">{language === 'ar' ? 'نقداً' : 'Cash'}</option>
-                    <option value="card">{language === 'ar' ? 'بطاقة' : 'Card'}</option>
-                    <option value="bank_transfer">{language === 'ar' ? 'تحويل بنكي' : 'Bank Transfer'}</option>
-                    <option value="credit">{language === 'ar' ? 'آجل / ذمم' : 'Credit / Split'}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'مدفوعة / غير مدفوعة' : 'Paid / Unpaid'}</label>
+          <InvoiceJournalItemsPanel
+            flow="purchase"
+            language={language}
+            totals={totals}
+            lineItems={totals.lines || []}
+            sourcePurchaseOrderId={selectedPoId || watch('sourcePurchaseOrderId')}
+            sourceGrnIds={sourceGrnIds}
+            value={accountingLines}
+            onChange={setAccountingLines}
+          />
+
+          <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 lg:items-stretch">
+              <div className="flex flex-col border-b border-slate-100 px-5 py-5 dark:border-white/5 lg:border-b-0 lg:border-e">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  {language === 'ar' ? 'شروط الدفع' : 'Payment terms'}
+                </p>
+
+                <div className="mt-3 flex flex-wrap items-center gap-1 rounded-xl bg-slate-100/80 p-1 dark:bg-white/5">
+                  {INVOICE_PAYMENT_TERMS.slice(0, 5).map((term) => {
+                    const active = watch('paymentTerms') === term.id
+                    return (
+                      <button
+                        key={term.id}
+                        type="button"
+                        onClick={() => {
+                          setValue('paymentTerms', term.id, { shouldDirty: true })
+                          const due = computeDueDateFromPaymentTerms(new Date(), term.id)
+                          if (due) setValue('dueDate', due.toISOString().slice(0, 10), { shouldDirty: true })
+                          setValue('paymentStatus', isImmediatePaymentTerm(term.id) ? 'paid' : 'pending', { shouldDirty: true })
+                          if (isImmediatePaymentTerm(term.id)) {
+                            setValue('paidAmount', totals.grandTotal, { shouldDirty: true })
+                          }
+                        }}
+                        className={`rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition ${
+                          active
+                            ? 'bg-white text-slate-900 shadow-sm dark:bg-dark-800 dark:text-white'
+                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        {language === 'ar' ? term.labelAr : term.labelEn}
+                      </button>
+                    )
+                  })}
                   <select
-                    {...register('paymentStatus')}
-                    className={fieldControlClass}
+                    {...register('paymentTerms')}
+                    aria-label={language === 'ar' ? 'شروط أخرى' : 'More terms'}
+                    className={`ms-auto max-w-[9.5rem] truncate rounded-lg border-0 bg-transparent py-1.5 pe-6 ps-2 text-[11px] font-semibold outline-none ${
+                      INVOICE_PAYMENT_TERMS.slice(0, 5).some((term) => term.id === watch('paymentTerms'))
+                        ? 'text-slate-400'
+                        : 'bg-white text-slate-900 shadow-sm dark:bg-dark-800 dark:text-white'
+                    }`}
                     onChange={(e) => {
-                      const status = e.target.value
-                      setValue('paymentStatus', status, { shouldDirty: true })
-                      if (status === 'paid') {
-                        setValue('paidAmount', totals.grandTotal, { shouldDirty: true })
-                      } else {
-                        const currentPaid = Number(getValues('paidAmount') || 0)
-                        if (currentPaid >= totals.grandTotal) setValue('paidAmount', 0, { shouldDirty: true })
-                      }
+                      const id = e.target.value
+                      setValue('paymentTerms', id, { shouldDirty: true })
+                      const due = computeDueDateFromPaymentTerms(new Date(), id)
+                      if (due) setValue('dueDate', due.toISOString().slice(0, 10), { shouldDirty: true })
+                      setValue('paymentStatus', isImmediatePaymentTerm(id) ? 'paid' : 'pending', { shouldDirty: true })
                     }}
                   >
-                    <option value="paid">{language === 'ar' ? 'مدفوعة' : 'Paid'}</option>
-                    <option value="pending">{language === 'ar' ? 'غير مدفوعة' : 'Unpaid'}</option>
+                    {INVOICE_PAYMENT_TERMS.map((term) => (
+                      <option key={term.id} value={term.id}>{language === 'ar' ? term.labelAr : term.labelEn}</option>
+                    ))}
                   </select>
                 </div>
-                {watch('paymentMethod') === 'credit' && watch('paymentStatus') !== 'paid' && (
-                  <div>
-                    <label className={`${fieldLabelClass} font-semibold text-teal-700 dark:text-teal-300`}>{language === 'ar' ? 'المبلغ المدفوع (مقدم)' : 'Paid Amount (Advance)'}</label>
-                    <input type="number" min="0" max={totals.grandTotal} step="0.01" {...register('paidAmount', { valueAsNumber: true, min: 0 })} className={fieldControlClass} placeholder="0.00" />
+
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  <div className="min-w-0">
+                    <label className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{language === 'ar' ? 'الاستحقاق' : 'Due'}</label>
+                    <input type="date" {...register('dueDate')} className={`mt-1.5 ${fieldControlClass} !rounded-xl !border-slate-200/70 !bg-slate-50/60 !px-2.5 !py-2 !text-[13px]`} />
                   </div>
-                )}
-                <div>
-                  <label className={fieldLabelClass}>{language === 'ar' ? 'خصم الفاتورة' : 'Invoice Discount'}</label>
-                  <input type="number" min="0" step="0.01" {...register('invoiceDiscount', { valueAsNumber: true, min: 0 })} className={fieldControlClass} />
+                  <div className="min-w-0">
+                    <label className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{language === 'ar' ? 'الحالة' : 'Status'}</label>
+                    <select
+                      {...register('paymentStatus')}
+                      className={`mt-1.5 ${fieldControlClass} !rounded-xl !border-slate-200/70 !bg-slate-50/60 !px-2.5 !py-2 !text-[13px]`}
+                      onChange={(e) => {
+                        const status = e.target.value
+                        setValue('paymentStatus', status, { shouldDirty: true })
+                        if (status === 'paid') setValue('paidAmount', totals.grandTotal, { shouldDirty: true })
+                      }}
+                    >
+                      <option value="paid">{language === 'ar' ? 'مدفوعة' : 'Paid'}</option>
+                      <option value="pending">{language === 'ar' ? 'غير مدفوعة' : 'Unpaid'}</option>
+                    </select>
+                  </div>
+                  <div className="min-w-0">
+                    <label className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{language === 'ar' ? 'الطريقة' : 'Method'}</label>
+                    <select {...register('paymentMethod')} className={`mt-1.5 ${fieldControlClass} !rounded-xl !border-slate-200/70 !bg-slate-50/60 !px-2.5 !py-2 !text-[13px]`}>
+                      <option value="cash">{language === 'ar' ? 'نقداً' : 'Cash'}</option>
+                      <option value="card">{language === 'ar' ? 'بطاقة' : 'Card'}</option>
+                      <option value="bank_transfer">{language === 'ar' ? 'تحويل' : 'Transfer'}</option>
+                      <option value="credit">{language === 'ar' ? 'آجل' : 'Credit'}</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">{t('subtotal')}</span><span><Money value={totals.subtotal} /></span></div>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">{t('discount')}</span><span><Money value={totals.totalDiscount} /></span></div>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">{language === 'ar' ? 'المبلغ الخاضع للضريبة' : 'Taxable Amount'}</span><span><Money value={totals.taxableAmount} /></span></div>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">{t('tax')}</span><span><Money value={totals.totalTax} /></span></div>
-                <div className="flex justify-between border-t border-gray-200 pt-2 text-lg font-bold dark:border-dark-600"><span>{t('total')}</span><span className="text-primary-600"><Money value={totals.grandTotal} /></span></div>
+
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  {watch('paymentMethod') === 'credit' && watch('paymentStatus') !== 'paid' ? (
+                    <div>
+                      <label className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{language === 'ar' ? 'مقدم' : 'Advance'}</label>
+                      <input type="number" min="0" max={totals.grandTotal} step="0.01" {...register('paidAmount', { valueAsNumber: true, min: 0 })} className={`mt-1.5 ${fieldControlClass} !rounded-xl !border-slate-200/70 !bg-slate-50/60 !px-2.5 !py-2 !text-[13px]`} placeholder="0.00" />
+                    </div>
+                  ) : <div />}
+                  <div className={watch('paymentMethod') === 'credit' && watch('paymentStatus') !== 'paid' ? '' : 'col-span-2 max-w-[220px]'}>
+                    <label className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{language === 'ar' ? 'خصم الفاتورة' : 'Invoice discount'}</label>
+                    <input type="number" min="0" step="0.01" {...register('invoiceDiscount', { valueAsNumber: true, min: 0 })} className={`mt-1.5 ${fieldControlClass} !rounded-xl !border-slate-200/70 !bg-slate-50/60 !px-2.5 !py-2 !text-[13px]`} />
+                  </div>
+                </div>
               </div>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs text-slate-500">
-                  {language === 'ar'
-                    ? 'اضغط معاينة لمراجعة الفاتورة قبل الحفظ'
-                    : 'Tap Preview to review before saving'}
+
+              <div className="flex flex-col px-5 py-5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  {language === 'ar' ? 'الملخص' : 'Summary'}
                 </p>
-                <div className="flex gap-3">
-                  <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices')} className="btn btn-secondary">{t('cancel')}</button>
-                  <button type="submit" disabled={saveMutation.isPending} className="btn btn-action-dark shadow-lg inline-flex items-center gap-2">
-                    {saveMutation.isPending ? (
-                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                    {language === 'ar' ? 'معاينة' : 'Preview'}
-                  </button>
+                <div className="mt-3 flex flex-1 flex-col justify-between space-y-2.5 text-sm text-slate-600 dark:text-slate-300">
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between"><span>{t('subtotal')}</span><span className="tabular-nums text-slate-900 dark:text-white"><Money value={totals.subtotal} /></span></div>
+                    <div className="flex justify-between"><span>{t('discount')}</span><span className="tabular-nums text-slate-900 dark:text-white"><Money value={totals.totalDiscount} /></span></div>
+                    <div className="flex justify-between"><span>{language === 'ar' ? 'الخاضع للضريبة' : 'Taxable'}</span><span className="tabular-nums text-slate-900 dark:text-white"><Money value={totals.taxableAmount} /></span></div>
+                    <div className="flex justify-between"><span>{isPk ? 'GST' : t('tax')}</span><span className="tabular-nums text-slate-900 dark:text-white"><Money value={totals.totalTax} /></span></div>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-100 pt-3 text-base font-semibold text-slate-900 dark:border-white/10 dark:text-white">
+                    <span>{t('total')}</span>
+                    <span className="tabular-nums"><Money value={totals.grandTotal} /></span>
+                  </div>
                 </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 dark:border-white/5 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-slate-400">
+                {language === 'ar'
+                  ? 'اضغط معاينة لمراجعة الفاتورة قبل الحفظ'
+                  : 'Tap Preview to review before saving'}
+              </p>
+              <div className="flex justify-end gap-3">
+                <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : '/app/dashboard/accounting/invoices')} className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:bg-transparent dark:text-slate-300">{t('cancel')}</button>
+                <button type="submit" disabled={saveMutation.isPending} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 dark:bg-white dark:text-slate-900">
+                  {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" /> : <><Eye className="w-4 h-4" />{language === 'ar' ? 'معاينة' : 'Preview'}</>}
+                </button>
               </div>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { X, Building2, User, ArrowRight, ChevronDown } from 'lucide-react'
+import { X, Building2, User, ArrowRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { formatInvError } from '../../lib/invError'
@@ -13,8 +13,9 @@ import {
 } from '../../lib/partnerDefaults'
 
 /**
- * Minimal quick-create contact popout (portaled above SalesComposerChrome).
- * Address & extras stay optional / collapsed. role: 'vendor' | 'customer'
+ * Quick-create contact popout (portaled above SalesComposerChrome).
+ * Individual → minimal (name enough). Company → full details required.
+ * role: 'vendor' | 'customer'
  */
 export default function QuickCreateContactModal({
   open,
@@ -62,6 +63,7 @@ export default function QuickCreateContactModal({
   const [showMore, setShowMore] = useState(false)
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }))
+  const isCompany = form.contactType === 'company'
 
   useEffect(() => {
     if (!open) return
@@ -129,15 +131,34 @@ export default function QuickCreateContactModal({
     shortAddress: form.shortAddress.trim() || undefined,
   }
 
-  const hasAnyAddress = Object.values(addressPayload).some((v) => v && v !== 'SA')
+  const validate = () => {
+    if (!form.name.trim()) {
+      return ar ? 'الاسم مطلوب' : 'Name is required'
+    }
+    if (!isCompany) return ''
+
+    if (!form.nameAr.trim()) return ar ? 'الاسم بالعربية مطلوب' : 'Arabic name is required'
+    if (!form.email.trim()) return ar ? 'البريد مطلوب' : 'Email is required'
+    if (!form.phone.trim()) return ar ? 'الهاتف مطلوب' : 'Phone is required'
+    if (!form.vatNumber.trim()) return ar ? 'الرقم الضريبي مطلوب' : 'VAT / Tax ID is required'
+    if (!form.crNumber.trim()) return ar ? 'السجل التجاري مطلوب' : 'CR Number is required'
+    if (!form.street.trim()) return ar ? 'الشارع مطلوب' : 'Street is required'
+    if (!form.buildingNumber.trim()) return ar ? 'رقم المبنى مطلوب' : 'Building number is required'
+    if (!form.district.trim()) return ar ? 'الحي مطلوب' : 'District is required'
+    if (!form.city.trim()) return ar ? 'المدينة مطلوبة' : 'City is required'
+    if (!form.postalCode.trim()) return ar ? 'الرمز البريدي مطلوب' : 'Postal code is required'
+    if (!form.country.trim()) return ar ? 'الدولة مطلوبة' : 'Country is required'
+    return ''
+  }
 
   const submit = async (e) => {
     e?.preventDefault?.()
     const trimmed = form.name.trim()
     setFormError('')
     setShowFullFormCta(false)
-    if (!trimmed) {
-      setFormError(ar ? 'الاسم مطلوب' : 'Name is required')
+    const err = validate()
+    if (err) {
+      setFormError(err)
       return
     }
     setBusy(true)
@@ -146,6 +167,9 @@ export default function QuickCreateContactModal({
         fetchDefaultReceivableAccountId(),
         fetchDefaultPayableAccountId(),
       ])
+
+      const hasAnyAddress = Object.values(addressPayload).some((v) => v && v !== 'SA')
+      const address = isCompany || hasAnyAddress ? addressPayload : undefined
 
       let created
       if (isVendor) {
@@ -159,7 +183,7 @@ export default function QuickCreateContactModal({
           phone: form.phone.trim() || undefined,
           vatNumber: form.vatNumber.trim() || undefined,
           crNumber: form.crNumber.trim() || undefined,
-          address: hasAnyAddress ? addressPayload : undefined,
+          address,
           parentCompanyId: form.contactType === 'individual' && form.parentCompanyId ? form.parentCompanyId : undefined,
           payableAccountId: payableAccountId || undefined,
           isVendor: true,
@@ -180,7 +204,7 @@ export default function QuickCreateContactModal({
           phone: form.phone.trim() || undefined,
           vatNumber: form.vatNumber.trim() || undefined,
           crNumber: form.crNumber.trim() || undefined,
-          address: hasAnyAddress ? addressPayload : undefined,
+          address,
           parentCompanyId: form.contactType === 'individual' && form.parentCompanyId ? form.parentCompanyId : undefined,
           receivableAccountId: receivableAccountId || undefined,
           isCustomer: true,
@@ -203,13 +227,77 @@ export default function QuickCreateContactModal({
 
   const fieldClass = 'w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-900/5 dark:border-white/10 dark:bg-dark-900 dark:text-white'
   const labelClass = 'mb-1 block text-[11px] font-medium text-slate-500'
+  const req = <span className="text-rose-500">*</span>
+
+  const companyDetails = (
+    <>
+      <label className="block text-sm sm:col-span-2">
+        <span className={labelClass}>{ar ? 'الاسم بالعربية' : 'Name (Arabic)'} {req}</span>
+        <input className={fieldClass} dir="rtl" value={form.nameAr} onChange={(e) => set('nameAr', e.target.value)} />
+      </label>
+      <label className="block text-sm">
+        <span className={labelClass}>{ar ? 'البريد' : 'Email'} {req}</span>
+        <input type="email" className={fieldClass} value={form.email} onChange={(e) => set('email', e.target.value)} />
+      </label>
+      <label className="block text-sm">
+        <span className={labelClass}>{ar ? 'الهاتف' : 'Phone'} {req}</span>
+        <input className={fieldClass} value={form.phone} onChange={(e) => set('phone', e.target.value)} />
+      </label>
+      <label className="block text-sm">
+        <span className={labelClass}>{ar ? 'الرقم الضريبي' : 'VAT / Tax ID'} {req}</span>
+        <input className={fieldClass} value={form.vatNumber} onChange={(e) => set('vatNumber', e.target.value)} />
+      </label>
+      <label className="block text-sm">
+        <span className={labelClass}>{ar ? 'السجل التجاري' : 'CR Number'} {req}</span>
+        <input className={fieldClass} value={form.crNumber} onChange={(e) => set('crNumber', e.target.value)} />
+      </label>
+
+      <p className="sm:col-span-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+        {ar ? 'العنوان' : 'Address'}
+      </p>
+      <label className="block text-sm">
+        <span className={labelClass}>{ar ? 'العنوان المختصر' : 'Short address'}</span>
+        <input className={fieldClass} value={form.shortAddress} onChange={(e) => set('shortAddress', e.target.value)} placeholder="RRRD2929" maxLength={8} />
+      </label>
+      <label className="block text-sm">
+        <span className={labelClass}>{ar ? 'رقم المبنى' : 'Building No.'} {req}</span>
+        <input className={fieldClass} value={form.buildingNumber} onChange={(e) => set('buildingNumber', e.target.value)} />
+      </label>
+      <label className="block text-sm sm:col-span-2">
+        <span className={labelClass}>{ar ? 'الشارع' : 'Street'} {req}</span>
+        <input className={fieldClass} value={form.street} onChange={(e) => set('street', e.target.value)} />
+      </label>
+      <label className="block text-sm">
+        <span className={labelClass}>{ar ? 'الحي' : 'District'} {req}</span>
+        <input className={fieldClass} value={form.district} onChange={(e) => set('district', e.target.value)} />
+      </label>
+      <label className="block text-sm">
+        <span className={labelClass}>{ar ? 'المدينة' : 'City'} {req}</span>
+        <input className={fieldClass} value={form.city} onChange={(e) => set('city', e.target.value)} />
+      </label>
+      <label className="block text-sm">
+        <span className={labelClass}>{ar ? 'الرمز البريدي' : 'Postal code'} {req}</span>
+        <input className={fieldClass} value={form.postalCode} onChange={(e) => set('postalCode', e.target.value)} />
+      </label>
+      <label className="block text-sm">
+        <span className={labelClass}>{ar ? 'الدولة' : 'Country'} {req}</span>
+        <input className={fieldClass} value={form.country} onChange={(e) => set('country', e.target.value)} />
+      </label>
+      <label className="block text-sm sm:col-span-2">
+        <span className={labelClass}>{ar ? 'الرقم الإضافي' : 'Additional No.'}</span>
+        <input className={fieldClass} value={form.additionalNumber} onChange={(e) => set('additionalNumber', e.target.value)} />
+      </label>
+    </>
+  )
 
   return createPortal(
     <div className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-950/55 p-0 sm:items-center sm:p-4">
       <button type="button" className="absolute inset-0 cursor-default" aria-label="Close" onClick={() => !busy && onClose?.()} />
       <form
         onSubmit={submit}
-        className="relative z-10 flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-slate-200/80 bg-white shadow-2xl dark:border-dark-600 dark:bg-dark-800 sm:rounded-2xl"
+        className={`relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl border border-slate-200/80 bg-white shadow-2xl dark:border-dark-600 dark:bg-dark-800 sm:rounded-2xl ${
+          isCompany ? 'max-w-2xl' : 'max-w-md'
+        }`}
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-dark-600">
           <div>
@@ -217,7 +305,9 @@ export default function QuickCreateContactModal({
               {ar ? (isVendor ? 'مورد جديد' : 'عميل جديد') : (isVendor ? 'New vendor' : 'New customer')}
             </h2>
             <p className="mt-0.5 text-xs text-slate-400">
-              {ar ? 'الاسم كافٍ — الباقي اختياري' : 'Name is enough — rest is optional'}
+              {isCompany
+                ? (ar ? 'تفاصيل الشركة كاملة مطلوبة للفواتير' : 'Full company details required for invoicing')
+                : (ar ? 'الاسم كافٍ — الباقي اختياري' : 'Name is enough — rest is optional')}
             </p>
           </div>
           <button
@@ -256,7 +346,10 @@ export default function QuickCreateContactModal({
                   ? 'bg-white text-slate-800 shadow-sm dark:bg-dark-800 dark:text-white'
                   : 'text-slate-500'
               }`}
-              onClick={() => set('contactType', 'individual')}
+              onClick={() => {
+                set('contactType', 'individual')
+                setShowMore(false)
+              }}
             >
               <User className="h-3.5 w-3.5" />
               {ar ? 'فرد' : 'Individual'}
@@ -274,6 +367,7 @@ export default function QuickCreateContactModal({
                 set('contactType', 'company')
                 set('parentCompanyId', '')
                 set('parentCompany', null)
+                setShowMore(false)
               }}
             >
               <Building2 className="h-3.5 w-3.5" />
@@ -282,7 +376,7 @@ export default function QuickCreateContactModal({
           </div>
 
           <label className="block text-sm">
-            <span className={labelClass}>{ar ? 'الاسم' : 'Name'} <span className="text-rose-500">*</span></span>
+            <span className={labelClass}>{ar ? 'الاسم' : 'Name'} {req}</span>
             <input
               className={fieldClass}
               autoFocus
@@ -295,84 +389,79 @@ export default function QuickCreateContactModal({
             />
           </label>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-sm">
-              <span className={labelClass}>{ar ? 'البريد' : 'Email'}</span>
-              <input type="email" className={fieldClass} value={form.email} onChange={(e) => set('email', e.target.value)} />
-            </label>
-            <label className="block text-sm">
-              <span className={labelClass}>{ar ? 'الهاتف' : 'Phone'}</span>
-              <input className={fieldClass} value={form.phone} onChange={(e) => set('phone', e.target.value)} />
-            </label>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowMore((v) => !v)}
-            className="inline-flex w-full items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/80 px-3.5 py-2.5 text-left text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-white/10 dark:bg-dark-900/50 dark:text-slate-300"
-          >
-            <span>{ar ? 'المزيد (اختياري)' : 'More details (optional)'}</span>
-            <ChevronDown className={`h-4 w-4 transition ${showMore ? 'rotate-180' : ''}`} />
-          </button>
-
-          {showMore ? (
-            <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/40 p-3 dark:border-white/5 dark:bg-dark-900/30">
-              <label className="block text-sm">
-                <span className={labelClass}>{ar ? 'الاسم بالعربية' : 'Name (Arabic)'}</span>
-                <input className={fieldClass} dir="rtl" value={form.nameAr} onChange={(e) => set('nameAr', e.target.value)} />
-              </label>
+          {isCompany ? (
+            <div className="grid gap-3 sm:grid-cols-2">{companyDetails}</div>
+          ) : (
+            <>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block text-sm">
-                  <span className={labelClass}>{ar ? 'الرقم الضريبي' : 'VAT / Tax ID'}</span>
-                  <input className={fieldClass} value={form.vatNumber} onChange={(e) => set('vatNumber', e.target.value)} />
+                  <span className={labelClass}>{ar ? 'البريد' : 'Email'}</span>
+                  <input type="email" className={fieldClass} value={form.email} onChange={(e) => set('email', e.target.value)} />
                 </label>
                 <label className="block text-sm">
-                  <span className={labelClass}>{ar ? 'السجل التجاري' : 'CR Number'}</span>
-                  <input className={fieldClass} value={form.crNumber} onChange={(e) => set('crNumber', e.target.value)} />
+                  <span className={labelClass}>{ar ? 'الهاتف' : 'Phone'}</span>
+                  <input className={fieldClass} value={form.phone} onChange={(e) => set('phone', e.target.value)} />
                 </label>
               </div>
 
-              {form.contactType === 'individual' ? (
-                <div className="block text-sm">
-                  <span className={labelClass}>{ar ? 'الشركة المرتبطة' : 'Related company'}</span>
-                  <AsyncCombobox
-                    value={form.parentCompanyId}
-                    selectedOption={form.parentCompany}
-                    debounceMs={300}
-                    minChars={1}
-                    queryKeyPrefix={isVendor ? 'vendor-parent-co' : 'customer-parent-co'}
-                    fetchOptions={fetchCompanies}
-                    placeholder={ar ? 'ابحث عن شركة…' : 'Search company…'}
-                    noResultsText={ar ? 'لا توجد نتائج' : 'No results found'}
-                    getOptionLabel={(c) => (ar && c.nameAr ? c.nameAr : c.name || c.nameEn) || '—'}
-                    getOptionSub={(c) => [c.customerCode || c.code, c.vatNumber].filter(Boolean).join(' · ')}
-                    onChange={(id, opt) => {
-                      set('parentCompanyId', id || '')
-                      set('parentCompany', opt || null)
-                    }}
-                  />
+              <button
+                type="button"
+                onClick={() => setShowMore((v) => !v)}
+                className="inline-flex w-full items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/80 px-3.5 py-2.5 text-left text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-white/10 dark:bg-dark-900/50 dark:text-slate-300"
+              >
+                <span>{ar ? 'المزيد (اختياري)' : 'More details (optional)'}</span>
+                <span className={`text-slate-400 transition ${showMore ? 'rotate-180' : ''}`}>▾</span>
+              </button>
+
+              {showMore ? (
+                <div className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50/40 p-3 sm:grid-cols-2 dark:border-white/5 dark:bg-dark-900/30">
+                  <label className="block text-sm sm:col-span-2">
+                    <span className={labelClass}>{ar ? 'الاسم بالعربية' : 'Name (Arabic)'}</span>
+                    <input className={fieldClass} dir="rtl" value={form.nameAr} onChange={(e) => set('nameAr', e.target.value)} />
+                  </label>
+                  <label className="block text-sm">
+                    <span className={labelClass}>{ar ? 'الرقم الضريبي' : 'VAT / Tax ID'}</span>
+                    <input className={fieldClass} value={form.vatNumber} onChange={(e) => set('vatNumber', e.target.value)} />
+                  </label>
+                  <label className="block text-sm">
+                    <span className={labelClass}>{ar ? 'السجل التجاري' : 'CR Number'}</span>
+                    <input className={fieldClass} value={form.crNumber} onChange={(e) => set('crNumber', e.target.value)} />
+                  </label>
+                  <div className="block text-sm sm:col-span-2">
+                    <span className={labelClass}>{ar ? 'الشركة المرتبطة' : 'Related company'}</span>
+                    <AsyncCombobox
+                      value={form.parentCompanyId}
+                      selectedOption={form.parentCompany}
+                      debounceMs={300}
+                      minChars={1}
+                      queryKeyPrefix={isVendor ? 'vendor-parent-co' : 'customer-parent-co'}
+                      fetchOptions={fetchCompanies}
+                      placeholder={ar ? 'ابحث عن شركة…' : 'Search company…'}
+                      noResultsText={ar ? 'لا توجد نتائج' : 'No results found'}
+                      getOptionLabel={(c) => (ar && c.nameAr ? c.nameAr : c.name || c.nameEn) || '—'}
+                      getOptionSub={(c) => [c.customerCode || c.code, c.vatNumber].filter(Boolean).join(' · ')}
+                      onChange={(id, opt) => {
+                        set('parentCompanyId', id || '')
+                        set('parentCompany', opt || null)
+                      }}
+                    />
+                  </div>
+                  <label className="block text-sm sm:col-span-2">
+                    <span className={labelClass}>{ar ? 'الشارع' : 'Street'}</span>
+                    <input className={fieldClass} value={form.street} onChange={(e) => set('street', e.target.value)} />
+                  </label>
+                  <label className="block text-sm">
+                    <span className={labelClass}>{ar ? 'المدينة' : 'City'}</span>
+                    <input className={fieldClass} value={form.city} onChange={(e) => set('city', e.target.value)} />
+                  </label>
+                  <label className="block text-sm">
+                    <span className={labelClass}>{ar ? 'الدولة' : 'Country'}</span>
+                    <input className={fieldClass} value={form.country} onChange={(e) => set('country', e.target.value)} />
+                  </label>
                 </div>
               ) : null}
-
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                {ar ? 'العنوان (اختياري)' : 'Address (optional)'}
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block text-sm sm:col-span-2">
-                  <span className={labelClass}>{ar ? 'الشارع' : 'Street'}</span>
-                  <input className={fieldClass} value={form.street} onChange={(e) => set('street', e.target.value)} />
-                </label>
-                <label className="block text-sm">
-                  <span className={labelClass}>{ar ? 'المدينة' : 'City'}</span>
-                  <input className={fieldClass} value={form.city} onChange={(e) => set('city', e.target.value)} />
-                </label>
-                <label className="block text-sm">
-                  <span className={labelClass}>{ar ? 'الدولة' : 'Country'}</span>
-                  <input className={fieldClass} value={form.country} onChange={(e) => set('country', e.target.value)} />
-                </label>
-              </div>
-            </div>
-          ) : null}
+            </>
+          )}
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-5 py-4 dark:border-dark-600">

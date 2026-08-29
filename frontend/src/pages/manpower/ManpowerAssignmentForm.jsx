@@ -121,7 +121,7 @@ export default function ManpowerAssignmentForm() {
               {language === 'ar' ? 'طباعة العقد' : 'Print Contract'}
             </Link>
             {assignment?.status === 'active' && (
-              <Link to={`/app/dashboard/invoices/new/sell?proforma=1`} className="btn btn-secondary">
+              <Link to={`/app/dashboard/accounting/invoices/new/sell?proforma=1`} className="btn btn-secondary">
                 <FileText className="w-4 h-4" />
                 {language === 'ar' ? 'إصدار فاتورة مبدئية' : 'Create Proforma'}
               </Link>

@@ -353,6 +353,184 @@ export function buildSalesInvoiceJournalLines({
   return lines;
 }
 
+function normalizeAccountingOverrideLines(rawLines = []) {
+  const lines = (Array.isArray(rawLines) ? rawLines : [])
+    .map((line) => ({
+      accountId: line?.accountId,
+      accountCode: String(line?.accountCode || '').trim(),
+      accountName: String(line?.accountName || '').trim(),
+      debit: round2(Math.max(0, Number(line?.debit) || 0)),
+      credit: round2(Math.max(0, Number(line?.credit) || 0)),
+      description: String(line?.description || '').trim(),
+      role: String(line?.role || '').trim(),
+    }))
+    .filter((line) => line.accountId && (line.debit > 0 || line.credit > 0));
+  const debit = round2(lines.reduce((s, l) => s + l.debit, 0));
+  const credit = round2(lines.reduce((s, l) => s + l.credit, 0));
+  const balanced = lines.length >= 2 && Math.abs(debit - credit) < 0.02;
+  return { lines, debit, credit, balanced };
+}
+
+/**
+ * Preview sales invoice GL lines (no persistence) for the invoice composer journal panel.
+ */
+export async function previewSalesInvoiceJournal({ tenantId, invoice = {} }) {
+  const { byCode } = await getAccountMap(tenantId);
+  const ar = byCode[ACCOUNT_CODE_MAP.ar];
+  const sales = byCode[ACCOUNT_CODE_MAP.sales];
+  const vatOut = byCode[ACCOUNT_CODE_MAP.vatOutput];
+  if (!ar || !sales) {
+    return { lines: [], debit: 0, credit: 0, balanced: false, error: 'Missing AR or Sales account in chart of accounts' };
+  }
+
+  const tax = round2(Number(invoice.totalTax ?? invoice.taxAmount ?? 0));
+  const gross = round2(Number(invoice.grandTotal || 0));
+  let net = round2(Number(invoice.taxableAmount ?? (gross - tax)));
+  if (round2(net + tax) !== gross) net = round2(gross - tax);
+  if (gross <= 0) return { lines: [], debit: 0, credit: 0, balanced: false };
+
+  const lineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
+  let revenueCredits = null;
+  if (lineItems.length) {
+    const lineNets = lineItems.map((li) => round2(Math.abs(Number(li.lineTotal) || Number(li.lineTotalWithTax) - Number(li.taxAmount) || 0)));
+    const sumLines = round2(lineNets.reduce((s, n) => s + n, 0));
+    revenueCredits = [];
+    for (let i = 0; i < lineItems.length; i += 1) {
+      let share = lineNets[i];
+      if (sumLines > 0 && sumLines !== net) share = round2((lineNets[i] / sumLines) * net);
+      if (share <= 0) continue;
+      const account = await resolveSalesIncomeAccount(
+        tenantId,
+        lineItems[i].productId,
+        lineItems[i].productType === 'service'
+          ? (byCode[ACCOUNT_CODE_MAP.services] || sales)
+          : sales,
+      );
+      if (!account) continue;
+      revenueCredits.push({ account, amount: share });
+    }
+    if (!revenueCredits.length) revenueCredits = null;
+    else {
+      const allocated = round2(revenueCredits.reduce((s, g) => s + g.amount, 0));
+      const delta = round2(net - allocated);
+      if (delta !== 0) {
+        revenueCredits[revenueCredits.length - 1].amount = round2(
+          revenueCredits[revenueCredits.length - 1].amount + delta,
+        );
+      }
+    }
+  }
+
+  const built = buildSalesInvoiceJournalLines({
+    netAmount: net,
+    taxAmount: tax,
+    ar,
+    vatOut,
+    defaultSales: sales,
+    revenueCredits,
+    description: `Invoice ${invoice.invoiceNumber || 'DRAFT'}`,
+  });
+
+  const accountIds = [...new Set(built.map((l) => String(l.accountId)))];
+  const accounts = accountIds.length
+    ? await ChartOfAccount.find({ _id: { $in: accountIds }, tenantId }).select('code name nameAr').lean()
+    : [];
+  const byId = new Map(accounts.map((a) => [String(a._id), a]));
+
+  const lines = built.map((l) => {
+    const acct = byId.get(String(l.accountId));
+    let role = 'other';
+    if (String(l.accountCode) === ACCOUNT_CODE_MAP.ar || String(acct?.code) === ACCOUNT_CODE_MAP.ar) role = 'ar';
+    else if (String(l.accountCode) === ACCOUNT_CODE_MAP.vatOutput || String(acct?.code) === ACCOUNT_CODE_MAP.vatOutput) role = 'vat_out';
+    else if (l.credit > 0) role = 'revenue';
+    return {
+      accountId: l.accountId,
+      accountCode: l.accountCode || acct?.code || '',
+      accountName: acct?.name || '',
+      accountNameAr: acct?.nameAr || '',
+      debit: l.debit,
+      credit: l.credit,
+      description: l.description || '',
+      role,
+    };
+  });
+  const debit = round2(lines.reduce((s, l) => s + l.debit, 0));
+  const credit = round2(lines.reduce((s, l) => s + l.credit, 0));
+  return { lines, debit, credit, balanced: Math.abs(debit - credit) < 0.02 };
+}
+
+/**
+ * Preview purchase invoice GL lines (simplified AP / expense|stock / VAT in).
+ */
+export async function previewPurchaseInvoiceJournal({ tenantId, invoice = {} }) {
+  const { byCode } = await getAccountMap(tenantId);
+  const ap = byCode[ACCOUNT_CODE_MAP.ap];
+  const vatIn = byCode[ACCOUNT_CODE_MAP.vatInput];
+  const cogs = byCode[ACCOUNT_CODE_MAP.cogs];
+  const inventory = byCode[ACCOUNT_CODE_MAP.inventory];
+  if (!ap) {
+    return { lines: [], debit: 0, credit: 0, balanced: false, error: 'Missing Accounts Payable in chart of accounts' };
+  }
+
+  const tax = round2(Number(invoice.totalTax ?? invoice.taxAmount ?? 0));
+  const gross = round2(Number(invoice.grandTotal || 0));
+  let net = round2(Number(invoice.taxableAmount ?? (gross - tax)));
+  if (round2(net + tax) !== gross) net = round2(gross - tax);
+  if (gross <= 0) return { lines: [], debit: 0, credit: 0, balanced: false };
+
+  const expenseAcct = cogs || inventory;
+  if (!expenseAcct) {
+    return { lines: [], debit: 0, credit: 0, balanced: false, error: 'Missing expense/inventory account' };
+  }
+
+  const lines = [
+    {
+      accountId: expenseAcct._id,
+      accountCode: expenseAcct.code,
+      accountName: expenseAcct.name,
+      accountNameAr: expenseAcct.nameAr || '',
+      debit: net,
+      credit: 0,
+      description: `Purchase ${invoice.invoiceNumber || 'DRAFT'}`,
+      role: invoice.sourcePurchaseOrderId ? 'stock' : 'expense',
+    },
+  ];
+  if (tax > 0 && vatIn) {
+    lines.push({
+      accountId: vatIn._id,
+      accountCode: vatIn.code,
+      accountName: vatIn.name,
+      accountNameAr: vatIn.nameAr || '',
+      debit: tax,
+      credit: 0,
+      description: 'VAT input',
+      role: 'vat_in',
+    });
+  }
+  lines.push({
+    accountId: ap._id,
+    accountCode: ap.code,
+    accountName: ap.name,
+    accountNameAr: ap.nameAr || '',
+    debit: 0,
+    credit: tax > 0 && vatIn ? gross : round2(net + (vatIn ? 0 : tax)),
+    description: 'Accounts payable',
+    role: 'ap',
+  });
+
+  // If no VAT account, fold tax into expense debit already handled by credit = gross above
+  if (tax > 0 && !vatIn) {
+    lines[0].debit = gross;
+    lines[lines.length - 1].credit = gross;
+  }
+
+  const debit = round2(lines.reduce((s, l) => s + l.debit, 0));
+  const credit = round2(lines.reduce((s, l) => s + l.credit, 0));
+  return { lines, debit, credit, balanced: Math.abs(debit - credit) < 0.02 };
+}
+
+export { normalizeAccountingOverrideLines, ACCOUNT_CODE_MAP };
+
 async function loadActiveCoa(tenantId, id) {
   if (!id) return null;
   return ChartOfAccount.findOne({ _id: id, tenantId, isActive: true });
@@ -419,6 +597,16 @@ export async function postSalesInvoiceJournal({
   }
   if (gross <= 0) return null;
 
+  const override = normalizeAccountingOverrideLines(invoice.accountingLines);
+  let lines = override.balanced ? override.lines.map((l) => ({
+    accountId: l.accountId,
+    accountCode: l.accountCode,
+    debit: l.debit,
+    credit: l.credit,
+    description: l.description || `Invoice ${invoice.invoiceNumber || ''}`,
+  })) : null;
+
+  if (!lines) {
   const lineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
   let revenueCredits = null;
   if (lineItems.length) {
@@ -454,7 +642,7 @@ export async function postSalesInvoiceJournal({
     }
   }
 
-  const lines = buildSalesInvoiceJournalLines({
+  lines = buildSalesInvoiceJournalLines({
     netAmount: net,
     taxAmount: tax,
     ar,
@@ -463,7 +651,8 @@ export async function postSalesInvoiceJournal({
     revenueCredits,
     description: `Invoice ${invoice.invoiceNumber || ''}`,
   });
-  if (lines.length < 2) return null;
+  }
+  if (!lines || lines.length < 2) return null;
 
   let journalId = null;
   try {

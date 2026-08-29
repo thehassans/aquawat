@@ -50,7 +50,7 @@ export default function GlobalSearch({ language }) {
     
     switch (result.type) {
       case 'invoice':
-        navigate(`/app/dashboard/invoices/${result.id}`);
+        navigate(`/app/dashboard/accounting/invoices/${result.id}`);
         break;
       case 'customer':
         navigate(`/app/dashboard/customers/${result.id}`);

@@ -51,7 +51,7 @@ export default function TravelBookingForm() {
         queryClient.invalidateQueries(['dashboard-revenue'])
         queryClient.invalidateQueries(['customers'])
         queryClient.invalidateQueries(['customers-lookup'])
-        navigate(`/app/dashboard/invoices/${invoiceId}`)
+        navigate(`/app/dashboard/accounting/invoices/${invoiceId}`)
       } else {
         toast.error(language === 'ar' ? 'لم يتم إنشاء الفاتورة' : 'Invoice not created')
       }

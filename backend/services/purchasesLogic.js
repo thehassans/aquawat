@@ -124,7 +124,7 @@ export function buildPoReceivingLedger({ lineItems = [], grns = [] } = {}) {
 
   const unmatched = [];
   for (const grn of Array.isArray(grns) ? grns : []) {
-    if (grn?.status === 'cancelled') continue;
+    if (grn?.status === 'cancelled' || grn?.status === 'draft') continue;
     for (const line of Array.isArray(grn?.lines) ? grn.lines : []) {
       const event = {
         grnId: grn._id,

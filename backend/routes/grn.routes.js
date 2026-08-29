@@ -292,6 +292,12 @@ router.post('/', checkPermission('supply_chain', 'create'), async (req, res) => 
     } = req.body;
 
     if (!supplierId) return res.status(400).json({ error: 'supplierId is required' });
+    if (!purchaseOrderId) {
+      return res.status(400).json({
+        error: 'Receive from a purchase order only. Open an approved PO and use Receive.',
+        code: 'PO_RECEIVE_ONLY',
+      });
+    }
     const normalized = normalizeGrnLines(lines);
     if (!normalized.length) return res.status(400).json({ error: 'At least one line is required' });
     assertDelayedLines(normalized);

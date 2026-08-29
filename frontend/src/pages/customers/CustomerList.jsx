@@ -691,7 +691,7 @@ export default function CustomerList() {
                           <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
                             {/* Fast Action: Create Invoice */}
                             <Link
-                              to={`/app/dashboard/invoices/new/sell?customerId=${customer._id}`}
+                              to={`/app/dashboard/accounting/invoices/new/sell?customerId=${customer._id}`}
                               title={isAr ? 'إنشاء فاتورة لهذا العميل' : 'Create Sales Invoice'}
                               className="hidden sm:inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300 dark:hover:bg-dark-700"
                             >

@@ -208,7 +208,7 @@ export default function PurchaseOrders() {
     let all = []
     while (true) {
       const res = await api.get('/purchase-orders', {
-            params: { page: currentPage, limit, search: debouncedSearch, status: filters.status, supplierId: filters.supplierId, warehouseId: filters.warehouseId },
+            params: { page: currentPage, limit, flow: 'purchase', search: debouncedSearch, status: filters.status, supplierId: filters.supplierId, warehouseId: filters.warehouseId },
       })
       const batch = res.data?.purchaseOrders || []
       all = all.concat(batch)
@@ -220,19 +220,19 @@ export default function PurchaseOrders() {
   }
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['purchase-orders', page, debouncedSearch, filters],
+    queryKey: ['purchase-orders', 'purchase', page, debouncedSearch, filters],
     queryFn: () =>
       api
         .get('/purchase-orders', {
-          params: { page, limit: 25, search: debouncedSearch, status: filters.status, supplierId: filters.supplierId, warehouseId: filters.warehouseId },
+          params: { page, limit: 25, flow: 'purchase', search: debouncedSearch, status: filters.status, supplierId: filters.supplierId, warehouseId: filters.warehouseId },
         })
         .then((res) => res.data),
     placeholderData: (prev) => prev,
   })
 
   const { data: stats } = useQuery({
-    queryKey: ['purchase-orders-stats'],
-    queryFn: () => api.get('/purchase-orders/stats').then((res) => res.data),
+    queryKey: ['purchase-orders-stats', 'purchase'],
+    queryFn: () => api.get('/purchase-orders/stats', { params: { flow: 'purchase' } }).then((res) => res.data),
   })
 
   const { data: warehouses } = useQuery({
@@ -312,16 +312,13 @@ export default function PurchaseOrders() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-teal-700 dark:text-teal-300">
-            {language === 'ar' ? 'سلسلة التوريد' : 'Supply chain'}
-          </p>
-          <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white sm:text-[30px]">
+          <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
             {language === 'ar' ? 'طلبات الشراء' : 'Purchase orders'}
-          </h1>
-          <p className="mt-1.5 max-w-xl text-[13px] leading-6 text-slate-500 dark:text-slate-400">
+          </h2>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
             {language === 'ar'
-              ? 'أصدر، اعتمد، اطبع، واستلم أوامر الشراء من شاشة واحدة.'
-              : 'Issue, approve, print, and receive purchase orders from one workspace.'}
+              ? 'أصدر، اعتمد، اطبع، واستلم أوامر الشراء'
+              : 'Issue, approve, print, and receive purchase orders'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -337,7 +334,7 @@ export default function PurchaseOrders() {
           />
           <Link
             to="/app/dashboard/purchases/orders/new"
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+            className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-primary-700"
           >
             <Plus className="h-4 w-4 opacity-80" />
             {language === 'ar' ? 'طلب شراء جديد' : 'New purchase order'}

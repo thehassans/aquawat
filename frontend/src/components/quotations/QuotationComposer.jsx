@@ -3,23 +3,30 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Plus, Save, Trash2, Upload, X, Store, HardHat, Plane, UtensilsCrossed, CalendarDays, UserRound, Sparkles, Eye } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, Upload, X, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
+import Money from '../ui/Money'
 import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/businessTypes'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
-import { LETTERHEAD_TEMPLATE_ID, QUOTATION_TEMPLATE_IDS, resolveQuotationTemplateId } from '../../lib/invoiceTemplates'
+import { LETTERHEAD_TEMPLATE_ID, resolveQuotationTemplateId } from '../../lib/invoiceTemplates'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, isGccArabicMarket } from '../../lib/invoiceLanguage'
-import { isPakistanTenant, getTaxLabel, getTaxIdLabel, getTenantCountryCode, showArabicFields as isArabicTenantMarket } from '../../lib/saudiTenant'
+import { isPakistanTenant, getTenantCountryCode, showArabicFields as isArabicTenantMarket } from '../../lib/saudiTenant'
 import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../../lib/uomOptions'
 import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
 import InvoiceLivePreview from '../invoices/InvoiceLivePreview'
 import DocumentPreSaveModal from '../invoices/DocumentPreSaveModal'
-import InvoiceTemplateSelector from '../invoices/InvoiceTemplateSelector'
 import Select from 'react-select'
+import CreatableSelect from 'react-select/creatable'
 import { useForm, useFieldArray } from 'react-hook-form'
-import { normalizeProductType, productPickerLabel } from '../../lib/productType'
+import {
+  normalizeProductType,
+  productPickerLabel,
+  productDisplayName,
+  resolveProductSalePrice,
+  hasArabicScript,
+} from '../../lib/productType'
 import ProductTypeToggle from '../ui/ProductTypeToggle'
 import RichTextNoteField from '../invoices/RichTextNoteField'
 import MarqueeEventFields from '../marquee/MarqueeEventFields'
@@ -30,11 +37,9 @@ import PartnerCombobox from '../inventory/PartnerCombobox'
 import { formatInvError } from '../../lib/invError'
 import {
   backBtnClass,
-  fieldLabelClass,
   pageSubtitleClass,
   pageTitleClass,
   sectionCardClass,
-  sectionEyebrowClass,
 } from '../../pages/sales/salesUi'
 import SalesEnhancementBar from '../sales/SalesEnhancementBar'
 import CustomerSummaryCard from '../sales/CustomerSummaryCard'
@@ -74,22 +79,33 @@ const getEmptyLine = (tenant) => {
 
 const selectableContexts = ['trading', 'marquee', 'construction', 'travel_agency', 'restaurant']
 
-const CONTEXT_META = {
-  trading: { Icon: Store, descEn: 'Products & inventory quotes', descAr: 'عروض للمنتجات والمخزون', accent: 'from-emerald-500 to-teal-600' },
-  marquee: { Icon: Sparkles, descEn: 'Wedding, hall & banquet packages', descAr: 'عروض قاعات الأفراح والمناسبات', accent: 'from-amber-500 to-yellow-600' },
-  construction: { Icon: HardHat, descEn: 'Project & service quotes', descAr: 'عروض المشاريع والخدمات', accent: 'from-amber-500 to-orange-600' },
-  travel_agency: { Icon: Plane, descEn: 'Travel & ticket quotes', descAr: 'عروض السفر والتذاكر', accent: 'from-sky-500 to-blue-600' },
-  restaurant: { Icon: UtensilsCrossed, descEn: 'F&B and catering quotes', descAr: 'عروض المطاعم والضيافة', accent: 'from-rose-500 to-red-600' },
-}
-
-function FieldLabel({ en, ar, showArabic = true, as = 'p' }) {
-  const Tag = as
-  return (
-    <Tag className={`${fieldLabelClass} !mb-1.5 !flex items-baseline justify-between gap-3`} dir="ltr">
-      <span>{en}</span>
-      {showArabic && ar ? <span dir="rtl" className="font-medium text-slate-500 dark:text-slate-400">{ar}</span> : null}
-    </Tag>
-  )
+const lineGhostInputClass =
+  'w-full rounded-md border-0 bg-transparent px-1.5 py-1.5 text-[13px] font-medium text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:bg-slate-50 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-white/5'
+const lineSelectStyles = {
+  control: (base, state) => ({
+    ...base,
+    border: 'none',
+    boxShadow: 'none',
+    minHeight: 32,
+    backgroundColor: state.isFocused ? 'rgba(248,250,252,0.9)' : 'transparent',
+    borderRadius: '0.375rem',
+    cursor: 'pointer',
+  }),
+  valueContainer: (base) => ({ ...base, padding: '0 4px' }),
+  indicatorsContainer: (base) => ({ ...base, height: 32 }),
+  dropdownIndicator: (base) => ({ ...base, padding: 4, color: '#94a3b8' }),
+  clearIndicator: (base) => ({ ...base, padding: 4 }),
+  indicatorSeparator: () => ({ display: 'none' }),
+  singleValue: (base) => ({ ...base, color: '#0f172a', fontWeight: 500, fontSize: '0.8125rem' }),
+  placeholder: (base) => ({ ...base, color: '#94a3b8', fontSize: '0.8125rem' }),
+  menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+  menu: (base) => ({
+    ...base,
+    borderRadius: '0.75rem',
+    overflow: 'hidden',
+    boxShadow: '0 12px 40px -12px rgba(15,23,42,0.28)',
+    minWidth: 160,
+  }),
 }
 
 const formatDateForInput = (value) => {
@@ -99,15 +115,18 @@ const formatDateForInput = (value) => {
   return date.toISOString().slice(0, 10)
 }
 
-const buildQuotationFormValues = ({ quotation, tenant, defaultBusinessContext }) => {
+const buildQuotationFormValues = ({ quotation, tenant, defaultBusinessContext, defaultTemplateId }) => {
   const empty = getEmptyLine(tenant)
   return {
     businessContext: quotation?.businessContext || defaultBusinessContext,
-    pdfTemplateId: resolveQuotationTemplateId(quotation?.pdfTemplateId || LETTERHEAD_TEMPLATE_ID),
+    pdfTemplateId: resolveQuotationTemplateId(
+      quotation?.pdfTemplateId || defaultTemplateId || LETTERHEAD_TEMPLATE_ID,
+    ),
     issueDate: formatDateForInput(quotation?.issueDate) || formatDateForInput(new Date()),
     validUntil: formatDateForInput(quotation?.validUntil),
     transactionType: quotation?.transactionType || 'B2B',
     customerId: quotation?.customerId?._id || quotation?.customerId || '',
+    salesTeamId: quotation?.salesTeamId?._id || quotation?.salesTeamId || '',
     subject: quotation?.subject || '',
     subjectAr: quotation?.subjectAr || '',
     notes: quotation?.notes || '',
@@ -179,6 +198,9 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
       initialQuotation?.stampImage
     )
   })
+  const [showSubjectPanel, setShowSubjectPanel] = useState(() => Boolean(
+    String(initialQuotation?.subject || '').trim() || String(initialQuotation?.subjectAr || '').trim()
+  ))
   const [showNotesPanel, setShowNotesPanel] = useState(() => Boolean(String(initialQuotation?.notes || '').trim()))
   const [showTermsPanel, setShowTermsPanel] = useState(() => Boolean(String(initialQuotation?.termsAndConditions || '').trim()))
   const [showBankPanel, setShowBankPanel] = useState(() => Boolean(
@@ -189,9 +211,6 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
   ))
   const showArabicFields = isArabicTenantMarket(tenant)
   const isPk = isPakistanTenant(tenant)
-  const taxLabel = getTaxLabel(tenant)
-  const taxIdLabel = getTaxIdLabel(tenant)
-  const FormLabel = (props) => <FieldLabel {...props} showArabic={showArabicFields} />
 
   const handleToggleAuthorizedPerson = (enable) => {
     setShowAuthorizedPerson(enable)
@@ -228,11 +247,16 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     return tenantBusinessTypes.find((type) => selectableContexts.includes(type)) || 'trading'
   }, [tenant, tenantBusinessTypes])
 
+  const defaultTemplateId = resolveQuotationTemplateId(
+    salesSettings?.defaultQuotationTemplateId || LETTERHEAD_TEMPLATE_ID,
+  )
+
   const { register, control, handleSubmit, watch, setValue, getValues, reset } = useForm({
     defaultValues: buildQuotationFormValues({
       quotation: initialQuotation,
       tenant,
       defaultBusinessContext,
+      defaultTemplateId,
     }),
   })
 
@@ -311,7 +335,6 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
   const businessContext = values?.businessContext || defaultBusinessContext
   const selectedTemplateId = resolveQuotationTemplateId(values?.pdfTemplateId || LETTERHEAD_TEMPLATE_ID)
   const isTradingContext = businessContext === 'trading'
-  const emptyLine = useMemo(() => getEmptyLine(tenant), [tenant])
   const isMarqueeContext =
     businessContext === 'marquee' ||
     tenantBusinessTypes.includes('marquee') ||
@@ -409,13 +432,23 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
 
   useEffect(() => {
     if (!isEdit || !initialQuotation?._id) return
-    reset(buildQuotationFormValues({ quotation: initialQuotation, tenant, defaultBusinessContext }))
+    reset(buildQuotationFormValues({
+      quotation: initialQuotation,
+      tenant,
+      defaultBusinessContext,
+      defaultTemplateId: initialQuotation?.pdfTemplateId || LETTERHEAD_TEMPLATE_ID,
+    }))
   }, [defaultBusinessContext, initialQuotation, isEdit, reset, tenant])
 
   useEffect(() => {
     if (isEdit && initialQuotation?._id) return
     setValue('businessContext', defaultBusinessContext)
   }, [defaultBusinessContext, initialQuotation?._id, isEdit, setValue])
+
+  useEffect(() => {
+    if (isEdit) return
+    setValue('pdfTemplateId', defaultTemplateId, { shouldDirty: false })
+  }, [defaultTemplateId, isEdit, setValue])
 
   useEffect(() => {
     const customerId = initialQuotation?.customerId?._id || initialQuotation?.customerId || ''
@@ -442,6 +475,19 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
     enabled: isTradingContext,
   })
   const productList = Array.isArray(products) ? products : []
+
+  const { data: salesTeamsRaw = [] } = useQuery({
+    queryKey: ['sales-teams-picker'],
+    queryFn: async () => {
+      const res = await api.get('/sales/teams')
+      const list = res.data?.items ?? res.data
+      return Array.isArray(list) ? list : []
+    },
+  })
+  const salesTeams = useMemo(
+    () => (Array.isArray(salesTeamsRaw) ? salesTeamsRaw : []).filter((team) => team?.isActive !== false),
+    [salesTeamsRaw]
+  )
 
   const fillBuyerFromParty = (customer) => {
     if (!customer) return
@@ -522,16 +568,16 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
   const onSelectProduct = (index, productId) => {
     const product = productList.find((item) => String(item._id) === String(productId))
     if (!product) return
-    setValue(`lineItems.${index}.productId`, product._id)
-    setValue(`lineItems.${index}.variantId`, '')
-    setValue(`lineItems.${index}.productName`, product.nameEn || '')
-    setValue(`lineItems.${index}.productNameAr`, product.nameAr || product.nameEn || '')
-    setValue(`lineItems.${index}.description`, product.descriptionEn || '')
-    setValue(`lineItems.${index}.descriptionAr`, product.descriptionAr || '')
-    setValue(`lineItems.${index}.unitCode`, product.unitOfMeasure || 'PCE')
-    setValue(`lineItems.${index}.taxRate`, typeof product.saleTaxRate === 'number' ? product.saleTaxRate : (typeof product.taxRate === 'number' ? product.taxRate : 15))
-    setValue(`lineItems.${index}.unitPrice`, typeof product.sellingPrice === 'number' ? product.sellingPrice : 0)
-    setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType))
+    setValue(`lineItems.${index}.productId`, product._id, { shouldDirty: true })
+    setValue(`lineItems.${index}.variantId`, '', { shouldDirty: true })
+    setValue(`lineItems.${index}.productName`, productDisplayName(product, 'en'), { shouldDirty: true })
+    setValue(`lineItems.${index}.productNameAr`, hasArabicScript(product.nameAr) ? String(product.nameAr).trim() : '', { shouldDirty: true })
+    setValue(`lineItems.${index}.description`, product.descriptionEn || '', { shouldDirty: true })
+    setValue(`lineItems.${index}.descriptionAr`, product.descriptionAr || '', { shouldDirty: true })
+    setValue(`lineItems.${index}.unitCode`, product.unitOfMeasure || 'PCE', { shouldDirty: true })
+    setValue(`lineItems.${index}.taxRate`, typeof product.saleTaxRate === 'number' ? product.saleTaxRate : (typeof product.taxRate === 'number' ? product.taxRate : 15), { shouldDirty: true })
+    setValue(`lineItems.${index}.unitPrice`, resolveProductSalePrice(product), { shouldDirty: true })
+    setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType), { shouldDirty: true })
   }
 
   const resolveRelatedProduct = (row) => {
@@ -575,6 +621,12 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
 
   const totals = calculateInvoiceSummary({ lineItems, invoiceDiscount: values?.invoiceDiscount })
 
+  const calculateLineTotal = (index) => {
+    const line = totals.lines[index]
+    if (!line) return { subtotal: 0, tax: 0, total: 0 }
+    return { subtotal: line.lineTotal, tax: line.taxAmount, total: line.lineTotalWithTax }
+  }
+
   const buildPayload = (data) => {
     return {
       ...data,
@@ -584,6 +636,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
       issueDate: data?.issueDate ? new Date(data.issueDate) : new Date(),
       validUntil: data?.validUntil ? new Date(data.validUntil) : undefined,
       invoiceDiscount: Math.max(0, toNumber(data?.invoiceDiscount, 0)),
+      salesTeamId: data?.salesTeamId || null,
       lineItems: (data.lineItems || []).map((line, index) => {
         const summaryLine = totals.lines[index] || {}
         return {
@@ -695,226 +748,48 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
   return (
     <div className="space-y-6">
       <div className="mx-auto w-full max-w-6xl space-y-6">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className={sectionShell}>
-            <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className={sectionEyebrowClass}>
-                  {language === 'ar' ? 'البائع' : 'Seller'}
-                </p>
-                <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
-                  {language === 'ar' ? 'بيانات المنشأة' : 'Your company details'}
-                </h3>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  {language === 'ar' ? 'تُؤخذ تلقائياً من ملف الشركة' : 'Prefilled from your company profile'}
-                </p>
-              </div>
-              {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
-                <img
-                  src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo}
-                  alt="Tenant"
-                  className="h-14 w-14 rounded-2xl object-contain bg-white p-1.5 shadow-md ring-1 ring-slate-200/80 dark:ring-white/15"
-                />
-              ) : null}
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" dir="ltr">
-              <div className={showArabicFields ? 'sm:col-span-2' : ''}>
-                <FormLabel en="Legal name" ar="الاسم القانوني" />
-                <div className={`mt-1 grid gap-3 ${showArabicFields ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                    {tenant?.business?.legalNameEn || tenant?.name || '—'}
-                  </p>
-                  {showArabicFields ? (
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white" dir="rtl">
-                      {tenant?.business?.legalNameAr || '—'}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-              <div>
-                <FormLabel en={isPk ? "NTN / STRN" : "VAT Number"} ar="الرقم الضريبي" />
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.fbr?.ntn || tenant?.business?.ntn || tenant?.business?.vatNumber || '—'}</p>
-              </div>
-              <div>
-                <FormLabel en="CR Number" ar="السجل التجاري" />
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.crNumber || '—'}</p>
-              </div>
-              <div>
-                <FormLabel en="Phone" ar="الهاتف" />
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.contactPhone || '—'}</p>
-              </div>
-              <div>
-                <FormLabel en="Email" ar="البريد" />
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">{tenant?.business?.contactEmail || '—'}</p>
-              </div>
-              <div className={showArabicFields ? 'sm:col-span-2' : ''}>
-                <FormLabel en="Address" ar="العنوان" />
-                <div className={`mt-1 grid gap-3 ${showArabicFields ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                    {[
-                      tenant?.business?.address?.street,
-                      tenant?.business?.address?.district,
-                      tenant?.business?.address?.city,
-                      tenant?.business?.address?.country || getTenantCountryCode(tenant),
-                    ].filter(Boolean).join(', ') || '—'}
-                  </p>
-                  {showArabicFields ? (
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white" dir="rtl">
-                      {[
-                        tenant?.business?.address?.streetAr,
-                        tenant?.business?.address?.districtAr,
-                        tenant?.business?.address?.cityAr,
-                        tenant?.business?.address?.country || getTenantCountryCode(tenant),
-                      ].filter(Boolean).join('، ') || '—'}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </div>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <input type="hidden" {...register('businessContext')} />
+          <input type="hidden" {...register('pdfTemplateId')} />
 
-          <div className={sectionShell}>
-            <div className="mb-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                {language === 'ar' ? 'الخطوة الأولى' : 'Step one'}
-              </p>
-              <h3 className="mt-1 flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
-                <Sparkles className="h-4 w-4 text-emerald-500" />
-                {language === 'ar' ? 'سياق عرض السعر' : 'Quotation Context'}
-              </h3>
-            </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {tenantBusinessTypes.filter((type) => selectableContexts.includes(type)).map((type) => {
-                const active = businessContext === type
-                const meta = CONTEXT_META[type]
-                const Icon = meta?.Icon || Store
-                const labels = {
-                  trading: language === 'ar' ? 'تجارة' : 'Trading',
-                  construction: language === 'ar' ? 'مقاولات' : 'Construction',
-                  travel_agency: language === 'ar' ? 'سفر' : 'Travel Agency',
-                  restaurant: language === 'ar' ? 'مطعم' : 'Restaurant',
-                }
-                return (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setValue('businessContext', type)}
-                    className={`group flex items-start gap-3 rounded-2xl border p-4 text-start transition ${
-                      active
-                        ? 'border-emerald-500 bg-emerald-50/80 ring-2 ring-emerald-500/20 dark:border-emerald-400 dark:bg-emerald-500/10 dark:ring-emerald-400/20'
-                        : 'border-slate-200/80 bg-slate-50/50 hover:border-slate-300 dark:border-white/10 dark:bg-dark-900/40 dark:hover:border-white/20'
-                    }`}
-                  >
-                    <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${meta?.accent || 'from-emerald-500 to-teal-600'} text-white shadow-sm`}>
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block font-semibold text-slate-900 dark:text-white">{labels[type]}</span>
-                      <span className="mt-0.5 block text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                        {language === 'ar' ? meta?.descAr : meta?.descEn}
-                      </span>
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-            <input type="hidden" {...register('businessContext')} />
-          </div>
-
-          <div className={sectionShell}>
-            <div className="mb-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                {language === 'ar' ? 'القالب' : 'Template'}
-              </p>
-              <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
-                {language === 'ar' ? 'تنسيق عرض السعر' : 'Quotation layout'}
-              </h3>
-              <p className="mt-1 text-sm text-slate-500">
-                {language === 'ar'
-                  ? 'اختر أساسي أو ورق رسمي. الورق الرسمي يطابق خطاب الشركة: السجل التجاري والضريبة في الترويسة، والعنوان والبريد والهاتف في التذييل.'
-                  : 'Choose Essential or Letterhead. Letterhead matches the official company letter: C.R. # and VAT # in the header, address, email and phone in the footer.'}
-              </p>
-            </div>
-            <InvoiceTemplateSelector
-              language={language}
-              value={selectedTemplateId}
-              allowedIds={QUOTATION_TEMPLATE_IDS}
-              tenant={tenant}
-              onChange={(id) => setValue('pdfTemplateId', resolveQuotationTemplateId(id))}
-              onLockedClick={() => navigate('/app/dashboard/app-store')}
-            />
-            <input type="hidden" {...register('pdfTemplateId')} />
-          </div>
-
-          <div className={sectionShell}>
-            <div className="mb-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                {language === 'ar' ? 'التوقيت والنوع' : 'Timing & type'}
-              </p>
-              <h3 className="mt-1 flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
-                <CalendarDays className="h-4 w-4 text-emerald-500" />
-                {language === 'ar' ? 'التواريخ ونوع العميل' : 'Dates & Customer Type'}
-              </h3>
-            </div>
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div>
-                  <label className="label">{language === 'ar' ? 'تاريخ الإصدار' : 'Issue Date'}</label>
-                  <input type="date" {...register('issueDate')} className="input" />
-                </div>
-                <div>
-                  <label className="label">{language === 'ar' ? 'صالح حتى' : 'Valid Until'}</label>
-                  <input type="date" {...register('validUntil')} className="input" />
-                </div>
-                <div>
-                  <label className="label">{language === 'ar' ? 'نوع العميل' : 'Customer Type'}</label>
-                  <select {...register('transactionType')} className="select">
-                    <option value="B2B">{t('b2bInvoice')}</option>
-                    <option value="B2C">{t('b2cInvoice')}</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className={sectionShell}>
-            <div className="mb-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                {language === 'ar' ? 'العنوان' : 'Headline'}
-              </p>
-              <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
-                {language === 'ar' ? 'موضوع عرض السعر' : 'Quotation Subject'}
-              </h3>
-            </div>
-            <div className={showArabicFields ? "grid grid-cols-1 gap-4 md:grid-cols-2" : "grid grid-cols-1 gap-4"} dir="ltr">
-              <div>
-                <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                  <span>Subject</span>
-                  {showArabicFields && <span dir="rtl" className="font-medium text-slate-500">الموضوع</span>}
+          <div className={`${sectionCardClass} !p-3`}>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="min-w-[9.5rem]">
+                <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  {language === 'ar' ? 'الإصدار' : 'Issue'}
                 </label>
-                <input {...register('subject')} className="input" placeholder={language === 'ar' ? 'مثال: أعمال استبدال ملفات الغاز...' : 'e.g. Coil replacement job in Ghazlan Power Plant'} />
+                <input type="date" {...register('issueDate')} className={`${lineGhostInputClass} mt-0.5 border border-slate-200/80 bg-slate-50/60 px-2 dark:border-white/10 dark:bg-white/[0.03]`} />
               </div>
-              {showArabicFields && (
-                <div>
-                  <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                    <span>Subject (Arabic)</span>
-                    <span dir="rtl" className="font-medium text-slate-500">الموضوع بالعربية</span>
-                  </label>
-                  <input {...register('subjectAr')} className="input" dir="rtl" />
-                </div>
-              )}
+              <div className="min-w-[9.5rem]">
+                <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  {language === 'ar' ? 'صالح حتى' : 'Valid until'}
+                </label>
+                <input type="date" {...register('validUntil')} className={`${lineGhostInputClass} mt-0.5 border border-slate-200/80 bg-slate-50/60 px-2 dark:border-white/10 dark:bg-white/[0.03]`} />
+              </div>
+              <div className="ms-auto inline-flex rounded-xl bg-slate-100/90 p-0.5 dark:bg-white/5">
+                {['B2B', 'B2C'].map((type) => {
+                  const active = watch('transactionType') === type
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setValue('transactionType', type, { shouldDirty: true })}
+                      className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold transition ${
+                        active
+                          ? 'bg-white text-slate-900 shadow-sm dark:bg-dark-800 dark:text-white'
+                          : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+                      }`}
+                    >
+                      {type}
+                    </button>
+                  )
+                })}
+              </div>
+              <input type="hidden" {...register('transactionType')} />
             </div>
           </div>
 
-          <div className={sectionShell}>
-            <div className="mb-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                {language === 'ar' ? 'المشتري' : 'Buyer'}
-              </p>
-              <h3 className="mt-1 text-base font-semibold text-slate-900 dark:text-white">
-                {language === 'ar' ? 'العميل' : 'Customer'}
-              </h3>
-            </div>
+          <div className={`${sectionCardClass} space-y-2.5 !p-3.5`}>
             <PartnerCombobox
               role="customer"
               value={customerLookupId || values?.customerId || ''}
@@ -925,23 +800,38 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
               showNewButton
             />
             {selectedCustomer?._id ? (
-              <div className="mt-3">
-                <CustomerSummaryCard
-                  customer={selectedCustomer}
-                  language={language}
-                  onEdit={() => {
-                    const returnTo = `${window.location.pathname}${window.location.search}`
-                    navigate(`/app/dashboard/customers/${selectedCustomer._id}?returnTo=${encodeURIComponent(returnTo)}`)
-                  }}
-                  onClear={() => onSelectCustomer('', null)}
-                />
-              </div>
+              <CustomerSummaryCard
+                customer={selectedCustomer}
+                language={language}
+                onEdit={() => {
+                  const returnTo = `${window.location.pathname}${window.location.search}`
+                  navigate(`/app/dashboard/customers/${selectedCustomer._id}?returnTo=${encodeURIComponent(returnTo)}`)
+                }}
+                onClear={() => onSelectCustomer('', null)}
+              />
             ) : (
-              <p className="mt-2 text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-400">
                 {language === 'ar'
                   ? 'اختر عميلاً أو أنشئ عميلاً جديداً'
                   : 'Select a customer or tap New to create one'}
               </p>
+            )}
+            {salesTeams.length > 0 ? (
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  {language === 'ar' ? 'فريق المبيعات' : 'Sales team'}
+                </label>
+                <select {...register('salesTeamId')} className={`${lineGhostInputClass} mt-0.5 border border-slate-200/80 bg-slate-50/60 px-2 dark:border-white/10 dark:bg-white/[0.03]`}>
+                  <option value="">{language === 'ar' ? 'بدون فريق' : 'No team'}</option>
+                  {salesTeams.map((team) => (
+                    <option key={team._id} value={team._id}>
+                      {language === 'ar' && team.nameAr ? team.nameAr : (team.name || team.code || team._id)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <input type="hidden" {...register('salesTeamId')} />
             )}
             <input type="hidden" {...register('customerId')} />
             <input type="hidden" {...register('buyer.name', { required: values?.transactionType === 'B2B' })} />
@@ -971,222 +861,327 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             />
           )}
 
-          <div className={sectionShell}>
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                  {language === 'ar' ? 'التسعير' : 'Pricing'}
-                </p>
-                <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
-                  {language === 'ar' ? 'بنود عرض السعر' : 'Quotation Items'}
-                </h3>
-              </div>
+          <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
+            <div className="flex items-center justify-between gap-3 px-4 py-3">
+              <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                {language === 'ar' ? 'البنود' : 'Lines'}
+              </h3>
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-dark-900 dark:text-slate-200 dark:hover:border-emerald-500/40 dark:hover:text-emerald-300"
                 onClick={() => append(getEmptyLine(tenant))}
+                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200"
               >
-                <Plus className="h-4 w-4" />
-                {language === 'ar' ? 'إضافة بند' : 'Add Item'}
+                <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+                {t('add')}
               </button>
             </div>
 
-            <div className="space-y-4">
-              {fields.map((field, index) => {
-                const summaryLine = totals.lines[index] || { lineTotalWithTax: 0 }
-                return (
-                  <div
-                    key={field.id}
-                    className="space-y-4 rounded-2xl border border-slate-200/80 bg-slate-50/40 p-4 transition hover:border-emerald-300/80 hover:bg-emerald-50/30 dark:border-white/10 dark:bg-dark-900/50 dark:hover:border-emerald-500/30 dark:hover:bg-emerald-500/5"
-                  >
-                    <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} />
-                    <input type="hidden" {...register(`lineItems.${index}.productType`)} />
-                    <input type="hidden" {...register(`lineItems.${index}.variantId`)} />
-                    <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12" dir="ltr">
-                      <div className={showArabicFields ? 'md:col-span-6' : 'md:col-span-12'}>
-                        <label className="label !mb-1">
-                          <span>Item *</span>
-                          <span className="ms-1.5 font-medium text-gray-500" dir="rtl">البند</span>
-                        </label>
-                        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-dark-800">
-                          <div className="border-b border-slate-100 px-2 py-1.5 dark:border-white/5">
-                            <ProductTypeToggle
-                              value={watch(`lineItems.${index}.productType`)}
-                              onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
-                              language={language}
-                              className="!border-0"
-                            />
-                          </div>
+            {fields.length === 0 ? (
+              <div className="mx-4 mb-4 rounded-xl border border-dashed border-slate-200/90 px-3 py-8 text-center dark:border-white/10">
+                <p className="text-xs text-slate-400">
+                  {language === 'ar' ? 'لا توجد بنود بعد' : 'No lines yet'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => append(getEmptyLine(tenant))}
+                  className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 underline-offset-2 hover:underline dark:text-slate-200"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {language === 'ar' ? 'إضافة بند' : 'Add line'}
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <div
+                  className="hidden gap-1 border-y border-slate-100 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5 lg:grid lg:grid-cols-12"
+                  dir="ltr"
+                >
+                  <div className={showArabicFields ? 'lg:col-span-5' : 'lg:col-span-7'}>
+                    {language === 'ar' ? 'المنتج' : 'Product'}
+                  </div>
+                  {showArabicFields ? <div className="lg:col-span-2">عربي</div> : null}
+                  <div className="lg:col-span-1">{language === 'ar' ? 'وحدة' : 'UOM'}</div>
+                  <div className="lg:col-span-1">{t('quantity')}</div>
+                  <div className="lg:col-span-1">{t('unitPrice')}</div>
+                  <div className="lg:col-span-1">{t('tax')} %</div>
+                  <div className="text-end lg:col-span-1">{t('total')}</div>
+                </div>
+
+                <div className="divide-y divide-slate-100 dark:divide-white/5">
+                  {fields.map((field, index) => (
+                    <div key={field.id} className="group px-3 py-2 transition hover:bg-slate-50/70 dark:hover:bg-white/[0.02] sm:px-4">
+                      <LineItemTranslator
+                        index={index}
+                        control={control}
+                        watch={watch}
+                        setValue={setValue}
+                        enabled={!watch(`lineItems.${index}.productId`)}
+                        initialNameAr={initialQuotation?.lineItems?.[index]?.productNameAr || ''}
+                        initialName={initialQuotation?.lineItems?.[index]?.productName || ''}
+                      />
+                      <input type="hidden" {...register(`lineItems.${index}.productType`)} />
+                      <input type="hidden" {...register(`lineItems.${index}.description`)} />
+                      <input type="hidden" {...register(`lineItems.${index}.descriptionAr`)} />
+                      <input type="hidden" {...register(`lineItems.${index}.discount`, { valueAsNumber: true })} />
+                      <input type="hidden" {...register(`lineItems.${index}.discountType`)} />
+                      <div className="grid grid-cols-2 items-center gap-1.5 lg:grid-cols-12" dir="ltr">
+                        <div className={`col-span-2 ${showArabicFields ? 'lg:col-span-5' : 'lg:col-span-7'}`}>
                           {isTradingContext ? (
-                            <div className="px-1 py-1">
-                              <Select
-                                className="react-select-container"
-                                classNamePrefix="react-select"
-                                value={
-                                  values?.lineItems?.[index]?.productId
-                                    ? {
-                                        value: values.lineItems[index].productId,
-                                        label: productPickerLabel(
-                                          productList.find((p) => p._id === values.lineItems[index].productId) || {},
-                                          language
-                                        )
-                                      }
-                                    : null
-                                }
-                                onChange={(option) => onSelectProduct(index, option ? option.value : '')}
-                                options={productList.map((item) => ({
-                                  value: item._id,
-                                  label: productPickerLabel(item, language)
-                                }))}
-                                placeholder={language === 'ar' ? 'ابحث عن منتج أو اكتب اسماً…' : 'Search product or type a name…'}
-                                isClearable
-                                isSearchable
+                            <div className="flex min-h-[36px] items-center gap-1 rounded-lg bg-slate-50/80 pe-0.5 ps-1 dark:bg-white/[0.03]">
+                              <ProductTypeToggle
+                                value={watch(`lineItems.${index}.productType`)}
+                                onChange={(next) => {
+                                  const opts = { shouldDirty: true, shouldTouch: true }
+                                  setValue(`lineItems.${index}.productType`, next, opts)
+                                  const pid = watch(`lineItems.${index}.productId`)
+                                  if (!pid) return
+                                  const selected = productList.find((p) => p._id === pid)
+                                  if (selected && normalizeProductType(selected.productType) !== next) {
+                                    setValue(`lineItems.${index}.productId`, '', opts)
+                                    setValue(`lineItems.${index}.variantId`, '', opts)
+                                    setValue(`lineItems.${index}.productName`, '', opts)
+                                    setValue(`lineItems.${index}.productNameAr`, '', opts)
+                                    setValue(`lineItems.${index}.unitPrice`, 0, opts)
+                                  }
+                                }}
+                                language={language}
+                                bare
                               />
-                              {watch(`lineItems.${index}.productId`) ? (
-                                <div className="mt-1 px-1">
-                                  <VariantLineSelect
-                                    productId={watch(`lineItems.${index}.productId`)}
-                                    value={watch(`lineItems.${index}.variantId`)}
-                                    language={language}
-                                    onChange={(variantId, variant) => {
-                                      setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })
-                                      if (variant?.name) {
-                                        setValue(`lineItems.${index}.productName`, variant.name, { shouldDirty: true })
+                              <div className="h-4 w-px shrink-0 bg-slate-200/80 dark:bg-white/10" aria-hidden />
+                              <div className="min-w-0 flex-1 overflow-hidden">
+                                <CreatableSelect
+                                  inputId={`product-select-${index}`}
+                                  name={`react-select-product-${index}`}
+                                  options={productList
+                                    .filter((p) => normalizeProductType(p.productType) === normalizeProductType(watch(`lineItems.${index}.productType`)))
+                                    .map((p) => ({
+                                      value: p._id,
+                                      label: productPickerLabel(p, language, { includeType: false }),
+                                    }))}
+                                  value={(() => {
+                                    const pid = watch(`lineItems.${index}.productId`)
+                                    const product = productList.find((p) => p._id === pid)
+                                    if (product) {
+                                      return {
+                                        value: product._id,
+                                        label: productDisplayName(product, language),
                                       }
-                                      if (variant?.price != null && Number(variant.price) > 0) {
-                                        setValue(`lineItems.${index}.unitPrice`, Number(variant.price), { shouldDirty: true })
+                                    }
+                                    const typed = watch(`lineItems.${index}.productName`)
+                                    if (typed && !pid) {
+                                      return { value: typed, label: typed, __isNew__: true }
+                                    }
+                                    return null
+                                  })()}
+                                  onChange={(selected) => {
+                                    if (selected) {
+                                      if (selected.__isNew__) {
+                                        setValue(`lineItems.${index}.productId`, '', { shouldDirty: true })
+                                        setValue(`lineItems.${index}.productName`, selected.value, { shouldDirty: true })
+                                        setValue(`lineItems.${index}.productNameAr`, '', { shouldDirty: true })
+                                      } else {
+                                        onSelectProduct(index, selected.value)
                                       }
-                                    }}
-                                  />
-                                </div>
-                              ) : (
-                                <input
-                                  {...register(`lineItems.${index}.productName`)}
-                                  className="input !mt-1 !border-0 !shadow-none"
-                                  placeholder={language === 'ar' ? 'أو اكتب اسم المنتج / الخدمة' : 'Or type product / service name'}
+                                    } else {
+                                      setValue(`lineItems.${index}.productId`, '', { shouldDirty: true })
+                                      setValue(`lineItems.${index}.productName`, '', { shouldDirty: true })
+                                      setValue(`lineItems.${index}.productNameAr`, '', { shouldDirty: true })
+                                      setValue(`lineItems.${index}.variantId`, '', { shouldDirty: true })
+                                      setValue(`lineItems.${index}.unitPrice`, 0, { shouldDirty: true })
+                                    }
+                                  }}
+                                  formatCreateLabel={(inputValue) => language === 'ar' ? `إضافة "${inputValue}"` : `Add "${inputValue}"`}
+                                  placeholder={
+                                    normalizeProductType(watch(`lineItems.${index}.productType`)) === 'service'
+                                      ? (language === 'ar' ? 'خدمة…' : 'Service…')
+                                      : (language === 'ar' ? 'منتج…' : 'Product…')
+                                  }
+                                  isClearable
+                                  isSearchable
+                                  menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                                  menuPosition="fixed"
+                                  menuShouldScrollIntoView={false}
+                                  styles={{
+                                    ...lineSelectStyles,
+                                    container: (base) => ({ ...base, width: '100%', minWidth: 0 }),
+                                    control: (base, state) => ({
+                                      ...lineSelectStyles.control(base, state),
+                                      minHeight: 32,
+                                      minWidth: 0,
+                                    }),
+                                    menu: (base) => ({
+                                      ...lineSelectStyles.menu(base),
+                                      minWidth: 320,
+                                      maxWidth: 'min(92vw, 480px)',
+                                    }),
+                                    option: (base, state) => ({
+                                      ...base,
+                                      fontSize: '0.8125rem',
+                                      backgroundColor: state.isFocused ? '#f1f5f9' : '#fff',
+                                      color: '#0f172a',
+                                      cursor: 'pointer',
+                                    }),
+                                  }}
                                 />
-                              )}
-                              {watch(`lineItems.${index}.productId`) ? (
-                                <input type="hidden" {...register(`lineItems.${index}.productName`)} />
-                              ) : null}
+                              </div>
+                              <input type="hidden" {...register(`lineItems.${index}.productName`)} />
+                              <input type="hidden" {...register(`lineItems.${index}.productId`)} />
+                              <input type="hidden" {...register(`lineItems.${index}.variantId`)} />
                             </div>
                           ) : (
-                            <input {...register(`lineItems.${index}.productName`)} className="input !border-0 !shadow-none" placeholder={language === 'ar' ? 'اسم المنتج أو الخدمة' : 'Product or service name'} />
+                            <div className="flex min-h-[36px] items-center gap-1 rounded-lg bg-slate-50/80 pe-0.5 ps-1 dark:bg-white/[0.03]">
+                              <ProductTypeToggle
+                                value={watch(`lineItems.${index}.productType`)}
+                                onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
+                                language={language}
+                                bare
+                              />
+                              <div className="h-4 w-px shrink-0 bg-slate-200/80 dark:bg-white/10" aria-hidden />
+                              <input
+                                id={`product-select-${index}`}
+                                {...register(`lineItems.${index}.productName`)}
+                                className={`${lineGhostInputClass} flex-1`}
+                                placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'}
+                              />
+                            </div>
                           )}
+                          {isTradingContext && watch(`lineItems.${index}.productId`) ? (
+                            <div className="mt-1 ps-1">
+                              <VariantLineSelect
+                                productId={watch(`lineItems.${index}.productId`)}
+                                value={watch(`lineItems.${index}.variantId`)}
+                                language={language}
+                                onChange={(variantId, variant) => {
+                                  setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })
+                                  if (variant?.name) {
+                                    setValue(`lineItems.${index}.productName`, variant.name, { shouldDirty: true })
+                                  }
+                                  if (variant?.price != null && Number(variant.price) > 0) {
+                                    setValue(`lineItems.${index}.unitPrice`, Number(variant.price), { shouldDirty: true })
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : null}
+                        </div>
+                        {showArabicFields ? (
+                          <div className="col-span-2 lg:col-span-2">
+                            <input
+                              {...register(`lineItems.${index}.productNameAr`)}
+                              className={lineGhostInputClass}
+                              dir="auto"
+                              placeholder="اسم البند"
+                              aria-label="Arabic name"
+                            />
+                          </div>
+                        ) : (
+                          <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
+                        )}
+                        <div className="col-span-1 lg:col-span-1">
+                          <Select
+                            className="react-select-container"
+                            classNamePrefix="react-select"
+                            isClearable
+                            isSearchable
+                            placeholder="—"
+                            styles={lineSelectStyles}
+                            menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                            menuPosition="fixed"
+                            value={
+                              watch(`lineItems.${index}.unitCode`)
+                                ? {
+                                    value: watch(`lineItems.${index}.unitCode`),
+                                    label: getUomLabel(watch(`lineItems.${index}.unitCode`), language),
+                                  }
+                                : null
+                            }
+                            onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : '', { shouldValidate: true })}
+                            options={[
+                              { value: '', label: '—' },
+                              ...getAvailableUomOptions(tenant).map((uom) => ({
+                                value: uom.code,
+                                label: language === 'ar' ? uom.labelAr : uom.labelEn,
+                              })),
+                            ]}
+                          />
+                          <input type="hidden" {...register(`lineItems.${index}.unitCode`)} />
+                        </div>
+                        <div className="col-span-1 lg:col-span-1">
+                          <input
+                            id={`qty-${index}`}
+                            type="number"
+                            min="0.0001"
+                            step="any"
+                            {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })}
+                            className={`${lineGhostInputClass} tabular-nums`}
+                          />
+                        </div>
+                        <div className="col-span-1 lg:col-span-1">
+                          <input
+                            id={`price-${index}`}
+                            type="number"
+                            step="0.01"
+                            {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })}
+                            className={`${lineGhostInputClass} tabular-nums`}
+                          />
+                        </div>
+                        <div className="col-span-1 lg:col-span-1">
+                          {(() => {
+                            const isPkTax = isPk || String(tenant?.settings?.currency || '').toUpperCase() === 'PKR' || (tenant?.business?.address?.country || '').toUpperCase() === 'PK'
+                            const pkRate = Number(tenant?.fbr?.defaultSalesTaxRate || 18)
+                            return (
+                              <select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className={`${lineGhostInputClass} cursor-pointer`}>
+                                {isPkTax ? (
+                                  <>
+                                    <option value={pkRate}>{pkRate}%</option>
+                                    {pkRate !== 16 && <option value={16}>16%</option>}
+                                    {pkRate !== 15 && <option value={15}>15%</option>}
+                                    <option value={0}>0%</option>
+                                  </>
+                                ) : (
+                                  <>
+                                    <option value={15}>15%</option>
+                                    <option value={0}>0%</option>
+                                  </>
+                                )}
+                              </select>
+                            )
+                          })()}
+                        </div>
+                        <div className="col-span-2 flex items-center justify-end gap-1 lg:col-span-1">
+                          <p className="text-[13px] font-semibold tabular-nums text-slate-900 dark:text-white">
+                            <Money value={calculateLineTotal(index).total} />
+                          </p>
+                          {fields.length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => remove(index)}
+                              className="rounded-md p-1.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-950/30"
+                              aria-label="Remove line"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          ) : null}
                         </div>
                       </div>
-                      {showArabicFields ? (
-                        <div className="md:col-span-6">
-                          <label className="label flex items-baseline justify-between gap-2" dir="ltr">
-                            <span>Arabic name</span>
-                            <span dir="rtl" className="font-medium text-gray-500">اسم البند بالعربية</span>
-                          </label>
-                          <input {...register(`lineItems.${index}.productNameAr`)} className="input" dir="rtl" placeholder="اسم المنتج أو الخدمة" />
+                      {isTradingContext && lineItems?.[index]?.productId ? (
+                        <div className="mt-1.5">
+                          <LineRelationSuggestions
+                            productId={lineItems[index].productId}
+                            currentUnitPrice={lineItems[index].unitPrice}
+                            products={productList}
+                            language={language}
+                            includeOptional
+                            onAdd={appendRelatedProduct}
+                            onSwap={(row) => swapLineProduct(index, row)}
+                          />
                         </div>
-                      ) : (
-                        <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
-                      )}
+                      ) : null}
                     </div>
-
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-12" dir="ltr">
-                      <div className="md:col-span-3">
-                        <label className="label">{language === 'ar' ? 'الوصف' : 'Description'}</label>
-                        <textarea {...register(`lineItems.${index}.description`)} className="input min-h-[80px]" placeholder={language === 'ar' ? '• النقطة الأولى\n• النقطة الثانية' : '• First point\n• Second point'} />
-                      </div>
-                      <div className="md:col-span-3">
-                        <label className="label">{language === 'ar' ? 'الوصف بالعربية' : 'Arabic Description'}</label>
-                        <textarea {...register(`lineItems.${index}.descriptionAr`)} className="input min-h-[80px]" dir="rtl" placeholder={'• النقطة الأولى\n• النقطة الثانية'} />
-                      </div>
-                      <div className="md:col-span-3">
-                        <label className="label">{language === 'ar' ? 'الوحدة (اختياري)' : 'UOM (Optional)'}</label>
-                        <Select
-                          className="react-select-container w-full"
-                          classNamePrefix="react-select"
-                          isClearable
-                          isSearchable
-                          placeholder={language === 'ar' ? 'بدون وحدة' : 'None (Optional)'}
-                          value={
-                            watch(`lineItems.${index}.unitCode`)
-                              ? {
-                                  value: watch(`lineItems.${index}.unitCode`),
-                                  label: getUomLabel(watch(`lineItems.${index}.unitCode`), language)
-                                }
-                              : null
-                          }
-                          onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : '')}
-                          options={[
-                            { value: '', label: language === 'ar' ? 'بدون وحدة (اختياري)' : 'None (Optional)' },
-                            ...getAvailableUomOptions(tenant).map((uom) => ({
-                              value: uom.code,
-                              label: language === 'ar' ? uom.labelAr : uom.labelEn
-                            }))
-                          ]}
-                        />
-                        <input type="hidden" {...register(`lineItems.${index}.unitCode`)} />
-                      </div>
-                      <div className="md:col-span-1">
-                        <label className="label">{language === 'ar' ? 'الكمية' : 'Qty'}</label>
-                        <input type="number" min="1" step="1" {...register(`lineItems.${index}.quantity`)} className="input" />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="label">{language === 'ar' ? 'سعر الوحدة' : 'Unit Price'}</label>
-                        <input type="number" min="0" step="0.01" {...register(`lineItems.${index}.unitPrice`)} className="input" />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                      <div className="md:col-span-3">
-                        <label className="label">{language === 'ar' ? 'خصم البند' : 'Line Discount'}</label>
-                        <input type="number" min="0" step="0.01" {...register(`lineItems.${index}.discount`)} className="input" />
-                      </div>
-                      <div className="md:col-span-3">
-                        <label className="label">{language === 'ar' ? 'نوع الخصم' : 'Discount Type'}</label>
-                        <select {...register(`lineItems.${index}.discountType`)} className="select">
-                          <option value="fixed">{language === 'ar' ? 'مبلغ ثابت' : 'Fixed Amount'}</option>
-                          <option value="percentage">{language === 'ar' ? 'نسبة مئوية' : 'Percentage'}</option>
-                        </select>
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="label">{language === 'ar' ? 'الضريبة %' : 'Tax %'}</label>
-                        <input type="number" min="0" step="0.01" {...register(`lineItems.${index}.taxRate`)} className="input" />
-                      </div>
-                      <div className="md:col-span-4 flex items-end">
-                        <button
-                          type="button"
-                          className="btn btn-ghost text-sm"
-                          onClick={() => append({ ...emptyLine, lineNumber: fields.length + 1 })}
-                        >
-                          <Plus className="w-4 h-4" />
-                          {language === 'ar' ? 'تكرار البند' : 'Duplicate Item'}
-                        </button>
-                      </div>
-                    </div>
-
-                    {isTradingContext && values?.lineItems?.[index]?.productId ? (
-                      <LineRelationSuggestions
-                        productId={values.lineItems[index].productId}
-                        currentUnitPrice={values.lineItems[index].unitPrice}
-                        products={productList}
-                        language={language}
-                        includeOptional
-                        onAdd={appendRelatedProduct}
-                        onSwap={(row) => swapLineProduct(index, row)}
-                      />
-                    ) : null}
-
-                    <div className="flex items-center justify-between border-t border-slate-200/70 pt-3 dark:border-white/10">
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
-                        {language === 'ar' ? 'إجمالي السطر' : 'Line Total'}: <span className="font-semibold text-slate-900 dark:text-white">{Number(summaryLine.lineTotalWithTax || 0).toFixed(2)}</span>
-                      </p>
-                      <button type="button" className="btn btn-ghost text-red-600" onClick={() => remove(index)} disabled={fields.length === 1}>
-                        <Trash2 className="w-4 h-4" />
-                        {language === 'ar' ? 'حذف' : 'Remove'}
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <SalesEnhancementBar
@@ -1222,35 +1217,110 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
             })}
           />
 
-          <div className={sectionShell}>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-              {language === 'ar' ? 'معلومات إضافية' : 'Additional Information'}
-            </h3>
-            <div className="mt-4 flex flex-wrap gap-2.5">
-              {[
-                { id: 'signature', active: showAuthorizedPerson, labelEn: '+ Add Signature', labelAr: '+ إضافة توقيع', onClick: () => handleToggleAuthorizedPerson(!showAuthorizedPerson) },
-                { id: 'terms', active: showTermsPanel, labelEn: '+ Add Terms & Conditions', labelAr: '+ إضافة الشروط والأحكام', onClick: () => handleToggleTerms(!showTermsPanel) },
-                { id: 'notes', active: showNotesPanel, labelEn: '+ Add Notes', labelAr: '+ إضافة ملاحظات', onClick: () => handleToggleNotes(!showNotesPanel) },
-                { id: 'bank', active: showBankPanel, labelEn: '+ Add Bank Details', labelAr: '+ إضافة بيانات البنك', onClick: () => handleToggleBankDetails(!showBankPanel) },
-              ].map((pill) => (
-                <button
-                  key={pill.id}
-                  type="button"
-                  onClick={pill.onClick}
-                  className={`rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.12em] transition ${
-                    pill.active
-                      ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
-                      : 'border-slate-300 bg-white text-slate-800 hover:border-slate-400 dark:border-white/15 dark:bg-dark-900 dark:text-slate-100'
-                  }`}
-                >
-                  {language === 'ar' ? pill.labelAr : pill.labelEn}
-                </button>
-              ))}
+          <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
+            <div className="flex items-center gap-1 border-b border-slate-100 px-2 py-1.5 dark:border-white/5">
+              <span className="px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                {language === 'ar' ? 'إضافات' : 'Extras'}
+              </span>
+              <div className="ms-auto flex rounded-xl bg-slate-100/90 p-0.5 dark:bg-white/5">
+                {[
+                  {
+                    id: 'subject',
+                    active: showSubjectPanel,
+                    labelEn: 'Subject',
+                    labelAr: 'موضوع',
+                    onClick: () => setShowSubjectPanel((v) => !v),
+                  },
+                  {
+                    id: 'signature',
+                    active: showAuthorizedPerson,
+                    labelEn: 'Signature',
+                    labelAr: 'توقيع',
+                    onClick: () => handleToggleAuthorizedPerson(!showAuthorizedPerson),
+                  },
+                  {
+                    id: 'terms',
+                    active: showTermsPanel,
+                    labelEn: 'Terms',
+                    labelAr: 'شروط',
+                    onClick: () => handleToggleTerms(!showTermsPanel),
+                  },
+                  {
+                    id: 'notes',
+                    active: showNotesPanel,
+                    labelEn: 'Notes',
+                    labelAr: 'ملاحظات',
+                    onClick: () => handleToggleNotes(!showNotesPanel),
+                  },
+                  {
+                    id: 'bank',
+                    active: showBankPanel,
+                    labelEn: 'Bank',
+                    labelAr: 'بنك',
+                    onClick: () => handleToggleBankDetails(!showBankPanel),
+                  },
+                ].map((pill) => (
+                  <button
+                    key={pill.id}
+                    type="button"
+                    onClick={pill.onClick}
+                    className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold transition ${
+                      pill.active
+                        ? 'bg-white text-slate-900 shadow-sm dark:bg-dark-800 dark:text-white'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {language === 'ar' ? pill.labelAr : pill.labelEn}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            <div className="px-3.5 pb-3.5 pt-2">
+            <AnimatePresence>
+              {showSubjectPanel && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-2 overflow-hidden border-t border-slate-100 pt-4 dark:border-white/10">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+                      {language === 'ar' ? 'موضوع عرض السعر' : 'Quotation subject'}
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSubjectPanel(false)
+                        setValue('subject', '')
+                        setValue('subjectAr', '')
+                      }}
+                      className="text-xs font-semibold text-slate-500 hover:text-red-600"
+                    >
+                      {language === 'ar' ? 'إزالة' : 'Remove'}
+                    </button>
+                  </div>
+                  <div className={showArabicFields ? 'grid grid-cols-1 gap-3 md:grid-cols-2' : 'grid grid-cols-1 gap-3'} dir="ltr">
+                    <input
+                      {...register('subject')}
+                      className="input"
+                      placeholder={language === 'ar' ? 'مثال: أعمال استبدال ملفات الغاز...' : 'e.g. Coil replacement job…'}
+                    />
+                    {showArabicFields ? (
+                      <input {...register('subjectAr')} className="input" dir="rtl" placeholder="الموضوع بالعربية" />
+                    ) : (
+                      <input type="hidden" {...register('subjectAr')} />
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            {!showSubjectPanel ? (
+              <>
+                <input type="hidden" {...register('subject')} />
+                <input type="hidden" {...register('subjectAr')} />
+              </>
+            ) : null}
 
             <AnimatePresence>
               {showAuthorizedPerson && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-5 overflow-hidden border-t border-slate-100 pt-5 dark:border-white/10">
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-2 overflow-hidden border-t border-slate-100 pt-5 dark:border-white/10">
                   <div className="mb-4 flex items-center justify-between">
                     <h4 className="text-sm font-semibold text-slate-900 dark:text-white">{language === 'ar' ? 'الموثّق / المفوّض والختم' : 'Authorized Person & Stamp'}</h4>
                     <button type="button" onClick={() => handleToggleAuthorizedPerson(false)} className="text-xs font-semibold text-slate-500 hover:text-red-600">{language === 'ar' ? 'إزالة' : 'Remove'}</button>
@@ -1311,7 +1381,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
 
             <AnimatePresence>
               {showTermsPanel && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-5 overflow-hidden border-t border-slate-100 pt-5 dark:border-white/10">
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-2 overflow-hidden border-t border-slate-100 pt-5 dark:border-white/10">
                   <RichTextNoteField
                     label={language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}
                     value={watch('termsAndConditions')}
@@ -1327,7 +1397,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
 
             <AnimatePresence>
               {showNotesPanel && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-5 overflow-hidden border-t border-slate-100 pt-5 dark:border-white/10">
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-2 overflow-hidden border-t border-slate-100 pt-5 dark:border-white/10">
                   <RichTextNoteField
                     label={language === 'ar' ? 'ملاحظات' : 'Notes'}
                     value={watch('notes')}
@@ -1343,7 +1413,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
 
             <AnimatePresence>
               {showBankPanel && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-5 overflow-hidden border-t border-slate-100 pt-5 dark:border-white/10">
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-2 overflow-hidden border-t border-slate-100 pt-5 dark:border-white/10">
                   <div className="mb-3 flex items-center justify-between">
                     <label className="label">{language === 'ar' ? 'بيانات البنك' : 'Bank Details'}</label>
                     <button type="button" onClick={() => handleToggleBankDetails(false)} className="text-xs font-semibold text-slate-500 hover:text-red-600">{language === 'ar' ? 'إزالة' : 'Remove'}</button>
@@ -1398,6 +1468,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                 <input type="hidden" {...register('bankDetails.iban')} />
               </>
             )}
+            </div>
           </div>
 
           <div className={sectionShell}>

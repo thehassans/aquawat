@@ -194,12 +194,34 @@ router.get('/:id/inventory', checkPermission('inventory', 'read'), async (req, r
 // @route   POST /api/warehouses
 router.post('/', checkTrialLimits('warehouses'), checkPermission('inventory', 'create'), async (req, res) => {
   try {
+    const code = String(req.body.code || '').trim().toUpperCase();
+    if (!code) {
+      return res.status(400).json({ error: 'Warehouse code is required', code: 'WAREHOUSE_CODE_REQUIRED' });
+    }
+    const nameEn = String(req.body.nameEn || req.body.nameAr || '').trim();
+    if (!nameEn) {
+      return res.status(400).json({ error: 'Warehouse name is required', code: 'WAREHOUSE_NAME_REQUIRED' });
+    }
+
+    const existing = await Warehouse.findOne({ ...req.tenantFilter, code });
+    if (existing) {
+      return res.status(409).json({
+        error: `Warehouse code "${code}" already exists`,
+        code: 'WAREHOUSE_CODE_EXISTS',
+        warehouse: existing,
+      });
+    }
+
     const warehouseData = {
       ...req.body,
+      code,
+      nameEn,
+      nameAr: req.body.nameAr != null ? String(req.body.nameAr).trim() : '',
       tenantId: req.user.tenantId,
-      createdBy: req.user._id
+      createdBy: req.user._id,
+      isActive: req.body.isActive !== false,
     };
-    
+
     const warehouse = await Warehouse.create(warehouseData);
 
     // Auto-bootstrap Inv* locations, op types, sequences, then routes/rules
@@ -216,6 +238,12 @@ router.post('/', checkTrialLimits('warehouses'), checkPermission('inventory', 'c
       return res.status(201).json(warehouse);
     }
   } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({
+        error: 'Warehouse code already exists',
+        code: 'WAREHOUSE_CODE_EXISTS',
+      });
+    }
     res.status(500).json({ error: error.message });
   }
 });

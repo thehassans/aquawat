@@ -3,11 +3,15 @@ import { getTaxIdLabel } from './saudiTenant.js'
 export const isPurchaseOrderDocument = (documentType) => documentType === 'purchase_order'
 export const isVendorBillDocument = (documentType) => documentType === 'vendor_bill'
 export const isQuotationDocument = (documentType) => documentType === 'quotation'
+export const isSalesOrderDocument = (documentType) => documentType === 'sales_order'
 export const isPurchaseInvoiceDocument = (documentType, invoice) =>
   documentType === 'purchase_invoice' || (invoice?.flow === 'purchase' && documentType !== 'vendor_bill' && documentType !== 'purchase_order')
 
 export const shouldShowZatcaQr = (documentType) =>
-  documentType !== 'quotation' && documentType !== 'purchase_order' && documentType !== 'vendor_bill'
+  documentType !== 'quotation'
+  && documentType !== 'purchase_order'
+  && documentType !== 'vendor_bill'
+  && documentType !== 'sales_order'
 
 export const getCommercialDocumentTitle = (documentType, language = 'en', { uppercase = false, flow = 'sell' } = {}) => {
   let en = 'Tax Invoice'
@@ -18,6 +22,9 @@ export const getCommercialDocumentTitle = (documentType, language = 'en', { uppe
   } else if (documentType === 'vendor_bill') {
     en = 'Purchase Order Bill'
     ar = 'فاتورة أمر الشراء'
+  } else if (documentType === 'sales_order') {
+    en = 'Sales Order Bill'
+    ar = 'فاتورة أمر البيع'
   } else if (documentType === 'quotation') {
     en = 'Quotation'
     ar = 'عرض سعر'
@@ -32,6 +39,7 @@ export const getCommercialDocumentTitle = (documentType, language = 'en', { uppe
 export const getCommercialDocumentNumberLabel = (documentType, language = 'en', flow = 'sell') => {
   if (documentType === 'purchase_order') return language === 'ar' ? 'رقم طلب الشراء' : 'PO No.'
   if (documentType === 'vendor_bill') return language === 'ar' ? 'رقم فاتورة أمر الشراء' : 'Bill No.'
+  if (documentType === 'sales_order') return language === 'ar' ? 'رقم أمر البيع' : 'SO No.'
   if (documentType === 'quotation') return language === 'ar' ? 'رقم عرض السعر' : 'Quotation No.'
   if (documentType === 'purchase_invoice' || flow === 'purchase') return language === 'ar' ? 'رقم فاتورة الشراء' : 'Purchase Inv No.'
   return language === 'ar' ? 'رقم الفاتورة' : 'Invoice No.'
@@ -57,6 +65,9 @@ export const resolveCommercialDocumentNumber = (invoice, documentType) => {
   }
   if (documentType === 'vendor_bill') {
     return invoice?.billNumber || (invoice?.poNumber ? `BILL-${invoice.poNumber}` : invoice?.invoiceNumber || 'BILL-DRAFT')
+  }
+  if (documentType === 'sales_order') {
+    return invoice?.poNumber || invoice?.invoiceNumber || 'SO-DRAFT'
   }
   return invoice?.quotationNumber || invoice?.invoiceNumber || 'DRAFT-PREVIEW'
 }

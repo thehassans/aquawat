@@ -260,7 +260,29 @@ const invoiceSchema = new mongoose.Schema({
   // Reference
   purchaseOrderNumber: { type: String },
   sourcePurchaseOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'PurchaseOrder', index: true, set: cleanObjectId },
+  sourceDeliveryNoteId: { type: mongoose.Schema.Types.ObjectId, ref: 'DeliveryNote', index: true, set: cleanObjectId },
   deliveryNoteIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'DeliveryNote', index: true, set: cleanObjectId }],
+  sourceGrnIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'GRN', index: true, set: cleanObjectId }],
+  /** Linked commercial docs shown on the invoice (SO / PO / DN / GRN). */
+  documentReferences: [{
+    kind: { type: String, enum: ['sales_order', 'purchase_order', 'delivery_note', 'grn', 'other'], default: 'other' },
+    docId: { type: mongoose.Schema.Types.ObjectId, set: cleanObjectId },
+    number: { type: String, default: '' },
+    label: { type: String, default: '' },
+  }],
+  /**
+   * Optional GL lines chosen on the invoice form.
+   * When present and balanced, used instead of auto-generated journal lines on post.
+   */
+  accountingLines: [{
+    accountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', set: cleanObjectId },
+    accountCode: { type: String, default: '' },
+    accountName: { type: String, default: '' },
+    debit: { type: Number, default: 0 },
+    credit: { type: Number, default: 0 },
+    description: { type: String, default: '' },
+    role: { type: String, default: '' },
+  }],
   contractNumber: { type: String },
   originalInvoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', set: cleanObjectId },
   proformaSourceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', set: cleanObjectId },

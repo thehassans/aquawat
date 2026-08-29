@@ -601,6 +601,64 @@ router.get('/summary', checkPermission('sales', 'read'), async (req, res) => {
   }
 });
 
+/** Chart series for reporting overview */
+router.get('/charts', checkPermission('sales', 'read'), async (req, res) => {
+  try {
+    const { from, to } = parseRange(req.query);
+    const match = sellInvoiceMatch(req, from, to);
+
+    const invoices = await Invoice.find(match)
+      .select('issueDate grandTotal lineItems salesTeamId salespersonId')
+      .lean();
+
+    const byDayMap = new Map();
+    const productMap = new Map();
+    const teamMap = new Map();
+
+    for (const inv of invoices) {
+      const day = groupKey(inv.issueDate, 'day');
+      const rev = Number(inv.grandTotal || 0);
+      byDayMap.set(day, (byDayMap.get(day) || 0) + rev);
+
+      const teamKey = String(inv.salesTeamId || 'none');
+      teamMap.set(teamKey, (teamMap.get(teamKey) || 0) + rev);
+
+      for (const line of inv.lineItems || []) {
+        const name = line.productName || line.manualName || 'Item';
+        const lineRev = Number(line.lineTotalWithTax ?? line.lineTotal ?? 0);
+        productMap.set(name, (productMap.get(name) || 0) + lineRev);
+      }
+    }
+
+    const teamIds = [...teamMap.keys()].filter((id) => id !== 'none' && mongoose.Types.ObjectId.isValid(id));
+    const teams = teamIds.length
+      ? await SalesTeam.find({ _id: { $in: teamIds }, ...req.tenantFilter }).select('name').lean()
+      : [];
+    const teamName = Object.fromEntries(teams.map((t) => [String(t._id), t.name]));
+
+    const revenueByDay = [...byDayMap.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([label, revenue]) => ({ label, revenue: Number(revenue.toFixed(2)) }));
+
+    const byTeam = [...teamMap.entries()]
+      .map(([id, revenue]) => ({
+        name: id === 'none' ? 'Unassigned' : (teamName[id] || 'Team'),
+        revenue: Number(revenue.toFixed(2)),
+      }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 8);
+
+    const topProducts = [...productMap.entries()]
+      .map(([name, revenue]) => ({ name: String(name).slice(0, 28), revenue: Number(revenue.toFixed(2)) }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 8);
+
+    res.json({ from, to, revenueByDay, byTeam, topProducts });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 /** Delivered quantities for invoicing policy */
 router.get('/delivered-qty/:purchaseOrderId', checkPermission('sales', 'read'), async (req, res) => {
   try {

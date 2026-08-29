@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   BookOpen, Plus, RefreshCw, Scale, TrendingUp, Landmark,
@@ -24,26 +24,21 @@ import {
 } from './AccountingModules'
 
 const TABS = [
-  { id: 'overview', labelEn: 'Overview', labelAr: 'نظرة عامة', icon: Landmark, group: 'workspace' },
-  { id: 'chart-of-accounts', labelEn: 'Chart of Accounts', labelAr: 'دليل الحسابات', icon: BookOpen, group: 'workspace' },
-  { id: 'daily-restriction', labelEn: 'Daily Restriction', labelAr: 'القيود اليومية', icon: FileSpreadsheet, group: 'workspace' },
-  { id: 'general-voucher', labelEn: 'General Voucher', labelAr: 'سند قيد عام', icon: FileText, group: 'workspace' },
-  { id: 'receipt-voucher', labelEn: 'Receipt Voucher', labelAr: 'سند قبض', icon: Receipt, group: 'workspace' },
-  { id: 'payment-voucher', labelEn: 'Payment Voucher', labelAr: 'سند صرف', icon: Wallet, group: 'workspace' },
-  { id: 'account-report', labelEn: 'Account of Report', labelAr: 'تقرير الحساب', icon: BookOpen, group: 'reports' },
-  { id: 'balance-sheet', labelEn: 'Balance Sheet', labelAr: 'الميزانية العمومية', icon: Scale, group: 'reports' },
-  { id: 'customer-account', labelEn: 'Customer Account', labelAr: 'كشف حساب العميل', icon: Users, group: 'reports' },
-  { id: 'customer-summary', labelEn: 'Customer Summary', labelAr: 'ملخص العملاء', icon: Users, group: 'reports' },
-  { id: 'supplier-account', labelEn: 'Supplier Account', labelAr: 'كشف حساب المورد', icon: Truck, group: 'reports' },
-  { id: 'supplier-summary', labelEn: 'Supplier Summary', labelAr: 'ملخص الموردين', icon: Truck, group: 'reports' },
-  { id: 'ledger-search', labelEn: 'Search', labelAr: 'بحث', icon: FileSpreadsheet, group: 'workspace' },
-  { id: 'trial', labelEn: 'Trial Balance', labelAr: 'ميزان المراجعة', icon: Scale, group: 'reports' },
-  { id: 'pnl', labelEn: 'Profit & Loss', labelAr: 'الأرباح والخسائر', icon: TrendingUp, group: 'reports' },
-]
-
-const GROUPS = [
-  { id: 'workspace', labelEn: 'Ledger', labelAr: 'الدفتر' },
-  { id: 'reports', labelEn: 'Reports', labelAr: 'التقارير' },
+  { id: 'overview', labelEn: 'Overview', labelAr: 'نظرة عامة', icon: Landmark },
+  { id: 'chart-of-accounts', labelEn: 'Chart of Accounts', labelAr: 'دليل الحسابات', icon: BookOpen },
+  { id: 'daily-restriction', labelEn: 'Daily Restriction', labelAr: 'القيود اليومية', icon: FileSpreadsheet },
+  { id: 'general-voucher', labelEn: 'General Voucher', labelAr: 'سند قيد عام', icon: FileText },
+  { id: 'receipt-voucher', labelEn: 'Receipt Voucher', labelAr: 'سند قبض', icon: Receipt },
+  { id: 'payment-voucher', labelEn: 'Payment Voucher', labelAr: 'سند صرف', icon: Wallet },
+  { id: 'account-report', labelEn: 'Account of Report', labelAr: 'تقرير الحساب', icon: BookOpen },
+  { id: 'balance-sheet', labelEn: 'Balance Sheet', labelAr: 'الميزانية العمومية', icon: Scale },
+  { id: 'customer-account', labelEn: 'Customer Account', labelAr: 'كشف حساب العميل', icon: Users },
+  { id: 'customer-summary', labelEn: 'Customer Summary', labelAr: 'ملخص العملاء', icon: Users },
+  { id: 'supplier-account', labelEn: 'Supplier Account', labelAr: 'كشف حساب المورد', icon: Truck },
+  { id: 'supplier-summary', labelEn: 'Supplier Summary', labelAr: 'ملخص الموردين', icon: Truck },
+  { id: 'ledger-search', labelEn: 'Search', labelAr: 'بحث', icon: FileSpreadsheet },
+  { id: 'trial', labelEn: 'Trial Balance', labelAr: 'ميزان المراجعة', icon: Scale },
+  { id: 'pnl', labelEn: 'Profit & Loss', labelAr: 'الأرباح والخسائر', icon: TrendingUp },
 ]
 
 const emptyLine = () => ({ accountId: '', debit: '', credit: '', description: '' })
@@ -63,21 +58,12 @@ const journalExportColumns = (isAr) => [
 const fontPage = { fontFamily: "'Plus Jakarta Sans', 'DM Sans', 'Tajawal', sans-serif" }
 const fontDisplay = { fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif" }
 
-const KPI_TONES = {
-  cash: { well: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300', ring: 'ring-emerald-100 dark:ring-emerald-500/10' },
-  ar: { well: 'bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300', ring: 'ring-sky-100 dark:ring-sky-500/10' },
-  ap: { well: 'bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300', ring: 'ring-amber-100 dark:ring-amber-500/10' },
-  ni: { well: 'bg-teal-50 text-teal-800 dark:bg-teal-500/10 dark:text-teal-300', ring: 'ring-teal-100 dark:ring-teal-500/10' },
-}
-
 export default function Accounting() {
   const { language } = useSelector((s) => s.ui)
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
   const { section } = useParams()
   const tab = TABS.some((item) => item.id === section) ? section : 'overview'
   const activeTab = TABS.find((item) => item.id === tab) || TABS[0]
-  const setTab = (id) => navigate(id === 'overview' ? '/app/dashboard/accounting' : `/app/dashboard/accounting/${id}`)
   const [showJournalForm, setShowJournalForm] = useState(false)
   const [accountSearch, setAccountSearch] = useState('')
   const [journalForm, setJournalForm] = useState({
@@ -91,6 +77,30 @@ export default function Accounting() {
     queryKey: ['accounting-dashboard'],
     queryFn: () => api.get('/accounting/dashboard').then((r) => r.data),
   })
+
+  const { data: recentInvoicesData, isLoading: invoicesLoading, refetch: refetchInvoices } = useQuery({
+    queryKey: ['accounting-overview-invoices'],
+    queryFn: async () => {
+      const { data } = await api.get('/invoices', { params: { limit: 8, page: 1 } })
+      return data
+    },
+    enabled: tab === 'overview',
+  })
+
+  const recentInvoices = useMemo(() => {
+    const list = recentInvoicesData?.invoices || recentInvoicesData?.items || recentInvoicesData || []
+    return Array.isArray(list) ? list : []
+  }, [recentInvoicesData])
+
+  const invoiceStats = useMemo(() => {
+    const list = recentInvoices
+    const sell = list.filter((i) => String(i.flow || 'sell') !== 'purchase')
+    const purchase = list.filter((i) => String(i.flow || '') === 'purchase')
+    const draft = list.filter((i) => String(i.status || '').toLowerCase() === 'draft').length
+    const outstanding = list.reduce((s, i) => s + Number(i.balanceDue ?? i.amountDue ?? 0), 0)
+    const revenue = sell.reduce((s, i) => s + Number(i.grandTotal || 0), 0)
+    return { count: list.length, sell: sell.length, purchase: purchase.length, draft, outstanding, revenue }
+  }, [recentInvoices])
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounting-accounts'],
@@ -120,16 +130,6 @@ export default function Accounting() {
     queryKey: ['accounting-balance'],
     queryFn: () => api.get('/accounting/reports/balance-sheet').then((r) => r.data),
     enabled: tab === 'balance-sheet',
-  })
-
-  const seedMutation = useMutation({
-    mutationFn: () => api.post('/accounting/accounts/seed'),
-    onSuccess: () => {
-      toast.success(isAr ? 'تم تجهيز دليل الحسابات' : 'Chart of accounts ready')
-      queryClient.invalidateQueries({ queryKey: ['accounting-accounts'] })
-      queryClient.invalidateQueries({ queryKey: ['accounting-dashboard'] })
-    },
-    onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
   })
 
   const createJournalMutation = useMutation({
@@ -295,176 +295,224 @@ export default function Accounting() {
   ]
 
   return (
-    <div className="relative -mx-4 -mt-4 min-h-[calc(100vh-4rem)] overflow-hidden px-4 pb-16 pt-6 lg:-mx-6 lg:px-6" style={fontPage}>
-      <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-[-18%] h-[380px] w-[720px] -translate-x-1/2 rounded-full bg-emerald-300/20 blur-[120px]" />
-        <div className="absolute inset-0 opacity-[0.035] dark:opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #0f172a 1px, transparent 0)', backgroundSize: '28px 28px' }} />
+    <div className="space-y-6" style={fontPage}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
+            {isAr ? activeTab.labelAr : activeTab.labelEn}
+          </h2>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+            {isAr
+              ? 'دفتر مزدوج القيد مع الفواتير والتقارير'
+              : 'Double-entry ledger with invoices and reports'}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <ExportMenu
+            language={language}
+            rows={[]}
+            getRows={getExportRows}
+            columns={exportColumns}
+            fileBaseName={`maqder-accounting-${tab}`}
+            title={isAr ? activeTab.labelAr : activeTab.labelEn}
+          />
+          <button
+            type="button"
+            onClick={() => setShowJournalForm(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-700"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {isAr ? 'قيد جديد' : 'New journal'}
+          </button>
+        </div>
       </div>
 
-      <div className="relative mx-auto max-w-7xl space-y-7">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-700/80 dark:text-emerald-400/80">
-              {isAr ? 'المحاسبة' : 'Accounting'}
-            </p>
-            <h1 className="mt-1.5 text-3xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-[2.35rem]" style={fontDisplay}>
-              {isAr ? activeTab.labelAr : activeTab.labelEn}
-            </h1>
-            <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-slate-500 dark:text-slate-400">
-              {isAr
-                ? 'دفتر أستاذ مزدوج القيد مع القيود اليومية والسندات والتقارير المالية — متكامل مع الفواتير والمصروفات.'
-                : 'Double-entry ledger with daily journals, vouchers, and financial statements — live with invoices and expenses.'}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <ExportMenu
-              language={language}
-              rows={[]}
-              getRows={getExportRows}
-              columns={exportColumns}
-              fileBaseName={`maqder-accounting-${tab}`}
-              title={isAr ? activeTab.labelAr : activeTab.labelEn}
-            />
-            <button
-              type="button"
-              onClick={() => seedMutation.mutate()}
-              disabled={seedMutation.isPending}
-              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200/90 bg-white/80 px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur hover:border-emerald-200 hover:text-emerald-800 dark:border-white/10 dark:bg-dark-800 dark:text-slate-200"
-            >
-              <RefreshCw className={`h-4 w-4 ${seedMutation.isPending ? 'animate-spin' : ''}`} />
-              {isAr ? 'تجهيز الدليل' : 'Seed chart'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowJournalForm(true)}
-              className="inline-flex items-center gap-2 rounded-2xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_16px_32px_-16px_rgba(4,120,87,0.8)] hover:bg-emerald-800"
-            >
-              <Plus className="h-4 w-4" />
-              {isAr ? 'قيد جديد' : 'New journal'}
-            </button>
-          </div>
-        </div>
-
-        <div className="rounded-[1.6rem] border border-white/80 bg-white/70 p-2 shadow-[0_18px_50px_-36px_rgba(15,23,42,0.35)] backdrop-blur-xl dark:border-white/10 dark:bg-dark-800/70">
-          {GROUPS.map((group) => (
-            <div key={group.id} className="flex flex-col gap-1.5 px-1 py-1 sm:flex-row sm:items-center">
-              <p className="w-20 shrink-0 px-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                {isAr ? group.labelAr : group.labelEn}
-              </p>
-              <div className="flex min-w-0 flex-1 flex-wrap gap-1">
-                {TABS.filter((item) => item.group === group.id).map((item) => {
-                  const Icon = item.icon
-                  const active = tab === item.id
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setTab(item.id)}
-                      className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12.5px] font-semibold transition ${
-                        active
-                          ? 'bg-emerald-700 text-white shadow-sm'
-                          : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:hover:bg-white/5 dark:hover:text-white'
-                      }`}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                      {isAr ? item.labelAr : item.labelEn}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <AnimatePresence mode="wait">
-          {tab === 'overview' && (
-            <motion.div key="overview" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {kpis.map((k) => {
-                  const Icon = k.icon
-                  const tone = KPI_TONES[k.key]
-                  return (
-                    <div key={k.key} className={`rounded-[1.4rem] border border-white/80 bg-white/85 p-5 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)] ring-1 ${tone.ring} backdrop-blur dark:border-white/10 dark:bg-dark-800/80`}>
-                      <div className="flex items-center justify-between">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                          {isAr ? k.labelAr : k.labelEn}
-                        </p>
-                        <span className={`inline-flex h-9 w-9 items-center justify-center rounded-2xl ${tone.well}`}>
-                          <Icon className="h-4 w-4" />
-                        </span>
-                      </div>
-                      <p className="mt-4 text-[1.65rem] font-semibold tracking-tight text-slate-950 dark:text-white" style={fontDisplay}>
-                        {dashLoading ? '—' : <Money value={k.value || 0} />}
+      <AnimatePresence mode="wait">
+        {tab === 'overview' && (
+          <motion.div key="overview" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+              {kpis.map((k) => {
+                const Icon = k.icon
+                return (
+                  <div
+                    key={k.key}
+                    className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800"
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                        {isAr ? k.labelAr : k.labelEn}
                       </p>
+                      <Icon className="h-4 w-4 text-slate-400" />
                     </div>
-                  )
-                })}
-              </div>
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <div className="rounded-[1.5rem] border border-white/80 bg-white/85 p-6 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)] backdrop-blur dark:border-white/10 dark:bg-dark-800/80 lg:col-span-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-base font-semibold text-slate-900 dark:text-white" style={fontDisplay}>{isAr ? 'أحدث القيود' : 'Recent journals'}</h3>
-                      <p className="mt-0.5 text-xs text-slate-400">{isAr ? 'آخر الحركات المرحلة والمسودات' : 'Latest posted entries and drafts'}</p>
-                    </div>
-                    <button type="button" onClick={() => refetchDash()} className="rounded-xl border border-slate-200/80 p-2 text-slate-400 hover:border-emerald-200 hover:text-emerald-700 dark:border-white/10">
+                    <p className="mt-3 text-xl font-semibold tracking-tight tabular-nums text-slate-900 dark:text-white">
+                      {dashLoading ? '—' : <Money value={k.value || 0} />}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { labelEn: 'Invoices', labelAr: 'فواتير', value: invoiceStats.count },
+                { labelEn: 'Sales invoices', labelAr: 'مبيعات', value: invoiceStats.sell },
+                { labelEn: 'Drafts', labelAr: 'مسودات', value: invoiceStats.draft },
+                { labelEn: 'Outstanding', labelAr: 'مستحق', value: invoiceStats.outstanding, money: true },
+              ].map((item) => (
+                <div
+                  key={item.labelEn}
+                  className="rounded-xl border border-slate-200/70 bg-slate-50/90 px-3.5 py-3 dark:border-dark-600 dark:bg-dark-900/50"
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    {isAr ? item.labelAr : item.labelEn}
+                  </p>
+                  <p className="mt-1 text-lg font-semibold tabular-nums tracking-tight text-slate-800 dark:text-slate-100">
+                    {invoicesLoading ? '—' : item.money ? <Money value={item.value || 0} /> : item.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800 lg:col-span-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                      {isAr ? 'أحدث الفواتير' : 'Recent invoices'}
+                    </h3>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      {isAr ? 'فواتير البيع والشراء' : 'Sales and purchase invoices'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      to="/app/dashboard/accounting/invoices"
+                      className="text-xs font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-300"
+                    >
+                      {isAr ? 'الكل' : 'View all'}
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => { refetchInvoices(); refetchDash() }}
+                      className="rounded-lg border border-slate-200/80 p-1.5 text-slate-400 hover:text-slate-700 dark:border-dark-600"
+                    >
                       <RefreshCw className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                  <div className="mt-4 divide-y divide-slate-100 dark:divide-white/5">
-                    {(dashboard?.recent || []).length === 0 && (
-                      <div className="flex flex-col items-center py-12 text-center">
-                        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
-                          <FileSpreadsheet className="h-5 w-5" />
-                        </div>
-                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{isAr ? 'لا قيود بعد' : 'No journals yet'}</p>
-                        <p className="mt-1 max-w-xs text-xs text-slate-400">{isAr ? 'أنشئ قيداً يومياً أو سنداً لبدء دفتر الأستاذ.' : 'Create a daily restriction or voucher to start the ledger.'}</p>
-                        <button type="button" onClick={() => setShowJournalForm(true)} className="mt-4 text-sm font-semibold text-emerald-700 hover:text-emerald-800">
-                          {isAr ? 'قيد جديد' : 'New journal'}
-                        </button>
-                      </div>
-                    )}
-                    {(dashboard?.recent || []).map((j) => (
-                      <div key={j._id} className="flex items-center justify-between py-3.5 text-sm">
-                        <div>
-                          <p className="font-semibold text-slate-900 dark:text-white">{j.entryNumber}</p>
-                          <p className="text-xs text-slate-500">{j.memo || j.type}</p>
-                        </div>
-                        <div className="text-end">
-                          <p className="font-semibold tabular-nums"><Money value={j.totalDebit} /></p>
-                          <p className={`text-[10px] font-bold uppercase tracking-wide ${j.status === 'posted' ? 'text-emerald-600' : j.status === 'void' ? 'text-rose-500' : 'text-amber-600'}`}>{j.status}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
                 </div>
-                <div className="rounded-[1.5rem] border border-white/80 bg-white/85 p-6 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)] backdrop-blur dark:border-white/10 dark:bg-dark-800/80">
-                  <h3 className="text-base font-semibold text-slate-900 dark:text-white" style={fontDisplay}>{isAr ? 'صحة الدفتر' : 'Ledger health'}</h3>
-                  <div className="mt-5 space-y-3.5 text-sm">
-                    {[
-                      [isAr ? 'الحسابات' : 'Accounts', dashboard?.accountCount || 0],
-                      [isAr ? 'مسودات' : 'Drafts', dashboard?.draftCount || 0],
-                      [isAr ? 'مرحّلة' : 'Posted', dashboard?.postedCount || 0],
-                    ].map(([label, value]) => (
-                      <div key={label} className="flex justify-between">
-                        <span className="text-slate-500">{label}</span>
-                        <span className="font-semibold tabular-nums text-slate-900 dark:text-white">{value}</span>
-                      </div>
-                    ))}
-                    <div className="flex items-center justify-between border-t border-slate-100 pt-4 dark:border-white/10">
-                      <span className="text-slate-500">{isAr ? 'ميزان متوازن' : 'Trial balanced'}</span>
-                      {dashboard?.trialBalanced
-                        ? <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700"><CheckCircle2 className="h-4 w-4" />{isAr ? 'متوازن' : 'Balanced'}</span>
-                        : <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-600"><XCircle className="h-4 w-4" />{isAr ? 'غير متوازن' : 'Review'}</span>}
+                <div className="mt-3 divide-y divide-slate-100 dark:divide-white/5">
+                  {!invoicesLoading && recentInvoices.length === 0 ? (
+                    <div className="flex flex-col items-center py-10 text-center">
+                      <Receipt className="mb-2 h-5 w-5 text-slate-300" />
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                        {isAr ? 'لا فواتير بعد' : 'No invoices yet'}
+                      </p>
+                      <Link
+                        to="/app/dashboard/accounting/invoices"
+                        className="mt-3 text-sm font-semibold text-primary-700 dark:text-primary-300"
+                      >
+                        {isAr ? 'فتح الفواتير' : 'Open invoices'}
+                      </Link>
                     </div>
+                  ) : null}
+                  {recentInvoices.map((inv) => (
+                    <Link
+                      key={inv._id}
+                      to={`/app/dashboard/accounting/invoices/${inv._id}`}
+                      className="flex items-center justify-between py-3 text-sm transition hover:bg-slate-50/80 dark:hover:bg-white/[0.03]"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-900 dark:text-white">
+                          {inv.invoiceNumber || '—'}
+                        </p>
+                        <p className="truncate text-xs text-slate-500">
+                          {inv.buyer?.name || inv.customerId?.name || inv.supplierId?.name || inv.seller?.name || '—'}
+                          {' · '}
+                          {String(inv.flow || 'sell') === 'purchase'
+                            ? (isAr ? 'مشتريات' : 'Purchase')
+                            : (isAr ? 'مبيعات' : 'Sales')}
+                        </p>
+                      </div>
+                      <div className="text-end">
+                        <p className="font-semibold tabular-nums"><Money value={inv.grandTotal} /></p>
+                        <p className={`text-[10px] font-semibold uppercase tracking-wide ${
+                          inv.status === 'paid' || inv.paymentStatus === 'paid'
+                            ? 'text-emerald-600'
+                            : inv.status === 'draft'
+                              ? 'text-amber-600'
+                              : 'text-slate-500'
+                        }`}
+                        >
+                          {inv.status || inv.paymentStatus || '—'}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{isAr ? 'صحة الدفتر' : 'Ledger health'}</h3>
+                <div className="mt-4 space-y-3 text-sm">
+                  {[
+                    [isAr ? 'الحسابات' : 'Accounts', dashboard?.accountCount || 0],
+                    [isAr ? 'مسودات' : 'Drafts', dashboard?.draftCount || 0],
+                    [isAr ? 'مرحّلة' : 'Posted', dashboard?.postedCount || 0],
+                    [isAr ? 'فواتير' : 'Invoices', invoiceStats.count],
+                  ].map(([label, value]) => (
+                    <div key={label} className="flex justify-between">
+                      <span className="text-slate-500">{label}</span>
+                      <span className="font-semibold tabular-nums text-slate-900 dark:text-white">{value}</span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-dark-600">
+                    <span className="text-slate-500">{isAr ? 'ميزان متوازن' : 'Trial balanced'}</span>
+                    {dashboard?.trialBalanced
+                      ? <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" />{isAr ? 'متوازن' : 'Balanced'}</span>
+                      : <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600"><XCircle className="h-3.5 w-3.5" />{isAr ? 'غير متوازن' : 'Review'}</span>}
                   </div>
                 </div>
               </div>
-            </motion.div>
-          )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{isAr ? 'أحدث القيود' : 'Recent journals'}</h3>
+                  <p className="mt-0.5 text-xs text-slate-400">{isAr ? 'آخر الحركات' : 'Latest entries'}</p>
+                </div>
+                <button type="button" onClick={() => refetchDash()} className="rounded-lg border border-slate-200/80 p-1.5 text-slate-400 hover:text-slate-700 dark:border-dark-600">
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="mt-3 divide-y divide-slate-100 dark:divide-white/5">
+                {(dashboard?.recent || []).length === 0 && (
+                  <div className="flex flex-col items-center py-8 text-center">
+                    <FileSpreadsheet className="mb-2 h-5 w-5 text-slate-300" />
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{isAr ? 'لا قيود بعد' : 'No journals yet'}</p>
+                    <button type="button" onClick={() => setShowJournalForm(true)} className="mt-3 text-sm font-semibold text-primary-700 dark:text-primary-300">
+                      {isAr ? 'قيد جديد' : 'New journal'}
+                    </button>
+                  </div>
+                )}
+                {(dashboard?.recent || []).map((j) => (
+                  <div key={j._id} className="flex items-center justify-between py-3 text-sm">
+                    <div>
+                      <p className="font-semibold text-slate-900 dark:text-white">{j.entryNumber}</p>
+                      <p className="text-xs text-slate-500">{j.memo || j.type}</p>
+                    </div>
+                    <div className="text-end">
+                      <p className="font-semibold tabular-nums"><Money value={j.totalDebit} /></p>
+                      <p className={`text-[10px] font-semibold uppercase tracking-wide ${j.status === 'posted' ? 'text-emerald-600' : j.status === 'void' ? 'text-rose-500' : 'text-amber-600'}`}>{j.status}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
 
           {tab === 'chart-of-accounts' && (
-            <motion.div key="accounts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-[1.5rem] border border-white/80 bg-white/90 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)] dark:border-white/10 dark:bg-dark-800">
+            <motion.div key="accounts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
               <div className="border-b border-slate-100 px-5 py-3 dark:border-white/10">
                 <input
                   value={accountSearch}
@@ -566,7 +614,7 @@ export default function Accounting() {
           )}
 
           {tab === 'trial' && trial && (
-            <motion.div key="trial" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-[1.5rem] border border-white/80 bg-white/90 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)] dark:border-white/10 dark:bg-dark-800">
+            <motion.div key="trial" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
                 <h3 className="font-semibold" style={fontDisplay}>{isAr ? 'ميزان المراجعة' : 'Trial Balance'}</h3>
                 <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${trial.balanced ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
@@ -605,7 +653,7 @@ export default function Accounting() {
 
           {tab === 'pnl' && pnl && (
             <motion.div key="pnl" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <div className="rounded-[1.5rem] border border-white/80 bg-white/90 p-6 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)] dark:border-white/10 dark:bg-dark-800">
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
                 <h3 className="font-semibold text-emerald-800" style={fontDisplay}>{isAr ? 'الإيرادات' : 'Revenue'}</h3>
                 <div className="mt-4 space-y-2">
                   {pnl.revenue.map((a) => (
@@ -620,7 +668,7 @@ export default function Accounting() {
                   </div>
                 </div>
               </div>
-              <div className="rounded-[1.5rem] border border-white/80 bg-white/90 p-6 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)] dark:border-white/10 dark:bg-dark-800">
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
                 <h3 className="font-semibold text-rose-700" style={fontDisplay}>{isAr ? 'المصروفات' : 'Expenses'}</h3>
                 <div className="mt-4 space-y-2">
                   {pnl.expenses.map((a) => (
@@ -635,7 +683,7 @@ export default function Accounting() {
                   </div>
                 </div>
               </div>
-              <div className="rounded-[1.5rem] border border-emerald-100 bg-emerald-50/80 p-6 lg:col-span-2 dark:border-emerald-500/20 dark:bg-emerald-500/10">
+              <div className="rounded-2xl border border-slate-200/80 bg-primary-500/5 p-5 lg:col-span-2 dark:border-primary-500/20 dark:bg-primary-500/10">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-800/70 dark:text-emerald-300">
                     {isAr ? 'صافي الدخل' : 'Net income'}
@@ -653,7 +701,7 @@ export default function Accounting() {
                 { titleEn: 'Liabilities', titleAr: 'الالتزامات', rows: balance.liabilities, total: balance.totalLiabilities, tone: 'text-amber-800' },
                 { titleEn: 'Equity', titleAr: 'حقوق الملكية', rows: balance.equity, total: balance.totalEquity, tone: 'text-sky-800' },
               ].map((col) => (
-                <div key={col.titleEn} className="rounded-[1.5rem] border border-white/80 bg-white/90 p-6 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)] dark:border-white/10 dark:bg-dark-800">
+                <div key={col.titleEn} className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
                   <h3 className={`font-semibold ${col.tone} dark:text-white`} style={fontDisplay}>{isAr ? col.titleAr : col.titleEn}</h3>
                   <div className="mt-4 space-y-2.5 text-sm">
                     {col.rows.map((r) => (
@@ -672,7 +720,6 @@ export default function Accounting() {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
 
       <AnimatePresence>
         {showJournalForm && (

@@ -10,15 +10,19 @@ import PurchaseReturn from '../models/PurchaseReturn.js';
 import LandedCost from '../models/LandedCost.js';
 import Invoice from '../models/Invoice.js';
 import Tenant from '../models/Tenant.js';
-import { protect, tenantFilter, checkPermission, checkAnyPermission, requireTenantFilter } from '../middleware/auth.js';
+import Customer from '../models/Customer.js';
+import { protect, tenantFilter, checkPermission, checkAnyPermission, requireTenantFilter, tenantHasEmailAddon } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { saveUploadBuffer, readUploadBuffer } from '../utils/objectStorage.js';
 import { normalizeProductType } from '../utils/productType.js';
-import { confirmGrnReceive, generateGrnNumber, ensureDraftGrnForApprovedPo, PurchasesValidationError, upsertDraftLandedCostForPo } from '../services/purchasesWorkflow.js';
+import { confirmGrnReceive, generateGrnNumber, PurchasesValidationError, upsertDraftLandedCostForPo } from '../services/purchasesWorkflow.js';
 import { computePurchaseLineTotals, buildPoReceivingLedger, round2, matchPurchaseLine } from '../services/purchasesLogic.js';
 import { nextDailyDocNumber } from '../services/inventory/sequence.js';
 import { assertSellOrderCanConfirm, shouldLockSellOrder, getSalesSettings } from '../services/sales/salesLifecycle.js';
 import { enrichInvoiceArabicFields } from '../utils/invoiceArabic.js';
+import { sendTenantEmail } from '../utils/tenantEmailService.js';
+import { buildPremiumEmailShell, getTenantLoginUrl, getTenantWorkspaceHost, getTenantWorkspaceUrl } from '../utils/premiumEmailShell.js';
+import { sendRestaurantWhatsApp } from '../services/restaurantWhatsAppService.js';
 
 const router = express.Router();
 
@@ -29,6 +33,44 @@ router.use(requireTenantFilter);
 function toNumber(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function normalizeText(value) {
+  return String(value || '').trim();
+}
+
+function resolveSalesOrderRecipient(customer, order, fallbackRecipient = '') {
+  const directRecipient = String(fallbackRecipient || '').trim().toLowerCase();
+  if (directRecipient) return directRecipient;
+  const customerEmail = String(customer?.email || '').trim().toLowerCase();
+  if (customerEmail) return customerEmail;
+  const contactEmail = String(customer?.contactPerson?.email || '').trim().toLowerCase();
+  if (contactEmail) return contactEmail;
+  return String(order?.buyer?.contactEmail || '').trim().toLowerCase();
+}
+
+function buildSalesOrderEmailHtml({ order, customerName = '', tenant }) {
+  const safeName = normalizeText(customerName) || 'Customer';
+  const orderNumber = normalizeText(order?.poNumber) || 'Sales Order';
+  const total = `${toNumber(order?.grandTotal, 0).toFixed(2)} ${normalizeText(order?.currency) || 'SAR'}`;
+  const companyName = normalizeText(tenant?.business?.legalNameEn || tenant?.name) || 'Maqder';
+  const loginUrl = getTenantLoginUrl(tenant);
+
+  return buildPremiumEmailShell({
+    brandName: companyName,
+    title: `Sales Order Bill ${orderNumber}`,
+    body: `Dear ${safeName},\n\nPlease find your sales order bill attached.`,
+    secondaryLines: [
+      { label: 'Customer', value: safeName },
+      { label: 'Sales order', value: orderNumber },
+      { label: 'Total', value: total },
+      { label: 'Workspace', value: getTenantWorkspaceHost(tenant), href: loginUrl },
+    ].filter(Boolean),
+    workspaceUrl: getTenantWorkspaceUrl(tenant),
+    workspaceHost: getTenantWorkspaceHost(tenant),
+    cta: { href: loginUrl, label: 'Open workspace' },
+    dir: 'ltr',
+  });
 }
 
 /**
@@ -60,22 +102,35 @@ const vendorBillUpload = multer({
   },
 });
 
-function normalizeLineItems(lineItems = []) {
+function normalizeLineItems(lineItems = [], { requirePositiveCost = false } = {}) {
   const items = Array.isArray(lineItems) ? lineItems : [];
   const totals = computePurchaseLineTotals(items);
   const normalized = items.map((li, index) => {
     const computed = totals.lines[index] || { lineSubtotal: 0, lineTax: 0, lineTotal: 0 };
+    const productType = normalizeProductType(li.productType);
+    const unitCost = toNumber(li.unitCost ?? 0, 0);
+    if (
+      requirePositiveCost
+      && productType !== 'service'
+      && toNumber(li.quantityOrdered ?? li.quantity ?? 0, 0) > 0
+      && unitCost <= 0
+    ) {
+      throw new PurchasesValidationError(
+        'Unit cost must be greater than zero for stocked lines',
+        'UNIT_COST_REQUIRED',
+      );
+    }
     return {
       productId: li.productId || undefined,
       variantId: li.variantId || undefined,
       manualName: li.manualName || '',
       uom: li.uom || '',
       description: li.description,
-      productType: normalizeProductType(li.productType),
+      productType,
       quantityOrdered: toNumber(li.quantityOrdered ?? li.quantity ?? 0, 0),
       quantityReceived: toNumber(li.quantityReceived ?? 0, 0),
       quantityReturned: toNumber(li.quantityReturned, 0),
-      unitCost: toNumber(li.unitCost ?? 0, 0),
+      unitCost,
       taxRate: toNumber(li.taxRate ?? 15, 15),
       lineSubtotal: computed.lineSubtotal,
       lineTax: computed.lineTax,
@@ -182,8 +237,11 @@ router.get('/', gateSellOrSupply('read'), async (req, res) => {
 
 router.get('/stats', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
+    const match = { ...castTenantFilter(req.tenantFilter) };
+    const flow = String(req.query.flow || 'purchase').toLowerCase();
+    if (flow === 'sell' || flow === 'purchase') match.flow = flow;
     const stats = await PurchaseOrder.aggregate([
-      { $match: castTenantFilter(req.tenantFilter) },
+      { $match: match },
       {
         $facet: {
           totals: [
@@ -381,6 +439,9 @@ router.get('/:id', sellOrSupply('read'), async (req, res) => {
   try {
     const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter })
       .populate('supplierId', 'supplierCode name nameEn nameAr phone email vatNumber crNumber address contactPerson')
+      .populate('customerId', 'name nameEn nameAr entityType vatNumber crNumber phone mobile email address contactPerson')
+      .populate('sourceQuotationId', 'quotationNumber status')
+      .populate('salesTeamId', 'name nameAr code teamType')
       .populate('warehouseId', 'code nameEn nameAr')
       .populate('lineItems.productId', 'sku nameEn nameAr barcode unitOfMeasure productType')
       .populate('receiving.warehouseId', 'code nameEn nameAr')
@@ -388,6 +449,16 @@ router.get('/:id', sellOrSupply('read'), async (req, res) => {
 
     if (!order) {
       return res.status(404).json({ error: 'Purchase order not found' });
+    }
+
+    // Heal stuck quote→SO rows: approvedAt set but status left as draft/sent
+    if (
+      order.flow === 'sell' &&
+      order.approvedAt &&
+      ['draft', 'sent'].includes(String(order.status || ''))
+    ) {
+      order.status = 'approved';
+      await order.save();
     }
 
     const [grns, returns, landedCosts, invoices] = await Promise.all([
@@ -462,7 +533,9 @@ router.post('/', checkTrialLimits('purchaseOrders'), gateSellOrSupply('create'),
         ? await nextDailyDocNumber(req.user.tenantId, 'SO', { padding: 3 })
         : await generatePoNumber(req.user.tenantId));
 
-    const { normalized, subtotal, totalTax, grandTotal } = normalizeLineItems(req.body.lineItems);
+    const { normalized, subtotal, totalTax, grandTotal } = normalizeLineItems(req.body.lineItems, {
+      requirePositiveCost: flow === 'purchase',
+    });
 
     const productIds = normalized
       .map((li) => li.productId)
@@ -536,8 +609,63 @@ router.post('/', checkTrialLimits('purchaseOrders'), gateSellOrSupply('create'),
         costLines: landedCostLines,
       });
     }
+
+    // Sell orders: confirm + post outgoing stock immediately (Physical Inventory deducts)
+    if (flow === 'sell') {
+      order.status = 'approved';
+      order.approvedBy = req.user._id;
+      order.approvedAt = new Date();
+      try {
+        const settings = await getSalesSettings(req.user.tenantId);
+        if (shouldLockSellOrder(order, settings)) order.isLocked = true;
+      } catch {
+        order.isLocked = true;
+      }
+      await order.save();
+
+      let draftDelivery = null;
+      try {
+        const populated = await PurchaseOrder.findOne({ _id: order._id, ...req.tenantFilter })
+          .populate('lineItems.productId', 'sku nameEn nameAr barcode unitOfMeasure productType costPrice')
+          .populate('customerId', 'name nameAr nameEn');
+        const { fulfillSellOrderStockOut } = await import('../services/inventory/documentLinks.js');
+        const result = await fulfillSellOrderStockOut({
+          tenantId: req.user.tenantId,
+          userId: req.user._id,
+          purchaseOrder: populated || order,
+          tenantFilter: req.tenantFilter,
+        });
+        if (result.deliveryNote) {
+          draftDelivery = {
+            _id: result.deliveryNote._id,
+            dnNumber: result.deliveryNote.dnNumber,
+            posted: Boolean(result.posted),
+            inventoryTransferId: result.transfer?._id || result.deliveryNote.inventoryTransferId,
+            transferState: result.transfer?.state,
+            stockError: result.error || undefined,
+          };
+        }
+        if (result.error) {
+          console.warn('[po] create SO stock-out failed:', result.error);
+        }
+      } catch (stockErr) {
+        console.warn('[po] create SO fulfillment failed:', stockErr.message);
+      }
+
+      const fresh = await PurchaseOrder.findById(order._id)
+        .populate('warehouseId', 'code nameEn nameAr')
+        .populate('customerId', 'name nameAr nameEn');
+      return res.status(201).json({
+        ...(typeof fresh.toJSON === 'function' ? fresh.toJSON() : fresh),
+        draftDelivery,
+      });
+    }
+
     res.status(201).json(order);
   } catch (error) {
+    if (error instanceof PurchasesValidationError) {
+      return res.status(400).json({ error: error.message, code: error.code });
+    }
     if (error?.code === 11000) {
       return res.status(400).json({ error: 'Duplicate purchase order number' });
     }
@@ -581,7 +709,9 @@ router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) =
     const updateData = { ...body };
 
     if (Array.isArray(body.lineItems)) {
-      const { normalized, subtotal, totalTax, grandTotal } = normalizeLineItems(body.lineItems);
+      const { normalized, subtotal, totalTax, grandTotal } = normalizeLineItems(body.lineItems, {
+        requirePositiveCost: (existing.flow || 'purchase') === 'purchase',
+      });
       updateData.lineItems = normalized;
       updateData.subtotal = subtotal;
       updateData.totalTax = totalTax;
@@ -614,6 +744,9 @@ router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) =
 
     res.json(order);
   } catch (error) {
+    if (error instanceof PurchasesValidationError) {
+      return res.status(400).json({ error: error.message, code: error.code });
+    }
     res.status(500).json({ error: error.message });
   }
 });
@@ -630,7 +763,12 @@ router.post('/:id/approve', sellOrSupply('approve'), async (req, res) => {
     }
 
     if (order.status === 'approved') {
-      return res.status(400).json({ error: 'Order is already approved' });
+      return res.json({
+        success: true,
+        alreadyApproved: true,
+        message: 'Order is already approved',
+        order,
+      });
     }
 
     if (order.flow === 'sell') {
@@ -768,42 +906,10 @@ router.post('/:id/approve', sellOrSupply('approve'), async (req, res) => {
         .populate('customerId', 'name nameAr')
         .populate('supplierId', 'nameEn nameAr');
 
-      if ((order.flow || 'purchase') === 'purchase') {
-        const result = await ensureDraftGrnForApprovedPo({
-          tenantFilter: req.tenantFilter,
-          tenantId: req.user.tenantId,
-          userId: req.user._id,
-          purchaseOrder: populated || order,
-        });
-        if (result.grn) {
-          try {
-            const { linkDraftReceiptToGrn } = await import('../services/inventory/documentLinks.js');
-            const linked = await linkDraftReceiptToGrn({
-              tenantId: req.user.tenantId,
-              userId: req.user._id,
-              purchaseOrder: populated || order,
-              grn: result.grn,
-            });
-            draftGrn = {
-              _id: result.grn._id,
-              grnNumber: result.grn.grnNumber,
-              status: result.grn.status,
-              created: result.created,
-              inventoryTransferId: linked.transfer?._id || result.grn.inventoryTransferId,
-            };
-          } catch (linkErr) {
-            console.warn('[po] receipt link failed:', linkErr.message);
-            draftGrn = {
-              _id: result.grn._id,
-              grnNumber: result.grn.grnNumber,
-              status: result.grn.status,
-              created: result.created,
-            };
-          }
-        }
-      } else if (order.flow === 'sell') {
-        const { ensureDraftDeliveryForSellOrder } = await import('../services/inventory/documentLinks.js');
-        const result = await ensureDraftDeliveryForSellOrder({
+      // Purchase GRNs are created only on PO receive — not on approve (avoids duplicate GRNs).
+      if (order.flow === 'sell') {
+        const { fulfillSellOrderStockOut } = await import('../services/inventory/documentLinks.js');
+        const result = await fulfillSellOrderStockOut({
           tenantId: req.user.tenantId,
           userId: req.user._id,
           purchaseOrder: populated || order,
@@ -816,20 +922,14 @@ router.post('/:id/approve', sellOrSupply('approve'), async (req, res) => {
             status: result.deliveryNote.status,
             created: result.created,
             inventoryTransferId: result.transfer?._id || result.deliveryNote.inventoryTransferId,
+            posted: Boolean(result.posted),
+            stockPostedAt: result.deliveryNote.stockPostedAt,
+            transferState: result.transfer?.state,
           };
-          // Hard reservation: confirm draft outgoing transfer so Available drops
-          const transferId = draftDelivery.inventoryTransferId;
-          if (transferId) {
-            try {
-              const { confirmTransfer } = await import('../services/inventory/transferService.js');
-              const confirmed = await confirmTransfer(req.user.tenantId, transferId, req.user._id);
-              draftDelivery.transferState = confirmed?.state || 'confirmed';
-              draftDelivery.reserved = true;
-            } catch (reserveErr) {
-              console.warn('[po] auto-reserve on SO confirm failed:', reserveErr.message);
-              draftDelivery.reserveError = reserveErr.message;
-              draftDelivery.reserved = false;
-            }
+          if (result.error) {
+            draftDelivery.stockError = result.error;
+            draftDelivery.reserved = Boolean(result.reserved);
+            console.warn('[po] SO stock-out failed:', result.error);
           }
         }
 
@@ -854,8 +954,13 @@ router.post('/:id/approve', sellOrSupply('approve'), async (req, res) => {
     }
 
     const payload = typeof order.toJSON === 'function' ? order.toJSON() : order;
+    let responseOrder = payload;
+    if (order.flow === 'sell') {
+      const fresh = await PurchaseOrder.findOne({ _id: order._id, ...req.tenantFilter });
+      if (fresh) responseOrder = typeof fresh.toJSON === 'function' ? fresh.toJSON() : fresh;
+    }
     res.json({
-      ...payload,
+      ...responseOrder,
       draftGrn,
       draftDelivery,
       ...(req._oversellWarning
@@ -902,8 +1007,8 @@ router.post('/:id/release-approval', sellOrSupply('approve'), async (req, res) =
       const populated = await PurchaseOrder.findOne({ _id: order._id, ...req.tenantFilter })
         .populate('lineItems.productId', 'sku nameEn nameAr barcode unitOfMeasure productType costPrice')
         .populate('customerId', 'name nameAr');
-      const { ensureDraftDeliveryForSellOrder } = await import('../services/inventory/documentLinks.js');
-      const result = await ensureDraftDeliveryForSellOrder({
+      const { fulfillSellOrderStockOut } = await import('../services/inventory/documentLinks.js');
+      const result = await fulfillSellOrderStockOut({
         tenantId: req.user.tenantId,
         userId: req.user._id,
         purchaseOrder: populated || order,
@@ -914,15 +1019,13 @@ router.post('/:id/release-approval', sellOrSupply('approve'), async (req, res) =
           _id: result.deliveryNote._id,
           dnNumber: result.deliveryNote.dnNumber,
           inventoryTransferId: result.transfer?._id || result.deliveryNote.inventoryTransferId,
+          posted: Boolean(result.posted),
+          stockPostedAt: result.deliveryNote.stockPostedAt,
+          transferState: result.transfer?.state,
         };
-        if (draftDelivery.inventoryTransferId) {
-          try {
-            const { confirmTransfer } = await import('../services/inventory/transferService.js');
-            await confirmTransfer(req.user.tenantId, draftDelivery.inventoryTransferId, req.user._id);
-            draftDelivery.reserved = true;
-          } catch (e) {
-            draftDelivery.reserveError = e.message;
-          }
+        if (result.error) {
+          draftDelivery.stockError = result.error;
+          draftDelivery.reserved = Boolean(result.reserved);
         }
       }
       try {
@@ -1019,39 +1122,12 @@ router.post('/:id/cancel', checkPermission('supply_chain', 'update'), async (req
       return res.status(400).json({ error: 'Order is already cancelled' });
     }
 
-    if (['partially_received', 'received', 'billed'].includes(order.status)) {
-      return res.status(400).json({ error: 'Cannot cancel an approved or processed order' });
-    }
-
-    if (order.status === 'approved') {
-      const stockedGrn = await GRN.findOne({
-        ...req.tenantFilter,
-        purchaseOrderId: order._id,
-        stockPostedAt: { $ne: null },
-        status: { $ne: 'cancelled' },
-      }).select('_id');
-      if (stockedGrn) {
-        return res.status(400).json({
-          error: 'Cannot cancel — stock already received against this order',
-          code: 'PO_HAS_RECEIVED_STOCK',
-        });
-      }
-
-      try {
-        const { cancelUnstartedStockDocsForOrder } = await import('../services/inventory/documentLinks.js');
-        await cancelUnstartedStockDocsForOrder({
-          tenantId: req.user.tenantId,
-          userId: req.user._id,
-          purchaseOrderId: order._id,
-          tenantFilter: req.tenantFilter,
-        });
-      } catch (cancelStockErr) {
-        console.warn('[po] cancel linked stock docs:', cancelStockErr.message);
-        await GRN.updateMany(
-          { ...req.tenantFilter, purchaseOrderId: order._id, status: 'draft' },
-          { $set: { status: 'cancelled', cancelledAt: new Date() } },
-        );
-      }
+    // Approved (and later) purchase orders cannot be cancelled — only draft/sent.
+    if (!['draft', 'sent'].includes(String(order.status || ''))) {
+      return res.status(400).json({
+        error: 'Cannot cancel an approved or processed purchase order',
+        code: 'PO_CANCEL_LOCKED',
+      });
     }
 
     order.status = 'cancelled';
@@ -1080,7 +1156,13 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
     }
 
     const resolvedWarehouseId = warehouseId || order.warehouseId;
-    if (resolvedWarehouseId) {
+    if (!resolvedWarehouseId) {
+      return res.status(400).json({
+        error: 'Warehouse is required to receive stock',
+        code: 'WAREHOUSE_REQUIRED',
+      });
+    }
+    {
       const warehouse = await Warehouse.findOne({ _id: resolvedWarehouseId, ...req.tenantFilter, isActive: true });
       if (!warehouse) {
         return res.status(400).json({ error: 'Warehouse not found' });
@@ -1132,19 +1214,63 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
 
     let grn = null;
     if (lines.length > 0) {
-      grn = new GRN({
-        tenantId: req.user.tenantId,
-        grnNumber: await generateGrnNumber(req.tenantFilter),
-        supplierId: order.supplierId,
+      // Reuse existing draft GRN from an older approve path — never create a second GRN for the same receive.
+      const draftExisting = await GRN.findOne({
+        ...req.tenantFilter,
         purchaseOrderId: order._id,
-        warehouseId: resolvedWarehouseId || undefined,
-        notes,
-        createdBy: req.user._id,
-        receivedBy: req.user._id,
         status: 'draft',
-        lines,
-      });
-      await grn.save();
+      }).sort({ createdAt: 1 });
+
+      if (draftExisting) {
+        draftExisting.lines = lines;
+        draftExisting.warehouseId = resolvedWarehouseId;
+        draftExisting.notes = notes || draftExisting.notes;
+        draftExisting.receivedBy = req.user._id;
+        await draftExisting.save();
+        grn = draftExisting;
+        // Cancel any other leftover drafts for this PO
+        await GRN.updateMany(
+          {
+            ...req.tenantFilter,
+            purchaseOrderId: order._id,
+            status: 'draft',
+            _id: { $ne: draftExisting._id },
+          },
+          { $set: { status: 'cancelled', cancelledAt: new Date() } },
+        );
+      } else {
+        grn = new GRN({
+          tenantId: req.user.tenantId,
+          grnNumber: await generateGrnNumber(req.tenantFilter),
+          supplierId: order.supplierId,
+          purchaseOrderId: order._id,
+          warehouseId: resolvedWarehouseId,
+          notes,
+          createdBy: req.user._id,
+          receivedBy: req.user._id,
+          status: 'draft',
+          lines,
+        });
+        await grn.save();
+      }
+
+      // Link draft incoming transfer when inventory engine is on (so Physical Inventory gets quants)
+      if (!grn.inventoryTransferId) {
+        try {
+          const { linkDraftReceiptToGrn } = await import('../services/inventory/documentLinks.js');
+          await linkDraftReceiptToGrn({
+            tenantId: req.user.tenantId,
+            userId: req.user._id,
+            purchaseOrder: order,
+            grn,
+          });
+          const refreshedGrn = await GRN.findById(grn._id);
+          if (refreshedGrn) grn = refreshedGrn;
+        } catch (linkErr) {
+          console.warn('[po] receive link draft transfer:', linkErr.message);
+        }
+      }
+
       await confirmGrnReceive({
         tenantFilter: req.tenantFilter,
         user: req.user,
@@ -1465,6 +1591,120 @@ router.post('/:id/down-payment-invoice', sellOrSupply('create'), async (req, res
     res.status(201).json({ invoice, downPaymentAmount: amount });
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/purchase-orders/:id/send-email
+// @desc    Email sales order bill PDF (sell flow only)
+router.post('/:id/send-email', checkPermission('invoicing', 'update'), async (req, res) => {
+  try {
+    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter, flow: 'sell' });
+    if (!order) {
+      return res.status(404).json({ error: 'Sales order not found' });
+    }
+
+    const tenant = await Tenant.findById(req.user.tenantId);
+    if (!tenant) {
+      return res.status(404).json({ error: 'Tenant not found' });
+    }
+
+    if (!tenantHasEmailAddon(tenant)) {
+      return res.status(403).json({ error: 'Email Marketing is not installed for this tenant' });
+    }
+
+    const customer = order.customerId
+      ? await Customer.findOne({ _id: order.customerId, tenantId: order.tenantId }).select('name nameEn nameAr email contactPerson')
+      : null;
+    const recipient = resolveSalesOrderRecipient(customer, order, req.body?.to);
+    if (!recipient) {
+      return res.status(400).json({ error: 'Customer email is missing' });
+    }
+
+    const attachment = req.body?.attachment && typeof req.body.attachment === 'object'
+      ? {
+          filename: String(req.body.attachment.filename || `${order.poNumber || 'sales-order'}.pdf`).trim(),
+          contentBase64: String(req.body.attachment.contentBase64 || '').trim(),
+          contentType: String(req.body.attachment.contentType || 'application/pdf').trim() || 'application/pdf',
+          size: Number(req.body.attachment.size || 0),
+        }
+      : null;
+
+    if (!attachment?.contentBase64) {
+      return res.status(400).json({ error: 'Sales order PDF attachment is required' });
+    }
+
+    const subject = `${order.poNumber} Sales Order Bill | فاتورة أمر البيع ${order.poNumber}`;
+    const html = buildSalesOrderEmailHtml({
+      order,
+      tenant,
+      customerName: customer?.nameEn || customer?.name || customer?.nameAr || order?.buyer?.name || order?.buyer?.nameAr,
+    });
+
+    const delivery = await sendTenantEmail({
+      tenant,
+      to: recipient,
+      subject,
+      html,
+      attachments: [attachment],
+      metadata: { purpose: 'manual_sales_order', poNumber: order.poNumber },
+    });
+
+    res.json({ success: true, delivery });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/purchase-orders/:id/send-whatsapp
+// @desc    Send sales order via WhatsApp with wa.me link fallback
+router.post('/:id/send-whatsapp', checkPermission('invoicing', 'read'), async (req, res) => {
+  try {
+    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter, flow: 'sell' });
+    if (!order) {
+      return res.status(404).json({ error: 'Sales order not found' });
+    }
+
+    const tenant = await Tenant.findById(req.user.tenantId);
+    let customer = null;
+    if (order.customerId) {
+      customer = await Customer.findOne({ _id: order.customerId, tenantId: tenant._id });
+    }
+
+    const phone = req.body?.phone || customer?.phone || customer?.mobile || order?.buyer?.contactPhone || order?.buyer?.phone;
+    const cleanPhone = String(phone || '').replace(/[^0-9]/g, '');
+
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    const baseUrl = process.env.APP_URL || `${protocol}://${tenant.domain || 'app.maqder.com'}`;
+    const link = `${baseUrl}/app/dashboard/sales/orders/${order._id}`;
+    const amountLabel = `${Number(order.grandTotal || 0).toFixed(2)} ${order.currency || 'SAR'}`;
+    const customerName = customer?.nameEn || customer?.name || customer?.nameAr || order?.buyer?.name || order?.buyer?.nameAr || 'Customer';
+    const orderNumber = order.poNumber || String(order._id);
+
+    const textEn = `Dear ${customerName}, sales order bill ${orderNumber} (${amountLabel}) from ${tenant?.name || 'us'} is ready: ${link}`;
+    const textAr = `عزيزي ${customerName}، فاتورة أمر البيع رقم ${orderNumber} بقيمة (${amountLabel}) من ${tenant?.nameAr || tenant?.name || 'مؤسستنا'} متاحة عبر الرابط: ${link}`;
+    const messageText = req.body?.language === 'ar' ? textAr : textEn;
+    const waLink = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}` : `https://wa.me/?text=${encodeURIComponent(messageText)}`;
+
+    if (cleanPhone) {
+      try {
+        const sendResult = await sendRestaurantWhatsApp({
+          tenantId: tenant._id,
+          phone: cleanPhone,
+          messageEn: textEn,
+          messageAr: textAr,
+          replacements: { poNumber: orderNumber, total: order.grandTotal, link, customer_name: customerName },
+        });
+        if (sendResult?.sent) {
+          return res.json({ success: true, channel: 'direct_whatsapp', message: 'Sales order sent via WhatsApp successfully', waLink });
+        }
+      } catch (_e) {
+        // Fall through to wa.me link
+      }
+    }
+
+    res.json({ success: true, channel: 'wa_me', waLink });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

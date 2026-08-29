@@ -1,16 +1,18 @@
 import Warehouse from '../../models/Warehouse.js';
 import GRN from '../../models/GRN.js';
 import DeliveryNote from '../../models/DeliveryNote.js';
+import PurchaseOrder from '../../models/PurchaseOrder.js';
 import InvTransfer from '../../models/inventory/InvTransfer.js';
 import InvOperationType from '../../models/inventory/InvOperationType.js';
 import { toObjectId } from '../../models/inventory/common.js';
 import { isInvEngineEnabled } from './legacyAdapter.js';
 import { ensureInventoryBootstrap, bootstrapWarehouse, getDefaultUom } from './bootstrap.js';
 import { createTransfer } from './createTransfer.js';
-import { cancelTransfer } from './transferService.js';
+import { cancelTransfer, confirmTransfer, validateTransfer } from './transferService.js';
 import { convertQty } from './uomConvert.js';
 import InvProductPackaging from '../../models/inventory/InvProductPackaging.js';
 import Product from '../../models/Product.js';
+import { toNumber } from '../purchasesLogic.js';
 
 async function nextDnNumber(tenantFilter) {
   const last = await DeliveryNote.findOne(tenantFilter).sort({ createdAt: -1 }).select('dnNumber').lean();
@@ -94,6 +96,7 @@ export async function linkDraftReceiptToGrn({
 
 /**
  * Sell-order approve: draft DeliveryNote + draft outgoing InvTransfer, linked both ways.
+ * Resolves a warehouse when the SO lacks one (from stock location or default WH).
  */
 export async function ensureDraftDeliveryForSellOrder({
   tenantId,
@@ -107,18 +110,6 @@ export async function ensureDraftDeliveryForSellOrder({
     return { deliveryNote: null, transfer: null, created: false };
   }
 
-  const existingDn = await DeliveryNote.findOne({
-    ...tenantFilter,
-    purchaseOrderId: order._id,
-    status: { $ne: 'cancelled' },
-  }).sort({ createdAt: 1 });
-
-  if (existingDn) {
-    return { deliveryNote: existingDn, transfer: existingDn.inventoryTransferId
-      ? await InvTransfer.findById(existingDn.inventoryTransferId).lean()
-      : null, created: false };
-  }
-
   // MTS only — dropship/MTO must not create warehouse DOs or reserve stock
   const goodsLines = (order.lineItems || []).filter((li) => {
     const route = String(li.procurementRoute || 'mts').toLowerCase();
@@ -128,8 +119,12 @@ export async function ensureDraftDeliveryForSellOrder({
   });
   if (!goodsLines.length) return { deliveryNote: null, transfer: null, created: false, skippedNonMts: true };
 
-  const warehouseId = order.warehouseId?._id || order.warehouseId;
-  const dnNumber = await nextDnNumber(tenantFilter);
+  const tid = toObjectId(tenantId || order.tenantId);
+  const warehouseId = await resolveSellOrderWarehouseId(tid, order);
+  if (warehouseId && !order.warehouseId) {
+    await PurchaseOrder.updateOne({ _id: order._id }, { $set: { warehouseId } });
+    order.warehouseId = warehouseId;
+  }
 
   /** Resolve SO qty → base product UoM via packaging × UoM factor */
   async function resolveBaseDemand(li) {
@@ -177,8 +172,43 @@ export async function ensureDraftDeliveryForSellOrder({
     resolvedLines.push({ li, resolved: await resolveBaseDemand(li) });
   }
 
+  const existingDn = await DeliveryNote.findOne({
+    ...tenantFilter,
+    purchaseOrderId: order._id,
+    status: { $ne: 'cancelled' },
+  }).sort({ createdAt: 1 });
+
+  if (existingDn) {
+    let transfer = existingDn.inventoryTransferId
+      ? await InvTransfer.findById(existingDn.inventoryTransferId)
+      : null;
+    let healed = false;
+    if (!transfer && warehouseId && (await isInvEngineEnabled(tid))) {
+      transfer = await createOutgoingTransferForDn({
+        tenantId: tid,
+        userId,
+        order,
+        dn: existingDn,
+        warehouseId,
+        resolvedLines,
+      });
+      healed = Boolean(transfer);
+    }
+    if (warehouseId && !existingDn.warehouseId) {
+      existingDn.warehouseId = warehouseId;
+      await existingDn.save();
+    }
+    return {
+      deliveryNote: existingDn,
+      transfer: transfer?.toObject?.() || transfer,
+      created: false,
+      healed,
+    };
+  }
+
+  const dnNumber = await nextDnNumber(tenantFilter);
   const dn = await DeliveryNote.create({
-    tenantId: tenantId || order.tenantId,
+    tenantId: tid,
     dnNumber,
     customerId: order.customerId?._id || order.customerId,
     customerName: order.customerId?.name
@@ -205,49 +235,240 @@ export async function ensureDraftDeliveryForSellOrder({
   });
 
   let transfer = null;
-  if (warehouseId && (await isInvEngineEnabled(tenantId))) {
-    const tid = toObjectId(tenantId);
-    await ensureInventoryBootstrap(tid, userId);
-    let wh = await Warehouse.findOne({ _id: warehouseId, tenantId: tid });
-    if (wh && (!wh.stockLocationId || !wh.engineBootstrappedAt)) {
-      await bootstrapWarehouse(tid, wh, null, userId);
-      wh = await Warehouse.findById(wh._id);
-    }
-    if (wh) {
-      const opType = await InvOperationType.findOne({
-        tenantId: tid,
-        warehouseId: wh._id,
-        code: 'outgoing',
-        active: true,
-        sequenceCode: { $not: /\/ADJ$/ },
-      });
-      const defaultUom = await getDefaultUom(tid);
-      if (opType) {
-        transfer = await createTransfer(tid, {
-          operationTypeId: opType._id,
-          partnerId: order.customerId?._id || order.customerId,
-          origin: order.poNumber,
-          note: [
-            `Linked SO ${order.poNumber}`,
-            `DN ${dn.dnNumber}`,
-            `/app/dashboard/sales/orders/${order._id}`,
-          ].join('\n'),
-          sourceModel: 'delivery_note',
-          sourceDocId: dn._id,
-          lines: resolvedLines.map(({ li, resolved }) => ({
-            productId: li.productId?._id || li.productId,
-            variantId: resolved.variantId || li.variantId || undefined,
-            demandQty: String(resolved.demandQty),
-            uomId: resolved.uomId || defaultUom?._id,
-          })),
-        }, userId);
-        dn.inventoryTransferId = transfer._id;
-        await dn.save();
-      }
-    }
+  if (warehouseId && (await isInvEngineEnabled(tid))) {
+    transfer = await createOutgoingTransferForDn({
+      tenantId: tid,
+      userId,
+      order,
+      dn,
+      warehouseId,
+      resolvedLines,
+    });
   }
 
   return { deliveryNote: dn, transfer, created: true };
+}
+
+/**
+ * Pick warehouse for a sell order: explicit → stock location with qty → primary/default WH.
+ */
+async function resolveSellOrderWarehouseId(tenantId, order) {
+  const existing = order.warehouseId?._id || order.warehouseId;
+  if (existing) return toObjectId(existing);
+
+  const productIds = (order.lineItems || [])
+    .map((li) => li.productId?._id || li.productId)
+    .filter(Boolean)
+    .map((id) => toObjectId(id));
+
+  if (productIds.length) {
+    const InvQuant = (await import('../../models/inventory/InvQuant.js')).default;
+    const hit = await InvQuant.aggregate([
+      {
+        $match: {
+          tenantId,
+          productId: { $in: productIds },
+          $expr: { $gt: [{ $toDouble: '$quantity' }, 0] },
+        },
+      },
+      {
+        $lookup: {
+          from: 'invlocations',
+          localField: 'locationId',
+          foreignField: '_id',
+          as: 'loc',
+        },
+      },
+      { $unwind: '$loc' },
+      {
+        $match: {
+          'loc.usage': 'internal',
+          'loc.active': true,
+          'loc.warehouseId': { $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: '$loc.warehouseId',
+          qty: { $sum: { $toDouble: '$quantity' } },
+        },
+      },
+      { $sort: { qty: -1 } },
+      { $limit: 1 },
+    ]);
+    if (hit[0]?._id) return hit[0]._id;
+  }
+
+  const primary = await Warehouse.findOne({ tenantId, isActive: true, isPrimary: true }).select('_id').lean();
+  if (primary?._id) return primary._id;
+  const any = await Warehouse.findOne({ tenantId, isActive: true }).sort({ createdAt: 1 }).select('_id').lean();
+  return any?._id || null;
+}
+
+async function createOutgoingTransferForDn({
+  tenantId,
+  userId,
+  order,
+  dn,
+  warehouseId,
+  resolvedLines,
+}) {
+  await ensureInventoryBootstrap(tenantId, userId);
+  let wh = await Warehouse.findOne({ _id: warehouseId, tenantId });
+  if (!wh) return null;
+  if (!wh.stockLocationId || !wh.engineBootstrappedAt) {
+    await bootstrapWarehouse(tenantId, wh, null, userId);
+    wh = await Warehouse.findById(wh._id);
+  }
+  const opType = await InvOperationType.findOne({
+    tenantId,
+    warehouseId: wh._id,
+    code: 'outgoing',
+    active: true,
+    sequenceCode: { $not: /\/ADJ$/ },
+  });
+  if (!opType) return null;
+  const defaultUom = await getDefaultUom(tenantId);
+  const transfer = await createTransfer(tenantId, {
+    operationTypeId: opType._id,
+    partnerId: order.customerId?._id || order.customerId,
+    origin: order.poNumber,
+    note: [
+      `Linked SO ${order.poNumber}`,
+      `DN ${dn.dnNumber}`,
+      `/app/dashboard/sales/orders/${order._id}`,
+    ].join('\n'),
+    sourceModel: 'delivery_note',
+    sourceDocId: dn._id,
+    lines: resolvedLines.map(({ li, resolved }) => ({
+      productId: li.productId?._id || li.productId,
+      variantId: resolved.variantId || li.variantId || undefined,
+      demandQty: String(resolved.demandQty),
+      uomId: resolved.uomId || defaultUom?._id,
+    })),
+  }, userId);
+  dn.inventoryTransferId = transfer._id;
+  dn.warehouseId = dn.warehouseId || warehouseId;
+  await dn.save();
+  return transfer;
+}
+
+/**
+ * Confirm sales order stock out: draft DN + outgoing transfer → confirm → validate.
+ * Deducts on-hand / Physical Inventory (proper out), not reservation-only.
+ */
+export async function fulfillSellOrderStockOut({
+  tenantId,
+  userId,
+  purchaseOrder,
+  tenantFilter,
+}) {
+  const order = purchaseOrder;
+  if (!order?._id || order.flow !== 'sell') {
+    return { skipped: true, reason: 'not_sell' };
+  }
+
+  const ensured = await ensureDraftDeliveryForSellOrder({
+    tenantId,
+    userId,
+    purchaseOrder: order,
+    tenantFilter,
+  });
+
+  const dn = ensured.deliveryNote
+    ? await DeliveryNote.findById(ensured.deliveryNote._id || ensured.deliveryNote)
+    : null;
+  if (!dn) {
+    return { ...ensured, posted: false, reason: 'no_delivery' };
+  }
+
+  if (dn.stockPostedAt) {
+    return {
+      deliveryNote: dn,
+      transfer: ensured.transfer,
+      posted: false,
+      alreadyPosted: true,
+    };
+  }
+
+  let transferId = dn.inventoryTransferId || ensured.transfer?._id || ensured.transfer;
+  if (!transferId) {
+    return {
+      deliveryNote: dn,
+      posted: false,
+      reason: 'no_transfer',
+      error: 'No warehouse / outgoing transfer for this sales order',
+    };
+  }
+
+  let transfer = await InvTransfer.findById(transferId);
+  if (!transfer) {
+    return { deliveryNote: dn, posted: false, reason: 'transfer_missing' };
+  }
+
+  try {
+    if (!['done', 'cancelled'].includes(transfer.state)) {
+      if (['draft', 'waiting'].includes(transfer.state)) {
+        transfer = await confirmTransfer(tenantId, transfer._id, userId);
+      }
+      if (transfer.state !== 'done') {
+        transfer = await validateTransfer(tenantId, transfer._id, {
+          userId,
+          immediate: true,
+          createBackorder: false,
+        });
+      }
+    }
+  } catch (err) {
+    return {
+      deliveryNote: dn,
+      transfer,
+      posted: false,
+      reserved: ['confirmed', 'assigned', 'partiallyAvailable'].includes(transfer?.state),
+      error: err.message,
+      code: err.code,
+    };
+  }
+
+  dn.inventoryTransferId = transfer._id;
+  dn.stockPostedAt = new Date();
+  if (['draft', 'pending_invoice'].includes(String(dn.status || ''))) {
+    dn.status = 'delivered';
+  }
+  dn.dateDelivered = dn.dateDelivered || new Date();
+  await dn.save();
+
+  // Sync delivered qty on SO lines + mark delivered when complete
+  const liveOrder = await PurchaseOrder.findById(order._id);
+  if (liveOrder) {
+    for (const dnLine of dn.lineItems || []) {
+      const qty = toNumber(dnLine.quantityDelivered, 0);
+      if (qty <= 0) continue;
+      const poLine = (liveOrder.lineItems || []).find((li) => {
+        if (dnLine.poItemId && String(li._id) === String(dnLine.poItemId)) return true;
+        return String(li.productId) === String(dnLine.productId);
+      });
+      if (!poLine) continue;
+      poLine.quantityDelivered = Math.min(
+        toNumber(poLine.quantityOrdered, 0),
+        toNumber(poLine.quantityDelivered, 0) + qty,
+      );
+    }
+    const totalOrd = (liveOrder.lineItems || []).reduce((s, li) => s + toNumber(li.quantityOrdered, 0), 0);
+    const totalDel = (liveOrder.lineItems || []).reduce((s, li) => s + toNumber(li.quantityDelivered, 0), 0);
+    if (totalDel > 0 && totalDel >= totalOrd) liveOrder.status = 'delivered';
+    else if (totalDel > 0) liveOrder.status = 'partially_delivered';
+    if (dn.warehouseId && !liveOrder.warehouseId) liveOrder.warehouseId = dn.warehouseId;
+    await liveOrder.save();
+  }
+
+  return {
+    deliveryNote: dn,
+    transfer,
+    posted: true,
+    created: ensured.created,
+    healed: ensured.healed,
+  };
 }
 
 /**

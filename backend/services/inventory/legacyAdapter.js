@@ -128,7 +128,14 @@ export async function postLinesViaEngine({
         'PRODUCT_NOT_FOUND',
       );
     }
-    if (kind.product.trackInventory === false) continue;
+    // Ensure storable goods appear in Physical Inventory after GRN receive
+    if (kind.product.trackInventory === false) {
+      await Product.updateOne(
+        { _id: line.productId, tenantId: tid },
+        { $set: { trackInventory: true } },
+      );
+      kind.product.trackInventory = true;
+    }
 
     engineLines.push({
       productId: line.productId,

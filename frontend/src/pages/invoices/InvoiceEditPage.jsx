@@ -31,7 +31,7 @@ export default function InvoiceEditPage() {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/app/dashboard/invoices')} className="btn btn-ghost btn-icon">
+          <button onClick={() => navigate('/app/dashboard/accounting/invoices')} className="btn btn-ghost btn-icon">
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
@@ -47,7 +47,7 @@ export default function InvoiceEditPage() {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate(`/app/dashboard/invoices/${id}`)} className="btn btn-ghost btn-icon">
+          <button onClick={() => navigate(`/app/dashboard/accounting/invoices/${id}`)} className="btn btn-ghost btn-icon">
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>

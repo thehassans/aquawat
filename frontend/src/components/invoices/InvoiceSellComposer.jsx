@@ -47,6 +47,7 @@ import {
 import SalesEnhancementBar from '../sales/SalesEnhancementBar'
 import { canViewSalesMargin } from '../../lib/salesPermissions'
 import { useSalesSettings } from '../../context/SalesSettingsContext'
+import InvoiceJournalItemsPanel, { InvoiceDocumentReferencesBar } from './InvoiceJournalItemsPanel'
 
 const getEmptyLine = (tenant) => {
   const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
@@ -87,6 +88,30 @@ const idOf = (value) => {
   return String(value)
 }
 
+function sellLineHasContent(line) {
+  if (!line || typeof line !== 'object') return false
+  if (String(line.productId || '').trim()) return true
+  if (String(line.productName || '').trim()) return true
+  if (String(line.productNameAr || '').trim()) return true
+  if (Number(line.unitPrice) > 0) return true
+  return false
+}
+
+function describeSellFormErrors(errs, language = 'en') {
+  if (!errs || typeof errs !== 'object') {
+    return language === 'ar' ? 'أكمل الحقول المطلوبة قبل الحفظ' : 'Complete the required fields before saving'
+  }
+  if (errs.buyer?.vatNumber || errs.buyer?.crNumber || errs.buyer?.name) {
+    return language === 'ar'
+      ? 'فاتورة B2B تتطلب اسم العميل ورقم الضريبة والسجل التجاري'
+      : 'B2B invoices require customer name, VAT, and CR — switch to B2C for walk-in sales'
+  }
+  if (errs.lineItems) {
+    return language === 'ar' ? 'تحقق من بنود الفاتورة (الكمية والسعر)' : 'Check invoice lines (quantity and price)'
+  }
+  return language === 'ar' ? 'أكمل الحقول المطلوبة قبل الحفظ' : 'Complete the required fields before saving'
+}
+
 const getEmptyBuyerAddress = (tenant) => ({
   street: '', streetAr: '', district: '', districtAr: '', city: '', cityAr: '',
   postalCode: '', country: getTenantCountryCode(tenant), buildingNumber: '', additionalNumber: '', shortAddress: '',
@@ -122,10 +147,13 @@ const mapSellLineItems = (invoice, tenant) => {
   return mapped.length ? mapped : [{ ...empty }]
 }
 const selectableContexts = ['trading', 'marquee', 'construction', 'travel_agency', 'restaurant', 'manpower', 'furniture', 'furniture_shop']
+const SELL_ORDER_FILL_STATUSES = new Set(['approved', 'partially_delivered', 'delivered'])
 
 const bilingualPairGridClass = 'grid grid-cols-1 gap-x-3 gap-y-1.5 md:grid-cols-2'
 const denseControlClass =
   'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-900/10 dark:border-dark-500 dark:bg-dark-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-400'
+const lineGhostInputClass =
+  'w-full rounded-md border-0 bg-transparent px-1.5 py-1.5 text-[13px] font-medium text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:bg-slate-50 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-white/5'
 const compactFieldClass = `mt-0.5 ${denseControlClass}`
 const denseSelectStyles = {
   control: (base, state) => ({
@@ -140,6 +168,32 @@ const denseSelectStyles = {
   indicatorsContainer: (base) => ({ ...base, height: '32px' }),
   singleValue: (base) => ({ ...base, color: '#0f172a', fontWeight: 500, fontSize: '0.875rem' }),
   placeholder: (base) => ({ ...base, color: '#94a3b8', fontSize: '0.875rem' }),
+}
+const lineSelectStyles = {
+  control: (base, state) => ({
+    ...base,
+    border: 'none',
+    boxShadow: 'none',
+    minHeight: 32,
+    backgroundColor: state.isFocused ? 'rgba(248,250,252,0.9)' : 'transparent',
+    borderRadius: '0.375rem',
+    cursor: 'pointer',
+  }),
+  valueContainer: (base) => ({ ...base, padding: '0 4px' }),
+  indicatorsContainer: (base) => ({ ...base, height: 32 }),
+  dropdownIndicator: (base) => ({ ...base, padding: 4, color: '#94a3b8' }),
+  clearIndicator: (base) => ({ ...base, padding: 4 }),
+  indicatorSeparator: () => ({ display: 'none' }),
+  singleValue: (base) => ({ ...base, color: '#0f172a', fontWeight: 500, fontSize: '0.8125rem' }),
+  placeholder: (base) => ({ ...base, color: '#94a3b8', fontSize: '0.8125rem' }),
+  menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+  menu: (base) => ({
+    ...base,
+    borderRadius: '0.75rem',
+    overflow: 'hidden',
+    boxShadow: '0 12px 40px -12px rgba(15,23,42,0.28)',
+    minWidth: 160,
+  }),
 }
 
 /** Always EN left / AR right regardless of UI language for Arabic markets; English only for others */
@@ -210,6 +264,15 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
     ? (invoice.customerId._id || '')
     : (invoice?.customerId || ''),
   warehouseId: invoice?.warehouseId || '',
+  sourcePurchaseOrderId: (invoice?.sourcePurchaseOrderId && typeof invoice.sourcePurchaseOrderId === 'object')
+    ? (invoice.sourcePurchaseOrderId._id || '')
+    : (invoice?.sourcePurchaseOrderId || ''),
+  sourceDeliveryNoteId: (invoice?.sourceDeliveryNoteId && typeof invoice.sourceDeliveryNoteId === 'object')
+    ? (invoice.sourceDeliveryNoteId._id || '')
+    : (invoice?.sourceDeliveryNoteId || ''),
+  deliveryNoteIds: Array.isArray(invoice?.deliveryNoteIds)
+    ? invoice.deliveryNoteIds.map((id) => (id && typeof id === 'object' ? id._id : id)).filter(Boolean)
+    : [],
   restaurantOrderId: invoice?.restaurantOrderId || '',
   travelBookingId: invoice?.travelBookingId || '',
   manpowerAssignmentId: invoice?.manpowerAssignmentId || '',
@@ -271,6 +334,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const isProformaCreate = searchParams.get('proforma') === '1'
   const partnerIdParam = String(searchParams.get('partnerId') || '').trim()
   const deliveryNoteIdParam = String(searchParams.get('deliveryNoteId') || '').trim()
+  const soIdParam = String(searchParams.get('soId') || '').trim()
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
   const { tenant, user } = useSelector((state) => state.auth)
@@ -287,6 +351,17 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     const c = initialInvoice?.customerId
     return c && typeof c === 'object' ? c : null
   })
+  const [selectedSalesOrderId, setSelectedSalesOrderId] = useState(
+    () => idOf(initialInvoice?.sourcePurchaseOrderId) || soIdParam
+  )
+  const filledSoIdRef = useRef('')
+  const shouldFillFromSoRef = useRef(Boolean(soIdParam) && !isEdit && !deliveryNoteIdParam)
+  const [documentReferences, setDocumentReferences] = useState(
+    () => (Array.isArray(initialInvoice?.documentReferences) ? initialInvoice.documentReferences : [])
+  )
+  const [accountingLines, setAccountingLines] = useState(
+    () => (Array.isArray(initialInvoice?.accountingLines) ? initialInvoice.accountingLines : [])
+  )
   const FieldLabel = (props) => <BilingualLabel {...props} showArabic={showArabicFields} />
   const [showAuthorizedPerson, setShowAuthorizedPerson] = useState(() => {
     return Boolean(
@@ -342,7 +417,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     return tenantBusinessTypes.find((type) => selectableContexts.includes(type)) || 'trading'
   }, [tenant, tenantBusinessTypes])
 
-  const { register, control, handleSubmit, watch, setValue, getValues, reset } = useForm({
+  const { register, control, handleSubmit, watch, setValue, getValues, reset, clearErrors } = useForm({
     defaultValues: buildSellInvoiceFormValues({
       invoice: initialInvoice || (isProformaCreate ? { invoiceSubtype: 'proforma' } : null),
       tenant,
@@ -369,7 +444,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const businessContext = values.businessContext || defaultBusinessContext
   const invoiceSubtype = values.invoiceSubtype || 'standard'
   const selectedTemplateId = Number(values.pdfTemplateId || getInvoiceTemplateId(tenant, businessContext))
-  const selectedWarehouseId = values.warehouseId || ''
   const isTradingContext = businessContext === 'trading'
   const isTravelContext = businessContext === 'travel_agency'
   const isRestaurantContext = businessContext === 'restaurant'
@@ -523,6 +597,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       initialInvoice?.bankDetails?.iban ||
       initialInvoice?.bankDetails?.accountNumber
     ))
+    setSelectedSalesOrderId(idOf(initialInvoice?.sourcePurchaseOrderId) || '')
+    setDocumentReferences(Array.isArray(initialInvoice?.documentReferences) ? initialInvoice.documentReferences : [])
+    setAccountingLines(Array.isArray(initialInvoice?.accountingLines) ? initialInvoice.accountingLines : [])
     const next = buildSellInvoiceFormValues({
       invoice: initialInvoice,
       tenant,
@@ -586,33 +663,31 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     enabled: isTradingContext,
   })
 
-  const { data: warehouses = [] } = useQuery({
-    queryKey: ['warehouses'],
-    queryFn: async () => {
-      const res = await api.get('/warehouses')
-      const list = res.data?.warehouses ?? res.data?.items ?? res.data
-      return Array.isArray(list) ? list : []
-    },
-    enabled: isTradingContext,
-  })
-
-  const { data: stockSettings } = useQuery({
-    queryKey: ['stock-engine-status'],
-    queryFn: () => api.get('/stock/engine-status').then((r) => r.data).catch(() => ({ engineEnabled: false })),
-    enabled: isTradingContext,
-  })
-  const engineRequiresWarehouse = Boolean(isTradingContext && stockSettings?.engineEnabled)
-
-  useEffect(() => {
-    if (!engineRequiresWarehouse || selectedWarehouseId) return
-    const list = Array.isArray(warehouses) ? warehouses : []
-    if (!list.length) return
-    const primary = list.find((w) => w.isPrimary || w.isDefault) || list[0]
-    if (primary?._id) setValue('warehouseId', String(primary._id))
-  }, [engineRequiresWarehouse, warehouses, selectedWarehouseId, setValue])
-
   const productList = Array.isArray(products) ? products : []
-  const warehouseList = Array.isArray(warehouses) ? warehouses : []
+
+  const { data: sellOrdersRaw = [] } = useQuery({
+    queryKey: ['sell-orders', 'invoice-fill'],
+    queryFn: () => api.get('/purchase-orders', { params: { flow: 'sell', page: 1, limit: 100 } })
+      .then((res) => res.data?.purchaseOrders || res.data || []),
+  })
+  const sellOrders = useMemo(() => {
+    const list = Array.isArray(sellOrdersRaw) ? sellOrdersRaw : []
+    return list.filter((so) => SELL_ORDER_FILL_STATUSES.has(String(so.status || '')) || Boolean(so.isLocked))
+  }, [sellOrdersRaw])
+
+  const { data: selectedSalesOrder } = useQuery({
+    queryKey: ['sell-order', selectedSalesOrderId],
+    queryFn: () => api.get(`/purchase-orders/${selectedSalesOrderId}`).then((res) => res.data),
+    enabled: Boolean(selectedSalesOrderId),
+  })
+
+  const { data: relatedDeliveryNotes = [] } = useQuery({
+    queryKey: ['delivery-notes', 'by-so', selectedSalesOrderId],
+    queryFn: () => api.get('/delivery-notes', {
+      params: { purchaseOrderId: selectedSalesOrderId, limit: 50 },
+    }).then((res) => res.data?.deliveryNotes || res.data || []),
+    enabled: Boolean(selectedSalesOrderId),
+  })
 
   useEffect(() => {
     if (!partnerIdParam || isEdit) return
@@ -655,6 +730,24 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         }
         setValue('sourcePurchaseOrderId', poId || '')
         setValue('sourceDeliveryNoteId', dn._id)
+        setValue('deliveryNoteIds', [dn._id])
+        if (poId) setSelectedSalesOrderId(String(poId))
+        const refs = []
+        if (poId) {
+          refs.push({
+            kind: 'sales_order',
+            docId: poId,
+            number: po?.poNumber || dn.purchaseOrderId?.poNumber || '',
+            label: po?.poNumber || dn.purchaseOrderId?.poNumber || '',
+          })
+        }
+        refs.push({
+          kind: 'delivery_note',
+          docId: dn._id,
+          number: dn.dnNumber || dn.deliveryNoteNumber || '',
+          label: dn.dnNumber || dn.deliveryNoteNumber || '',
+        })
+        setDocumentReferences(refs)
         const lines = (dn.lineItems || []).map((li) => {
           const remaining = Math.max(0, Number(li.quantityDelivered || 0) - Number(li.quantityInvoiced || 0))
           const poItem = (po?.lineItems || []).find((p) => String(p._id) === String(li.poItemId))
@@ -714,7 +807,104 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     setValue('buyer.address.shortAddress', customer.address?.shortAddress || '')
     setValue('buyer.contactPhone', customer.phone || customer.mobile || getValues('buyer.contactPhone') || '')
     setValue('buyer.contactEmail', customer.email || getValues('buyer.contactEmail') || '')
+    setSelectedCustomer(customer)
   }
+
+  const applySalesOrder = (so) => {
+    if (!so?._id) return
+    setValue('sourcePurchaseOrderId', so._id)
+    const customer = so.customerId && typeof so.customerId === 'object'
+      ? so.customerId
+      : null
+    if (customer) {
+      fillBuyerFromParty(customer)
+    } else if (so.customerId) {
+      const cid = idOf(so.customerId)
+      if (cid) {
+        setValue('customerId', cid)
+        api.get(`/customers/${cid}`).then((res) => {
+          if (res.data) fillBuyerFromParty(res.data)
+        }).catch(() => {})
+      }
+    }
+    if (so.notes) {
+      setValue('notes', so.notes)
+      setShowNotesPanel(true)
+    }
+    const items = (Array.isArray(so.lineItems) ? so.lineItems : []).map((li) => {
+      const product = li?.productId && typeof li.productId === 'object' ? li.productId : null
+      const qtyOrdered = toNumber(li?.quantityOrdered ?? li?.quantity, 0)
+      const qtyInvoiced = toNumber(li?.quantityInvoiced, 0)
+      const remaining = Math.max(0, qtyOrdered - qtyInvoiced)
+      return {
+        ...emptyLine,
+        productId: product?._id || li?.productId || '',
+        variantId: idOf(li?.variantId) || '',
+        productName: product?.nameEn || li?.manualName || li?.description || '',
+        productNameAr: product?.nameAr || li?.manualNameAr || '',
+        productType: normalizeProductType(li?.productType || product?.productType),
+        unitCode: li?.uom || product?.unitOfMeasure || emptyLine.unitCode || 'PCE',
+        quantity: Math.max(0.0001, remaining > 0 ? remaining : qtyOrdered || 1),
+        unitPrice: Math.max(0, toNumber(li?.unitCost ?? li?.unitPrice, 0)),
+        taxRate: Math.max(0, toNumber(li?.taxRate, emptyLine.taxRate)),
+        sourcePoItemId: li?._id || '',
+      }
+    }).filter((line) => line.productName || line.unitPrice > 0 || line.productId)
+    replace(items.length ? items : [{ ...emptyLine }])
+    setDocumentReferences([{
+      kind: 'sales_order',
+      docId: so._id,
+      number: so.poNumber || '',
+      label: so.poNumber || '',
+    }])
+    toast.success(language === 'ar' ? 'تم تعبئة الفاتورة من أمر البيع' : 'Invoice filled from sales order')
+  }
+
+  useEffect(() => {
+    if (!selectedSalesOrder?._id) return
+    setValue('sourcePurchaseOrderId', selectedSalesOrder._id)
+    if (!shouldFillFromSoRef.current) return
+    if (filledSoIdRef.current === String(selectedSalesOrder._id)) return
+    filledSoIdRef.current = String(selectedSalesOrder._id)
+    shouldFillFromSoRef.current = false
+    applySalesOrder(selectedSalesOrder)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSalesOrder])
+
+  useEffect(() => {
+    if (!selectedSalesOrderId || !Array.isArray(relatedDeliveryNotes)) return
+    const dns = relatedDeliveryNotes.filter((dn) => dn?._id)
+    if (!dns.length) return
+    const dnIds = dns.map((dn) => dn._id)
+    const existingDnIds = getValues('deliveryNoteIds')
+    if (!Array.isArray(existingDnIds) || !existingDnIds.length) {
+      setValue('deliveryNoteIds', dnIds)
+    }
+    if (!getValues('sourceDeliveryNoteId')) {
+      setValue('sourceDeliveryNoteId', dnIds[0])
+    }
+    setDocumentReferences((prev) => {
+      const existing = Array.isArray(prev) ? prev.filter((r) => r.kind !== 'delivery_note') : []
+      const hasSo = existing.some((r) => r.kind === 'sales_order')
+      const next = [...existing]
+      if (!hasSo && selectedSalesOrder?._id) {
+        next.unshift({
+          kind: 'sales_order',
+          docId: selectedSalesOrder._id,
+          number: selectedSalesOrder.poNumber || '',
+          label: selectedSalesOrder.poNumber || '',
+        })
+      }
+      const dnRefs = dns.map((dn) => ({
+        kind: 'delivery_note',
+        docId: dn._id,
+        number: dn.dnNumber || dn.deliveryNoteNumber || '',
+        label: dn.dnNumber || dn.deliveryNoteNumber || '',
+      }))
+      return [...next, ...dnRefs]
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [relatedDeliveryNotes, selectedSalesOrderId, selectedSalesOrder?._id])
 
   const onSelectCustomer = (customerId, opt) => {
     if (!customerId) {
@@ -724,13 +914,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     }
     if (opt) {
       fillBuyerFromParty(opt)
-      setSelectedCustomer(opt)
       return
     }
     api.get(`/customers/${customerId}`).then((res) => {
-      if (!res.data) return
-      fillBuyerFromParty(res.data)
-      setSelectedCustomer(res.data)
+      if (res.data) fillBuyerFromParty(res.data)
     }).catch(() => {})
   }
 
@@ -908,9 +1095,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       queryClient.invalidateQueries(['customers'])
       queryClient.invalidateQueries(['customers-lookup'])
       if (res.data?.offline) {
-        navigate('/app/dashboard/invoices')
+        navigate('/app/dashboard/accounting/invoices')
       } else {
-        navigate(`/app/dashboard/invoices/${res.data?._id || invoiceId}`)
+        navigate(`/app/dashboard/accounting/invoices/${res.data?._id || invoiceId}`)
       }
     },
     onError: (error) => toast.error(formatInvError(error, language) || (isEdit ? 'Failed to update invoice' : 'Failed to create invoice')),
@@ -1070,8 +1257,17 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       taxableAmount: namedTotals.taxableAmount,
       totalTax: namedTotals.totalTax,
       grandTotal: namedTotals.grandTotal,
-      sourcePurchaseOrderId: data?.sourcePurchaseOrderId || undefined,
+      sourcePurchaseOrderId: data?.sourcePurchaseOrderId || selectedSalesOrderId || undefined,
       sourceDeliveryNoteId: data?.sourceDeliveryNoteId || undefined,
+      deliveryNoteIds: Array.isArray(data?.deliveryNoteIds) && data.deliveryNoteIds.length
+        ? data.deliveryNoteIds
+        : undefined,
+      documentReferences: Array.isArray(documentReferences) && documentReferences.length
+        ? documentReferences
+        : undefined,
+      accountingLines: Array.isArray(accountingLines) && accountingLines.length
+        ? accountingLines
+        : undefined,
     }
     applyFormPaymentToPayload(payload, {
       paymentStatus: data?.paymentStatus,
@@ -1079,15 +1275,18 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       grandTotal: namedTotals.grandTotal,
     })
 
+    if (!payload.sourcePurchaseOrderId) delete payload.sourcePurchaseOrderId
+    if (!payload.sourceDeliveryNoteId) delete payload.sourceDeliveryNoteId
+    if (!payload.deliveryNoteIds?.length) delete payload.deliveryNoteIds
+    if (!payload.documentReferences?.length) delete payload.documentReferences
+    if (!payload.accountingLines?.length) delete payload.accountingLines
     if (!payload.restaurantOrderId) delete payload.restaurantOrderId
     if (!payload.travelBookingId) delete payload.travelBookingId
     if (!payload.manpowerAssignmentId) delete payload.manpowerAssignmentId
     if (!payload.contractNumber) delete payload.contractNumber
-    if (!isTradingContext) delete payload.warehouseId
-    if (engineRequiresWarehouse && !payload.warehouseId && data?.status !== 'draft' && invoiceSubtype !== 'proforma') {
-      toast.error(language === 'ar' ? 'اختر المستودع — محرك المخزون مفعّل' : 'Select a warehouse — inventory engine is enabled')
-      return null
-    }
+    // Invoices never move stock (delivery notes / GRNs do) — warehouse is optional metadata
+    if (!isTradingContext || !payload.warehouseId) delete payload.warehouseId
+
     if (isTravelContext || invoiceSubtype === 'travel_ticket') {
       payload.travelDetails = sanitizeTravelDetails({
         ...data.travelDetails,
@@ -1235,7 +1434,42 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   return (
     <div className="space-y-4">
       <div className="mx-auto w-full max-w-6xl space-y-2.5">
-        <form onSubmit={handleSubmit(onSubmit, () => toast.error(language === 'ar' ? 'أكمل البنود المطلوبة قبل الحفظ' : 'Complete the billing lines before saving'))} className="space-y-2.5">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            const lines = getValues('lineItems') || []
+            const kept = lines.filter(sellLineHasContent)
+            if (!kept.length) {
+              toast.error(language === 'ar' ? 'أضف بنداً واحداً على الأقل قبل الحفظ' : 'Add at least one billing line before saving')
+              return
+            }
+            const runSubmit = () => {
+              if (invoiceType === 'B2C') {
+                clearErrors('buyer.vatNumber')
+                clearErrors('buyer.crNumber')
+                clearErrors('buyer.name')
+                if (!String(getValues('buyer.name') || '').trim()) {
+                  setValue(
+                    'buyer.name',
+                    selectedCustomer?.name || selectedCustomer?.nameEn || 'Cash Customer',
+                    { shouldValidate: false },
+                  )
+                }
+              }
+              handleSubmit(
+                onSubmit,
+                (errs) => toast.error(describeSellFormErrors(errs, language)),
+              )()
+            }
+            if (kept.length !== lines.length) {
+              replace(kept)
+              setTimeout(runSubmit, 0)
+              return
+            }
+            runSubmit()
+          }}
+          className="space-y-2.5"
+        >
           <div className={`${sectionCardClass} !p-3 space-y-2`}>
             <div className="flex flex-wrap items-center gap-2">
               <div className={segmentWrapClass}>
@@ -1375,7 +1609,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             <input type="hidden" {...register('buyer.name', { required: invoiceType === 'B2B' && invoiceSubtype !== 'travel_ticket' })} />
             <input type="hidden" {...register('buyer.nameAr')} />
             <input type="hidden" {...register('buyer.vatNumber', { required: invoiceType === 'B2B' && invoiceSubtype !== 'travel_ticket' })} />
-            <input type="hidden" {...register('buyer.crNumber')} />
+            <input type="hidden" {...register('buyer.crNumber', { required: invoiceType === 'B2B' && invoiceSubtype !== 'travel_ticket' })} />
             <input type="hidden" {...register('buyer.contactPhone')} />
             <input type="hidden" {...register('buyer.contactEmail')} />
             <input type="hidden" {...register('buyer.address.city')} />
@@ -1413,6 +1647,43 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 </div>
               </div>
             ) : null}
+            <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2 dark:border-white/5 dark:bg-white/[0.02]">
+              <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                {language === 'ar' ? 'أمر البيع' : 'Sales order'}
+              </label>
+              <select
+                value={selectedSalesOrderId}
+                onChange={(e) => {
+                  const next = e.target.value
+                  setSelectedSalesOrderId(next)
+                  setValue('sourcePurchaseOrderId', next)
+                  filledSoIdRef.current = ''
+                  shouldFillFromSoRef.current = Boolean(next)
+                  if (!next) {
+                    setDocumentReferences([])
+                    setValue('sourceDeliveryNoteId', '')
+                    setValue('deliveryNoteIds', [])
+                    replace([{ ...emptyLine }])
+                  }
+                }}
+                className={`mt-1 ${denseControlClass}`}
+              >
+                <option value="">{language === 'ar' ? 'اختر أمر بيع…' : 'Select a sales order…'}</option>
+                {sellOrders.map((so) => (
+                  <option key={so._id} value={so._id}>
+                    {so.poNumber}
+                    {so.customerId?.name || so.customerId?.nameEn
+                      ? ` — ${language === 'ar' ? (so.customerId?.nameAr || so.customerId?.name || so.customerId?.nameEn || '') : (so.customerId?.nameEn || so.customerId?.name || so.customerId?.nameAr || '')}`
+                      : ''}
+                  </option>
+                ))}
+              </select>
+              <input type="hidden" {...register('sourcePurchaseOrderId')} />
+              <input type="hidden" {...register('sourceDeliveryNoteId')} />
+            </div>
+            {documentReferences.length ? (
+              <InvoiceDocumentReferencesBar references={documentReferences} language={language} />
+            ) : null}
           </div>
 
           {isMarqueeContext && (
@@ -1426,33 +1697,64 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             />
           )}
 
-          <div className={`${sectionCardClass} space-y-2 !p-0 overflow-hidden`}>
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200/90 px-3.5 py-2.5 dark:border-dark-600">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+          <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
+            <div className="flex items-center justify-between gap-3 px-4 py-3">
+              <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
                 {language === 'ar' ? 'البنود' : 'Lines'}
               </h3>
-              <button type="button" onClick={() => append(getEmptyLine(tenant))} className="inline-flex items-center gap-1 rounded-lg border border-slate-200/90 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-dark-800 dark:text-slate-200">
-                <Plus className="w-3.5 h-3.5" />{t('add')}
+              <button
+                type="button"
+                onClick={() => append(getEmptyLine(tenant))}
+                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200"
+              >
+                <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+                {t('add')}
               </button>
             </div>
-            <div className="space-y-1.5 px-3.5 pb-3.5 pt-1">
-              {fields.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-3 py-4 text-center dark:border-dark-600 dark:bg-dark-900/40">
-                  <p className="text-xs font-medium text-slate-500">
-                    {language === 'ar' ? 'لا توجد بنود بعد' : 'No lines yet'}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => replace(mapSellLineItems(initialInvoice, tenant))}
-                    className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-white dark:bg-white dark:text-slate-900"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    {language === 'ar' ? 'تحميل البنود' : 'Load lines'}
-                  </button>
+
+            {fields.length === 0 ? (
+              <div className="mx-4 mb-4 rounded-xl border border-dashed border-slate-200/90 px-3 py-8 text-center dark:border-white/10">
+                <p className="text-xs text-slate-400">
+                  {language === 'ar' ? 'لا توجد بنود بعد' : 'No lines yet'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => replace(mapSellLineItems(initialInvoice, tenant))}
+                  className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 underline-offset-2 hover:underline dark:text-slate-200"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {language === 'ar' ? 'تحميل البنود' : 'Load lines'}
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <div
+                  className={`hidden gap-1 border-y border-slate-100 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5 lg:grid lg:grid-cols-12`}
+                  dir="ltr"
+                >
+                  <div className={showArabicFields ? 'lg:col-span-4' : 'lg:col-span-5'}>
+                    {language === 'ar' ? 'المنتج' : 'Product'}
+                  </div>
+                  {showArabicFields ? <div className="lg:col-span-2">عربي</div> : null}
+                  {!isTravelContext ? <div className="lg:col-span-1">{language === 'ar' ? 'وحدة' : 'UOM'}</div> : null}
+                  {!isTravelContext ? <div className="lg:col-span-1">{t('quantity')}</div> : null}
+                  <div className={isTravelContext ? 'lg:col-span-2' : 'lg:col-span-1'}>
+                    {isTravelContext ? (language === 'ar' ? 'سعر التذكرة' : 'Price') : t('unitPrice')}
+                  </div>
+                  {isTravelContext ? (
+                    <>
+                      <div className="lg:col-span-1">{language === 'ar' ? 'وكالة' : 'Agency'}</div>
+                      <div className="lg:col-span-1">{language === 'ar' ? 'عميل' : 'Customer'}</div>
+                    </>
+                  ) : (
+                    <div className="lg:col-span-1">{t('tax')} %</div>
+                  )}
+                  <div className="text-end lg:col-span-2">{t('total')}</div>
                 </div>
-              ) : null}
-              {fields.map((field, index) => (
-                <div key={field.fieldId || field.id || `line-${index}`} className="rounded-xl border border-slate-200/90 bg-slate-50/50 p-2.5 dark:border-dark-600 dark:bg-dark-900/40">
+
+                <div className="divide-y divide-slate-100 dark:divide-white/5">
+                  {fields.map((field, index) => (
+                <div key={field.fieldId || field.id || `line-${index}`} className="group px-3 py-2 transition hover:bg-slate-50/70 dark:hover:bg-white/[0.02] sm:px-4">
                   <LineItemTranslator
                     index={index}
                     control={control}
@@ -1465,12 +1767,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <input type="hidden" {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} />
                   <input type="hidden" {...register(`lineItems.${index}.isTravelMargin`)} />
                   <input type="hidden" {...register(`lineItems.${index}.productType`)} />
-                  <div className="grid grid-cols-2 items-end gap-2 lg:grid-cols-12" dir="ltr">
-                    <div className={`col-span-2 ${isTravelContext
-                      ? (showArabicFields ? 'lg:col-span-3' : 'lg:col-span-4')
-                      : (showArabicFields ? 'lg:col-span-3' : 'lg:col-span-4')}`}>
+                  <div className="grid grid-cols-2 items-center gap-1.5 lg:grid-cols-12" dir="ltr">
+                    <div className={`col-span-2 ${showArabicFields ? 'lg:col-span-4' : 'lg:col-span-5'}`}>
                       {isTradingContext ? (
-                        <div className="flex min-h-[40px] items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white pe-1 ps-1 dark:border-white/10 dark:bg-dark-800">
+                        <div className="flex min-h-[36px] items-center gap-1 rounded-lg bg-slate-50/80 pe-0.5 ps-1 dark:bg-white/[0.03]">
                           <ProductTypeToggle
                             value={watch(`lineItems.${index}.productType`)}
                             onChange={(next) => {
@@ -1490,7 +1790,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                             language={language}
                             bare
                           />
-                          <div className="h-5 w-px shrink-0 bg-slate-200/90 dark:bg-white/10" aria-hidden />
+                          <div className="h-4 w-px shrink-0 bg-slate-200/80 dark:bg-white/10" aria-hidden />
                           <div className="min-w-0 flex-1 overflow-hidden">
                             <CreatableSelect
                               inputId={`product-select-${index}`}
@@ -1536,8 +1836,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                               formatCreateLabel={(inputValue) => language === 'ar' ? `إضافة "${inputValue}"` : `Add "${inputValue}"`}
                               placeholder={
                                 normalizeProductType(watch(`lineItems.${index}.productType`)) === 'service'
-                                  ? (language === 'ar' ? 'اختر خدمة…' : 'Select service…')
-                                  : (language === 'ar' ? 'اختر منتج…' : 'Select product…')
+                                  ? (language === 'ar' ? 'خدمة…' : 'Service…')
+                                  : (language === 'ar' ? 'منتج…' : 'Product…')
                               }
                               isClearable
                               isSearchable
@@ -1545,56 +1845,21 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                               menuPosition="fixed"
                               menuShouldScrollIntoView={false}
                               styles={{
-                                ...denseSelectStyles,
+                                ...lineSelectStyles,
                                 container: (base) => ({ ...base, width: '100%', minWidth: 0 }),
                                 control: (base, state) => ({
-                                  ...(denseSelectStyles.control?.(base, state) || base),
-                                  border: 'none',
-                                  boxShadow: 'none',
-                                  background: 'transparent',
-                                  minHeight: 34,
+                                  ...lineSelectStyles.control(base, state),
+                                  minHeight: 32,
                                   minWidth: 0,
-                                  padding: 0,
-                                  cursor: 'text',
                                 }),
-                                valueContainer: (base) => ({
-                                  ...base,
-                                  padding: '0 4px',
-                                  minWidth: 0,
-                                  overflow: 'hidden',
-                                }),
-                                input: (base) => ({ ...base, margin: 0, padding: 0, minWidth: '2ch' }),
-                                placeholder: (base) => ({
-                                  ...base,
-                                  color: '#94a3b8',
-                                  fontSize: '0.8125rem',
-                                  whiteSpace: 'nowrap',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  maxWidth: '100%',
-                                }),
-                                singleValue: (base) => ({
-                                  ...base,
-                                  maxWidth: '100%',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  fontWeight: 500,
-                                  color: '#0f172a',
-                                }),
-                                indicatorsContainer: (base) => ({ ...base, height: 34, flexShrink: 0 }),
-                                menuPortal: (base) => ({ ...base, zIndex: 9999 }),
                                 menu: (base) => ({
-                                  ...base,
+                                  ...lineSelectStyles.menu(base),
                                   minWidth: 320,
-                                  width: 'max(320px, 100%)',
                                   maxWidth: 'min(92vw, 480px)',
-                                  borderRadius: '0.75rem',
-                                  overflow: 'hidden',
-                                  boxShadow: '0 12px 40px -12px rgba(15,23,42,0.28)',
                                 }),
                                 option: (base, state) => ({
                                   ...base,
-                                  fontSize: '0.875rem',
+                                  fontSize: '0.8125rem',
                                   backgroundColor: state.isFocused ? '#f1f5f9' : '#fff',
                                   color: '#0f172a',
                                   cursor: 'pointer',
@@ -1607,19 +1872,19 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                           <input type="hidden" {...register(`lineItems.${index}.variantId`)} />
                         </div>
                       ) : (
-                        <div className="flex min-h-[40px] items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white pe-1 ps-1 dark:border-white/10 dark:bg-dark-800">
+                        <div className="flex min-h-[36px] items-center gap-1 rounded-lg bg-slate-50/80 pe-0.5 ps-1 dark:bg-white/[0.03]">
                           <ProductTypeToggle
                             value={watch(`lineItems.${index}.productType`)}
                             onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
                             language={language}
                             bare
                           />
-                          <div className="h-5 w-px shrink-0 bg-slate-200/90 dark:bg-white/10" aria-hidden />
-                          <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`)} className="min-w-0 flex-1 border-0 bg-transparent px-1 py-2 text-sm outline-none" placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
+                          <div className="h-4 w-px shrink-0 bg-slate-200/80 dark:bg-white/10" aria-hidden />
+                          <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`)} className={`${lineGhostInputClass} flex-1`} placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
                         </div>
                       )}
                       {isTradingContext && watch(`lineItems.${index}.productId`) ? (
-                        <div className="mt-1">
+                        <div className="mt-1 ps-1">
                           <VariantLineSelect
                             productId={watch(`lineItems.${index}.productId`)}
                             value={watch(`lineItems.${index}.variantId`)}
@@ -1638,10 +1903,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       ) : null}
                     </div>
                     {showArabicFields ? (
-                      <div className={`col-span-2 ${isTravelContext ? 'lg:col-span-3' : 'lg:col-span-3'}`}>
+                      <div className="col-span-2 lg:col-span-2">
                         <input
                           {...register(`lineItems.${index}.productNameAr`)}
-                          className={denseControlClass}
+                          className={lineGhostInputClass}
                           dir="auto"
                           placeholder="اسم البند"
                           aria-label="Arabic name"
@@ -1650,86 +1915,106 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     ) : (
                       <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
                     )}
-                    <div className="col-span-1 lg:col-span-2">
-                      <label htmlFor={`unit-${index}`} className={`${fieldLabelClass} !mb-0.5 text-[11px]`}>{language === 'ar' ? 'وحدة' : 'UOM'}</label>
-                      <Select
-                        className="react-select-container"
-                        classNamePrefix="react-select"
-                        isClearable
-                        isSearchable
-                        placeholder="—"
-                        styles={denseSelectStyles}
-                        value={
-                          watch(`lineItems.${index}.unitCode`)
-                            ? {
-                                value: watch(`lineItems.${index}.unitCode`),
-                                label: getUomLabel(watch(`lineItems.${index}.unitCode`), language)
-                              }
-                            : null
-                        }
-                        onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : '', { shouldValidate: true })}
-                        options={[
-                          { value: '', label: '—' },
-                          ...getAvailableUomOptions(tenant).map((uom) => ({
-                            value: uom.code,
-                            label: language === 'ar' ? uom.labelAr : uom.labelEn
-                          }))
-                        ]}
+                    {!isTravelContext ? (
+                      <div className="col-span-1 lg:col-span-1">
+                        <Select
+                          className="react-select-container"
+                          classNamePrefix="react-select"
+                          isClearable
+                          isSearchable
+                          placeholder="—"
+                          styles={lineSelectStyles}
+                          menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                          menuPosition="fixed"
+                          value={
+                            watch(`lineItems.${index}.unitCode`)
+                              ? {
+                                  value: watch(`lineItems.${index}.unitCode`),
+                                  label: getUomLabel(watch(`lineItems.${index}.unitCode`), language)
+                                }
+                              : null
+                          }
+                          onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : '', { shouldValidate: true })}
+                          options={[
+                            { value: '', label: '—' },
+                            ...getAvailableUomOptions(tenant).map((uom) => ({
+                              value: uom.code,
+                              label: language === 'ar' ? uom.labelAr : uom.labelEn
+                            }))
+                          ]}
+                        />
+                      </div>
+                    ) : null}
+                    {isTravelContext ? (
+                      <input
+                        type="hidden"
+                        {...register(`lineItems.${index}.quantity`, {
+                          valueAsNumber: true,
+                          required: sellLineHasContent(watch(`lineItems.${index}`)),
+                          min: sellLineHasContent(watch(`lineItems.${index}`)) ? 0.0001 : undefined,
+                        })}
+                      />
+                    ) : (
+                      <div className="col-span-1 lg:col-span-1">
+                        <input
+                          id={`qty-${index}`}
+                          type="number"
+                          min="0.0001"
+                          step="any"
+                          {...register(`lineItems.${index}.quantity`, {
+                            valueAsNumber: true,
+                            required: sellLineHasContent(watch(`lineItems.${index}`)),
+                            min: sellLineHasContent(watch(`lineItems.${index}`)) ? 0.0001 : undefined,
+                          })}
+                          className={`${lineGhostInputClass} tabular-nums`}
+                        />
+                      </div>
+                    )}
+                    <div className={`col-span-1 ${isTravelContext ? 'lg:col-span-2' : 'lg:col-span-1'}`}>
+                      <input
+                        id={`price-${index}`}
+                        type="number"
+                        step="0.01"
+                        {...register(`lineItems.${index}.unitPrice`, {
+                          valueAsNumber: true,
+                          required: sellLineHasContent(watch(`lineItems.${index}`)),
+                          min: 0,
+                        })}
+                        className={`${lineGhostInputClass} tabular-nums`}
                       />
                     </div>
                     {isTravelContext ? (
-                      <input type="hidden" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} />
-                    ) : (
-                      <div className="col-span-1 lg:col-span-1">
-                        <label htmlFor={`qty-${index}`} className={`${fieldLabelClass} !mb-0.5 text-[11px]`}>{t('quantity')}</label>
-                        <input id={`qty-${index}`} type="number" min="0.0001" step="any" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} className={denseControlClass} />
-                      </div>
-                    )}
-                    <div className="col-span-1 lg:col-span-2">
-                      <label htmlFor={`price-${index}`} className={`${fieldLabelClass} !mb-0.5 text-[11px]`}>
-                        {isTravelContext
-                          ? (language === 'ar' ? 'سعر التذكرة' : 'Unit Price')
-                          : t('unitPrice')}
-                      </label>
-                      <input id={`price-${index}`} type="number" step="0.01" {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })} className={denseControlClass} />
-                    </div>
-                    {isTravelContext ? (
                       <>
-                        <div className="col-span-1 lg:col-span-2">
-                          <label htmlFor={`agencyprice-${index}`} className={`${fieldLabelClass} !mb-0.5 text-[11px]`}>{language === 'ar' ? 'سعر الوكالة' : 'Agency'}</label>
+                        <div className="col-span-1 lg:col-span-1">
                           <input
                             id={`agencyprice-${index}`}
                             type="number"
                             step="0.01"
                             min="0"
                             {...register(`lineItems.${index}.agencyPrice`, { valueAsNumber: true, min: 0 })}
-                            className={denseControlClass}
+                            className={`${lineGhostInputClass} tabular-nums`}
                             placeholder="0.00"
                           />
                         </div>
-                        <div className="col-span-1 lg:col-span-2">
-                          <label htmlFor={`custprice-${index}`} className={`${fieldLabelClass} !mb-0.5 text-[11px]`}>
-                            {language === 'ar' ? 'سعر العميل' : 'Customer'}
-                          </label>
+                        <div className="col-span-1 lg:col-span-1">
                           <input
                             id={`custprice-${index}`}
                             type="number"
                             step="0.01"
                             min="0"
                             {...register(`lineItems.${index}.customerPrice`, { valueAsNumber: true, min: 0 })}
-                            className={denseControlClass}
+                            className={`${lineGhostInputClass} tabular-nums`}
                             placeholder="0.00"
                           />
                         </div>
                       </>
                     ) : (
                       <div className="col-span-1 lg:col-span-1">
-                        <label className={`${fieldLabelClass} !mb-0.5 text-[11px]`}>{t('tax')} %</label>
                         {(() => {
                           const isPkTax = String(tenant?.settings?.currency || '').toUpperCase() === 'PKR' || (tenant?.business?.address?.country || '').toUpperCase() === 'PK'
                           const pkRate = Number(tenant?.fbr?.defaultSalesTaxRate || 18)
                           return (
-                            <select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className={denseControlClass}>
+                            <select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className={`${lineGhostInputClass} cursor-pointer`}>
                               {isPkTax ? (
                                 <>
                                   <option value={pkRate}>{pkRate}%</option>
@@ -1748,12 +2033,20 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         })()}
                       </div>
                     )}
-                    <div className="col-span-2 flex items-center justify-end gap-1.5 lg:col-span-2">
-                      <div className="text-end">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t('total')}</p>
-                        <p className="text-sm font-bold tabular-nums text-slate-900 dark:text-white"><Money value={calculateLineTotal(index).total} /></p>
-                      </div>
-                      {fields.length > 1 && <button type="button" onClick={() => remove(index)} className="rounded-md p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-3.5 h-3.5" /></button>}
+                    <div className="col-span-2 flex items-center justify-end gap-1 lg:col-span-2">
+                      <p className="text-[13px] font-semibold tabular-nums text-slate-900 dark:text-white">
+                        <Money value={calculateLineTotal(index).total} />
+                      </p>
+                      {fields.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => remove(index)}
+                          className="rounded-md p-1.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-950/30"
+                          aria-label="Remove line"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                   {isTradingContext && lineItems?.[index]?.productId ? (
@@ -1804,8 +2097,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     )
                   })()}
                 </div>
-              ))}
-            </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <SalesEnhancementBar
@@ -2092,6 +2387,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             </div>
           </div>
 
+          <InvoiceJournalItemsPanel
+            flow="sell"
+            language={language}
+            totals={totals}
+            lineItems={totals.lines || []}
+            sourcePurchaseOrderId={watch('sourcePurchaseOrderId')}
+            value={accountingLines}
+            onChange={setAccountingLines}
+          />
+
           <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
             <div className="grid grid-cols-1 lg:grid-cols-2 lg:items-stretch">
               <div className="flex flex-col border-b border-slate-100 px-5 py-5 dark:border-white/5 lg:border-b-0 lg:border-e">
@@ -2218,12 +2523,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               </div>
             </div>
 
-            {/* Warehouse auto-selected in background when inventory engine requires it */}
-            <input type="hidden" {...register('warehouseId', {
-              required: engineRequiresWarehouse
-                ? (language === 'ar' ? 'المستودع مطلوب' : 'Warehouse required')
-                : false,
-            })} />
+            {/* Optional warehouse metadata only — stock moves via delivery notes */}
+            <input type="hidden" {...register('warehouseId')} />
 
             <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 dark:border-white/5 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-slate-400">
@@ -2232,7 +2533,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   : 'Tap Preview to review the invoice before saving'}
               </p>
               <div className="flex justify-end gap-3">
-                <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/invoices/${invoiceId}` : '/app/dashboard/invoices')} className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:bg-transparent dark:text-slate-300">{t('cancel')}</button>
+                <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : '/app/dashboard/accounting/invoices')} className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:bg-transparent dark:text-slate-300">{t('cancel')}</button>
                 <button type="submit" disabled={saveMutation.isPending} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 dark:bg-white dark:text-slate-900">
                   {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" /> : <><Eye className="w-4 h-4" />{language === 'ar' ? 'معاينة' : 'Preview'}</>}
                 </button>

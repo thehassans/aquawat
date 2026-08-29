@@ -193,7 +193,7 @@ export default function InvoiceView() {
     onSuccess: (res) => {
       toast.success(language === 'ar' ? 'تم تحويل الفاتورة المبدئية بنجاح' : 'Proforma converted to invoice successfully')
       queryClient.invalidateQueries(['invoices'])
-      navigate(`/app/dashboard/invoices/${res.data._id}`)
+      navigate(`/app/dashboard/accounting/invoices/${res.data._id}`)
     },
     onError: (error) => {
       toast.error(error.response?.data?.error || 'Failed to convert proforma')
@@ -206,7 +206,7 @@ export default function InvoiceView() {
       toast.success(language === 'ar' ? 'تم إصدار إشعار دائن بنجاح' : 'Credit note issued successfully')
       queryClient.invalidateQueries(['invoices'])
       queryClient.invalidateQueries(['invoice', id])
-      navigate(`/app/dashboard/invoices/${res.data._id}/edit`)
+      navigate(`/app/dashboard/accounting/invoices/${res.data._id}/edit`)
     },
     onError: (error) => {
       toast.error(error.response?.data?.error || 'Failed to issue credit note')
@@ -219,7 +219,7 @@ export default function InvoiceView() {
       toast.success(language === 'ar' ? 'تم إصدار إشعار مدين بنجاح' : 'Debit note issued successfully')
       queryClient.invalidateQueries(['invoices'])
       queryClient.invalidateQueries(['invoice', id])
-      navigate(`/app/dashboard/invoices/${res.data._id}/edit`)
+      navigate(`/app/dashboard/accounting/invoices/${res.data._id}/edit`)
     },
     onError: (error) => {
       toast.error(error.response?.data?.error || 'Failed to issue debit note')
@@ -393,7 +393,7 @@ export default function InvoiceView() {
           {isEditableInvoice(invoice, tenant?.zatca?.phase || 2) && (
             <button
               type="button"
-              onClick={() => navigate(`/app/dashboard/invoices/${id}/edit`)}
+              onClick={() => navigate(`/app/dashboard/accounting/invoices/${id}/edit`)}
               className={ghostActionClass}
             >
               <Edit className="w-4 h-4" />
@@ -582,7 +582,7 @@ export default function InvoiceView() {
                   toast.success(language === 'ar' ? 'تم حذف الفاتورة بنجاح' : 'Invoice deleted successfully')
                   queryClient.invalidateQueries(['invoices'])
                   queryClient.invalidateQueries(['dashboard'])
-                  navigate('/app/dashboard/invoices')
+                  navigate('/app/dashboard/accounting/invoices')
                 } catch (error) {
                   toast.error(error?.response?.data?.error || (language === 'ar' ? 'فشل حذف الفاتورة' : 'Failed to delete invoice'))
                 }

@@ -7,6 +7,7 @@ import {
   createJournalEntry,
   ensureDefaultChartOfAccounts,
   getAccountByCode,
+  normalizeAccountingOverrideLines,
 } from '../accountingService.js';
 import { D, decIsZero } from '../../utils/decimal.js';
 import { toObjectId } from '../../models/inventory/common.js';
@@ -824,7 +825,47 @@ export async function postPurchaseInvoiceJournal({
   }
   if (gross <= 0) return null;
 
-  const useInterim = Boolean(invoice.sourcePurchaseOrderId || invoice.sourceGrnId);
+  const override = normalizeAccountingOverrideLines(invoice.accountingLines);
+  if (override.balanced) {
+    let journalId = null;
+    try {
+      const book = await ensureDefaultPurchaseJournal(tenantId, userId);
+      journalId = book?._id || null;
+    } catch { /* optional */ }
+
+    const entry = await createJournalEntry({
+      tenantId: tid,
+      userId,
+      entryDate: invoice.issueDate || new Date(),
+      type: 'stock',
+      memo: `Purchase invoice ${invoice.invoiceNumber}`,
+      memoAr: `فاتورة مشتريات ${invoice.invoiceNumber}`,
+      reference: invoice.invoiceNumber,
+      currency,
+      lines: override.lines.map((l) => ({
+        accountId: l.accountId,
+        accountCode: l.accountCode,
+        debit: l.debit,
+        credit: l.credit,
+        description: l.description || `Bill ${invoice.invoiceNumber || ''}`,
+      })),
+      sourceModel: 'PurchaseInvoice',
+      sourceId: invoice._id,
+      sourceNumber: invoice.invoiceNumber,
+      status: 'posted',
+      journalId,
+    });
+    if (entry?._id) {
+      invoice.inventory = {
+        ...(invoice.inventory?.toObject?.() || invoice.inventory || {}),
+        journalEntryId: entry._id,
+      };
+      await invoice.save();
+    }
+    return entry;
+  }
+
+  const useInterim = Boolean(invoice.sourcePurchaseOrderId || invoice.sourceGrnId || (invoice.sourceGrnIds || []).length);
   const defaults = await resolveStockAccounts(tid);
   const vatInput = await getAccountByCode(tid, '1400');
   const ap = await getAccountByCode(tid, '2000');

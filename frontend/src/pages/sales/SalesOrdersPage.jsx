@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { Eye, Plus, Search, ShoppingCart } from 'lucide-react'
+import { Eye, Search, ShoppingCart } from 'lucide-react'
 import api from '../../lib/api'
 import {
   chipFilterClass,
@@ -14,7 +14,6 @@ import {
   kpiCardClass,
   listShellClass,
   pageTitleClass,
-  primaryActionClass,
   rowActionPrimaryClass,
   rowActionsWrapClass,
   salesTableClass,
@@ -100,11 +99,14 @@ export default function SalesOrdersPage() {
   return (
     <div className="flex min-h-0 flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className={pageTitleClass}>{isAr ? 'الطلبات' : 'Orders'}</h1>
-        <Link to="/app/dashboard/sales/orders/new" className={primaryActionClass}>
-          <Plus className="h-3.5 w-3.5" />
-          {isAr ? 'طلب جديد' : 'New order'}
-        </Link>
+        <div>
+          <h1 className={pageTitleClass}>{isAr ? 'الطلبات' : 'Orders'}</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {isAr
+              ? 'أوامر البيع تُنشأ باعتماد عروض الأسعار'
+              : 'Sales orders are created by approving quotations'}
+          </p>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -174,10 +176,9 @@ export default function SalesOrdersPage() {
                       <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200/90 bg-white text-slate-400 dark:border-white/10 dark:bg-dark-800">
                         <ShoppingCart className="h-5 w-5" strokeWidth={1.75} />
                       </span>
-                      <p>{isAr ? 'لا توجد طلبات بعد' : 'No orders yet'}</p>
-                      <Link to="/app/dashboard/sales/orders/new" className={ghostActionClass}>
-                        <Plus className="h-3.5 w-3.5" />
-                        {isAr ? 'إنشاء طلب' : 'New order'}
+                      <p>{isAr ? 'لا توجد طلبات بعد — اعتمد عرض سعر لإنشاء أمر بيع' : 'No orders yet — approve a quotation to create one'}</p>
+                      <Link to="/app/dashboard/quotations" className={ghostActionClass}>
+                        {isAr ? 'عروض الأسعار' : 'Quotations'}
                       </Link>
                     </div>
                   </td>

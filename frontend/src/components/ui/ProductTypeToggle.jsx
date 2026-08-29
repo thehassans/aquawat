@@ -27,7 +27,7 @@ export default function ProductTypeToggle({ value, onChange, language = 'en', cl
             aria-checked={selected}
             title={`${en} / ${ar}`}
             onClick={() => { if (!selected) onChange?.(type) }}
-            className={`rounded-md px-2.5 py-1.5 text-[11px] font-semibold leading-none tracking-wide transition ${
+            className={`rounded-md px-1.5 py-1 text-[10px] font-semibold leading-none tracking-wide transition ${
               selected
                 ? 'bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900'
                 : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'

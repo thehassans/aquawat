@@ -62,6 +62,7 @@ export default function SalesOrderCreatePage() {
   const defaultTax = Number(tenant?.settings?.taxRate ?? 15)
 
   const [customer, setCustomer] = useState(null)
+  const [salesTeamId, setSalesTeamId] = useState('')
   const [warehouseId, setWarehouseId] = useState('')
   const [warehouseOpt, setWarehouseOpt] = useState(null)
   const [incoterm, setIncoterm] = useState('EXW')
@@ -73,6 +74,16 @@ export default function SalesOrderCreatePage() {
     queryKey: ['sales-settings'],
     queryFn: async () => (await api.get('/sales/settings')).data,
   })
+
+  const { data: teamsData } = useQuery({
+    queryKey: ['sales-teams-active'],
+    queryFn: async () => (await api.get('/sales/teams', { params: { isActive: true, limit: 100 } })).data,
+    staleTime: 60_000,
+  })
+  const salesTeams = useMemo(() => {
+    const raw = teamsData?.items || teamsData?.teams || teamsData || []
+    return (Array.isArray(raw) ? raw : []).filter((t) => t.isActive !== false)
+  }, [teamsData])
 
   const { data: uomsData } = useQuery({
     queryKey: ['sales-uoms'],
@@ -112,8 +123,10 @@ export default function SalesOrderCreatePage() {
       const payload = {
         flow: 'sell',
         customerId: customer?._id,
+        salesTeamId: salesTeamId || undefined,
         warehouseId: warehouseId || undefined,
         incoterm: incoterm || settings?.defaultIncoterm || 'EXW',
+        status: 'approved',
         currency: tenant?.settings?.currency || 'SAR',
         lineItems: lines.map((l) => {
           const uom = uoms.find((u) => String(u._id) === String(l.uomId))
@@ -138,7 +151,17 @@ export default function SalesOrderCreatePage() {
       return (await api.post('/purchase-orders', payload)).data
     },
     onSuccess: (order) => {
-      toast.success(isAr ? 'تم إنشاء أمر البيع' : 'Sales order created')
+      if (order?.draftDelivery?.posted) {
+        toast.success(isAr ? 'تم تأكيد أمر البيع وخصم المخزون' : 'Sales order confirmed — stock deducted')
+      } else if (order?.draftDelivery?.stockError) {
+        toast.error(
+          isAr
+            ? `أمر البيع أُنشئ لكن فشل خصم المخزون: ${order.draftDelivery.stockError}`
+            : `Order created but stock-out failed: ${order.draftDelivery.stockError}`,
+        )
+      } else {
+        toast.success(isAr ? 'تم إنشاء أمر البيع' : 'Sales order created')
+      }
       navigate(`/app/dashboard/sales/orders/${order._id}`)
     },
     onError: (e) => toast.error(e?.response?.data?.error || e.message),
@@ -236,10 +259,16 @@ export default function SalesOrderCreatePage() {
         <button
           type="button"
           className={`${primaryActionClass} !px-4 !py-2.5 !text-sm disabled:opacity-40`}
-          disabled={!customer?._id || save.isPending}
-          onClick={() => save.mutate()}
+          disabled={!customer?._id || !warehouseId || save.isPending}
+          onClick={() => {
+            if (!warehouseId) {
+              toast.error(isAr ? 'المخزن مطلوب لخصم المخزون' : 'Warehouse is required to deduct stock')
+              return
+            }
+            save.mutate()
+          }}
         >
-          {save.isPending ? '…' : (isAr ? 'حفظ الطلب' : 'Save order')}
+          {save.isPending ? '…' : (isAr ? 'تأكيد وخصم المخزون' : 'Confirm & deduct stock')}
         </button>
       </div>
 
@@ -259,7 +288,23 @@ export default function SalesOrderCreatePage() {
 
         <div className={`grid gap-4 ${showIncotermOnDocuments ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-2 lg:grid-cols-3'}`}>
           <div>
-            <label className={fieldLabelClass}>{isAr ? 'المخزن' : 'Warehouse'}</label>
+            <label className={fieldLabelClass}>{isAr ? 'فريق المبيعات' : 'Sales team'}</label>
+            <select
+              className={fieldControlClass}
+              value={salesTeamId}
+              onChange={(e) => setSalesTeamId(e.target.value)}
+            >
+              <option value="">{isAr ? 'بدون فريق' : 'No team'}</option>
+              {salesTeams.map((t) => (
+                <option key={t._id} value={t._id}>
+                  {isAr ? (t.nameAr || t.name) : (t.name || t.nameAr)}
+                  {t.teamType ? ` · ${t.teamType}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={fieldLabelClass}>{isAr ? 'المخزن *' : 'Warehouse *'}</label>
             <AsyncCombobox
               value={warehouseId}
               selectedOption={warehouseOpt}

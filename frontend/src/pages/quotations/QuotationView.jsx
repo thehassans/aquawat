@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { ArrowLeft, Download, Mail, Printer, Edit, FileSpreadsheet, FileText, CheckCircle, XCircle, PenLine, Truck, MessageCircle } from 'lucide-react'
+import { ArrowLeft, Download, Mail, Printer, Edit, FileSpreadsheet, CheckCircle, XCircle, PenLine, MessageCircle, ShoppingCart } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
@@ -23,7 +23,6 @@ import {
   sectionCardClass,
   sectionEyebrowClass,
 } from '../sales/salesUi'
-import { useSalesSettings } from '../../context/SalesSettingsContext'
 
 const trimPartyName = (value) => String(value || '').trim()
 
@@ -61,9 +60,9 @@ const sanitizeAttachmentFileName = (value) => {
 }
 
 const isEditableQuotation = (quotation) => ['draft', 'sent'].includes(String(quotation?.status || '').toLowerCase())
-const canApproveQuotation = (quotation) => ['draft', 'sent', 'accepted', 'rejected'].includes(String(quotation?.status || '').toLowerCase()) && !quotation?.convertedInvoiceId
-const canRejectQuotation = (quotation) => ['draft', 'sent', 'accepted', 'approved'].includes(String(quotation?.status || '').toLowerCase()) && !quotation?.convertedInvoiceId
-const canConvertQuotation = (quotation) => String(quotation?.status || '').toLowerCase() === 'approved' && !quotation?.convertedInvoiceId
+const isConverted = (quotation) => Boolean(quotation?.convertedOrderId || quotation?.convertedInvoiceId)
+const canApproveQuotation = (quotation) => ['draft', 'sent', 'accepted', 'rejected'].includes(String(quotation?.status || '').toLowerCase()) && !isConverted(quotation)
+const canRejectQuotation = (quotation) => ['draft', 'sent', 'accepted', 'approved'].includes(String(quotation?.status || '').toLowerCase()) && !isConverted(quotation)
 
 export default function QuotationView() {
   const { id } = useParams()
@@ -73,7 +72,6 @@ export default function QuotationView() {
   const { language } = useSelector((state) => state.ui)
   const { tenant } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
-  const { enableProforma } = useSalesSettings()
   const [downloadingPdf, setDownloadingPdf] = useState(false)
 
   const { data: quotation, isLoading } = useQuery({
@@ -82,8 +80,8 @@ export default function QuotationView() {
   })
 
   const hasEmailAddon = tenantHasEmailAddon(tenant)
-  const convertedInvoiceId = quotation?.convertedInvoiceId?._id || quotation?.convertedInvoiceId || ''
-  const convertedInvoiceNumber = quotation?.convertedInvoiceId?.invoiceNumber || ''
+  const convertedOrderId = quotation?.convertedOrderId?._id || quotation?.convertedOrderId || ''
+  const convertedOrderNumber = quotation?.convertedOrderId?.poNumber || ''
   const templateId = resolveQuotationTemplateId(quotation?.pdfTemplateId)
 
   const excelRows = useMemo(() => (Array.isArray(quotation?.lineItems) ? quotation.lineItems : []).map((line, index) => ({
@@ -147,12 +145,26 @@ export default function QuotationView() {
 
   const approveMutation = useMutation({
     mutationFn: async () => await api.post(`/quotations/${id}/approve`),
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['quotation', id] })
       queryClient.invalidateQueries({ queryKey: ['quotations'] })
-      toast.success(language === 'ar' ? 'تم اعتماد عرض السعر' : 'Quotation approved successfully')
+      queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+      const orderId = response?.data?.orderId
+      toast.success(
+        language === 'ar'
+          ? 'تم الاعتماد وإنشاء أمر البيع'
+          : 'Quotation approved — sales order created',
+      )
+      if (orderId) {
+        navigate(`/app/dashboard/sales/orders/${orderId}`)
+      }
     },
     onError: (error) => {
+      const existingOrderId = error?.response?.data?.orderId
+      if (existingOrderId) {
+        navigate(`/app/dashboard/sales/orders/${existingOrderId}`)
+        return
+      }
       toast.error(error?.response?.data?.error || error?.message || (language === 'ar' ? 'تعذر اعتماد عرض السعر' : 'Unable to approve quotation'))
     },
   })
@@ -166,40 +178,6 @@ export default function QuotationView() {
     },
     onError: (error) => {
       toast.error(error?.response?.data?.error || error?.message || (language === 'ar' ? 'تعذر رفض عرض السعر' : 'Unable to reject quotation'))
-    },
-  })
-
-  const convertMutation = useMutation({
-    mutationFn: async () => await api.post(`/quotations/${id}/convert-to-invoice`),
-    onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ['quotation', id] })
-      queryClient.invalidateQueries({ queryKey: ['quotations'] })
-      queryClient.invalidateQueries({ queryKey: ['invoices'] })
-      toast.success(language === 'ar' ? 'تم تحويل عرض السعر إلى فاتورة بنجاح' : 'Quotation converted to invoice successfully')
-      const invoiceId = response?.data?.invoiceId
-      if (invoiceId) {
-        navigate(`/app/dashboard/invoices/${invoiceId}`)
-      }
-    },
-    onError: (error) => {
-      const existingInvoiceId = error?.response?.data?.invoiceId
-      if (existingInvoiceId) {
-        toast.success(language === 'ar' ? 'تم تحويل عرض السعر مسبقاً' : 'This quotation was already converted')
-        navigate(`/app/dashboard/invoices/${existingInvoiceId}`)
-        return
-      }
-      toast.error(error?.response?.data?.error || error?.message || (language === 'ar' ? 'تعذر تحويل عرض السعر إلى فاتورة' : 'Unable to convert quotation to invoice'))
-    },
-  })
-
-  const proformaMutation = useMutation({
-    mutationFn: async () => (await api.post(`/quotations/${id}/send-proforma`)).data,
-    onSuccess: (data) => {
-      toast.success(language === 'ar' ? 'تم إنشاء فاتورة مبدئية' : 'Pro-forma invoice created')
-      if (data?.invoice?._id) navigate(`/app/dashboard/invoices/${data.invoice._id}`)
-    },
-    onError: (error) => {
-      toast.error(error?.response?.data?.error || 'Failed to create pro-forma')
     },
   })
 
@@ -246,7 +224,7 @@ export default function QuotationView() {
               ) : (
                 <CheckCircle className="w-4 h-4" />
               )}
-              {language === 'ar' ? 'اعتماد' : 'Approve'}
+              {language === 'ar' ? 'اعتماد وإنشاء أمر بيع' : 'Approve → Sales order'}
             </button>
           ) : null}
           {canRejectQuotation(quotation) ? (
@@ -264,57 +242,16 @@ export default function QuotationView() {
               {language === 'ar' ? 'رفض' : 'Reject'}
             </button>
           ) : null}
-          {convertedInvoiceId ? (
+          {convertedOrderId ? (
             <button
               type="button"
-              onClick={() => navigate(`/app/dashboard/invoices/${convertedInvoiceId}`)}
+              onClick={() => navigate(`/app/dashboard/sales/orders/${convertedOrderId}`)}
               className={ghostActionClass}
             >
-              <FileText className="w-4 h-4" />
-              {language === 'ar' ? 'عرض الفاتورة' : 'View Invoice'}
-            </button>
-          ) : canConvertQuotation(quotation) ? (
-            <button
-              type="button"
-              onClick={() => convertMutation.mutate()}
-              disabled={convertMutation.isPending}
-              className="btn btn-action-dark btn-sm"
-            >
-              {convertMutation.isPending ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <FileText className="w-4 h-4" />
-              )}
-              {language === 'ar' ? 'تحويل إلى فاتورة' : 'Convert to Invoice'}
-            </button>
-          ) : !convertedInvoiceId ? (
-            <button type="button" className={ghostActionClass} disabled>
-              <FileText className="w-4 h-4" />
-              {language === 'ar' ? 'يتطلب الاعتماد' : 'Approval required'}
+              <ShoppingCart className="w-4 h-4" />
+              {language === 'ar' ? `أمر البيع ${convertedOrderNumber || ''}`.trim() : `Sales order ${convertedOrderNumber || ''}`.trim()}
             </button>
           ) : null}
-
-          {enableProforma !== false ? (
-          <button
-            type="button"
-            onClick={() => proformaMutation.mutate()}
-            disabled={proformaMutation.isPending}
-            className={ghostActionClass}
-          >
-            <FileText className="w-4 h-4" />
-            {language === 'ar' ? 'فاتورة مبدئية' : 'Send Pro-Forma'}
-          </button>
-          ) : null}
-
-          <button
-            type="button"
-            onClick={() => navigate(`/app/dashboard/delivery-notes/new?quotationId=${id}`)}
-            className={ghostActionClass}
-            title={language === 'ar' ? 'إنشاء سند تسليم من عرض السعر هذا' : 'Create Delivery Note from this quotation'}
-          >
-            <Truck className="w-4 h-4" />
-            {language === 'ar' ? 'سند تسليم' : 'Delivery Note'}
-          </button>
 
           {isEditableQuotation(quotation) ? (
             <button type="button" onClick={() => navigate(`/app/dashboard/quotations/${id}/edit`)} className={ghostActionClass}>
@@ -471,14 +408,14 @@ export default function QuotationView() {
               {quotation?.rejectedByName || quotation?.rejectedByNameAr ? (
                 <div className={metaRowClass}><span>{language === 'ar' ? 'رُفض بواسطة' : 'Rejected By'}</span><span className={metaValueClass}>{language === 'ar' ? (quotation?.rejectedByNameAr || quotation?.rejectedByName || '—') : (quotation?.rejectedByName || quotation?.rejectedByNameAr || '—')}</span></div>
               ) : null}
-              {convertedInvoiceId ? (
+              {convertedOrderId ? (
                 <button
                   type="button"
-                  onClick={() => navigate(`/app/dashboard/invoices/${convertedInvoiceId}`)}
+                  onClick={() => navigate(`/app/dashboard/sales/orders/${convertedOrderId}`)}
                   className="flex w-full items-center justify-between border-t border-slate-100 pt-3 text-start text-teal-700 hover:underline dark:border-white/10 dark:text-teal-300"
                 >
-                  <span>{language === 'ar' ? 'الفاتورة الناتجة' : 'Converted Invoice'}</span>
-                  <span className="font-semibold">{convertedInvoiceNumber || (language === 'ar' ? 'عرض' : 'Open')}</span>
+                  <span>{language === 'ar' ? 'أمر البيع' : 'Sales order'}</span>
+                  <span className="font-semibold">{convertedOrderNumber || (language === 'ar' ? 'عرض' : 'Open')}</span>
                 </button>
               ) : null}
               <div className={`${metaRowClass} border-t border-slate-100 pt-3 dark:border-white/10`}>

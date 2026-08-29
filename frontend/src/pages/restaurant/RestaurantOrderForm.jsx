@@ -41,7 +41,7 @@ export default function RestaurantOrderForm() {
         queryClient.invalidateQueries(['restaurant-order', id])
         queryClient.invalidateQueries(['restaurant-orders'])
         queryClient.invalidateQueries(['invoices'])
-        navigate(`/app/dashboard/invoices/${invoiceId}`)
+        navigate(`/app/dashboard/accounting/invoices/${invoiceId}`)
       } else {
         toast.error(language === 'ar' ? 'لم يتم إنشاء الفاتورة' : 'Invoice not created')
       }

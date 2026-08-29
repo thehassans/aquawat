@@ -91,6 +91,7 @@ const purchaseOrderSchema = new mongoose.Schema({
   }],
 
   billedInvoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' },
+  sourceQuotationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Quotation', index: true },
 
   lineItems: { type: [purchaseOrderLineItemSchema], default: [] },
 

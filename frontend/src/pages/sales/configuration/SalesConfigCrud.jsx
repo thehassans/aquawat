@@ -26,6 +26,7 @@ export default function SalesConfigCrud({
   columns = [],
   fields = [],
   emptyLabel = 'No records yet',
+  filterFn,
 }) {
   const { language } = useSelector((s) => s.ui)
   const isAr = language === 'ar'
@@ -41,7 +42,10 @@ export default function SalesConfigCrud({
     },
   })
 
-  const items = useMemo(() => (Array.isArray(data) ? data : data?.items || []), [data])
+  const items = useMemo(() => {
+    const raw = Array.isArray(data) ? data : data?.items || []
+    return typeof filterFn === 'function' ? raw.filter(filterFn) : raw
+  }, [data, filterFn])
 
   const saveMutation = useMutation({
     mutationFn: async () => {

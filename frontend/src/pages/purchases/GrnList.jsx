@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Search, PackageCheck, Clock3, Anchor } from 'lucide-react'
+import { Search, PackageCheck, Clock3, Anchor } from 'lucide-react'
 import api from '../../lib/api'
 import { normalizeGrnList } from '../../lib/grnApi'
 import Money from '../../components/ui/Money'
@@ -96,14 +96,10 @@ export default function GrnList() {
           </h1>
           <p className="mt-1.5 max-w-xl text-[13px] leading-6 text-slate-500 dark:text-slate-400">
             {language === 'ar'
-              ? 'استلم من طلب الشراء، حدّث المخزون في المستودع، وسجّل التأخير على البنود.'
-              : 'Receive from a purchase order, post warehouse stock, and flag delayed lines.'}
+              ? 'استلم فقط من طلب الشراء المعتمد — لا إنشاء إشعار استلام مستقل.'
+              : 'Receive only from an approved purchase order — no standalone GRN create.'}
           </p>
         </div>
-        <Link to={`${PURCHASES_PATH.grn}/new`} className={primaryBtn}>
-          <Plus className="h-4 w-4 opacity-80" />
-          {language === 'ar' ? 'إشعار استلام جديد' : 'New GRN'}
-        </Link>
       </div>
 
       <div className={`${shell} p-4`}>
@@ -152,11 +148,11 @@ export default function GrnList() {
                 : (language === 'ar' ? 'لا توجد إشعارات استلام' : 'No goods receipts yet')}
             </p>
             <p className="mt-1 max-w-sm text-[13px] text-slate-500">
-              {language === 'ar' ? 'ابدأ باستلام طلب شراء معتمد.' : 'Start by receiving an approved purchase order.'}
+              {language === 'ar' ? 'افتح طلب شراء معتمد واستلم البضاعة منه.' : 'Open an approved purchase order and receive goods from it.'}
             </p>
-            <Link to={`${PURCHASES_PATH.grn}/new`} className={`${primaryBtn} mt-5`}>
-              <Plus className="h-4 w-4" />
-              {language === 'ar' ? 'إشعار استلام جديد' : 'New GRN'}
+            <Link to={PURCHASES_PATH.orders} className={`${primaryBtn} mt-5`}>
+              <PackageCheck className="h-4 w-4" />
+              {language === 'ar' ? 'طلبات الشراء' : 'Purchase orders'}
             </Link>
           </div>
         ) : isPoView && activeFilter.bucket === 'delayed' ? (

@@ -15,6 +15,7 @@ import { withTenant } from '../../utils/tenantScope.js';
 import { computeMoveDoneChecksum, computeMoveLineDoneChecksum } from './doneChecksum.js';
 
 export const COUNT_REASON_CODES = [
+  { code: 'equal', label: 'Equal / matched', labelAr: 'متطابق' },
   { code: 'damage', label: 'Damage', labelAr: 'تلف' },
   { code: 'theft_loss', label: 'Theft/Loss', labelAr: 'سرقة/فقدان' },
   { code: 'expiry', label: 'Expiry', labelAr: 'انتهاء صلاحية' },
@@ -360,8 +361,15 @@ export async function previewApplyCounts(tenantId, ids) {
   let positiveDiff = D(0);
   let negativeDiff = D(0);
   let valuationImpact = D(0);
+  let equalLines = 0;
+  let varianceLines = 0;
   for (const q of quants) {
     const diff = D(q.countDifference || 0);
+    if (decIsZero(diff)) {
+      equalLines += 1;
+      continue;
+    }
+    varianceLines += 1;
     if (diff.gt(0)) positiveDiff = positiveDiff.plus(diff);
     if (diff.lt(0)) negativeDiff = negativeDiff.plus(diff);
     const cost = D(q.productId?.costPrice || 0);
@@ -369,9 +377,12 @@ export async function previewApplyCounts(tenantId, ids) {
   }
   return {
     lines: quants.length,
+    equalLines,
+    varianceLines,
     positiveDiff: decStr(positiveDiff),
     negativeDiff: decStr(negativeDiff),
     valuationImpact: decStr(valuationImpact),
+    hasVariance: varianceLines > 0,
   };
 }
 

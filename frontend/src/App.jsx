@@ -73,7 +73,6 @@ const ExpenseClaims = lazy(() => import('./pages/hr/ExpenseClaims'))
 const SalesLayout = lazy(() => import('./pages/sales/SalesLayout'))
 const SalesHomePage = lazy(() => import('./pages/sales/SalesHomePage'))
 const SalesOrdersPage = lazy(() => import('./pages/sales/SalesOrdersPage'))
-const SalesOrderCreatePage = lazy(() => import('./pages/sales/SalesOrderCreatePage'))
 const SalesOrderViewPage = lazy(() => import('./pages/sales/SalesOrderViewPage'))
 const SalesConfigurationLayout = lazy(() => import('./pages/sales/configuration/SalesConfigurationLayout'))
 const SalesSettingsPage = lazy(() => import('./pages/sales/configuration/SalesSettingsPage'))
@@ -89,6 +88,7 @@ const PaymentMethodsPage = lazy(() => import('./pages/sales/configuration/Paymen
 const PaymentTransactionsPage = lazy(() => import('./pages/sales/configuration/PaymentTransactionsPage'))
 const CarrierConnectorsPage = lazy(() => import('./pages/sales/configuration/CarrierConnectorsPage'))
 const SalesReportingLayout = lazy(() => import('./pages/sales/reporting/SalesReportingLayout'))
+const SalesReportingOverviewPage = lazy(() => import('./pages/sales/reporting/SalesReportingOverviewPage'))
 const SalesAnalysisPage = lazy(() => import('./pages/sales/reporting/SalesAnalysisPage'))
 const SalesMatrixReportPage = lazy(() => import('./pages/sales/reporting/SalesMatrixReportPage'))
 const SalespeopleReportPage = lazy(() => import('./pages/sales/reporting/SalespeopleReportPage'))
@@ -184,6 +184,8 @@ const VatReturns = lazy(() => import('./pages/VatReturns'))
 const Vouchers = lazy(() => import('./pages/finance/Vouchers'))
 const Finance = lazy(() => import('./pages/Finance'))
 const Accounting = lazy(() => import('./pages/accounting/Accounting'))
+const AccountingLayout = lazy(() => import('./pages/accounting/AccountingLayout'))
+const InvoiceSettingsPage = lazy(() => import('./pages/accounting/InvoiceSettingsPage'))
 const Backup = lazy(() => import('./pages/Backup'))
 const Suppliers = lazy(() => import('./pages/Suppliers'))
 const SupplierForm = lazy(() => import('./pages/SupplierForm'))
@@ -192,6 +194,7 @@ const SupplierPerformance = lazy(() => import('./pages/trading/SupplierPerforman
 const PurchaseOrders = lazy(() => import('./pages/PurchaseOrders'))
 const PurchaseOrderForm = lazy(() => import('./pages/PurchaseOrderForm'))
 const PurchasesLayout = lazy(() => import('./pages/purchases/PurchasesLayout'))
+const PurchasesOverview = lazy(() => import('./pages/purchases/PurchasesOverview'))
 const PurchasesSuppliers = lazy(() => import('./pages/purchases/PurchasesSuppliers'))
 const PurchasesReports = lazy(() => import('./pages/purchases/PurchasesReports'))
 const GrnList = lazy(() => import('./pages/purchases/GrnList'))
@@ -413,6 +416,12 @@ function LegacyModuleRedirect({ module }) {
   const location = useLocation()
   const nextPath = location.pathname.replace(`/${module}`, `/app/dashboard/${module}`)
   return <Navigate to={`${nextPath}${location.search}${location.hash}`} replace />
+}
+
+function LegacyInvoicesToAccountingRedirect() {
+  const location = useLocation()
+  const rest = location.pathname.replace(/^\/app\/dashboard\/invoices/, '') || ''
+  return <Navigate to={`/app/dashboard/accounting/invoices${rest}${location.search}${location.hash}`} replace />
 }
 
 function PurchasesIdRedirect({ to, suffix = '' }) {
@@ -747,20 +756,20 @@ function App() {
           <Route path="khayyat/quick-invoice" element={<BusinessTypeRoute allowedTypes={['khayyat']}><KhayyatQuickInvoice /></BusinessTypeRoute>} />
           <Route path="khayyat/complete-order" element={<BusinessTypeRoute allowedTypes={['khayyat']}><KhayyatCompleteOrder /></BusinessTypeRoute>} />
         <Route element={<SalesLayout />}>
-          <Route path="invoices" element={<Invoices />} />
-          <Route path="invoices/new" element={<InvoiceCreate />} />
-          <Route path="invoices/new/sell" element={<InvoiceCreateSell />} />
-          <Route path="invoices/new/purchase" element={<InvoiceCreatePurchase />} />
-          <Route path="invoices/:id/edit" element={<InvoiceEditPage />} />
-          <Route path="invoices/:id" element={<InvoiceView />} />
+          <Route path="invoices/*" element={<LegacyInvoicesToAccountingRedirect />} />
           <Route path="quotations" element={<Quotations />} />
           <Route path="quotations/new" element={<QuotationCreatePage />} />
           <Route path="quotations/:id/edit" element={<QuotationEditPage />} />
           <Route path="quotations/:id" element={<QuotationView />} />
           <Route path="sales" element={<SalesHomePage />} />
           <Route path="sales/orders" element={<SalesOrdersPage />} />
-          <Route path="sales/orders/new" element={<SalesOrderCreatePage />} />
+          <Route path="sales/orders/new" element={<Navigate to="/app/dashboard/quotations/new" replace />} />
           <Route path="sales/orders/:id" element={<SalesOrderViewPage />} />
+          <Route path="sales/teams" element={<SalesTeamsPage />} />
+          <Route path="sales/customers" element={<CustomerList />} />
+          <Route path="sales/customers/new" element={<CustomerForm />} />
+          <Route path="sales/customers/:id/edit" element={<CustomerForm />} />
+          <Route path="sales/customers/:id" element={<CustomerForm />} />
           <Route path="sales/configuration" element={<SalesConfigurationLayout />}>
             <Route index element={<Navigate to="settings" replace />} />
             <Route path="settings" element={<SalesSettingsPage />} />
@@ -777,7 +786,7 @@ function App() {
             <Route path="carrier-connectors" element={<CarrierConnectorsPage />} />
           </Route>
           <Route path="sales/reporting" element={<SalesReportingLayout />}>
-            <Route index element={<Navigate to="analysis" replace />} />
+            <Route index element={<SalesReportingOverviewPage />} />
             <Route path="analysis" element={<SalesAnalysisPage />} />
             <Route path="matrix" element={<SalesMatrixReportPage />} />
             <Route path="salespeople" element={<SalespeopleReportPage />} />
@@ -985,14 +994,14 @@ function App() {
         <Route path="suppliers/:id/edit" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><SupplierForm /></BusinessTypeRoute>} />
         <Route path="supplier-performance" element={<BusinessTypeRoute allowedTypes={['trading', 'bakala', 'pharmacy', 'furniture_shop']}><SupplierPerformance /></BusinessTypeRoute>} />
         <Route path="purchases" element={<PurchasesLayout />}>
-          <Route index element={<Navigate to="orders" replace />} />
+          <Route index element={<PurchasesOverview />} />
           <Route path="orders" element={<PurchaseOrders />} />
           <Route path="orders/new" element={<PurchaseOrderForm />} />
           <Route path="orders/:id" element={<PurchaseOrderForm />} />
           <Route path="suppliers" element={<PurchasesSuppliers />} />
           <Route path="reports" element={<PurchasesReports />} />
           <Route path="grn" element={<GrnList />} />
-          <Route path="grn/new" element={<GrnForm />} />
+          <Route path="grn/new" element={<Navigate to="/app/dashboard/purchases/orders" replace />} />
           <Route path="grn/:id" element={<GrnForm />} />
           <Route path="returns" element={<PurchaseReturnList />} />
           <Route path="returns/new" element={<PurchaseReturnForm />} />
@@ -1094,8 +1103,17 @@ function App() {
         <Route path="iot/devices/new" element={<BusinessTypeRoute allowedTypes={['trading']}><IoTDeviceForm /></BusinessTypeRoute>} />
         <Route path="iot/devices/:id" element={<BusinessTypeRoute allowedTypes={['trading']}><IoTDeviceForm /></BusinessTypeRoute>} />
         <Route path="finance" element={<Finance />} />
-        <Route path="accounting" element={<Accounting />} />
-        <Route path="accounting/:section" element={<Accounting />} />
+        <Route path="accounting" element={<AccountingLayout />}>
+          <Route index element={<Accounting />} />
+          <Route path="invoices" element={<Invoices />} />
+          <Route path="invoices/settings" element={<InvoiceSettingsPage />} />
+          <Route path="invoices/new" element={<InvoiceCreate />} />
+          <Route path="invoices/new/sell" element={<InvoiceCreateSell />} />
+          <Route path="invoices/new/purchase" element={<InvoiceCreatePurchase />} />
+          <Route path="invoices/:id/edit" element={<InvoiceEditPage />} />
+          <Route path="invoices/:id" element={<InvoiceView />} />
+          <Route path=":section" element={<Accounting />} />
+        </Route>
         <Route path="vouchers" element={<Vouchers />} />
         <Route path="khata" element={<Khata />} />
         <Route path="users" element={<Users />} />

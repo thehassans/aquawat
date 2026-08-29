@@ -599,7 +599,7 @@ export default function DeliveryNotes() {
                           {/* Convert to Invoice Button */}
                           <button
                             type="button"
-                            onClick={() => navigate(`/app/dashboard/invoices/new?deliveryNoteId=${dn._id}`)}
+                            onClick={() => navigate(`/app/dashboard/accounting/invoices/new?deliveryNoteId=${dn._id}`)}
                             className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 text-xs font-bold transition-all shadow-xs inline-flex items-center gap-1"
                             title={isAr ? 'تحويل إلى فاتورة' : 'Convert to Invoice'}
                           >
@@ -815,7 +815,7 @@ export default function DeliveryNotes() {
 
                   <button
                     type="button"
-                    onClick={() => navigate(`/app/dashboard/invoices/new?deliveryNoteId=${quickViewDn._id}`)}
+                    onClick={() => navigate(`/app/dashboard/accounting/invoices/new?deliveryNoteId=${quickViewDn._id}`)}
                     className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 text-xs font-bold flex items-center gap-1.5 shadow-sm"
                   >
                     <Receipt className="w-3.5 h-3.5" />

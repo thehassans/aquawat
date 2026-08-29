@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { ArrowLeft, Banknote, CheckCircle2, Lock, Send, ShieldAlert, XCircle } from 'lucide-react'
+import { ArrowLeft, Banknote, CheckCircle2, Download, Lock, Mail, MessageCircle, Printer, Send, ShieldAlert, Truck, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import SalesOrderSmartButtons from '../../components/sales/SalesOrderSmartButtons'
 import DownPaymentModal from '../../components/sales/DownPaymentModal'
 import DocumentChatter from '../../components/sales/DocumentChatter'
-import { useSalesSettings } from '../../context/SalesSettingsContext'
+import { tenantHasEmailAddon } from '../../lib/emailAddon'
+import { buildSalesOrderPdfBlob, downloadSalesOrderPdf, printSalesOrderPdf } from '../../lib/invoicePdfActions'
 import {
   actionBarClass,
   backBtnClass,
@@ -39,9 +40,28 @@ function pipelineStep(order) {
   if (order?.status === 'cancelled') return -1
   if (order?.status === 'pending_approval') return 1.5
   if (order?.isLocked || order?.status === 'delivered' || order?.status === 'partially_delivered') return 3
-  if (order?.status === 'approved') return 2
+  if (order?.status === 'approved' || order?.approvedAt) return 2
   if (order?.status === 'sent') return 1
   return 0
+}
+
+const blobToBase64 = (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader()
+  reader.onload = () => {
+    const result = String(reader.result || '')
+    const parts = result.split(',', 2)
+    resolve(parts[1] || '')
+  }
+  reader.onerror = () => reject(reader.error || new Error('Failed to read PDF attachment'))
+  reader.readAsDataURL(blob)
+})
+
+const sanitizeAttachmentFileName = (value) => {
+  const normalized = String(value || 'sales-order')
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return normalized || 'sales-order'
 }
 
 export default function SalesOrderViewPage() {
@@ -49,9 +69,11 @@ export default function SalesOrderViewPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { language } = useSelector((s) => s.ui)
+  const { tenant } = useSelector((s) => s.auth)
   const isAr = language === 'ar'
   const [downPaymentOpen, setDownPaymentOpen] = useState(false)
-  const { defaultInvoicingPolicy } = useSalesSettings()
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
+  const hasEmailAddon = tenantHasEmailAddon(tenant)
 
   const { data: order, isLoading } = useQuery({
     queryKey: ['sales-order', id],
@@ -78,6 +100,12 @@ export default function SalesOrderViewPage() {
     mutationFn: () => api.post(`/purchase-orders/${id}/approve`),
     onSuccess: (res) => {
       const data = res?.data || res
+      if (data?.alreadyApproved) {
+        toast.success(isAr ? 'الأمر مؤكد مسبقاً' : 'Order already confirmed')
+        qc.invalidateQueries({ queryKey: ['sales-order', id] })
+        qc.invalidateQueries({ queryKey: ['sales-smart-buttons', id] })
+        return
+      }
       if (data?.status === 'pending_approval' || data?.code === 'CREDIT_LIMIT_EXCEEDED' || data?.code === 'MARGIN_BELOW_THRESHOLD') {
         toast.error(data.error || (isAr ? 'بانتظار موافقة المالية' : 'Pending finance approval'))
       } else {
@@ -129,49 +157,55 @@ export default function SalesOrderViewPage() {
     onError: (e) => toast.error(e?.response?.data?.error || e.message),
   })
 
-  const createInvoice = useMutation({
+  const sendEmailMutation = useMutation({
     mutationFn: async () => {
-      const policy = defaultInvoicingPolicy || 'ordered'
-      const lines = (order.lineItems || [])
-        .map((li) => {
-          const ordered = Number(li.quantityOrdered || 0)
-          const delivered = Number(li.quantityDelivered || 0)
-          const invoiced = Number(li.quantityInvoiced || 0)
-          const qty = policy === 'delivered'
-            ? Math.max(0, delivered - invoiced)
-            : Math.max(0, ordered - invoiced)
-          return {
-            productId: li.productId?._id || li.productId,
-            variantId: li.variantId || undefined,
-            productName: li.manualName || li.description || 'Item',
-            quantity: qty,
-            unitPrice: li.unitCost,
-            productType: li.productType || 'goods',
-            taxRate: li.taxRate ?? 15,
-            sourcePoItemId: li._id,
-          }
-        })
-        .filter((li) => li.quantity > 0)
-
-      if (!lines.length) {
-        throw new Error(isAr ? 'لا كميات قابلة للفوترة' : 'Nothing left to invoice')
+      if (!order) throw new Error(isAr ? 'أمر البيع غير متاح' : 'Sales order is unavailable')
+      const attachmentBlob = await buildSalesOrderPdfBlob({ salesOrder: order, language, tenant })
+      if (!(attachmentBlob instanceof Blob)) {
+        throw new Error(isAr ? 'تعذر تجهيز ملف PDF' : 'Unable to prepare PDF attachment')
       }
-
-      const { data } = await api.post('/invoices', {
-        flow: 'sell',
-        sourcePurchaseOrderId: id,
-        customerId: order.customerId?._id || order.customerId,
-        transactionType: order.customerId?.entityType === 'business' || order.customerId?.vatNumber ? 'B2B' : 'B2C',
-        lineItems: lines,
-      })
-      return data
+      const contentBase64 = await blobToBase64(attachmentBlob)
+      return await api.post(`/purchase-orders/${id}/send-email`, {
+        language,
+        attachment: {
+          filename: `${sanitizeAttachmentFileName(order?.poNumber)}.pdf`,
+          contentBase64,
+          contentType: 'application/pdf',
+          size: attachmentBlob.size,
+        },
+      }, { timeout: 120000 })
     },
-    onSuccess: (inv) => {
-      toast.success(isAr ? 'تم إنشاء الفاتورة' : 'Invoice created')
-      navigate(`/app/dashboard/invoices/${inv._id || inv.invoice?._id}`)
+    onSuccess: () => {
+      toast.success(isAr ? 'تم إرسال فاتورة أمر البيع عبر البريد' : 'Sales order bill emailed successfully')
     },
-    onError: (e) => toast.error(e?.response?.data?.error || e.message),
+    onError: (error) => {
+      toast.error(error?.response?.data?.error || error?.message || (isAr ? 'فشل إرسال البريد' : 'Failed to send email'))
+    },
   })
+
+  const sendWhatsAppMutation = useMutation({
+    mutationFn: async () => {
+      if (!order) throw new Error(isAr ? 'أمر البيع غير متاح' : 'Sales order is unavailable')
+      return await api.post(`/purchase-orders/${id}/send-whatsapp`, { language })
+    },
+    onSuccess: (res) => {
+      const data = res?.data || {}
+      if (data?.channel === 'direct_whatsapp') {
+        toast.success(isAr ? 'تم إرسال أمر البيع عبر واتساب' : 'Sales order sent via WhatsApp')
+      } else if (data?.waLink) {
+        window.open(data.waLink, '_blank')
+        toast.success(isAr ? 'جاري فتح واتساب...' : 'Opening WhatsApp...')
+      } else {
+        toast.success(isAr ? 'تم إرسال أمر البيع عبر واتساب' : 'Sales order sent via WhatsApp')
+      }
+    },
+    onError: (error) => {
+      toast.error(error?.response?.data?.error || error?.message || (isAr ? 'فشل إرسال واتساب' : 'Failed to send WhatsApp'))
+    },
+  })
+
+  const sourceQuotationId = order?.sourceQuotationId?._id || order?.sourceQuotationId
+  const sourceQuotationNumber = order?.sourceQuotationId?.quotationNumber || order?.sourceQuotationNumber
 
   const step = useMemo(() => pipelineStep(order), [order])
 
@@ -180,26 +214,47 @@ export default function SalesOrderViewPage() {
     if (action === 'confirm' && ['draft', 'sent'].includes(order.status)) approveMutation.mutate()
   }
 
+  const handleDownloadPdf = async () => {
+    if (!order) return
+    setDownloadingPdf(true)
+    try {
+      await downloadSalesOrderPdf({ salesOrder: order, language, tenant })
+      toast.success(isAr ? 'تم تنزيل فاتورة أمر البيع' : 'Sales order bill downloaded')
+    } catch (error) {
+      toast.error(error?.message || (isAr ? 'فشل تنزيل PDF' : 'Failed to download PDF'))
+    } finally {
+      setDownloadingPdf(false)
+    }
+  }
+
+  const handlePrint = async () => {
+    if (!order) return
+    try {
+      await printSalesOrderPdf({ salesOrder: order, language, tenant })
+    } catch (error) {
+      toast.error(error?.message || (isAr ? 'فشل الطباعة' : 'Failed to print'))
+    }
+  }
+
   if (isLoading) return <div className="p-8 text-sm text-slate-500">…</div>
   if (!order) return <div className="p-8 text-sm text-red-600">Not found</div>
 
-  const canSend = order.status === 'draft'
-  const canConfirm = ['draft', 'sent'].includes(order.status)
+  const canSend = order.status === 'draft' && !order.sourceQuotationId
+  const canConfirm = ['draft', 'sent'].includes(order.status) && !order.approvedAt
   const isPendingApproval = order.status === 'pending_approval'
-  const isConfirmed = order.status === 'approved' || order.isLocked || ['partially_delivered', 'delivered'].includes(order.status)
-  const deliveredPolicy = (defaultInvoicingPolicy || 'ordered') === 'delivered'
-  const hasDeliveredQty = (order.lineItems || []).some((li) => Number(li.quantityDelivered || 0) > Number(li.quantityInvoiced || 0))
-  const dnDone = Boolean(
-    smart?.deliveryNotes?.some?.((d) => {
-      const st = String(d.status || d.transferState || '').toLowerCase()
-      return ['done', 'delivered', 'fully_invoiced', 'partially_invoiced'].includes(st)
-    }),
-  ) || ['delivered', 'partially_delivered'].includes(String(order.status || ''))
-  const canInvoice = isConfirmed && (
-    !deliveredPolicy
-      ? true
-      : (hasDeliveredQty && dnDone)
-  )
+  const isConfirmed = order.status === 'approved' || Boolean(order.approvedAt) || order.isLocked || ['partially_delivered', 'delivered'].includes(order.status)
+
+  const displayStatus =
+    isConfirmed && ['draft', 'sent'].includes(String(order.status || ''))
+      ? 'approved'
+      : order.status
+
+  const customerLabel =
+    order.customerId?.nameEn
+    || order.customerId?.name
+    || order.customerId?.nameAr
+    || order.customerName
+    || '—'
 
   return (
     <div className="space-y-6">
@@ -212,8 +267,8 @@ export default function SalesOrderViewPage() {
             <p className={sectionEyebrowClass}>{isAr ? 'أمر بيع' : 'Sales order'}</p>
             <h1 className={pageTitleClass}>{order.poNumber}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className={soStatusChipClass(order.status, order.isLocked)}>
-                {soStatusLabel(order.status, order.isLocked, isAr)}
+              <span className={soStatusChipClass(displayStatus, order.isLocked)}>
+                {soStatusLabel(displayStatus, order.isLocked, isAr)}
               </span>
               {order.incoterm ? <span className={softChipClass}>{order.incoterm}</span> : null}
               {order.isLocked ? (
@@ -226,6 +281,49 @@ export default function SalesOrderViewPage() {
         </div>
         <div className={`${actionBarClass} justify-end`}>
           <SalesOrderSmartButtons purchaseOrderId={id} language={language} />
+          <button
+            type="button"
+            className={ghostActionClass}
+            onClick={handleDownloadPdf}
+            disabled={downloadingPdf}
+            title={isAr ? 'تنزيل فاتورة أمر البيع PDF' : 'Download sales order bill PDF'}
+          >
+            <Download className="h-3.5 w-3.5" />
+            {downloadingPdf ? (isAr ? 'جاري التنزيل…' : 'Downloading…') : (isAr ? 'PDF' : 'PDF')}
+          </button>
+          <button
+            type="button"
+            className={ghostActionClass}
+            onClick={handlePrint}
+            title={isAr ? 'طباعة فاتورة أمر البيع' : 'Print sales order bill'}
+          >
+            <Printer className="h-3.5 w-3.5" />
+            {isAr ? 'طباعة' : 'Print'}
+          </button>
+          <button
+            type="button"
+            className={ghostActionClass}
+            onClick={() => sendWhatsAppMutation.mutate()}
+            disabled={sendWhatsAppMutation.isPending}
+            title={isAr ? 'إرسال عبر واتساب' : 'Send via WhatsApp'}
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+            WhatsApp
+          </button>
+          <button
+            type="button"
+            className={ghostActionClass}
+            onClick={() => sendEmailMutation.mutate()}
+            disabled={sendEmailMutation.isPending || !hasEmailAddon}
+            title={
+              !hasEmailAddon
+                ? (isAr ? 'إضافة البريد غير مفعّلة' : 'Email add-on not installed')
+                : (isAr ? 'إرسال فاتورة أمر البيع بالبريد' : 'Email sales order bill')
+            }
+          >
+            <Mail className="h-3.5 w-3.5" />
+            {isAr ? 'بريد' : 'Email'}
+          </button>
           {canSend ? (
             <button type="button" className={ghostActionClass} onClick={() => sendMutation.mutate()} disabled={sendMutation.isPending}>
               <Send className="h-3.5 w-3.5" />
@@ -252,18 +350,17 @@ export default function SalesOrderViewPage() {
           ) : null}
           {isConfirmed ? (
             <>
+              <button
+                type="button"
+                className={ghostActionClass}
+                onClick={() => navigate(`/app/dashboard/delivery-notes/new?poId=${id}`)}
+              >
+                <Truck className="h-3.5 w-3.5" />
+                {isAr ? 'سند تسليم' : 'Create delivery note'}
+              </button>
               <button type="button" className={ghostActionClass} onClick={() => setDownPaymentOpen(true)}>
                 <Banknote className="h-3.5 w-3.5" />
                 {isAr ? 'دفعة مقدمة' : 'Down payment'}
-              </button>
-              <button
-                type="button"
-                className={primaryActionClass}
-                onClick={() => createInvoice.mutate()}
-                disabled={createInvoice.isPending || !canInvoice}
-                title={!canInvoice && deliveredPolicy ? (isAr ? 'انتظر اكتمال التسليم' : 'Wait until delivery is done') : undefined}
-              >
-                {isAr ? 'إنشاء فاتورة' : 'Create Invoice'}
               </button>
             </>
           ) : null}
@@ -335,11 +432,17 @@ export default function SalesOrderViewPage() {
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
           <div className={`${sectionCardClass} grid gap-3 sm:grid-cols-2`}>
+            {sourceQuotationId ? (
+              <div className={metaRowClass}>
+                <span>{isAr ? 'عرض السعر' : 'Quotation'}</span>
+                <Link className={`${metaValueClass} text-teal-700 underline dark:text-teal-300`} to={`/app/dashboard/sales/quotations/${sourceQuotationId}`}>
+                  {sourceQuotationNumber || sourceQuotationId}
+                </Link>
+              </div>
+            ) : null}
             <div className={metaRowClass}>
               <span>{isAr ? 'العميل' : 'Customer'}</span>
-              <span className={metaValueClass}>
-                {order.customerId?.nameEn || order.customerId?.name || order.customerName || '—'}
-              </span>
+              <span className={metaValueClass}>{customerLabel}</span>
             </div>
             <div className={metaRowClass}><span>{isAr ? 'العملة' : 'Currency'}</span><span className={metaValueClass}>{order.currency || 'SAR'}</span></div>
             <div className={metaRowClass}><span>{isAr ? 'الإجمالي' : 'Grand total'}</span><span className={metaValueClass}>{Number(order.grandTotal || 0).toFixed(2)}</span></div>

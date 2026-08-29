@@ -360,7 +360,7 @@ export default function CRMDealsTab({ preview }) {
                       <button
                         type="button"
                         onClick={() =>
-                          navigate('/app/dashboard/invoices/new/sell', {
+                          navigate('/app/dashboard/accounting/invoices/new/sell', {
                             state: { customerId: editing.customerId._id || editing.customerId, sourceDealId: editing._id },
                           })
                         }

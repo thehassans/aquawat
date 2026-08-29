@@ -389,12 +389,21 @@ export default function PurchaseOrderForm() {
   const addSupplierMutation = useMutation({
     mutationFn: (data) => api.post('/suppliers', data),
     onSuccess: (res) => {
+      const created = res.data?.data || res.data
       toast.success(language === 'ar' ? 'تم إضافة المورد' : 'Supplier added')
-      queryClient.invalidateQueries(['suppliers-lookup'])
-      queryClient.invalidateQueries(['suppliers'])
+      queryClient.setQueryData(['suppliers'], (prev) => {
+        const list = Array.isArray(prev) ? prev : []
+        if (!created?._id) return list
+        if (list.some((s) => String(s._id) === String(created._id))) return list
+        return [created, ...list]
+      })
+      queryClient.invalidateQueries({ queryKey: ['suppliers-lookup'] })
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] })
       setShowSupplierModal(false)
-      setValue('supplierId', res.data._id, { shouldValidate: true })
-      setSelectedSupplier(res.data)
+      if (created?._id) {
+        setValue('supplierId', created._id, { shouldValidate: true, shouldDirty: true })
+        setSelectedSupplier(created)
+      }
       setSupplierForm({ code: '', nameEn: '', nameAr: '', contactPerson: '', phone: '', email: '', type: 'company' })
     },
     onError: (err) => toast.error(formatInvError(err, language) || 'Error'),
@@ -403,13 +412,42 @@ export default function PurchaseOrderForm() {
   const addWarehouseMutation = useMutation({
     mutationFn: (data) => api.post('/warehouses', data),
     onSuccess: (res) => {
+      const created = res.data?.data || res.data
       toast.success(language === 'ar' ? 'تم إضافة المستودع' : 'Warehouse added')
-      queryClient.invalidateQueries(['warehouses'])
+      queryClient.setQueryData(['warehouses'], (prev) => {
+        const list = Array.isArray(prev) ? prev : []
+        if (!created?._id) return list
+        if (list.some((w) => String(w._id) === String(created._id))) return list
+        return [...list, created]
+      })
+      queryClient.invalidateQueries({ queryKey: ['warehouses'] })
       setShowWarehouseModal(false)
-      setValue('warehouseId', res.data._id, { shouldValidate: true })
+      if (created?._id) {
+        setValue('warehouseId', String(created._id), { shouldValidate: true, shouldDirty: true })
+      }
       setWarehouseForm({ code: '', nameEn: '', nameAr: '', type: 'main', isPrimary: false })
     },
-    onError: (err) => toast.error(formatInvError(err, language) || 'Error'),
+    onError: (err) => {
+      const payload = err?.response?.data
+      const msg = String(payload?.error || err?.message || '')
+      if (err?.response?.status === 409 || /duplicate|E11000|already exists/i.test(msg)) {
+        const existing = payload?.warehouse
+        if (existing?._id) {
+          queryClient.setQueryData(['warehouses'], (prev) => {
+            const list = Array.isArray(prev) ? prev : []
+            if (list.some((w) => String(w._id) === String(existing._id))) return list
+            return [...list, existing]
+          })
+          setValue('warehouseId', String(existing._id), { shouldValidate: true, shouldDirty: true })
+          setShowWarehouseModal(false)
+          toast.success(language === 'ar' ? 'المستودع موجود — تم تحديده' : 'Warehouse already exists — selected')
+          return
+        }
+        toast.error(language === 'ar' ? 'رمز المستودع مستخدم مسبقاً — غيّر الرمز' : 'Warehouse code already exists — use a different code')
+        return
+      }
+      toast.error(formatInvError(err, language) || 'Error')
+    },
   })
 
   const submitInlineSupplier = () => {
@@ -479,10 +517,22 @@ export default function PurchaseOrderForm() {
       toast.error(language === 'ar' ? 'اسم المستودع مطلوب' : 'Warehouse name is required')
       return
     }
+    const code = String(warehouseForm.code || '').trim().toUpperCase()
+      || `WH-${Math.floor(Date.now() / 1000).toString().slice(-5)}`
+    // Already in list (e.g. prior save succeeded but UI stuck) — just select it
+    const existing = warehouses.find((w) => String(w.code || '').toUpperCase() === code)
+    if (existing?._id) {
+      setValue('warehouseId', String(existing._id), { shouldValidate: true, shouldDirty: true })
+      setShowWarehouseModal(false)
+      toast.success(language === 'ar' ? 'تم تحديد المستودع' : 'Warehouse selected')
+      return
+    }
     addWarehouseMutation.mutate({
       ...warehouseForm,
-      nameEn: warehouseForm.nameEn || warehouseForm.nameAr,
-      code: warehouseForm.code || `WH-${Math.floor(Date.now() / 1000).toString().slice(-5)}`,
+      nameEn: (warehouseForm.nameEn || warehouseForm.nameAr || '').trim(),
+      nameAr: (warehouseForm.nameAr || '').trim(),
+      code,
+      isActive: true,
     })
   }
 
@@ -490,9 +540,9 @@ export default function PurchaseOrderForm() {
     mutationFn: (data) => api.post('/products', data),
     onSuccess: (res) => {
       toast.success(language === 'ar' ? 'تم إضافة المنتج بنجاح' : 'Product created successfully')
-      queryClient.invalidateQueries(['products-list'])
-      queryClient.invalidateQueries(['products'])
-      queryClient.invalidateQueries(['products-dropdown'])
+      queryClient.invalidateQueries({ queryKey: ['products-list'] })
+      queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['products-dropdown'] })
       setShowProductModal(false)
       const created = res.data
       if (productModalTargetIndex !== null && productModalTargetIndex !== undefined) {
@@ -686,42 +736,37 @@ export default function PurchaseOrderForm() {
   const approveMutation = useMutation({
     mutationFn: (targetId) => api.post(`/purchase-orders/${targetId || id}/approve`),
     onSuccess: (res) => {
-      const draft = res.data?.draftGrn
-      if (draft?.grnNumber && draft?._id) {
-        toast.success(
-          (t) => (
-            <span className="flex flex-col gap-1 text-sm">
-              <span>
-                {language === 'ar'
-                  ? `تم الاعتماد — مسودة استلام ${draft.grnNumber}`
-                  : `Approved — draft receipt ${draft.grnNumber}`}
-              </span>
-              <button
-                type="button"
-                className="text-left font-semibold text-teal-700 underline dark:text-teal-300"
-                onClick={() => {
-                  toast.dismiss(t.id)
-                  navigate(`/app/dashboard/purchases/grn/${draft._id}`)
-                }}
-              >
-                {language === 'ar' ? 'فتح إشعار الاستلام' : 'Open GRN'}
-              </button>
-            </span>
-          ),
-          { duration: 8000 },
-        )
-      } else {
-        toast.success(language === 'ar' ? 'تم اعتماد طلب الشراء بنجاح' : 'Purchase order approved')
+      const payload = res?.data || {}
+      const orderId = String(id || payload._id || '')
+      toast.success(language === 'ar' ? 'تم اعتماد طلب الشراء — استلم البضاعة من هذا الطلب' : 'Purchase order approved — receive goods from this order')
+
+      if (orderId) {
+        queryClient.setQueryData(['purchase-order', orderId], (prev) => ({
+          ...(prev && typeof prev === 'object' ? prev : {}),
+          ...payload,
+          status: payload.status || 'approved',
+          approvedAt: payload.approvedAt || new Date().toISOString(),
+          related: payload.related || prev?.related,
+          receivingLedger: payload.receivingLedger || prev?.receivingLedger,
+        }))
+        queryClient.invalidateQueries({ queryKey: ['purchase-order', orderId] })
       }
-      queryClient.invalidateQueries(['purchase-orders'])
-      queryClient.invalidateQueries(['purchase-orders-stats'])
-      queryClient.invalidateQueries(['purchase-order', id || res.data?._id])
-      queryClient.invalidateQueries(['grn'])
-      queryClient.invalidateQueries(['grn-list'])
-      queryClient.invalidateQueries(['grn-upcoming'])
-      if (createdOrderForPreview) {
-        setCreatedOrderForPreview((prev) => (prev ? { ...prev, status: 'approved', draftGrn: draft || null } : null))
-      }
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders-stats'] })
+      queryClient.invalidateQueries({ queryKey: ['grn'] })
+      queryClient.invalidateQueries({ queryKey: ['grn-list'] })
+      queryClient.invalidateQueries({ queryKey: ['grn-upcoming'] })
+
+      setCreatedOrderForPreview((prev) => {
+        if (!prev && !payload._id) return prev
+        return {
+          ...(prev || {}),
+          ...payload,
+          status: payload.status || 'approved',
+          approvedAt: payload.approvedAt || new Date().toISOString(),
+        }
+      })
+      setIsViewMode(true)
     },
     onError: (err) => toast.error(formatInvError(err, language) || 'Error'),
   })
@@ -756,9 +801,9 @@ export default function PurchaseOrderForm() {
       toast.success(language === 'ar' ? 'تم تسجيل الدفعة' : 'Payment recorded')
       setShowPaymentModal(false)
       setPaymentForm({ amount: '', date: formatDateForInput(new Date()), method: 'transfer', reference: '' })
-      queryClient.invalidateQueries(['purchase-order', id])
-      queryClient.invalidateQueries(['purchase-orders'])
-      queryClient.invalidateQueries(['purchase-orders-stats'])
+      queryClient.invalidateQueries({ queryKey: ['purchase-order', id] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders-stats'] })
     },
     onError: (err) => toast.error(formatInvError(err, language) || 'Error'),
   })
@@ -769,10 +814,15 @@ export default function PurchaseOrderForm() {
       toast.success(language === 'ar' ? 'تم تسجيل الاستلام وتحديث المخزون' : 'Received and stock updated')
       setReceiveQty({})
       setShowQuickReceiveModal(false)
-      queryClient.invalidateQueries(['products'])
-      queryClient.invalidateQueries(['purchase-orders'])
-      queryClient.invalidateQueries(['purchase-orders-stats'])
-      queryClient.invalidateQueries(['purchase-order', id])
+      queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders-stats'] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-order', id] })
+      queryClient.invalidateQueries({ queryKey: ['grn'] })
+      queryClient.invalidateQueries({ queryKey: ['grn-list'] })
+      queryClient.invalidateQueries({ queryKey: ['physical-inventory'] })
+      queryClient.invalidateQueries({ queryKey: ['stock-report'] })
+      queryClient.invalidateQueries({ queryKey: ['stock-transfer-counts'] })
     },
     onError: (err) => toast.error(formatInvError(err, language) || 'Error'),
   })
@@ -1347,18 +1397,6 @@ export default function PurchaseOrderForm() {
                 </button>
               </>
             )}
-            {order?.status === 'approved' && (
-              <button
-                type="button"
-                onClick={() => cancelMutation.mutate(order._id)}
-                disabled={cancelMutation.isPending}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-[12px] font-semibold text-rose-700 transition hover:bg-rose-100 disabled:opacity-40 dark:border-rose-900/30 dark:bg-rose-950/20 dark:text-rose-300"
-                title={language === 'ar' ? 'يلغى إن لم يُستلم مخزون بعد' : 'Allowed if no stock has been received yet'}
-              >
-                {cancelMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
-                {language === 'ar' ? 'إلغاء الطلب' : 'Cancel PO'}
-              </button>
-            )}
           </div>
         )}
       </div>
@@ -1719,7 +1757,7 @@ export default function PurchaseOrderForm() {
                     <button
                       key={inv._id}
                       type="button"
-                      onClick={() => navigate(`/app/dashboard/invoices/${inv._id}`)}
+                      onClick={() => navigate(`/app/dashboard/accounting/invoices/${inv._id}`)}
                       className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-800 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300"
                       title={language === 'ar' ? 'فاتورة المورد' : 'Vendor Bill'}
                     >
@@ -2149,9 +2187,16 @@ export default function PurchaseOrderForm() {
                         <label className="label text-xs">{language === 'ar' ? 'سعر الوحدة' : 'Unit cost'}</label>
                         <input
                           type="number"
-                          min="0"
+                          min="0.01"
                           step="0.01"
-                          {...register(`lineItems.${index}.unitCost`, { valueAsNumber: true, min: 0 })}
+                          {...register(`lineItems.${index}.unitCost`, {
+                            valueAsNumber: true,
+                            min: {
+                              value: 0.01,
+                              message: language === 'ar' ? 'سعر الوحدة يجب أن يكون أكبر من صفر' : 'Unit cost must be greater than zero',
+                            },
+                            validate: (v) => Number(v) > 0 || (language === 'ar' ? 'سعر الوحدة مطلوب' : 'Unit cost is required'),
+                          })}
                           className="input !py-1.5 text-xs text-end"
                           disabled={isLocked}
                         />

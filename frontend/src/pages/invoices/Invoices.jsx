@@ -22,14 +22,15 @@ import {
   MessageCircle,
   Trash2,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Plus,
+  Calculator,
 } from 'lucide-react'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
 import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
-import SalesCreateMenu from '../../components/sales/SalesCreateMenu'
 import toast from 'react-hot-toast'
 import { downloadInvoicePdf, buildInvoicePdfBlob } from '../../lib/invoicePdfActions'
 import { isThermalInvoice } from '../../lib/invoiceFormat'
@@ -46,8 +47,6 @@ import {
   fieldControlClass,
   filterBarClass,
   listShellClass,
-  pageSubtitleClass,
-  pageTitleClass,
   paginationBarClass,
   rowActionBtnClass,
   rowActionDangerClass,
@@ -57,10 +56,8 @@ import {
   salesThClass,
   salesTrClass,
   salesTableClass,
-  sectionEyebrowClass,
   softChipClass,
 } from '../sales/salesUi'
-import { Calculator } from 'lucide-react'
 
 const trimPartyName = (value) => String(value || '').trim()
 
@@ -650,15 +647,14 @@ export default function Invoices() {
       </AnimatePresence>
 
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className={sectionEyebrowClass}>{language === 'ar' ? 'المبيعات' : 'Sales'}</p>
-          <h1 className={pageTitleClass}>{t('invoices')}</h1>
-          <p className={pageSubtitleClass}>
-            {language === 'ar' ? 'إدارة الفواتير الضريبية والمبسطة' : 'Manage tax and simplified invoices'}
+          <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">{t('invoices')}</h1>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+            {language === 'ar' ? 'فواتير البيع والشراء' : 'Sales and purchase invoices'}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <ExportMenu
             language={language}
             t={t}
@@ -670,7 +666,21 @@ export default function Invoices() {
             disabled={isLoading || (data?.invoices || []).length === 0}
           />
           {showNewInvoiceBtn && (
-            <SalesCreateMenu language={language} labelEn="Create" labelAr="إنشاء" />
+            <>
+              <Link
+                to="/app/dashboard/accounting/invoices/new/sell"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-700"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {language === 'ar' ? 'فاتورة بيع' : 'Sales invoice'}
+              </Link>
+              <Link
+                to="/app/dashboard/accounting/invoices/new/purchase"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-dark-600 dark:bg-dark-800 dark:text-slate-200"
+              >
+                {language === 'ar' ? 'فاتورة شراء' : 'Purchase invoice'}
+              </Link>
+            </>
           )}
         </div>
       </div>
@@ -811,7 +821,7 @@ export default function Invoices() {
                 return (
                   <div key={invoice._id} className={`${filterBarClass} !space-y-3`}>
                     <div className="flex items-start justify-between gap-3">
-                      <button type="button" onClick={() => navigate(`/app/dashboard/invoices/${invoice._id}`)} className="min-w-0 text-start">
+                      <button type="button" onClick={() => navigate(`/app/dashboard/accounting/invoices/${invoice._id}`)} className="min-w-0 text-start">
                         <p className={docLinkClass}>{invoice.invoiceNumber}</p>
                         <div className="mt-0.5 text-sm"><PartyNames party={party} /></div>
                         <p className="mt-0.5 text-xs text-slate-500">{new Date(invoice.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}</p>
@@ -824,11 +834,11 @@ export default function Invoices() {
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-slate-900 dark:text-white"><Money value={invoice.grandTotal} /></span>
                       <div className={rowActionsWrapClass}>
-                        <Link to={`/app/dashboard/invoices/${invoice._id}`} className={rowActionBtnClass}>
+                        <Link to={`/app/dashboard/accounting/invoices/${invoice._id}`} className={rowActionBtnClass}>
                           <Eye className="h-4 w-4" />
                         </Link>
                         {isEditableInvoice(invoice, tenant?.zatca?.phase || 2) && (
-                          <Link to={`/app/dashboard/invoices/${invoice._id}/edit`} className={rowActionBtnClass}>
+                          <Link to={`/app/dashboard/accounting/invoices/${invoice._id}/edit`} className={rowActionBtnClass}>
                             <Edit className="h-4 w-4" />
                           </Link>
                         )}
@@ -860,7 +870,7 @@ export default function Invoices() {
                       <td className={salesTdClass}>
                         <button
                           type="button"
-                          onClick={() => navigate(`/app/dashboard/invoices/${invoice._id}`)}
+                          onClick={() => navigate(`/app/dashboard/accounting/invoices/${invoice._id}`)}
                           className={docLinkClass}
                         >
                           <FileText className="h-4 w-4 shrink-0 text-slate-400" strokeWidth={1.75} />
@@ -943,7 +953,7 @@ export default function Invoices() {
                           )}
                           {isEditableInvoice(invoice, tenant?.zatca?.phase || 2) && (
                             <Link
-                              to={`/app/dashboard/invoices/${invoice._id}/edit`}
+                              to={`/app/dashboard/accounting/invoices/${invoice._id}/edit`}
                               className={rowActionBtnClass}
                               title={language === 'ar' ? 'تعديل' : 'Edit'}
                             >
@@ -951,7 +961,7 @@ export default function Invoices() {
                             </Link>
                           )}
                           <Link
-                            to={`/app/dashboard/invoices/${invoice._id}`}
+                            to={`/app/dashboard/accounting/invoices/${invoice._id}`}
                             className={rowActionBtnClass}
                             title={language === 'ar' ? 'عرض' : 'View'}
                           >

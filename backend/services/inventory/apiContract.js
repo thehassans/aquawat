@@ -16,6 +16,7 @@ export function listEnvelope(items, {
   appliedFilters = {},
   nextCursor = null,
   links = {},
+  totals,
 } = {}) {
   return {
     data: items,
@@ -25,6 +26,7 @@ export function listEnvelope(items, {
       ...(pageSize != null ? { pageSize } : {}),
       appliedFilters,
       ...(nextCursor ? { nextCursor } : {}),
+      ...(totals != null ? { totals } : {}),
     },
     ...(Object.keys(links).length ? { _links: links } : {}),
   };
@@ -40,6 +42,7 @@ export function sendList(res, items, {
   appliedFilters = {},
   nextCursor = null,
   links = {},
+  totals,
   status = 200,
 } = {}) {
   const env = listEnvelope(items, {
@@ -49,6 +52,7 @@ export function sendList(res, items, {
     appliedFilters,
     nextCursor,
     links,
+    totals,
   });
   return res.status(status).json({
     ...env,

@@ -54,7 +54,7 @@ export default function DemoWelcome() {
       icon: FileText,
       title: isArabic ? 'أول فاتورة' : 'First invoice',
       body: isArabic ? 'أنشئ فاتورة ضريبية خلال ثوانٍ.' : 'Create a tax-ready invoice in seconds.',
-      to: '/app/dashboard/invoices/new',
+      to: '/app/dashboard/accounting/invoices/new',
     },
     {
       icon: Users,

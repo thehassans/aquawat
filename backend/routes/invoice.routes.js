@@ -29,7 +29,6 @@ import { createInvoiceFromMultipleDNs } from '../controllers/invoiceController.j
 import { sendRestaurantWhatsApp } from '../services/restaurantWhatsAppService.js';
 import { sendInvoiceOnWhatsApp, getWhatsAppConfig } from '../services/whatsappCloudService.js';
 import { assertThreeWayMatchOrThrow } from '../services/inventory/threeWayMatch.js';
-import { isInvEngineEnabled, postLinesViaEngine } from '../services/inventory/legacyAdapter.js';
 import { InventoryError } from '../services/inventory/errors.js';
 import { clampTemplateId } from '../utils/premiumTemplates.js';
 import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
@@ -103,11 +102,8 @@ async function postSellInvoiceLedgers(invoice, req, tenant) {
     return;
   }
 
-  // Trading stock: post via inventory engine / legacy when warehouse set
-  if (invoice.warehouseId || invoice?.inventory?.warehouseId) {
-    await postInventoryForInvoice(invoice, req.tenantFilter);
-  }
-
+  // Accounting journals only — stock never moves from sell/purchase invoices.
+  // Sell stock: Delivery Notes. Purchase stock: GRNs.
   try {
     const { postSalesInvoiceJournal, postInvoicePaymentJournal } = await import('../services/accountingService.js');
     await postSalesInvoiceJournal({
@@ -133,19 +129,26 @@ async function postSellInvoiceLedgers(invoice, req, tenant) {
   }
 }
 
-/** After invoice create: post stock; on inventory failure return 409 with the saved invoice. */
+/** After invoice create: post accounting journals only (no stock). */
 async function postSellLedgersOrConflict(res, invoice, req, tenant) {
   try {
     await postSellInvoiceLedgers(invoice, req, tenant);
+    if ((invoice.businessContext || getPrimaryBusinessType(tenant)) === 'trading') {
+      try {
+        await postInventoryForInvoice(invoice, req.tenantFilter);
+      } catch (skipErr) {
+        console.warn('[invoice] stock skip mark failed:', skipErr?.message || skipErr);
+      }
+    }
     return null;
-  } catch (stockErr) {
-    const status = stockErr instanceof InventoryError ? (stockErr.status || 409) : 409;
+  } catch (err) {
+    const status = err instanceof InventoryError ? (err.status || 409) : 409;
     res.status(status).json({
-      error: stockErr.message || 'Inventory post failed',
-      code: stockErr.code || 'INVENTORY_POST_FAILED',
+      error: err.message || 'Ledger post failed',
+      code: err.code || 'LEDGER_POST_FAILED',
       invoice: typeof invoice.toJSON === 'function' ? invoice.toJSON() : invoice,
     });
-    return stockErr;
+    return err;
   }
 }
 
@@ -164,6 +167,7 @@ function sanitizeInvoicePayload(payload = {}) {
     'supplierId',
     'customerId',
     'sourcePurchaseOrderId',
+    'sourceDeliveryNoteId',
     'originalInvoiceId',
     'proformaSourceId',
     'sourceQuotationId',
@@ -182,6 +186,51 @@ function sanitizeInvoicePayload(payload = {}) {
         delete cleaned[key];
       }
     }
+  }
+
+  if (Array.isArray(cleaned.deliveryNoteIds)) {
+    cleaned.deliveryNoteIds = cleaned.deliveryNoteIds.map(cleanObjectId).filter(Boolean);
+  }
+  if (Array.isArray(cleaned.sourceGrnIds)) {
+    cleaned.sourceGrnIds = cleaned.sourceGrnIds.map(cleanObjectId).filter(Boolean);
+  }
+  if (Array.isArray(cleaned.documentReferences)) {
+    cleaned.documentReferences = cleaned.documentReferences
+      .map((ref) => {
+        if (!ref || typeof ref !== 'object') return null;
+        const docId = cleanObjectId(ref.docId);
+        const kind = ['sales_order', 'purchase_order', 'delivery_note', 'grn', 'other'].includes(ref.kind)
+          ? ref.kind
+          : 'other';
+        if (!docId && !String(ref.number || '').trim()) return null;
+        return {
+          kind,
+          docId: docId || undefined,
+          number: String(ref.number || '').trim(),
+          label: String(ref.label || '').trim(),
+        };
+      })
+      .filter(Boolean);
+  }
+  if (Array.isArray(cleaned.accountingLines)) {
+    cleaned.accountingLines = cleaned.accountingLines
+      .map((line) => {
+        if (!line || typeof line !== 'object') return null;
+        const accountId = cleanObjectId(line.accountId);
+        const debit = Math.max(0, Number(line.debit) || 0);
+        const credit = Math.max(0, Number(line.credit) || 0);
+        if (!accountId || (debit <= 0 && credit <= 0)) return null;
+        return {
+          accountId,
+          accountCode: String(line.accountCode || '').trim(),
+          accountName: String(line.accountName || '').trim(),
+          debit,
+          credit,
+          description: String(line.description || '').trim(),
+          role: String(line.role || '').trim(),
+        };
+      })
+      .filter(Boolean);
   }
 
   if (cleaned.inventory && typeof cleaned.inventory === 'object') {
@@ -561,34 +610,29 @@ async function autoWhatsAppInvoiceIfEnabled({ tenant, invoice, customer = null, 
 }
 
 async function postInventoryForInvoice(invoice, tenantFilterValue) {
-  const warehouseId = invoice.warehouseId || invoice?.inventory?.warehouseId;
-  if (!warehouseId) {
-    return invoice;
-  }
+  // Product rule: commercial invoices never add/deduct warehouse quantity.
+  // Sell stock moves only via Delivery Notes; purchase stock only via GRNs.
+  const warehouseId = invoice.warehouseId || invoice?.inventory?.warehouseId || undefined;
+  const skipReason = invoice.flow === 'purchase'
+    ? 'invoice_no_stock_use_grn'
+    : 'invoice_no_stock_use_delivery_note';
 
-  const warehouse = await Warehouse.findOne({ _id: warehouseId, ...tenantFilterValue, isActive: true });
-  if (!warehouse) {
-    throw new Error('Warehouse not found');
-  }
-
-  if (invoice.inventory?.postedAt) {
-    return invoice;
-  }
-
-  // PO → GRN is the stock-in path. Vendor bills linked to a purchase order must not
-  // increment warehouse qty again (they still record the payable).
-  if (invoice.flow === 'purchase' && invoice.sourcePurchaseOrderId) {
+  if (!invoice.inventory?.skippedAt && !invoice.inventory?.postedAt) {
     invoice.inventory = {
-      ...(invoice.inventory || {}),
-      warehouseId,
+      ...(invoice.inventory?.toObject?.() || invoice.inventory || {}),
+      ...(warehouseId ? { warehouseId } : {}),
       skippedAt: new Date(),
-      skipReason: 'stock_posted_via_grn',
+      skipReason,
     };
     await invoice.save();
+  }
+
+  // Best-effort: mark PO billed when a purchase invoice is linked
+  if (invoice.flow === 'purchase' && invoice.sourcePurchaseOrderId) {
     try {
       const PurchaseOrder = mongoose.model('PurchaseOrder');
       const po = await PurchaseOrder.findOne({ _id: invoice.sourcePurchaseOrderId, ...tenantFilterValue });
-      if (po && ['received', 'partially_received'].includes(po.status)) {
+      if (po && ['received', 'partially_received', 'approved'].includes(String(po.status || ''))) {
         po.status = 'billed';
         po.billedInvoiceId = invoice._id;
         await po.save();
@@ -596,150 +640,8 @@ async function postInventoryForInvoice(invoice, tenantFilterValue) {
     } catch {
       /* billing status is best-effort */
     }
-    return invoice;
   }
 
-  // Engine enabled: sell stock — prefer DeliveryNote; otherwise post outgoing via engine (PoS / direct invoice).
-  if (invoice.flow === 'sell' && await isInvEngineEnabled(invoice.tenantId)) {
-    const hasDn = Array.isArray(invoice.deliveryNoteIds) && invoice.deliveryNoteIds.length > 0;
-    if (hasDn) {
-      invoice.inventory = {
-        ...(invoice.inventory || {}),
-        warehouseId,
-        skippedAt: new Date(),
-        skipReason: 'stock_posted_via_delivery_note',
-      };
-      await invoice.save();
-      return invoice;
-    }
-
-    const result = await postLinesViaEngine({
-      tenantId: invoice.tenantId,
-      userId: invoice.createdBy,
-      warehouseId,
-      direction: 'out',
-      lines: (invoice.lineItems || []).map((li) => ({
-        productId: li.productId,
-        variantId: li.variantId || undefined,
-        quantity: li.quantity,
-        productType: li.productType,
-      })),
-      origin: invoice.invoiceNumber,
-      partnerId: invoice.customerId,
-      sourceModel: 'invoice',
-      sourceDocId: invoice._id,
-      idempotencyKey: `INV-SELL ${invoice.invoiceNumber}`,
-    });
-    invoice.inventory = {
-      ...(invoice.inventory || {}),
-      warehouseId,
-      postedAt: new Date(),
-      reversedAt: null,
-      transferIds: result?.transfer?._id ? [result.transfer._id] : [],
-    };
-    await invoice.save();
-    return invoice;
-  }
-
-  // Engine enabled: standalone purchase bill (no PO) receives via engine
-  if (invoice.flow === 'purchase' && await isInvEngineEnabled(invoice.tenantId)) {
-    await postLinesViaEngine({
-      tenantId: invoice.tenantId,
-      userId: invoice.createdBy,
-      warehouseId,
-      direction: 'in',
-      lines: (invoice.lineItems || []).map((li) => ({
-        productId: li.productId,
-        variantId: li.variantId || undefined,
-        quantity: li.quantity,
-        productType: li.productType,
-        costPrice: li.unitPrice,
-      })),
-      origin: invoice.invoiceNumber,
-      partnerId: invoice.supplierId,
-      sourceModel: 'invoice',
-      sourceDocId: invoice._id,
-      idempotencyKey: `INV ${invoice.invoiceNumber}`,
-    });
-    invoice.inventory = {
-      ...(invoice.inventory || {}),
-      warehouseId,
-      postedAt: new Date(),
-      reversedAt: null,
-    };
-    await invoice.save();
-    return invoice;
-  }
-
-  const lines = (invoice.lineItems || []).filter((line) => {
-    const productId = line.productId;
-    const qty = toNumber(line.quantity, 0);
-    return Boolean(productId) && qty > 0;
-  });
-
-  const productIds = [...new Set(lines.map((line) => String(line.productId)))];
-  const products = productIds.length
-    ? await Product.find({ _id: { $in: productIds }, ...tenantFilterValue })
-    : [];
-  const productById = new Map(products.map((p) => [String(p._id), p]));
-
-  let tenantAllowNegative = null;
-
-  for (const line of lines) {
-    const product = productById.get(String(line.productId));
-    if (!product) {
-      throw new Error('Product not found');
-    }
-
-    const lineType = normalizeProductType(line.productType || product.productType);
-    if (!isStockTrackedProductType(lineType)) {
-      continue;
-    }
-
-    const qty = toNumber(line.quantity, 0);
-    const sign = invoice.flow === 'sell' ? -1 : 1;
-    if (sign < 0) {
-      const stock = product.stocks.find((s) => s.warehouseId?.toString() === warehouseId.toString());
-      const available = toNumber(stock?.quantity, 0) - toNumber(stock?.reservedQuantity, 0);
-
-      let allowNegative = Boolean(product.allowNegativeStock);
-      if (!allowNegative && invoice.tenantId) {
-        if (tenantAllowNegative === null) {
-          const Tenant = mongoose.model('Tenant');
-          const tenantDoc = await Tenant.findById(invoice.tenantId).select('settings.inventory').lean();
-          tenantAllowNegative = Boolean(tenantDoc?.settings?.inventory?.allowNegativeStock);
-        }
-        if (tenantAllowNegative) {
-          allowNegative = true;
-        }
-      }
-
-      if (!allowNegative && available < qty) {
-        throw new Error(`Insufficient stock in selected warehouse for item "${product.sku || product.nameEn || 'Item'}"`);
-      }
-    }
-
-    product.updateStock(warehouseId, sign * qty);
-
-    if (invoice.flow === 'purchase' && toNumber(line.unitPrice, 0) > 0) {
-      product.calculateLandedCost({
-        purchasePrice: toNumber(line.unitPrice, 0),
-        quantity: qty,
-        notes: `Invoice ${invoice.invoiceNumber}`
-      });
-    }
-  }
-
-  await Promise.all(products.map((product) => product.save()));
-
-  invoice.inventory = {
-    ...(invoice.inventory || {}),
-    warehouseId,
-    postedAt: new Date(),
-    reversedAt: null
-  };
-
-  await invoice.save();
   return invoice;
 }
 
@@ -1410,26 +1312,18 @@ router.post('/', invoiceWriteLimiter, checkTrialLimits('invoices'), checkPermiss
       buyer.address = { ...(customer.address || {}), ...(buyer.address || {}) };
     }
 
-    // B2B identity gate before invoice create
-    {
-      const isB2b = req.body.transactionType === 'B2B'
-        || customer?.entityType === 'business'
-        || customer?.entityType === 'company'
-        || customer?.type === 'company'
-        || customer?.type === 'business'
-        || customer?.isCompany === true;
-      if (isB2b && (req.body.flow || 'sell') === 'sell') {
-        const { assertB2bInvoiceReady } = await import('../services/sales/creditLimit.js');
-        const b2b = assertB2bInvoiceReady({
-          ...buyer,
-          isCompany: true,
-          entityType: 'business',
-          vatNumber: buyer.vatNumber || customer?.vatNumber,
-          crNumber: buyer.crNumber || customer?.crNumber,
-        });
-        if (!b2b.ok) {
-          return res.status(400).json({ error: b2b.error, code: b2b.code, missing: b2b.missing });
-        }
+    // B2B identity gate — only when the invoice is explicitly B2B (never force on B2C)
+    if (req.body.transactionType === 'B2B' && (req.body.flow || 'sell') === 'sell') {
+      const { assertB2bInvoiceReady } = await import('../services/sales/creditLimit.js');
+      const b2b = assertB2bInvoiceReady({
+        ...buyer,
+        isCompany: true,
+        entityType: 'business',
+        vatNumber: buyer.vatNumber || customer?.vatNumber,
+        crNumber: buyer.crNumber || customer?.crNumber,
+      });
+      if (!b2b.ok) {
+        return res.status(400).json({ error: b2b.error, code: b2b.code, missing: b2b.missing });
       }
     }
 
@@ -1632,16 +1526,8 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
         if (!warehouse) {
           return res.status(400).json({ error: 'Warehouse not found' });
         }
-      } else if (await isInvEngineEnabled(req.user.tenantId)) {
-        const initialStatus = resolveInitialSellInvoiceStatus(req.body?.status, tenant);
-        const isProforma = String(req.body?.invoiceSubtype || '').toLowerCase() === 'proforma';
-        if (!isProforma && initialStatus !== 'draft') {
-          return res.status(400).json({
-            error: 'warehouseId required when inventory engine is enabled',
-            code: 'WAREHOUSE_REQUIRED',
-          });
-        }
       }
+      // warehouseId is optional on sell invoices — stock moves via delivery notes only
     }
 
     const tenantId = req.user.tenantId;
@@ -1928,6 +1814,31 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
 });
 
 // @route   POST /api/invoices/three-way-match — preview for vendor bills
+router.post('/preview-journal', checkPermission('invoicing', 'read'), async (req, res) => {
+  try {
+    const flow = String(req.body?.flow || 'sell').toLowerCase() === 'purchase' ? 'purchase' : 'sell';
+    const invoice = {
+      invoiceNumber: req.body?.invoiceNumber || 'DRAFT',
+      lineItems: Array.isArray(req.body?.lineItems) ? req.body.lineItems : [],
+      grandTotal: Number(req.body?.grandTotal || 0),
+      totalTax: Number(req.body?.totalTax || req.body?.taxAmount || 0),
+      taxableAmount: Number(req.body?.taxableAmount || 0),
+      sourcePurchaseOrderId: cleanObjectId(req.body?.sourcePurchaseOrderId),
+      sourceGrnIds: Array.isArray(req.body?.sourceGrnIds) ? req.body.sourceGrnIds : [],
+    };
+    const {
+      previewSalesInvoiceJournal,
+      previewPurchaseInvoiceJournal,
+    } = await import('../services/accountingService.js');
+    const preview = flow === 'purchase'
+      ? await previewPurchaseInvoiceJournal({ tenantId: req.user.tenantId, invoice })
+      : await previewSalesInvoiceJournal({ tenantId: req.user.tenantId, invoice });
+    res.json({ flow, ...preview });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.post('/three-way-match', checkPermission('invoicing', 'create'), async (req, res) => {
   try {
     const { threeWayMatch } = await import('../services/inventory/threeWayMatch.js');
@@ -1971,6 +1882,7 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
           return res.status(400).json({ error: 'Warehouse not found' });
         }
       }
+      // warehouseId is optional on purchase invoices — stock moves via GRNs only
     }
 
     let supplier = null;
@@ -2165,6 +2077,7 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
 });
 
 // @route   POST /api/invoices/:id/post-inventory
+// @desc    No-op: invoices do not move stock (use Delivery Note / GRN)
 router.post('/:id/post-inventory', requireBusinessType('trading'), checkPermission('invoicing', 'update'), async (req, res) => {
   try {
     const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
@@ -2172,20 +2085,14 @@ router.post('/:id/post-inventory', requireBusinessType('trading'), checkPermissi
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
-    if (!['draft', 'pending', 'approved'].includes(invoice.status)) {
-      return res.status(400).json({ error: 'Inventory cannot be posted for this invoice status' });
-    }
-
-    if (req.body?.warehouseId && mongoose.Types.ObjectId.isValid(req.body.warehouseId)) {
-      invoice.warehouseId = req.body.warehouseId;
-    }
-
-    if (!invoice.warehouseId) {
-      return res.status(400).json({ error: 'warehouseId is required' });
-    }
-
     const result = await postInventoryForInvoice(invoice, req.tenantFilter);
-    res.json(result);
+    res.json({
+      ...((typeof result.toJSON === 'function' ? result.toJSON() : result) || {}),
+      message: invoice.flow === 'purchase'
+        ? 'Purchase invoices do not receive stock. Use a GRN to add inventory.'
+        : 'Sales invoices do not deduct stock. Use a delivery note to ship inventory.',
+      stockSkipped: true,
+    });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -2313,11 +2220,13 @@ router.post('/:id/sign', checkPermission('invoicing', 'approve'), async (req, re
       return res.status(400).json({ error: 'Invoice already signed' });
     }
 
-    if ((invoice.businessContext || getPrimaryBusinessType(req.tenant)) === 'trading' && invoice.flow === 'sell' && !invoice.inventory?.postedAt) {
+    if ((invoice.businessContext || getPrimaryBusinessType(req.tenant)) === 'trading' && invoice.flow === 'sell' && !invoice.inventory?.skippedAt && !invoice.inventory?.postedAt) {
       try {
+        // Mark inventory as skipped — invoices never move stock (use delivery notes)
         await postInventoryForInvoice(invoice, req.tenantFilter);
       } catch (err) {
-        return res.status(400).json({ error: err.message || 'Failed to post inventory' });
+        // Non-blocking: signing must not fail because stock is intentionally skipped
+        console.warn('[invoice] inventory skip mark failed on sign:', err.message);
       }
     }
     

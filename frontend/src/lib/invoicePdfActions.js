@@ -25,6 +25,21 @@ export async function printQuotationSnapshot(...args) {
   return fn(...args)
 }
 
+export async function downloadSalesOrderPdf(...args) {
+  const { downloadSalesOrderPdf: fn } = await load()
+  return fn(...args)
+}
+
+export async function buildSalesOrderPdfBlob(...args) {
+  const { buildSalesOrderPdfBlob: fn } = await load()
+  return fn(...args)
+}
+
+export async function printSalesOrderPdf(...args) {
+  const { printSalesOrderPdf: fn } = await load()
+  return fn(...args)
+}
+
 export async function downloadPurchaseOrderPdf(...args) {
   const { downloadPurchaseOrderPdf: fn } = await load()
   return fn(...args)

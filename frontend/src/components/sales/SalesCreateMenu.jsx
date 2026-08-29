@@ -1,54 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSelector } from 'react-redux'
-import { ChevronDown, FileClock, FileText, Package, Plus, Receipt, ShoppingCart } from 'lucide-react'
+import { ChevronDown, FileText, Plus, Users } from 'lucide-react'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import { PortalDropdown } from '../../pages/inventory/PortalDropdown'
 
-function buildCreateItems({ businessTypes, hideQuotations }) {
-  const canCreatePurchase = businessTypes.some((type) =>
-    ['trading', 'construction', 'travel_agency', 'bakala', 'pharmacy', 'furniture_shop', 'supermarket'].includes(type)
-  )
-  const canCreateProforma = businessTypes.some((type) =>
-    ['trading', 'construction', 'manpower', 'travel_agency', 'real_estate'].includes(type)
-  )
-
-  const items = [
-    {
-      id: 'sell',
-      href: '/app/dashboard/invoices/new/sell',
-      icon: Receipt,
-      labelEn: 'Sales invoice',
-      labelAr: 'فاتورة مبيعات',
-    },
-    {
-      id: 'sales-order',
-      href: '/app/dashboard/sales/orders/new',
-      icon: ShoppingCart,
-      labelEn: 'Order',
-      labelAr: 'طلب',
-    },
-  ]
-
-  if (canCreatePurchase) {
-    items.push({
-      id: 'purchase',
-      href: '/app/dashboard/invoices/new/purchase',
-      icon: Package,
-      labelEn: 'Purchase invoice',
-      labelAr: 'فاتورة مشتريات',
-    })
-  }
-
-  if (canCreateProforma) {
-    items.push({
-      id: 'proforma',
-      href: '/app/dashboard/invoices/new/sell?proforma=1',
-      icon: FileClock,
-      labelEn: 'Proforma invoice',
-      labelAr: 'فاتورة مبدئية',
-    })
-  }
+function buildCreateItems({ hideQuotations }) {
+  const items = []
 
   if (!hideQuotations) {
     items.push({
@@ -59,6 +17,14 @@ function buildCreateItems({ businessTypes, hideQuotations }) {
       labelAr: 'عرض سعر',
     })
   }
+
+  items.push({
+    id: 'customer',
+    href: '/app/dashboard/sales/customers/new',
+    icon: Users,
+    labelEn: 'Customer',
+    labelAr: 'عميل',
+  })
 
   return items
 }
@@ -78,7 +44,7 @@ export default function SalesCreateMenu({
   const isAr = language === 'ar'
   const businessTypes = getTenantBusinessTypes(tenant)
   const hideQuotations = businessTypes.includes('bakala')
-  const items = buildCreateItems({ businessTypes, hideQuotations })
+  const items = buildCreateItems({ hideQuotations })
 
   useEffect(() => {
     setOpen(false)

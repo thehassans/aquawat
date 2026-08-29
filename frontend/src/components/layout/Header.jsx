@@ -119,7 +119,7 @@ export default function Header() {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       if (query.includes('invoice') || query.includes('فاتورة')) {
-        navigate('/app/dashboard/invoices')
+        navigate('/app/dashboard/accounting/invoices')
       } else if (query.includes('expense') || query.includes('expenses') || query.includes('مصروف') || query.includes('مصاريف')) {
         navigate('/app/dashboard/expenses')
       } else if (query.includes('employee') || query.includes('موظف')) {
