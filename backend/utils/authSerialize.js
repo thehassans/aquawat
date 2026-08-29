@@ -85,6 +85,9 @@ export const serializeAuthTenant = (tenant) => {
   if (!tenant) return null;
 
   const source = typeof tenant.toObject === 'function' ? tenant.toObject() : tenant;
+  const businessRaw = source.business && typeof source.business === 'object'
+    ? (typeof source.business.toObject === 'function' ? source.business.toObject() : source.business)
+    : {};
 
   return {
     _id: source._id,
@@ -92,7 +95,7 @@ export const serializeAuthTenant = (tenant) => {
     slug: source.slug,
     businessType: source.businessType,
     businessTypes: source.businessTypes,
-    business: source.business,
+    business: businessRaw,
     settings: deepSanitize(source.settings || {}),
     branding: source.branding,
     subscription: source.subscription,

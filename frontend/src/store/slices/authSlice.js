@@ -1,21 +1,71 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../lib/api'
 
-const token = localStorage.getItem('token')
-const cachedUser = (() => {
-  try {
-    return JSON.parse(localStorage.getItem('auth_user') || 'null')
-  } catch {
-    return null
+const hasBusinessIdentity = (business) => Boolean(
+  business?.legalNameEn
+  || business?.legalNameAr
+  || business?.vatNumber
+  || business?.crNumber
+  || business?.contactEmail
+  || business?.tradeName
+)
+
+/** True when someone passed the whole `/auth/me` body as if it were a tenant. */
+const looksLikeAuthMePayload = (value) => Boolean(
+  value
+  && typeof value === 'object'
+  && value.user
+  && value.tenant
+  && !value.business
+  && !value.businessTypes
+  && !value.name
+)
+
+/**
+ * Merge tenant updates instead of replacing. Callers often dispatch partial
+ * patches (compliance keys only) or the full `/auth/me` envelope by mistake;
+ * a full replace wiped company profile fields for every tenant.
+ */
+const mergeTenantState = (prev, incoming) => {
+  if (!incoming || typeof incoming !== 'object') return prev || null
+
+  let patch = incoming
+  if (looksLikeAuthMePayload(incoming)) {
+    patch = incoming.tenant
   }
-})()
-const cachedTenant = (() => {
-  try {
-    return JSON.parse(localStorage.getItem('auth_tenant') || 'null')
-  } catch {
-    return null
+  if (!patch || typeof patch !== 'object') return prev || null
+  if (!prev) return patch
+
+  const next = {
+    ...prev,
+    ...patch,
+    settings: patch.settings
+      ? { ...(prev.settings || {}), ...patch.settings }
+      : prev.settings,
+    branding: patch.branding
+      ? { ...(prev.branding || {}), ...patch.branding }
+      : prev.branding,
+    subscription: patch.subscription || prev.subscription,
   }
-})()
+
+  if (patch.business || prev.business) {
+    if (hasBusinessIdentity(patch.business)) {
+      next.business = { ...(prev.business || {}), ...patch.business }
+    } else if (prev.business) {
+      next.business = { ...prev.business, ...(patch.business || {}) }
+    } else {
+      next.business = patch.business
+    }
+  }
+
+  if (!patch.name && prev.name) next.name = prev.name
+  if (!patch.businessTypes && prev.businessTypes) next.businessTypes = prev.businessTypes
+  if (!patch.businessType && prev.businessType) next.businessType = prev.businessType
+  if (!patch._id && prev._id) next._id = prev._id
+  if (!patch.slug && prev.slug) next.slug = prev.slug
+
+  return next
+}
 
 const persistAuthSnapshot = (payload = {}) => {
   if (Object.prototype.hasOwnProperty.call(payload, 'user')) {
@@ -39,6 +89,34 @@ const clearAuthSnapshot = () => {
   localStorage.removeItem('auth_user')
   localStorage.removeItem('auth_tenant')
 }
+
+const token = localStorage.getItem('token')
+const cachedUser = (() => {
+  try {
+    return JSON.parse(localStorage.getItem('auth_user') || 'null')
+  } catch {
+    return null
+  }
+})()
+const cachedTenant = (() => {
+  try {
+    const raw = JSON.parse(localStorage.getItem('auth_tenant') || 'null')
+    if (!raw || typeof raw !== 'object') return null
+    // Recover from a past bug that stored the whole `/auth/me` envelope as tenant.
+    if (looksLikeAuthMePayload(raw) && raw.tenant) {
+      try { localStorage.setItem('auth_tenant', JSON.stringify(raw.tenant)) } catch {}
+      return raw.tenant
+    }
+    // Discard shells that only hold a compliance key (no company identity).
+    if (!raw._id && !raw.name && !raw.business && !raw.businessTypes && !raw.subscription) {
+      localStorage.removeItem('auth_tenant')
+      return null
+    }
+    return raw
+  } catch {
+    return null
+  }
+})()
 
 const initialState = {
   user: cachedUser,
@@ -137,7 +215,7 @@ const authSlice = createSlice({
       persistAuthSnapshot({ user: state.user, tenant: state.tenant })
     },
     updateTenant: (state, action) => {
-      state.tenant = action.payload
+      state.tenant = mergeTenantState(state.tenant, action.payload)
       persistAuthSnapshot({ user: state.user, tenant: state.tenant })
     },
     setTenantInactive: (state) => {

@@ -110,22 +110,65 @@ export default function Profile() {
   const [signaturePreview, setSignaturePreview] = useState(null)
   const [stampPreview, setStampPreview] = useState(null)
 
-  // Fetch fresh tenant data — never seed from slim auth.tenant (missing business).
+  // Fetch fresh tenant data — never seed from a wiped/slim auth.tenant.
   const { data: tenantData, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['current-tenant-profile'],
     queryFn: async () => {
-      const res = await api.get('/tenants/current')
+      const res = await api.get('/tenants/current', {
+        headers: { 'X-No-Stale-Cache': '1' },
+        _skipStaleFirst: true,
+      })
       const payload = res.data
-      if (payload?._id) {
-        dispatch(updateTenant(payload))
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !(payload._id || payload.id)) {
+        throw new Error('Invalid tenant profile response')
       }
-      return payload
+      // Unwrap accidental `/auth/me` envelope
+      const tenantPayload = (payload.user && payload.tenant && !payload.business)
+        ? payload.tenant
+        : payload
+      if (tenantPayload?._id || tenantPayload?.id) {
+        dispatch(updateTenant(tenantPayload))
+      }
+      return tenantPayload
     },
     staleTime: 0,
     refetchOnMount: 'always',
   })
 
-  const tenant = tenantData || authTenant || {}
+  const tenant = useMemo(() => {
+    const fromApi = tenantData && typeof tenantData === 'object' && !Array.isArray(tenantData)
+      ? tenantData
+      : null
+    const base = fromApi || authTenant || {}
+    const apiBusiness = fromApi?.business
+    const authBusiness = authTenant?.business
+    const preferApi = Boolean(
+      apiBusiness?.legalNameEn
+      || apiBusiness?.legalNameAr
+      || apiBusiness?.vatNumber
+      || apiBusiness?.crNumber
+      || apiBusiness?.contactEmail
+    )
+    const preferAuth = Boolean(
+      authBusiness?.legalNameEn
+      || authBusiness?.legalNameAr
+      || authBusiness?.vatNumber
+      || authBusiness?.crNumber
+      || authBusiness?.contactEmail
+    )
+    return {
+      ...authTenant,
+      ...base,
+      name: base.name || authTenant?.name,
+      business: preferApi
+        ? apiBusiness
+        : (preferAuth ? authBusiness : (apiBusiness || authBusiness || {})),
+      subscription: base.subscription || authTenant?.subscription || {},
+      businessTypes: base.businessTypes || authTenant?.businessTypes,
+      branding: base.branding || authTenant?.branding,
+      settings: { ...(authTenant?.settings || {}), ...(base.settings || {}) },
+    }
+  }, [tenantData, authTenant])
   const business = tenant?.business || {}
   const nationalAddress = business?.nationalAddress || {}
   const commercialReg = business?.commercialRegistration || {}
@@ -909,11 +952,13 @@ export default function Profile() {
                 <div className="space-y-3 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500 dark:text-gray-400">{language === 'ar' ? 'الاسم:' : 'Name:'}</span>
-                    <span className="font-bold text-gray-900 dark:text-white">{user?.name || `${user?.firstName || ''} ${user?.lastName || ''}`}</span>
+                    <span className="font-bold text-gray-900 dark:text-white">
+                      {user?.name || [user?.firstName, user?.lastName].filter(Boolean).join(' ') || '—'}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500 dark:text-gray-400">{language === 'ar' ? 'البريد:' : 'Email:'}</span>
-                    <span className="font-semibold text-gray-900 dark:text-white">{user?.email}</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{user?.email || '—'}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500 dark:text-gray-400">{language === 'ar' ? 'الجوال:' : 'Phone:'}</span>

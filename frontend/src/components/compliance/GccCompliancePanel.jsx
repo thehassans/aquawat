@@ -144,6 +144,7 @@ export default function GccCompliancePanel({ countryCode = 'AE' }) {
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['gcc-compliance-config', country.endpoint] });
       if (res.data?.[country.keyName]) {
+        // Patch only the compliance block — updateTenant merges into existing tenant.
         dispatch(updateTenant({ [country.keyName]: res.data[country.keyName] }));
       }
       toast.success(t('Compliance settings saved successfully', 'تم حفظ إعدادات الامتثال بنجاح'));

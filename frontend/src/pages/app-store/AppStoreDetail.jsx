@@ -94,8 +94,8 @@ export default function AppStoreDetail() {
 
   const refreshTenant = useCallback(async () => {
     try {
-      const { data: updatedTenant } = await api.get('/auth/me');
-      dispatch(updateTenant(updatedTenant));
+      const { data } = await api.get('/auth/me');
+      if (data?.tenant) dispatch(updateTenant(data.tenant));
     } catch (error) {
       console.error('Failed to refresh tenant details', error);
     }

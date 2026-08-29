@@ -66,8 +66,14 @@ const api = axios.create({
   },
 })
 
-const buildGetCacheKey = (config) =>
-  `${config.url || ''}?${JSON.stringify(config.params || {})}`
+const buildGetCacheKey = (config) => {
+  const url = config.url || ''
+  const params = config.params
+  if (params == null || (typeof params === 'object' && Object.keys(params).length === 0)) {
+    return url
+  }
+  return `${url}?${JSON.stringify(params)}`
+}
 
 const readApiCacheEntry = async (cacheKey) => {
   try {
@@ -174,7 +180,7 @@ const backgroundCacheResponse = (config, data) => {
     try {
       const db = await initDb()
       if (!db) return
-      const cacheKey = config.url + (config.params ? JSON.stringify(config.params) : '')
+      const cacheKey = buildGetCacheKey(config)
       await db.put('api_cache', {
         url: cacheKey,
         data,
@@ -212,7 +218,7 @@ api.interceptors.response.use(
         try {
           const db = await initDb();
           if (!db) return Promise.reject(error);
-          const cacheKey = config.url + (config.params ? JSON.stringify(config.params) : '');
+          const cacheKey = buildGetCacheKey(config);
           const cached = await db.get('api_cache', cacheKey);
           const isFresh = cached && (!cached.expiresAt || cached.expiresAt > Date.now())
             && (Date.now() - (cached.timestamp || 0) < API_CACHE_TTL_MS);
@@ -349,7 +355,7 @@ api.interceptors.response.use(
         try {
           const db = await initDb()
           if (db) {
-            const cacheKey = config.url + (config.params ? JSON.stringify(config.params) : '')
+            const cacheKey = buildGetCacheKey(config)
             const cached = await db.get('api_cache', cacheKey)
             if (cached?.data) {
               console.warn(`[API] Serving cached fallback after 429 for ${config.url}`)
