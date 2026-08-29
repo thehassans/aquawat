@@ -16,24 +16,27 @@ import {
 } from 'lucide-react';
 import api from '../../lib/api';
 
-const HINTS = {
+const HINT_PREFIX = { en: 'Search', ar: 'بحث' };
+
+/** Only the second segment rotates — “Search” stays fixed */
+const HINT_TARGETS = {
   en: [
-    'Search Purchase Order',
-    'Search GRN',
-    'Search Product',
-    'Search Supplier',
-    'Search Customer',
-    'Search Warehouse',
-    'Search Invoice',
+    'Purchase Order',
+    'GRN',
+    'Product',
+    'Supplier',
+    'Customer',
+    'Warehouse',
+    'Invoice',
   ],
   ar: [
-    'بحث أمر شراء',
-    'بحث إشعار استلام',
-    'بحث منتج',
-    'بحث مورد',
-    'بحث عميل',
-    'بحث مستودع',
-    'بحث فاتورة',
+    'أمر شراء',
+    'إشعار استلام',
+    'منتج',
+    'مورد',
+    'عميل',
+    'مستودع',
+    'فاتورة',
   ],
 };
 
@@ -51,15 +54,17 @@ export default function GlobalSearch({ language }) {
   const inputRef = useRef(null);
   const navigate = useNavigate();
   const isAr = language === 'ar';
-  const hints = HINTS[isAr ? 'ar' : 'en'];
+  const hintPrefix = HINT_PREFIX[isAr ? 'ar' : 'en'];
+  const hintTargets = HINT_TARGETS[isAr ? 'ar' : 'en'];
+  const hintFull = `${hintPrefix} ${hintTargets[hintIndex]}`;
 
   useEffect(() => {
     if (query.trim() || isFocused) return undefined;
     const id = window.setInterval(() => {
-      setHintIndex((i) => (i + 1) % hints.length);
+      setHintIndex((i) => (i + 1) % hintTargets.length);
     }, 2600);
     return () => window.clearInterval(id);
-  }, [query, isFocused, hints.length]);
+  }, [query, isFocused, hintTargets.length]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -199,29 +204,32 @@ export default function GlobalSearch({ language }) {
           onBlur={() => setIsFocused(false)}
           aria-label={isAr ? 'بحث شامل' : 'Global search'}
           className="w-full bg-gray-50/50 dark:bg-dark-900/50 border border-gray-200 dark:border-dark-700 rounded-xl ps-10 pe-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all dark:text-gray-200 placeholder-transparent"
-          placeholder={hints[hintIndex]}
+          placeholder={hintFull}
         />
         {!query && (
           <div
-            className="pointer-events-none absolute inset-y-0 start-10 end-4 flex items-center overflow-hidden"
+            className="pointer-events-none absolute inset-y-0 start-10 end-4 flex items-center gap-1 overflow-hidden text-sm text-gray-400"
             aria-hidden
           >
-            {isFocused ? (
-              <span className="block truncate text-sm text-gray-400">{hints[hintIndex]}</span>
-            ) : (
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.span
-                  key={hints[hintIndex]}
-                  initial={{ y: 14, opacity: 0, filter: 'blur(4px)' }}
-                  animate={{ y: 0, opacity: 1, filter: 'blur(0px)' }}
-                  exit={{ y: -14, opacity: 0, filter: 'blur(4px)' }}
-                  transition={{ duration: 0.5, ease: HINT_EASE }}
-                  className="block truncate text-sm text-gray-400"
-                >
-                  {hints[hintIndex]}
-                </motion.span>
-              </AnimatePresence>
-            )}
+            <span className="shrink-0">{hintPrefix}</span>
+            <span className="relative min-w-0 flex-1 overflow-hidden">
+              {isFocused ? (
+                <span className="block truncate">{hintTargets[hintIndex]}</span>
+              ) : (
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.span
+                    key={hintTargets[hintIndex]}
+                    initial={{ y: 14, opacity: 0, filter: 'blur(4px)' }}
+                    animate={{ y: 0, opacity: 1, filter: 'blur(0px)' }}
+                    exit={{ y: -14, opacity: 0, filter: 'blur(4px)' }}
+                    transition={{ duration: 0.5, ease: HINT_EASE }}
+                    className="block truncate"
+                  >
+                    {hintTargets[hintIndex]}
+                  </motion.span>
+                </AnimatePresence>
+              )}
+            </span>
           </div>
         )}
         {isLoading && (
