@@ -20,6 +20,28 @@ import { isAppAccessValid } from '../../lib/appStoreTrial'
 import { getGovChildren } from '../../lib/saudiTenant'
 import { HighlightText } from '../ui/highlight-text'
 
+/** Core trading apps pinned first in the launcher grid. */
+const CORE_LAUNCHER_PATHS = [
+  '/app/dashboard',
+  '/app/dashboard/purchases',
+  '/app/dashboard/sales',
+  '/app/dashboard/inventory',
+  '/app/dashboard/accounting',
+]
+
+function launcherAppPath(app) {
+  return app?.path || app?.children?.[0]?.path || ''
+}
+
+function coreLauncherRank(path) {
+  const p = String(path || '')
+  const idx = CORE_LAUNCHER_PATHS.findIndex((core) => {
+    if (core === '/app/dashboard') return p === '/app/dashboard'
+    return p === core || p.startsWith(`${core}/`)
+  })
+  return idx === -1 ? CORE_LAUNCHER_PATHS.length + 1 : idx
+}
+
 // Pre-defined mapping for standard paths to specific gradients and icons to match Odoo-style uniqueness
 const APP_STYLE_MAP = {
   // Finance & Accounting Group (Purple / Indigo)
@@ -346,6 +368,14 @@ export default function AppLauncher() {
         uniqueApps.push(app)
       }
     }
+
+    // Pin Dashboard → Purchases → Sales → Inventory → Accounting at the front
+    uniqueApps.sort((a, b) => {
+      const ra = coreLauncherRank(launcherAppPath(a))
+      const rb = coreLauncherRank(launcherAppPath(b))
+      if (ra !== rb) return ra - rb
+      return 0
+    })
 
     // Expand nested children into searchable modules (PO, Invoices, Quotations, …)
     const modules = []

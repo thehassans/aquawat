@@ -241,6 +241,22 @@ export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, bus
       items: [
         { path: '/app/dashboard', icon: LayoutDashboard, label: language === 'ar' ? 'لوحة التحكم' : 'Dashboard', end: true, excludeBusinessTypes: ['khayyat', 'gym'] },
         {
+          path: '/app/dashboard/purchases',
+          icon: ShoppingCart,
+          label: language === 'ar' ? 'المشتريات' : 'Purchases',
+          perm: { module: 'supply_chain', action: 'read' },
+          end: true,
+          children: [
+            { path: '/app/dashboard/purchases', label: language === 'ar' ? 'نظرة عامة' : 'Overview', end: true },
+            { path: '/app/dashboard/purchases/orders', label: language === 'ar' ? 'طلبات الشراء' : 'Purchase Orders' },
+            { path: '/app/dashboard/purchases/grn', label: language === 'ar' ? 'إشعارات الاستلام' : 'Receipts (GRN)' },
+            { path: '/app/dashboard/purchases/suppliers', label: language === 'ar' ? 'الموردون وطلباتهم' : 'Suppliers & POs' },
+            { path: '/app/dashboard/purchases/reports', label: language === 'ar' ? 'تقارير المشتريات' : 'Purchases Reports' },
+            { path: '/app/dashboard/purchases/returns', label: language === 'ar' ? 'مرتجع المشتريات' : 'Purchase Return' },
+            { path: '/app/dashboard/purchases/landed-costs', label: language === 'ar' ? 'التكلفة المرسية' : 'Landed Cost' },
+          ],
+        },
+        {
           path: '/app/dashboard/sales',
           icon: ShoppingCart,
           label: language === 'ar' ? 'المبيعات' : 'Sales',
@@ -284,22 +300,6 @@ export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, bus
         { path: '/app/dashboard/suppliers', icon: Building, label: language === 'ar' ? 'الموردين' : 'Suppliers', perm: { module: 'supply_chain', action: 'read' }, businessTypes: ['bakala'] },
         { path: '/app/dashboard/delivery-notes', icon: FileText, label: language === 'ar' ? 'سندات التسليم' : 'Delivery Notes', perm: { module: 'supply_chain', action: 'read' }, businessTypes: ['trading', 'furniture_shop'] },
         { path: '/app/dashboard/calendar', icon: Calendar, label: language === 'ar' ? 'التقويم والمواعيد' : 'Calendar', perm: { module: 'invoicing', action: 'read' }, excludeBusinessTypes: ['bakala'] },
-        {
-          path: '/app/dashboard/purchases',
-          icon: ShoppingCart,
-          label: language === 'ar' ? 'المشتريات' : 'Purchases',
-          perm: { module: 'supply_chain', action: 'read' },
-          end: true,
-          children: [
-            { path: '/app/dashboard/purchases', label: language === 'ar' ? 'نظرة عامة' : 'Overview', end: true },
-            { path: '/app/dashboard/purchases/orders', label: language === 'ar' ? 'طلبات الشراء' : 'Purchase Orders' },
-            { path: '/app/dashboard/purchases/grn', label: language === 'ar' ? 'إشعارات الاستلام' : 'Receipts (GRN)' },
-            { path: '/app/dashboard/purchases/suppliers', label: language === 'ar' ? 'الموردون وطلباتهم' : 'Suppliers & POs' },
-            { path: '/app/dashboard/purchases/reports', label: language === 'ar' ? 'تقارير المشتريات' : 'Purchases Reports' },
-            { path: '/app/dashboard/purchases/returns', label: language === 'ar' ? 'مرتجع المشتريات' : 'Purchase Return' },
-            { path: '/app/dashboard/purchases/landed-costs', label: language === 'ar' ? 'التكلفة المرسية' : 'Landed Cost' },
-          ],
-        },
       ]
     },
     {
