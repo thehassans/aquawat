@@ -130,6 +130,7 @@ import TenantPayment from '../models/TenantPayment.js';
 import {
   recordTenantPayment,
   deleteTenantPayment,
+  updateTenantPaymentPeriod,
   clearAllLegacyPaymentHistory,
 } from '../services/tenantPaymentService.js';
 
@@ -1636,6 +1637,18 @@ router.delete('/tenant-payments/:id', async (req, res) => {
   }
 });
 
+// @route   PATCH /api/super-admin/tenant-payments/:id
+router.patch('/tenant-payments/:id', async (req, res) => {
+  try {
+    const { periodStart, periodEnd } = req.body || {};
+    const payment = await updateTenantPaymentPeriod(req.params.id, { periodStart, periodEnd });
+    res.json({ ok: true, payment });
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({ error: error.message });
+  }
+});
+
 // @route   POST /api/super-admin/tenant-payments/purge-legacy
 router.post('/tenant-payments/purge-legacy', async (req, res) => {
   try {
@@ -1650,7 +1663,6 @@ router.post('/tenant-payments/purge-legacy', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 // @route   POST /api/super-admin/subscriptions/expire-due
 router.post('/subscriptions/expire-due', async (req, res) => {
   try {

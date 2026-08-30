@@ -417,6 +417,18 @@ export default function TenantManagement() {
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to remove payment'),
   })
 
+  const updatePaymentPeriodMutation = useMutation({
+    mutationFn: ({ paymentId, periodStart, periodEnd }) =>
+      api.patch(`/super-admin/tenant-payments/${paymentId}`, { periodStart, periodEnd }).then((res) => res.data),
+    onSuccess: () => {
+      toast.success(language === 'ar' ? 'تم تحديث الفترة' : 'Period updated')
+      queryClient.invalidateQueries({ queryKey: ['tenant'] })
+      queryClient.invalidateQueries({ queryKey: ['tenants'] })
+      queryClient.invalidateQueries({ queryKey: ['tenant-payments'] })
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to update period'),
+  })
+
   const getPricingPlansForTenant = (tenant) => {
     const website = websiteSettingsData?.website
     const businessType = getPrimaryBusinessType(tenant)
@@ -1210,10 +1222,19 @@ export default function TenantManagement() {
                     history={historyPaymentsData?.payments || []}
                     language={language}
                     removingId={removePaymentMutation.isPending ? removePaymentMutation.variables : null}
+                    updatingId={updatePaymentPeriodMutation.isPending ? updatePaymentPeriodMutation.variables?.paymentId : null}
                     onRemove={(row) => {
                       if (!row?._id) return
                       if (!window.confirm(language === 'ar' ? 'حذف هذه الدفعة؟' : 'Remove this payment?')) return
                       removePaymentMutation.mutate(row._id)
+                    }}
+                    onUpdatePeriod={(row, { periodStart, periodEnd }) => {
+                      if (!row?._id) return
+                      updatePaymentPeriodMutation.mutate({
+                        paymentId: row._id,
+                        periodStart,
+                        periodEnd,
+                      })
                     }}
                   />
                 )}

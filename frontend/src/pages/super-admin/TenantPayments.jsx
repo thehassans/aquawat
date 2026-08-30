@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion } from 'framer-motion'
 import {
-  Search, CreditCard, Trash2, RefreshCw, Building2, ExternalLink, Wallet,
+  Search, CreditCard, Trash2, RefreshCw, Building2, ExternalLink, Wallet, Pencil, Check, X,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
@@ -26,6 +26,16 @@ const methodLabel = (method, isAr) => {
   }
 }
 
+const toDateInputValue = (value) => {
+  if (!value) return ''
+  const d = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
 export default function TenantPayments() {
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
@@ -35,6 +45,8 @@ export default function TenantPayments() {
   const [plan, setPlan] = useState('')
   const [billingCycle, setBillingCycle] = useState('')
   const [page, setPage] = useState(1)
+  const [editingId, setEditingId] = useState(null)
+  const [draft, setDraft] = useState({ periodStart: '', periodEnd: '' })
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['tenant-payments', page, search, plan, billingCycle],
@@ -66,6 +78,19 @@ export default function TenantPayments() {
       queryClient.invalidateQueries({ queryKey: ['tenant'] })
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to remove payment'),
+  })
+
+  const updatePeriodMutation = useMutation({
+    mutationFn: ({ paymentId, periodStart, periodEnd }) =>
+      api.patch(`/super-admin/tenant-payments/${paymentId}`, { periodStart, periodEnd }).then((res) => res.data),
+    onSuccess: () => {
+      toast.success(isAr ? 'تم تحديث الفترة' : 'Period updated')
+      setEditingId(null)
+      queryClient.invalidateQueries({ queryKey: ['tenant-payments'] })
+      queryClient.invalidateQueries({ queryKey: ['tenants'] })
+      queryClient.invalidateQueries({ queryKey: ['tenant'] })
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to update period'),
   })
 
   return (
@@ -256,10 +281,71 @@ export default function TenantPayments() {
                         {row.plan || '—'}
                         <span className="text-gray-400"> · {row.billingCycle || '—'}</span>
                       </td>
-                      <td className="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">
-                        {row.periodStart || row.periodEnd
-                          ? `${formatSubscriptionDate(row.periodStart, language)} → ${formatSubscriptionDate(row.periodEnd, language)}`
-                          : '—'}
+                      <td className="min-w-[14rem] text-xs text-gray-600 dark:text-gray-300">
+                        {editingId === row._id ? (
+                          <div className="flex flex-col gap-1.5 py-1">
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="date"
+                                lang="en-GB"
+                                className="input input-sm py-1 text-xs"
+                                value={draft.periodStart}
+                                onChange={(e) => setDraft((d) => ({ ...d, periodStart: e.target.value }))}
+                              />
+                              <span className="text-gray-400">→</span>
+                              <input
+                                type="date"
+                                lang="en-GB"
+                                className="input input-sm py-1 text-xs"
+                                value={draft.periodEnd}
+                                onChange={(e) => setDraft((d) => ({ ...d, periodEnd: e.target.value }))}
+                              />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                className="rounded-lg bg-emerald-600 px-2 py-1 text-white hover:bg-emerald-700 disabled:opacity-50"
+                                disabled={updatePeriodMutation.isPending || !draft.periodStart || !draft.periodEnd}
+                                onClick={() => updatePeriodMutation.mutate({
+                                  paymentId: row._id,
+                                  periodStart: draft.periodStart,
+                                  periodEnd: draft.periodEnd,
+                                })}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded-lg px-2 py-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-700"
+                                onClick={() => setEditingId(null)}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 whitespace-nowrap">
+                            <span>
+                              {row.periodStart || row.periodEnd
+                                ? `${formatSubscriptionDate(row.periodStart, language)} → ${formatSubscriptionDate(row.periodEnd, language)}`
+                                : '—'}
+                            </span>
+                            <button
+                              type="button"
+                              className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-emerald-600 dark:hover:bg-dark-700"
+                              title={isAr ? 'تعديل الفترة' : 'Edit period'}
+                              onClick={() => {
+                                setEditingId(row._id)
+                                setDraft({
+                                  periodStart: toDateInputValue(row.periodStart),
+                                  periodEnd: toDateInputValue(row.periodEnd),
+                                })
+                              }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
                       </td>
                       <td>{methodLabel(row.method, isAr)}</td>
                       <td className="max-w-[10rem] truncate font-mono text-xs" title={row.reference || ''}>

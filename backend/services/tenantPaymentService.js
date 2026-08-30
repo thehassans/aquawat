@@ -251,3 +251,52 @@ export const deleteTenantPayment = async (paymentId) => {
   await recalculateTenantEndDateFromPayments(tenantId);
   return { tenantId, deletedId: paymentId };
 };
+
+const parseDay = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : startOfLocalDay(value);
+  }
+  const raw = String(value).trim();
+  // Accept yyyy-mm-dd from date inputs
+  const isoDay = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (isoDay) {
+    const d = new Date(Number(isoDay[1]), Number(isoDay[2]) - 1, Number(isoDay[3]), 12, 0, 0, 0);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : startOfLocalDay(d);
+};
+
+export const updateTenantPaymentPeriod = async (paymentId, { periodStart, periodEnd }) => {
+  const payment = await TenantPayment.findById(paymentId);
+  if (!payment) {
+    const err = new Error('Payment not found');
+    err.status = 404;
+    throw err;
+  }
+  if (payment.status === 'voided') {
+    const err = new Error('Cannot edit a voided payment');
+    err.status = 400;
+    throw err;
+  }
+
+  const start = parseDay(periodStart);
+  const end = parseDay(periodEnd);
+  if (!start || !end) {
+    const err = new Error('Valid period start and end dates are required');
+    err.status = 400;
+    throw err;
+  }
+  if (end.getTime() <= start.getTime()) {
+    const err = new Error('Period end must be after period start');
+    err.status = 400;
+    throw err;
+  }
+
+  payment.periodStart = start;
+  payment.periodEnd = end;
+  await payment.save();
+  await recalculateTenantEndDateFromPayments(payment.tenantId);
+  return payment;
+};
