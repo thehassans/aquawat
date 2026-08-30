@@ -14,6 +14,7 @@ import { CURRENCIES, CURRENCY_CODE } from '../../lib/currency'
 import { COUNTRY_OPTIONS, currencyForCountry, timezoneForCountry } from '../../lib/countryCurrency'
 import TenantAppStorePanel from '../../components/super-admin/TenantAppStorePanel'
 import TenantPaymentHistory from '../../components/super-admin/TenantPaymentHistory'
+import SuperAdminPortal, { SA_MODAL_Z } from '../../components/super-admin/SuperAdminPortal'
 import { formatSubscriptionDate, getSubscriptionState } from '../../lib/subscriptionState'
 
 export default function TenantForm() {
@@ -1054,7 +1055,8 @@ export default function TenantForm() {
       </form>
 
       {passwordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <SuperAdminPortal>
+        <div className={`fixed inset-0 ${SA_MODAL_Z} flex items-center justify-center bg-black/50 backdrop-blur-sm p-4`}>
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -1132,6 +1134,7 @@ export default function TenantForm() {
             </div>
           </motion.div>
         </div>
+        </SuperAdminPortal>
       )}
     </div>
   )

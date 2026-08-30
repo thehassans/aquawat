@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 import { Plus, Search, Edit, Trash2, Building2, Mail, Phone, Users, X, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import SuperAdminPortal, { SA_MODAL_Z } from '../../components/super-admin/SuperAdminPortal'
 import { useTranslation } from '../../lib/translations'
 
 export default function ResellerManagement() {
@@ -224,7 +225,8 @@ export default function ResellerManagement() {
 
       {/* Create/Edit Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowForm(false)}>
+        <SuperAdminPortal>
+        <div className={`fixed inset-0 ${SA_MODAL_Z} flex items-center justify-center bg-black/50 p-4`} onClick={() => setShowForm(false)}>
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">
@@ -363,11 +365,13 @@ export default function ResellerManagement() {
             </form>
           </div>
         </div>
+        </SuperAdminPortal>
       )}
 
       {/* View Tenants Modal */}
       {viewTenants && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setViewTenants(null)}>
+        <SuperAdminPortal>
+        <div className={`fixed inset-0 ${SA_MODAL_Z} flex items-center justify-center bg-black/50 p-4`} onClick={() => setViewTenants(null)}>
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -423,6 +427,7 @@ export default function ResellerManagement() {
             )}
           </div>
         </div>
+        </SuperAdminPortal>
       )}
     </div>
   )

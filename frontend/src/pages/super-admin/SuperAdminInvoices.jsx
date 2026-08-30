@@ -12,6 +12,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
+import SuperAdminPortal, { SA_MODAL_Z } from '../../components/super-admin/SuperAdminPortal'
 
 export default function SuperAdminInvoices() {
   const navigate = useNavigate()
@@ -382,9 +383,10 @@ export default function SuperAdminInvoices() {
       </div>
 
       {/* PREVIEW INVOICE MODAL */}
+      <SuperAdminPortal>
       <AnimatePresence>
         {previewInvoice && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <div className={`fixed inset-0 ${SA_MODAL_Z} flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto`}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -573,6 +575,7 @@ export default function SuperAdminInvoices() {
           </div>
         )}
       </AnimatePresence>
+      </SuperAdminPortal>
     </div>
   )
 }

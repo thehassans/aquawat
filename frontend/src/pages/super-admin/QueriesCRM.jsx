@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
+import SuperAdminPortal, { SA_MODAL_Z } from '../../components/super-admin/SuperAdminPortal';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 const STATUS = {
@@ -298,10 +299,11 @@ export default function QueriesCRM() {
       </motion.div>
 
       {/* ── Send Demo Modal ── */}
+      <SuperAdminPortal>
       <AnimatePresence>
         {demoLead&&(
           <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            className={`fixed inset-0 ${SA_MODAL_Z} flex items-center justify-center p-4`}
             onClick={()=>setDemoLead(null)}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -452,7 +454,7 @@ export default function QueriesCRM() {
       <AnimatePresence>
         {showModal&&(
           <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            className={`fixed inset-0 ${SA_MODAL_Z} flex items-center justify-center p-4`}
             onClick={closeModal}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -597,6 +599,7 @@ export default function QueriesCRM() {
         </motion.div>
         )}
       </AnimatePresence>
+      </SuperAdminPortal>
     </div>
   );
 }

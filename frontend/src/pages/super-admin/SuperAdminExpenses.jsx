@@ -11,6 +11,7 @@ import {
 import { useDropzone } from 'react-dropzone'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
+import SuperAdminPortal, { SA_MODAL_Z } from '../../components/super-admin/SuperAdminPortal'
 
 export const EXPENSE_CATEGORIES = [
   { id: 'servers_hosting', labelEn: 'Servers & Cloud Hosting', labelAr: 'خوادم واستضافة سحابية', color: 'text-blue-500 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800' },
@@ -577,9 +578,10 @@ export default function SuperAdminExpenses() {
       </div>
 
       {/* CREATE / EDIT EXPENSE MODAL */}
+      <SuperAdminPortal>
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <div className={`fixed inset-0 ${SA_MODAL_Z} flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto`}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -839,7 +841,7 @@ export default function SuperAdminExpenses() {
       {/* PROOF FULLSCREEN MODAL VIEWER */}
       <AnimatePresence>
         {activeProofView && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className={`fixed inset-0 ${SA_MODAL_Z} flex items-center justify-center p-4 bg-black/80 backdrop-blur-md`}>
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -883,6 +885,7 @@ export default function SuperAdminExpenses() {
           </div>
         )}
       </AnimatePresence>
+      </SuperAdminPortal>
     </div>
   )
 }

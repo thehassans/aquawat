@@ -7,6 +7,7 @@ import { Plus, Search, User, X, Save, Shield, Building2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
+import SuperAdminPortal, { SA_BACKDROP_Z, SA_MODAL_Z } from '../../components/super-admin/SuperAdminPortal'
 
 export default function UserManagement() {
   const { language } = useSelector((state) => state.ui)
@@ -171,15 +172,16 @@ export default function UserManagement() {
       </motion.div>
 
       {/* Modal */}
+      <SuperAdminPortal>
       <AnimatePresence>
         {showModal && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeModal} className="fixed inset-0 bg-black/50 z-40" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeModal} className={`fixed inset-0 bg-black/50 ${SA_BACKDROP_Z}`} />
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg bg-white dark:bg-dark-800 rounded-2xl shadow-xl z-50 overflow-hidden"
+              className={`fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg bg-white dark:bg-dark-800 rounded-2xl shadow-xl ${SA_MODAL_Z} overflow-hidden`}
             >
               <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-dark-700">
                 <h3 className="text-lg font-semibold">{editingUser ? (language === 'ar' ? 'تعديل مستخدم' : 'Edit User') : (language === 'ar' ? 'إضافة مستخدم' : 'Add User')}</h3>
@@ -235,6 +237,7 @@ export default function UserManagement() {
           </>
         )}
       </AnimatePresence>
+      </SuperAdminPortal>
     </div>
   )
 }

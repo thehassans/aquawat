@@ -24,6 +24,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import { App3DIcon } from '../../components/ui/App3DIcon'
+import SuperAdminPortal, { SA_BACKDROP_Z, SA_MODAL_Z } from '../../components/super-admin/SuperAdminPortal'
 
 const PRICING_TIERS = [
   { value: 'free', labelEn: 'Free', labelAr: 'مجاني', color: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
@@ -359,6 +360,7 @@ export default function AppCatalogManagement() {
       )}
 
       {/* Edit Modal */}
+      <SuperAdminPortal>
       <AnimatePresence>
         {editingApp && (
           <>
@@ -366,14 +368,14 @@ export default function AppCatalogManagement() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+              className={`fixed inset-0 bg-black/50 backdrop-blur-sm ${SA_BACKDROP_Z}`}
               onClick={() => setEditingApp(null)}
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed inset-4 max-w-xl mx-auto my-auto h-fit max-h-[90vh] overflow-y-auto bg-white dark:bg-dark-800 rounded-2xl shadow-2xl z-50 p-6 border border-gray-200 dark:border-dark-700"
+              className={`fixed inset-4 max-w-xl mx-auto my-auto h-fit max-h-[90vh] overflow-y-auto bg-white dark:bg-dark-800 rounded-2xl shadow-2xl ${SA_MODAL_Z} p-6 border border-gray-200 dark:border-dark-700`}
             >
               <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-dark-700 mb-5">
                 <div className="flex items-center gap-3">
@@ -592,6 +594,7 @@ export default function AppCatalogManagement() {
           </>
         )}
       </AnimatePresence>
+      </SuperAdminPortal>
     </div>
   )
 }

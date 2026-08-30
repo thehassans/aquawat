@@ -16,6 +16,7 @@ import {
 import { normalizeCheckoutPlan, resolveCheckoutLane, resolvePlanPrice } from '../../lib/checkoutPricing'
 import { getPrimaryBusinessType } from '../../lib/businessTypes'
 import TenantPaymentHistory from '../../components/super-admin/TenantPaymentHistory'
+import SuperAdminPortal, { SA_BACKDROP_Z, SA_MODAL_Z } from '../../components/super-admin/SuperAdminPortal'
 
 const FALLBACK_CONTINUE_PLANS = [
   {
@@ -958,16 +959,17 @@ export default function TenantManagement() {
         )}
       </motion.div>
 
+      <SuperAdminPortal>
       {/* ── Send Backup Modal ── */}
       <AnimatePresence>
         {backupTenant && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setBackupTenant(null)} className="fixed inset-0 bg-black/50 z-40" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setBackupTenant(null)} className={`fixed inset-0 bg-black/50 ${SA_BACKDROP_Z}`} />
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg bg-white dark:bg-dark-800 rounded-2xl shadow-xl z-50 overflow-hidden"
+              className={`fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg bg-white dark:bg-dark-800 rounded-2xl shadow-xl ${SA_MODAL_Z} overflow-hidden`}
             >
               <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-dark-700">
                 <div className="flex items-center gap-3">
@@ -1128,12 +1130,12 @@ export default function TenantManagement() {
       <AnimatePresence>
         {historyTenant && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setHistoryTenant(null)} className="fixed inset-0 bg-black/50 z-40" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setHistoryTenant(null)} className={`fixed inset-0 bg-black/50 ${SA_BACKDROP_Z}`} />
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed inset-4 z-50 overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-dark-800 md:inset-auto md:left-1/2 md:top-1/2 md:h-auto md:max-h-[90vh] md:w-full md:max-w-5xl md:-translate-x-1/2 md:-translate-y-1/2"
+              className={`fixed inset-4 ${SA_MODAL_Z} overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-dark-800 md:inset-auto md:left-1/2 md:top-1/2 md:h-auto md:max-h-[90vh] md:w-full md:max-w-5xl md:-translate-x-1/2 md:-translate-y-1/2`}
             >
               <div className="flex items-center justify-between border-b border-gray-100 p-6 dark:border-dark-700">
                 <div className="flex items-center gap-3">
@@ -1230,12 +1232,12 @@ export default function TenantManagement() {
       <AnimatePresence>
         {continueTenant && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setContinueTenant(null)} className="fixed inset-0 bg-black/50 z-40" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setContinueTenant(null)} className={`fixed inset-0 bg-black/50 ${SA_BACKDROP_Z}`} />
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg bg-white dark:bg-dark-800 rounded-2xl shadow-xl z-50 overflow-hidden"
+              className={`fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg bg-white dark:bg-dark-800 rounded-2xl shadow-xl ${SA_MODAL_Z} overflow-hidden`}
             >
               <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-dark-700">
                 <div className="flex items-center gap-3">
@@ -1401,12 +1403,12 @@ export default function TenantManagement() {
       <AnimatePresence>
         {terminationTenant && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setTerminationTenant(null)} className="fixed inset-0 bg-black/50 z-40" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setTerminationTenant(null)} className={`fixed inset-0 bg-black/50 ${SA_BACKDROP_Z}`} />
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md bg-white dark:bg-dark-800 rounded-2xl shadow-xl z-50 overflow-hidden"
+              className={`fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md bg-white dark:bg-dark-800 rounded-2xl shadow-xl ${SA_MODAL_Z} overflow-hidden`}
             >
               <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-dark-700">
                 <div className="flex items-center gap-3">
@@ -1509,9 +1511,9 @@ export default function TenantManagement() {
               animate={{ opacity: 1 }} 
               exit={{ opacity: 0 }} 
               onClick={() => setMonitoringTenant(null)} 
-              className="fixed inset-0 bg-gray-900/40 dark:bg-black/60 backdrop-blur-md z-40" 
+              className={`fixed inset-0 bg-gray-900/40 dark:bg-black/60 backdrop-blur-md ${SA_BACKDROP_Z}`} 
             />
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 pointer-events-none">
+            <div className={`fixed inset-0 ${SA_MODAL_Z} flex items-center justify-center p-4 sm:p-6 pointer-events-none`}>
               <motion.div
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1622,6 +1624,7 @@ export default function TenantManagement() {
           </>
         )}
       </AnimatePresence>
+      </SuperAdminPortal>
     </div>
   )
 }
