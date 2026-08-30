@@ -125,9 +125,9 @@ export default function SubscriptionBadge({ tenant, language }) {
                   <p className="mt-2 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400">
                     {isTrialEnded
                       ? (isAr
-                        ? 'انتهت التجربة. النظام مفتوح — اختر باقة للمتابعة.'
-                        : 'Trial ended. Workspace stays open — choose a plan to continue.')
-                        : (isAr
+                        ? 'انتهت التجربة. تواصل عبر واتساب للاشتراك.'
+                        : 'Trial ended. Contact WhatsApp to subscribe.')
+                      : (isAr
                         ? 'انتهى الاشتراك. جدّد عبر واتساب للمتابعة.'
                         : 'Subscription ended. Renew via WhatsApp to continue.')}
                   </p>

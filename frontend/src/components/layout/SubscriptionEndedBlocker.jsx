@@ -18,13 +18,13 @@ function WhatsAppIcon({ className }) {
   )
 }
 
-/** Paid (non-trial) subscription past end — hard gate with renew contacts. */
+/** Subscription or trial past end — hard gate with renew contacts. */
 export function shouldBlockExpiredSubscription(tenant) {
   if (!tenant) return false
   if (tenant.isActive === false) return false
   if (tenant.subscription?.status === 'terminated') return false
   const state = getSubscriptionState(tenant)
-  return Boolean(state.isExpired && !state.isTrialPlan)
+  return Boolean(state.isExpired)
 }
 
 export default function SubscriptionEndedBlocker() {
@@ -34,6 +34,7 @@ export default function SubscriptionEndedBlocker() {
   const isAr = language === 'ar'
   const state = getSubscriptionState(tenant)
   const cycle = state.billingCycle === 'yearly' ? 'yearly' : 'monthly'
+  const isTrial = state.isTrialPlan || state.isTrialEnded
   const company = tenant?.business?.legalNameEn || tenant?.name || 'Maqder'
   const logo = tenant?.branding?.logo
   const monogram = String(company).trim().charAt(0).toUpperCase() || 'M'
@@ -48,6 +49,30 @@ export default function SubscriptionEndedBlocker() {
   const titleCycle = isAr
     ? (cycle === 'yearly' ? 'السنوي' : 'الشهري')
     : cycle
+
+  const badgeLabel = isTrial
+    ? (isAr ? 'انتهت التجربة' : 'Trial ended')
+    : (isAr ? 'انتهى الاشتراك' : 'Subscription ended')
+
+  const headline = isTrial
+    ? (isAr ? (
+      <>انتهت فترة <HighlightText variant="yellow">التجربة</HighlightText></>
+    ) : (
+      <>Your <HighlightText variant="yellow">trial</HighlightText> has ended</>
+    ))
+    : (isAr ? (
+      <>انتهى اشتراكك <HighlightText variant="yellow">{titleCycle}</HighlightText></>
+    ) : (
+      <>Your <HighlightText variant="yellow">{titleCycle}</HighlightText> subscription ended</>
+    ))
+
+  const body = isTrial
+    ? (isAr
+      ? 'يرجى التواصل عبر واتساب للاشتراك أو لأي استفسار — فريقنا جاهز لمساعدتك.'
+      : 'Kindly contact us on WhatsApp to subscribe or for any queries — we are ready to help.')
+    : (isAr
+      ? 'يرجى التواصل عبر واتساب لتجديد الاشتراك أو لأي استفسار — فريقنا جاهز لمساعدتك.'
+      : 'Kindly contact us on WhatsApp to renew your plan or for any queries — we are ready to help.')
 
   return (
     <div
@@ -95,7 +120,7 @@ export default function SubscriptionEndedBlocker() {
           <div className="mb-4 flex justify-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-amber-200/80 bg-amber-50 px-3.5 py-1 text-xs font-bold uppercase tracking-widest text-amber-800">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              {isAr ? 'انتهى الاشتراك' : 'Subscription ended'}
+              {badgeLabel}
             </span>
           </div>
 
@@ -103,21 +128,11 @@ export default function SubscriptionEndedBlocker() {
             id="subscription-ended-title"
             className="font-display text-[1.85rem] font-bold leading-[1.2] tracking-[-0.03em] text-slate-950 sm:text-4xl"
           >
-            {isAr ? (
-              <>
-                انتهى اشتراكك <HighlightText variant="yellow">{titleCycle}</HighlightText>
-              </>
-            ) : (
-              <>
-                Your <HighlightText variant="yellow">{titleCycle}</HighlightText> subscription ended
-              </>
-            )}
+            {headline}
           </h1>
 
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate-500 sm:text-base">
-            {isAr
-              ? 'يرجى التواصل عبر واتساب لتجديد الاشتراك أو لأي استفسار — فريقنا جاهز لمساعدتك.'
-              : 'Kindly contact us on WhatsApp to renew your plan or for any queries — we are ready to help.'}
+            {body}
           </p>
 
           {endedOn && endedOn !== '—' ? (

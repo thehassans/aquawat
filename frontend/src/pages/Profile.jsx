@@ -1726,8 +1726,8 @@ export default function Profile() {
                       <p className="mt-3 max-w-xl text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
                         {isTrialEnded
                           ? (language === 'ar'
-                            ? 'انتهت فترة التجربة. يمكنك فتح النظام واختيار باقة جديدة للمتابعة.'
-                            : 'Trial ended. Your tenant stays open — choose a plan to continue with full access.')
+                            ? 'انتهت فترة التجربة. تواصل عبر واتساب مع حسن أو احتشام للاشتراك أو الاستفسار.'
+                            : 'Trial ended. Contact Hassan or Ahtisham on WhatsApp to subscribe or for queries.')
                           : (language === 'ar'
                             ? 'انتهى الاشتراك. تواصل عبر واتساب مع حسن أو احتشام للتجديد أو الاستفسار.'
                             : 'Subscription ended. Contact Hassan or Ahtisham on WhatsApp to renew or for queries.')}
