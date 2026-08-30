@@ -105,11 +105,14 @@ export default function TenantManagement() {
   const [terminationForm, setTerminationForm] = useState({ date: '', reason: '' })
   const [monitoringTenant, setMonitoringTenant] = useState(null)
 
-  const { data: historyTenantData, isLoading: isLoadingHistory } = useQuery({
-    queryKey: ['tenant', historyTenant?._id, 'payment-history'],
-    queryFn: () => api.get(`/super-admin/tenants/${historyTenant._id}`).then((res) => res.data),
+  const { data: historyPaymentsData, isLoading: isLoadingHistory } = useQuery({
+    queryKey: ['tenant', historyTenant?._id, 'payments'],
+    queryFn: () => api.get(`/super-admin/tenants/${historyTenant._id}/payments`).then((res) => res.data),
     enabled: Boolean(historyTenant?._id),
   })
+  const historyTenantData = historyPaymentsData
+    ? { tenant: historyPaymentsData.tenant }
+    : null
 
   const { data: websiteSettingsData } = useQuery({
     queryKey: ['website-settings'],
@@ -398,8 +401,20 @@ export default function TenantManagement() {
       setContinueTenant(null)
       queryClient.invalidateQueries({ queryKey: ['tenants'] })
       queryClient.invalidateQueries({ queryKey: ['tenant'] })
+      queryClient.invalidateQueries({ queryKey: ['tenant-payments'] })
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to continue subscription'),
+  })
+
+  const removePaymentMutation = useMutation({
+    mutationFn: (paymentId) => api.delete(`/super-admin/tenant-payments/${paymentId}`).then((res) => res.data),
+    onSuccess: () => {
+      toast.success(language === 'ar' ? 'تم حذف الدفعة' : 'Payment removed')
+      queryClient.invalidateQueries({ queryKey: ['tenant'] })
+      queryClient.invalidateQueries({ queryKey: ['tenants'] })
+      queryClient.invalidateQueries({ queryKey: ['tenant-payments'] })
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to remove payment'),
   })
 
   const getPricingPlansForTenant = (tenant) => {
@@ -1191,8 +1206,14 @@ export default function TenantManagement() {
                   </div>
                 ) : (
                   <TenantPaymentHistory
-                    history={historyTenantData?.tenant?.subscription?.paymentHistory || historyTenant?.subscription?.paymentHistory || []}
+                    history={historyPaymentsData?.payments || []}
                     language={language}
+                    removingId={removePaymentMutation.isPending ? removePaymentMutation.variables : null}
+                    onRemove={(row) => {
+                      if (!row?._id) return
+                      if (!window.confirm(language === 'ar' ? 'حذف هذه الدفعة؟' : 'Remove this payment?')) return
+                      removePaymentMutation.mutate(row._id)
+                    }}
                   />
                 )}
               </div>

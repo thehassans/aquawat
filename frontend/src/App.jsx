@@ -307,6 +307,7 @@ const Users = lazy(() => import('./pages/Users'))
 const SuperAdminDashboard = lazy(() => import('./pages/super-admin/SuperAdminDashboard'))
 const PosSessions = lazy(() => import('./pages/super-admin/PosSessions'))
 const TenantManagement = lazy(() => import('./pages/super-admin/TenantManagement'))
+const TenantPayments = lazy(() => import('./pages/super-admin/TenantPayments'))
 const SuperAdminInvoices = lazy(() => import('./pages/super-admin/SuperAdminInvoices'))
 const SuperAdminInvoiceCreate = lazy(() => import('./pages/super-admin/SuperAdminInvoiceCreate'))
 const SuperAdminExpenses = lazy(() => import('./pages/super-admin/SuperAdminExpenses'))
@@ -678,6 +679,7 @@ function App() {
         <Route index element={<SuperAdminDashboard />} />
         <Route path="pos-sessions" element={<PosSessions />} />
           <Route path="tenants" element={<TenantManagement />} />
+          <Route path="tenant-payments" element={<TenantPayments />} />
           <Route path="invoices" element={<SuperAdminInvoices />} />
           <Route path="invoices/new" element={<SuperAdminInvoiceCreate />} />
           <Route path="expenses" element={<SuperAdminExpenses />} />

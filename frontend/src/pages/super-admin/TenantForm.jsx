@@ -59,6 +59,12 @@ export default function TenantForm() {
     enabled: isEdit,
   })
 
+  const { data: tenantPaymentsData } = useQuery({
+    queryKey: ['tenant', id, 'payments'],
+    queryFn: () => api.get(`/super-admin/tenants/${id}/payments`).then((res) => res.data),
+    enabled: isEdit && Boolean(id),
+  })
+
   const { data: resellersData } = useQuery({
     queryKey: ['resellers'],
     queryFn: () => api.get('/super-admin/resellers').then(res => res.data),
@@ -263,14 +269,28 @@ export default function TenantForm() {
     onSuccess: () => {
       toast.success(language === 'ar' ? 'تم تسجيل الدفع وتفعيل الاشتراك' : 'Payment recorded — subscription activated')
       queryClient.invalidateQueries({ queryKey: ['tenant', id] })
+      queryClient.invalidateQueries({ queryKey: ['tenant', id, 'payments'] })
       queryClient.invalidateQueries({ queryKey: ['tenants'] })
+      queryClient.invalidateQueries({ queryKey: ['tenant-payments'] })
       setPaymentForm((p) => ({ ...p, amount: '', reference: '', note: '' }))
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to record payment'),
   })
 
+  const removePaymentMutation = useMutation({
+    mutationFn: (paymentId) => api.delete(`/super-admin/tenant-payments/${paymentId}`).then((res) => res.data),
+    onSuccess: () => {
+      toast.success(language === 'ar' ? 'تم حذف الدفعة' : 'Payment removed')
+      queryClient.invalidateQueries({ queryKey: ['tenant', id] })
+      queryClient.invalidateQueries({ queryKey: ['tenant', id, 'payments'] })
+      queryClient.invalidateQueries({ queryKey: ['tenants'] })
+      queryClient.invalidateQueries({ queryKey: ['tenant-payments'] })
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to remove payment'),
+  })
+
   const liveSubState = isEdit && tenant?.tenant ? getSubscriptionState(tenant.tenant) : null
-  const paymentHistory = tenant?.tenant?.subscription?.paymentHistory || []
+  const paymentHistory = tenantPaymentsData?.payments || []
 
   const handleLogoChange = async (e) => {
     const file = e.target.files?.[0]
@@ -927,7 +947,16 @@ export default function TenantForm() {
             </div>
 
             <div className="mt-6">
-              <TenantPaymentHistory history={paymentHistory} language={language} />
+              <TenantPaymentHistory
+                history={paymentHistory}
+                language={language}
+                removingId={removePaymentMutation.isPending ? removePaymentMutation.variables : null}
+                onRemove={(row) => {
+                  if (!row?._id) return
+                  if (!window.confirm(language === 'ar' ? 'حذف هذه الدفعة؟' : 'Remove this payment?')) return
+                  removePaymentMutation.mutate(row._id)
+                }}
+              />
             </div>
           </motion.div>
         ) : null}

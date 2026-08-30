@@ -7,6 +7,11 @@ import DemoUser from '../models/DemoUser.js'
 import { protect } from '../middleware/auth.js'
 import { sendUpgradeWelcomeEmail, sendPaymentFailedEmail } from '../utils/emailService.js'
 import { emitPlatformEvent } from '../utils/platformEvents.js'
+import TenantPayment from '../models/TenantPayment.js'
+import {
+  resolvePaymentPeriod,
+  shouldForcePeriodFromPaymentDate,
+} from '../services/tenantPaymentService.js'
 import {
   canFulfillPaymentForTenant,
   rejectUnauthorizedPaymentPoll,
@@ -113,6 +118,40 @@ const applyTenantUpgrade = async ({ tenantId, demoEmail, plan, billingCycle, amo
   }
 
   await Tenant.findByIdAndUpdate(tenantId, update)
+
+  try {
+    const unitPrice = Number(amountHalalas) / 100
+    const force = shouldForcePeriodFromPaymentDate(prior || {})
+    const { periodStart, periodEnd } = resolvePaymentPeriod({
+      priorEnd: prior?.subscription?.endDate,
+      now,
+      billingCycle,
+      cycles: 1,
+      forceFromPaymentDate: force,
+    })
+    if (periodEnd && String(periodEnd) !== String(endDate)) {
+      await Tenant.findByIdAndUpdate(tenantId, { 'subscription.endDate': periodEnd })
+    }
+    await TenantPayment.create({
+      tenantId,
+      amount: unitPrice,
+      unitPrice,
+      currency: String(currency || 'SAR').toUpperCase(),
+      method: 'online',
+      reference: String(paymentId || ''),
+      note: 'Checkout payment',
+      plan,
+      billingCycle,
+      cycles: 1,
+      periodStart,
+      periodEnd: periodEnd || endDate,
+      recordedAt: now,
+      status: 'recorded',
+    })
+    await Tenant.findByIdAndUpdate(tenantId, { 'subscription.paymentHistory': [] })
+  } catch (_) {
+    // Non-fatal: upgrade already applied
+  }
 
   if (demoEmail) {
     await DemoUser.findOneAndUpdate(

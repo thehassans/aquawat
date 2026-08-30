@@ -1,3 +1,4 @@
+import { Trash2 } from 'lucide-react'
 import { formatSubscriptionDate } from '../../lib/subscriptionState'
 
 const methodLabel = (method, language) => {
@@ -24,6 +25,8 @@ export default function TenantPaymentHistory({
   language = 'en',
   dense = false,
   maxRows = null,
+  onRemove = null,
+  removingId = null,
 }) {
   const isAr = language === 'ar'
   const sorted = [...(Array.isArray(history) ? history : [])].sort((a, b) => {
@@ -34,6 +37,7 @@ export default function TenantPaymentHistory({
   const rows = Number.isFinite(maxRows) && maxRows > 0 ? sorted.slice(0, maxRows) : sorted
   const totalPaid = sorted.reduce((sum, row) => sum + (Number(row?.amount) || 0), 0)
   const currency = sorted[0]?.currency || 'SAR'
+  const canRemove = typeof onRemove === 'function'
 
   if (sorted.length === 0) {
     return (
@@ -74,6 +78,7 @@ export default function TenantPaymentHistory({
               <th>{isAr ? 'المرجع' : 'Reference'}</th>
               <th>{isAr ? 'الفترة' : 'Period'}</th>
               <th>{isAr ? 'ملاحظة' : 'Note'}</th>
+              {canRemove ? <th className="w-12">{isAr ? 'حذف' : 'Remove'}</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -82,8 +87,10 @@ export default function TenantPaymentHistory({
               const unit = Number.isFinite(Number(row.unitPrice))
                 ? Number(row.unitPrice)
                 : (Number(row.amount) || 0) / cycles
+              const rowId = row._id || `${row.recordedAt || 'pay'}-${idx}`
+              const isRemoving = removingId && String(removingId) === String(row._id)
               return (
-                <tr key={row._id || `${row.recordedAt || 'pay'}-${idx}`}>
+                <tr key={rowId}>
                   <td className="whitespace-nowrap">
                     {row.recordedAt ? formatSubscriptionDate(row.recordedAt, language) : '—'}
                   </td>
@@ -116,6 +123,19 @@ export default function TenantPaymentHistory({
                   <td className="max-w-[12rem] truncate text-gray-500" title={row.note || ''}>
                     {row.note || '—'}
                   </td>
+                  {canRemove ? (
+                    <td>
+                      <button
+                        type="button"
+                        className="rounded-lg p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-950/30"
+                        title={isAr ? 'حذف الدفعة' : 'Remove payment'}
+                        disabled={!row._id || isRemoving}
+                        onClick={() => onRemove(row)}
+                      >
+                        <Trash2 className={`h-4 w-4 ${isRemoving ? 'animate-pulse' : ''}`} />
+                      </button>
+                    </td>
+                  ) : null}
                 </tr>
               )
             })}

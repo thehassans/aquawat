@@ -1,4 +1,5 @@
 export { default as Tenant } from './Tenant.js';
+export { default as TenantPayment } from './TenantPayment.js';
 export { default as User } from './User.js';
 export { default as Employee } from './Employee.js';
 export { default as Invoice } from './Invoice.js';

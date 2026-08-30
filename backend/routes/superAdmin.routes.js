@@ -126,6 +126,12 @@ import { provisionTenantApps, provisionAllTenants, getDefaultInstalledApps } fro
 import { buildDraftInvoiceQr } from '../utils/zatca/draftInvoiceQr.js';
 import { enrichInvoiceArabicFields } from '../utils/invoiceArabic.js';
 import { wipeTenantOperationalData, resetTenantCounters } from '../services/wipeTenantOperationalData.js';
+import TenantPayment from '../models/TenantPayment.js';
+import {
+  recordTenantPayment,
+  deleteTenantPayment,
+  clearAllLegacyPaymentHistory,
+} from '../services/tenantPaymentService.js';
 
 const router = express.Router();
 const parsedDatabaseQueryTimeoutMs = Number(process.env.MONGODB_QUERY_TIMEOUT_MS || 10000);
@@ -1452,13 +1458,13 @@ router.post('/tenants/:id/accept-payment', async (req, res) => {
       plan,
       billingCycle,
       cycles = 1,
+      forceFromPaymentDate,
     } = req.body || {};
 
     const nextPlan = String(plan || tenant.subscription?.plan || 'starter').toLowerCase();
     const nextCycle = String(billingCycle || tenant.subscription?.billingCycle || 'monthly').toLowerCase() === 'yearly'
       ? 'yearly'
       : 'monthly';
-    const cycleCount = Math.max(1, Math.min(36, Number(cycles) || 1));
     const payCurrency = String(currency || tenant.settings?.currency || 'SAR').toUpperCase();
 
     if (nextPlan === 'trial') {
@@ -1477,76 +1483,169 @@ router.post('/tenants/:id/accept-payment', async (req, res) => {
         businessType: tenant.businessType || (Array.isArray(tenant.businessTypes) ? tenant.businessTypes[0] : null),
       });
     }
-    const totalPaid = Math.round(unitPrice * cycleCount * 100) / 100;
 
-    const now = new Date();
-    const priorEnd = tenant.subscription?.endDate;
-    const periodStart = priorEnd && new Date(priorEnd).getTime() > now.getTime() ? new Date(priorEnd) : now;
-    const periodEnd = addBillingCycles(periodStart, nextCycle, cycleCount);
-
-    const entitlements = getPlanEntitlements(nextPlan, nextCycle);
-    const paidPrior = isPaidPlanId(tenant.subscription?.plan);
-    const wasTrial = String(tenant.subscription?.plan || '').toLowerCase() === 'trial' || tenant.isDemo === true;
-
-    if (!tenant.subscription) tenant.subscription = {};
-    tenant.subscription.plan = nextPlan;
-    tenant.subscription.status = 'active';
-    tenant.subscription.billingCycle = nextCycle;
-    tenant.subscription.endDate = periodEnd;
-    if (!paidPrior || !tenant.subscription.startDate) {
-      tenant.subscription.startDate = now;
-    }
-    // Recurring list price for the selected cycle (not multiplied by cycles)
-    tenant.subscription.price = unitPrice;
-    tenant.subscription.maxUsers = entitlements.maxUsers;
-    tenant.subscription.maxInvoices = entitlements.maxInvoices;
-    tenant.subscription.maxQuotations = entitlements.maxQuotations;
-    tenant.isActive = true;
-    tenant.isDemo = false;
-    tenant.demoUpgraded = true;
-    tenant.terminationNotice = undefined;
-
-    if (!Array.isArray(tenant.subscription.paymentHistory)) {
-      tenant.subscription.paymentHistory = [];
-    }
-    tenant.subscription.paymentHistory.push({
-      amount: totalPaid,
-      currency: payCurrency,
-      method: String(method || 'bank_transfer'),
-      reference: String(reference || ''),
-      note: String(note || ''),
-      plan: nextPlan,
-      billingCycle: nextCycle,
-      cycles: cycleCount,
+    const { tenant: saved, payment } = await recordTenantPayment({
+      tenant,
+      amount: unitPrice,
       unitPrice,
-      periodStart,
-      periodEnd,
-      recordedBy: req.user?._id,
-      recordedAt: now,
-    });
-    tenant.markModified('subscription.paymentHistory');
-
-    await tenant.save();
-    invalidateAuthCache(null, tenant._id);
-
-    emitPlatformEvent(paidPrior ? 'subscription_renewed' : 'subscription_started', {
-      tenantId: String(tenant._id),
+      currency: payCurrency,
+      method,
+      reference,
+      note,
       plan: nextPlan,
       billingCycle: nextCycle,
-      amount: totalPaid,
-      currency: payCurrency,
-      paymentId: reference || `manual_${now.getTime()}`,
+      cycles,
+      recordedBy: req.user?._id,
+      forceFromPaymentDate: forceFromPaymentDate === true,
     });
 
-    if (!paidPrior && wasTrial) {
-      emitPlatformEvent('trial_converted', {
-        tenantId: String(tenant._id),
-        plan: nextPlan,
-        billingCycle: nextCycle,
-      });
+    res.json({
+      ...serializeTenantForSuperAdmin(saved),
+      payment,
+    });
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({ error: error.message });
+  }
+});
+
+// @route   GET /api/super-admin/tenant-payments
+router.get('/tenant-payments', async (req, res) => {
+  try {
+    // Retire embedded subscription.paymentHistory entirely.
+    await clearAllLegacyPaymentHistory();
+
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 25));
+    const skip = (page - 1) * limit;
+    const search = String(req.query.search || '').trim();
+    const plan = String(req.query.plan || '').trim().toLowerCase();
+    const billingCycle = String(req.query.billingCycle || '').trim().toLowerCase();
+    const tenantId = String(req.query.tenantId || '').trim();
+
+    const filter = { status: 'recorded' };
+    if (tenantId && mongoose.Types.ObjectId.isValid(tenantId)) {
+      filter.tenantId = new mongoose.Types.ObjectId(tenantId);
+    }
+    if (plan) filter.plan = plan;
+    if (billingCycle === 'monthly' || billingCycle === 'yearly') filter.billingCycle = billingCycle;
+
+    if (search) {
+      const tenants = await Tenant.find({
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { slug: { $regex: search, $options: 'i' } },
+          { 'contact.email': { $regex: search, $options: 'i' } },
+        ],
+      }).select('_id').lean();
+      const ids = tenants.map((t) => t._id);
+      if (ids.length === 0) {
+        return res.json({
+          payments: [],
+          pagination: { page, limit, total: 0, pages: 0 },
+          stats: { count: 0, totalAmount: 0 },
+        });
+      }
+      if (filter.tenantId) {
+        const allowed = ids.some((id) => String(id) === String(filter.tenantId));
+        if (!allowed) {
+          return res.json({
+            payments: [],
+            pagination: { page, limit, total: 0, pages: 0 },
+            stats: { count: 0, totalAmount: 0 },
+          });
+        }
+      } else {
+        filter.tenantId = { $in: ids };
+      }
     }
 
-    res.json(serializeTenantForSuperAdmin(tenant));
+    const [payments, total, agg] = await Promise.all([
+      TenantPayment.find(filter)
+        .sort({ recordedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('tenantId', 'name slug branding logo businessType subscription settings isDemo')
+        .populate('recordedBy', 'name email')
+        .lean(),
+      TenantPayment.countDocuments(filter),
+      TenantPayment.aggregate([
+        { $match: filter },
+        { $group: { _id: null, totalAmount: { $sum: '$amount' }, count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    res.json({
+      payments,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit) || 0,
+      },
+      stats: {
+        count: agg[0]?.count || 0,
+        totalAmount: agg[0]?.totalAmount || 0,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   GET /api/super-admin/tenants/:id/payments
+router.get('/tenants/:id/payments', async (req, res) => {
+  try {
+    const tenant = await Tenant.findById(req.params.id).select('name slug branding subscription settings isDemo');
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    // Clear legacy embedded history for this tenant
+    if (Array.isArray(tenant.subscription?.paymentHistory) && tenant.subscription.paymentHistory.length > 0) {
+      tenant.subscription.paymentHistory = [];
+      tenant.markModified('subscription.paymentHistory');
+      await tenant.save();
+    }
+
+    const payments = await TenantPayment.find({
+      tenantId: tenant._id,
+      status: 'recorded',
+    })
+      .sort({ recordedAt: -1 })
+      .lean();
+
+    const totalAmount = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+    res.json({
+      tenant: serializeTenantForSuperAdmin(tenant),
+      payments,
+      stats: { count: payments.length, totalAmount },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   DELETE /api/super-admin/tenant-payments/:id
+router.delete('/tenant-payments/:id', async (req, res) => {
+  try {
+    const result = await deleteTenantPayment(req.params.id);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/super-admin/tenant-payments/purge-legacy
+router.post('/tenant-payments/purge-legacy', async (req, res) => {
+  try {
+    const legacy = await clearAllLegacyPaymentHistory();
+    const deleted = await TenantPayment.deleteMany({});
+    res.json({
+      ok: true,
+      legacyCleared: legacy,
+      paymentsDeleted: deleted?.deletedCount ?? 0,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
