@@ -1086,13 +1086,37 @@ router.get('/tenants', async (req, res) => {
       { $group: { _id: '$tenantId', count: { $sum: 1 } } }
     ]).option({ maxTimeMS: databaseQueryTimeoutMs });
     const invoiceCountMap = new Map(invoiceCounts.map((item) => [String(item._id), item.count || 0]));
-    
-    const tenantsWithCounts = tenants.map(t => ({
-      ...serializeTenantForSuperAdmin(t),
-      userCount: userCountMap.get(String(t._id)) || 0,
-      invoiceCount: invoiceCountMap.get(String(t._id)) || 0
-    }));
-    
+
+    const paymentTotals = await TenantPayment.aggregate([
+      { $match: { tenantId: { $in: tenantIds }, status: 'recorded' } },
+      {
+        $group: {
+          _id: '$tenantId',
+          totalPaid: { $sum: '$amount' },
+          paymentCount: { $sum: 1 },
+          currency: { $last: '$currency' },
+        },
+      },
+    ]).option({ maxTimeMS: databaseQueryTimeoutMs });
+    const paymentTotalMap = new Map(
+      paymentTotals.map((item) => [String(item._id), {
+        totalPaid: item.totalPaid || 0,
+        paymentCount: item.paymentCount || 0,
+        currency: item.currency || 'SAR',
+      }]),
+    );
+
+    const tenantsWithCounts = tenants.map(t => {
+      const pay = paymentTotalMap.get(String(t._id)) || { totalPaid: 0, paymentCount: 0, currency: t.settings?.currency || 'SAR' };
+      return {
+        ...serializeTenantForSuperAdmin(t),
+        userCount: userCountMap.get(String(t._id)) || 0,
+        invoiceCount: invoiceCountMap.get(String(t._id)) || 0,
+        totalPaid: pay.totalPaid,
+        paymentCount: pay.paymentCount,
+        paymentCurrency: pay.currency,
+      };
+    }); 
     res.json({
       tenants: tenantsWithCounts,
       pagination: { page: safePage, limit: safeLimit, total, pages: Math.ceil(total / safeLimit) }
@@ -1460,6 +1484,8 @@ router.post('/tenants/:id/accept-payment', async (req, res) => {
       billingCycle,
       cycles = 1,
       forceFromPaymentDate,
+      periodStart,
+      periodEnd,
     } = req.body || {};
 
     const nextPlan = String(plan || tenant.subscription?.plan || 'starter').toLowerCase();
@@ -1498,6 +1524,8 @@ router.post('/tenants/:id/accept-payment', async (req, res) => {
       cycles,
       recordedBy: req.user?._id,
       forceFromPaymentDate: forceFromPaymentDate !== false,
+      periodStart,
+      periodEnd,
     });
 
     res.json({

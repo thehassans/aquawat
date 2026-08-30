@@ -139,6 +139,8 @@ export const recordTenantPayment = async ({
   cycles = 1,
   recordedBy,
   forceFromPaymentDate,
+  periodStart: periodStartOverride,
+  periodEnd: periodEndOverride,
 }) => {
   const nextPlan = String(plan || tenant.subscription?.plan || 'starter').toLowerCase();
   const nextCycle = String(billingCycle || tenant.subscription?.billingCycle || 'monthly').toLowerCase() === 'yearly'
@@ -166,13 +168,22 @@ export const recordTenantPayment = async ({
   const now = new Date();
   const force = forceFromPaymentDate !== false;
 
-  const { periodStart, periodEnd } = resolvePaymentPeriod({
-    priorEnd: tenant.subscription?.endDate,
-    now,
-    billingCycle: nextCycle,
-    cycles: cycleCount,
-    forceFromPaymentDate: force,
-  });
+  let periodStart;
+  let periodEnd;
+  const overrideStart = periodStartOverride ? parseDay(periodStartOverride) : null;
+  const overrideEnd = periodEndOverride ? parseDay(periodEndOverride) : null;
+  if (overrideStart && overrideEnd && overrideEnd.getTime() > overrideStart.getTime()) {
+    periodStart = overrideStart;
+    periodEnd = overrideEnd;
+  } else {
+    ({ periodStart, periodEnd } = resolvePaymentPeriod({
+      priorEnd: tenant.subscription?.endDate,
+      now,
+      billingCycle: nextCycle,
+      cycles: cycleCount,
+      forceFromPaymentDate: force,
+    }));
+  }
 
   await applySubscriptionFromPayment(tenant, {
     plan: nextPlan,

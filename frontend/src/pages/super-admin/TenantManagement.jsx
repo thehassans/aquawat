@@ -7,7 +7,7 @@ import { Plus, Search, Building2, Edit, Users, LogIn, AlertCircle, RefreshCw, Tr
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
-import { addBillingCycle, formatSubscriptionDate, getSubscriptionState, previewRenewedEndDate } from '../../lib/subscriptionState'
+import { addBillingCycle, formatSubscriptionDate, getSubscriptionState, previewRenewedEndDate, toIsoDay } from '../../lib/subscriptionState'
 import {
   getAliasSlugFromHost,
   getTenantAliasHandoffUrl,
@@ -17,6 +17,7 @@ import { normalizeCheckoutPlan, resolveCheckoutLane, resolvePlanPrice } from '..
 import { getPrimaryBusinessType } from '../../lib/businessTypes'
 import TenantPaymentHistory from '../../components/super-admin/TenantPaymentHistory'
 import SuperAdminPortal, { SA_BACKDROP_Z, SA_MODAL_Z, TenantLogoAvatar } from '../../components/super-admin/SuperAdminPortal'
+import DayMonthYearInput from '../../components/ui/DayMonthYearInput'
 
 const FALLBACK_CONTINUE_PLANS = [
   {
@@ -52,6 +53,22 @@ function previewContinuedEndDate(currentEndDate, billingCycle = 'monthly', cycle
   const count = Math.max(1, Math.min(36, Number(cycles) || 1))
   let end = previewRenewedEndDate(currentEndDate, billingCycle)
   for (let i = 1; i < count; i += 1) {
+    end = addBillingCycle(end, billingCycle)
+  }
+  return end
+}
+
+/** Period end from an explicit period start + N billing cycles. */
+function previewPeriodEndFromStart(periodStart, billingCycle = 'monthly', cycles = 1) {
+  const count = Math.max(1, Math.min(36, Number(cycles) || 1))
+  let end = periodStart ? new Date(periodStart) : new Date()
+  if (Number.isNaN(end.getTime())) end = new Date()
+  // Normalize to local noon to avoid UTC day shift on yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(periodStart || ''))) {
+    const [y, m, d] = String(periodStart).split('-').map(Number)
+    end = new Date(y, m - 1, d, 12, 0, 0, 0)
+  }
+  for (let i = 0; i < count; i += 1) {
     end = addBillingCycle(end, billingCycle)
   }
   return end
@@ -97,6 +114,8 @@ export default function TenantManagement() {
     method: 'bank_transfer',
     reference: '',
     note: '',
+    periodStart: '',
+    periodEnd: '',
   })
   const [backupTenant, setBackupTenant] = useState(null)
   const [backupForm, setBackupForm] = useState({ period: 'monthly', startDate: '', endDate: '', email: '', formats: ['excel', 'pdf'] })
@@ -460,21 +479,27 @@ export default function TenantManagement() {
 
   const openContinueModal = (tenant) => {
     const sub = tenant?.subscription || {}
-    const currency = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'USD' ? 'USD' : 'SAR'
+    const currency = String(tenant?.settings?.currency || tenant?.paymentCurrency || 'SAR').toUpperCase() === 'USD' ? 'USD' : 'SAR'
     const plan = ['starter', 'professional', 'enterprise'].includes(String(sub.plan || '').toLowerCase())
       ? String(sub.plan).toLowerCase()
       : 'professional'
     const billingCycle = sub.billingCycle === 'yearly' ? 'yearly' : 'monthly'
     const unit = resolveContinueUnitPrice(tenant, plan, billingCycle, currency)
+    const cycles = 1
+    // New payment period starts today (same as accept-payment forceFromPaymentDate)
+    const periodStart = toIsoDay(new Date())
+    const periodEnd = toIsoDay(previewPeriodEndFromStart(periodStart, billingCycle, cycles))
     setContinueForm({
       plan,
       billingCycle,
-      cycles: 1,
+      cycles,
       amount: String(unit),
       currency,
       method: 'bank_transfer',
       reference: '',
       note: '',
+      periodStart,
+      periodEnd,
     })
     setContinueTenant(tenant)
   }
@@ -492,6 +517,14 @@ export default function TenantManagement() {
         )
         next.amount = String(unit)
       }
+      if (field === 'billingCycle' || field === 'cycles' || field === 'periodStart') {
+        const cycle = field === 'billingCycle' ? value : next.billingCycle
+        const cycles = Math.max(1, Math.min(36, Number(field === 'cycles' ? value : next.cycles) || 1))
+        const base = field === 'periodStart' ? value : next.periodStart
+        if (base) {
+          next.periodEnd = toIsoDay(previewPeriodEndFromStart(base, cycle, cycles))
+        }
+      }
       return next
     })
   }
@@ -502,6 +535,10 @@ export default function TenantManagement() {
     const amount = Number(continueForm.amount)
     if (!Number.isFinite(amount) || amount < 0) {
       toast.error(language === 'ar' ? 'أدخل سعراً صالحاً' : 'Enter a valid price')
+      return
+    }
+    if (!continueForm.periodStart || !continueForm.periodEnd) {
+      toast.error(language === 'ar' ? 'حدد فترة البداية والنهاية' : 'Set period start and end dates')
       return
     }
     continueMutation.mutate({
@@ -516,6 +553,8 @@ export default function TenantManagement() {
         reference: continueForm.reference,
         note: continueForm.note || (language === 'ar' ? 'تجديد من لوحة المشرف' : 'Continued from Super Admin'),
         forceFromPaymentDate: true,
+        periodStart: continueForm.periodStart,
+        periodEnd: continueForm.periodEnd,
       },
     })
   }
@@ -743,6 +782,8 @@ export default function TenantManagement() {
                     <th>{language === 'ar' ? 'النشاط' : 'Business Type'}</th>
                     <th>{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</th>
                     <th>{language === 'ar' ? 'الخطة' : 'Plan'}</th>
+                    <th>{language === 'ar' ? 'أساس الفوترة' : 'Billing'}</th>
+                    <th>{language === 'ar' ? 'المدفوع' : 'Total paid'}</th>
                     <th>{language === 'ar' ? 'الاشتراك' : 'Subscription'}</th>
                     <th>{language === 'ar' ? 'المستخدمين' : 'Users'}</th>
                     <th>{language === 'ar' ? 'الفواتير' : 'Invoices'}</th>
@@ -805,6 +846,17 @@ export default function TenantManagement() {
                           'badge-neutral'
                         }`}>
                           {tenant.subscription?.plan}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap text-sm capitalize text-gray-600 dark:text-gray-300">
+                        {(tenant.subscription?.billingCycle || 'monthly') === 'yearly'
+                          ? (language === 'ar' ? 'سنوي' : 'Yearly')
+                          : (language === 'ar' ? 'شهري' : 'Monthly')}
+                      </td>
+                      <td className="whitespace-nowrap tabular-nums text-sm font-medium text-gray-800 dark:text-gray-100">
+                        {Number(tenant.totalPaid || 0).toFixed(2)}{' '}
+                        <span className="text-xs font-normal text-gray-400">
+                          {tenant.paymentCurrency || tenant.settings?.currency || 'SAR'}
                         </span>
                       </td>
                       <td>
@@ -1187,26 +1239,49 @@ export default function TenantManagement() {
                   const badge = subscriptionBadge(detail, language)
                   const sub = detail?.subscription || {}
                   return (
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                       <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-dark-600 dark:bg-dark-700/40">
                         <p className="text-[11px] uppercase tracking-wide text-gray-400">{language === 'ar' ? 'الخطة' : 'Plan'}</p>
                         <p className="mt-1 font-semibold capitalize text-gray-900 dark:text-white">{sub.plan || '—'}</p>
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-dark-600 dark:bg-dark-700/40">
-                        <p className="text-[11px] uppercase tracking-wide text-gray-400">{language === 'ar' ? 'الدورة' : 'Billing'}</p>
-                        <p className="mt-1 font-semibold capitalize text-gray-900 dark:text-white">{sub.billingCycle || '—'}</p>
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400">{language === 'ar' ? 'أساس الفوترة' : 'Billing basis'}</p>
+                        <p className="mt-1 font-semibold text-gray-900 dark:text-white">
+                          {(sub.billingCycle || 'monthly') === 'yearly'
+                            ? (language === 'ar' ? 'سنوي' : 'Yearly')
+                            : (language === 'ar' ? 'شهري' : 'Monthly')}
+                        </p>
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-dark-600 dark:bg-dark-700/40">
-                        <p className="text-[11px] uppercase tracking-wide text-gray-400">{language === 'ar' ? 'السعر' : 'Price'}</p>
-                        <p className="mt-1 font-semibold text-gray-900 dark:text-white">
-                          {Number(sub.price || 0).toFixed(2)} {detail?.settings?.currency || 'SAR'}
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400">{language === 'ar' ? 'تاريخ البدء' : 'Start date'}</p>
+                        <p className="mt-1 font-semibold tabular-nums text-gray-900 dark:text-white">
+                          {formatSubscriptionDate(sub.startDate, language)}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-dark-600 dark:bg-dark-700/40">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400">{language === 'ar' ? 'تاريخ الانتهاء' : 'End date'}</p>
+                        <p className="mt-1 font-semibold tabular-nums text-gray-900 dark:text-white">
+                          {formatSubscriptionDate(sub.endDate || detail?.demoTrialEndsAt, language)}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-dark-600 dark:bg-dark-700/40">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400">{language === 'ar' ? 'إجمالي المدفوع' : 'Total paid'}</p>
+                        <p className="mt-1 font-semibold tabular-nums text-gray-900 dark:text-white">
+                          {Number(historyPaymentsData?.stats?.totalAmount ?? historyTenant.totalPaid ?? 0).toFixed(2)}{' '}
+                          <span className="text-xs font-normal text-gray-400">
+                            {historyTenant.paymentCurrency || detail?.settings?.currency || 'SAR'}
+                          </span>
                         </p>
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-dark-600 dark:bg-dark-700/40">
                         <p className="text-[11px] uppercase tracking-wide text-gray-400">{language === 'ar' ? 'الاشتراك' : 'Subscription'}</p>
                         <p className="mt-1"><span className={`badge ${badge.cls}`}>{badge.label}</span></p>
                         <p className="mt-1 text-xs text-gray-500">
-                          {language === 'ar' ? 'حتى' : 'Until'} {formatSubscriptionDate(sub.endDate || detail?.demoTrialEndsAt, language)}
+                          {Number(sub.price || 0).toFixed(2)} {detail?.settings?.currency || 'SAR'}
+                          {' / '}
+                          {(sub.billingCycle || 'monthly') === 'yearly'
+                            ? (language === 'ar' ? 'سنة' : 'yr')
+                            : (language === 'ar' ? 'شهر' : 'mo')}
                         </p>
                       </div>
                     </div>
@@ -1255,7 +1330,12 @@ export default function TenantManagement() {
                   onClick={() => {
                     const tenantForContinue = historyTenantData?.tenant || historyTenant
                     setHistoryTenant(null)
-                    openContinueModal(tenantForContinue)
+                    openContinueModal({
+                      ...tenantForContinue,
+                      totalPaid: historyPaymentsData?.stats?.totalAmount ?? historyTenant.totalPaid ?? 0,
+                      paymentCount: historyPaymentsData?.stats?.count ?? historyTenant.paymentCount ?? 0,
+                      paymentCurrency: historyTenant.paymentCurrency || tenantForContinue?.settings?.currency || 'SAR',
+                    })
                   }}
                 >
                   <CreditCard className="h-4 w-4" />
@@ -1298,18 +1378,47 @@ export default function TenantManagement() {
               </div>
 
               <div className="px-6 py-5 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm dark:border-dark-600 dark:bg-dark-700/40">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm dark:border-dark-600 dark:bg-dark-700/40 space-y-1.5">
                   <p className="font-medium text-gray-900 dark:text-white">
                     {language === 'ar' ? 'الحالة الحالية' : 'Current status'}:{' '}
                     {subscriptionBadge(continueTenant, language).label}
                   </p>
-                  <p className="mt-1 text-gray-500">
-                    {language === 'ar' ? 'ينتهي:' : 'Ends:'}{' '}
-                    {formatSubscriptionDate(continueTenant.subscription?.endDate || continueTenant.demoTrialEndsAt, language)}
+                  <p className="text-gray-600 dark:text-gray-300">
+                    {language === 'ar' ? 'تاريخ البدء الحالي:' : 'Existing start date:'}{' '}
+                    <span className="font-medium tabular-nums">
+                      {formatSubscriptionDate(continueTenant.subscription?.startDate, language)}
+                    </span>
+                  </p>
+                  <p className="text-gray-600 dark:text-gray-300">
+                    {language === 'ar' ? 'تاريخ الانتهاء الحالي:' : 'Existing end date:'}{' '}
+                    <span className="font-medium tabular-nums">
+                      {formatSubscriptionDate(
+                        continueTenant.subscription?.endDate || continueTenant.demoTrialEndsAt,
+                        language,
+                      )}
+                    </span>
+                  </p>
+                  <p className="text-gray-600 dark:text-gray-300">
+                    {language === 'ar' ? 'أساس الفوترة:' : 'Billing basis:'}{' '}
+                    <span className="font-medium capitalize">
+                      {(continueTenant.subscription?.billingCycle || 'monthly') === 'yearly'
+                        ? (language === 'ar' ? 'سنوي' : 'Yearly')
+                        : (language === 'ar' ? 'شهري' : 'Monthly')}
+                    </span>
                     {' · '}
-                    {continueTenant.subscription?.plan || 'trial'}
-                    {' / '}
-                    {continueTenant.subscription?.billingCycle || 'monthly'}
+                    <span className="capitalize">{continueTenant.subscription?.plan || 'trial'}</span>
+                  </p>
+                  <p className="text-gray-600 dark:text-gray-300">
+                    {language === 'ar' ? 'إجمالي المدفوع:' : 'Total price paid:'}{' '}
+                    <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
+                      {Number(continueTenant.totalPaid || 0).toFixed(2)}{' '}
+                      {continueTenant.paymentCurrency || continueTenant.settings?.currency || 'SAR'}
+                    </span>
+                    {continueTenant.paymentCount ? (
+                      <span className="text-gray-400">
+                        {' '}({continueTenant.paymentCount} {language === 'ar' ? 'دفعة' : `payment${continueTenant.paymentCount === 1 ? '' : 's'}`})
+                      </span>
+                    ) : null}
                   </p>
                 </div>
 
@@ -1330,6 +1439,22 @@ export default function TenantManagement() {
                       <option value="monthly">{language === 'ar' ? 'شهري' : 'Monthly'}</option>
                       <option value="yearly">{language === 'ar' ? 'سنوي' : 'Yearly'}</option>
                     </select>
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'بداية الفترة' : 'Period start'}</label>
+                    <DayMonthYearInput
+                      className="input tabular-nums"
+                      value={continueForm.periodStart}
+                      onChange={(iso) => updateContinueField('periodStart', iso)}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'نهاية الفترة' : 'Period end'}</label>
+                    <DayMonthYearInput
+                      className="input tabular-nums"
+                      value={continueForm.periodEnd}
+                      onChange={(iso) => updateContinueField('periodEnd', iso)}
+                    />
                   </div>
                   <div>
                     <label className="label">{language === 'ar' ? 'عدد الدورات' : 'Cycles'}</label>
@@ -1398,21 +1523,26 @@ export default function TenantManagement() {
                     {(Number(continueForm.amount) || 0).toFixed(2)} {continueForm.currency}
                     {' × '}
                     {Math.max(1, Number(continueForm.cycles) || 1)}
-                    {' = '}
+                    {' ('}
+                    {continueForm.billingCycle === 'yearly'
+                      ? (language === 'ar' ? 'سنوي' : 'yearly')
+                      : (language === 'ar' ? 'شهري' : 'monthly')}
+                    {') = '}
                     <span className="font-bold">
                       {((Number(continueForm.amount) || 0) * Math.max(1, Number(continueForm.cycles) || 1)).toFixed(2)} {continueForm.currency}
                     </span>
                   </p>
+                  <p className="mt-1 text-emerald-700 dark:text-emerald-300 tabular-nums">
+                    {language === 'ar' ? 'فترة الدفع:' : 'Payment period:'}{' '}
+                    {formatSubscriptionDate(continueForm.periodStart, language)}
+                    {' → '}
+                    {formatSubscriptionDate(continueForm.periodEnd, language)}
+                  </p>
                   <p className="mt-1 text-emerald-700 dark:text-emerald-300">
                     {language === 'ar' ? 'ساري حتى:' : 'Valid until:'}{' '}
-                    {formatSubscriptionDate(
-                      previewContinuedEndDate(
-                        continueTenant.subscription?.endDate || continueTenant.demoTrialEndsAt,
-                        continueForm.billingCycle,
-                        continueForm.cycles,
-                      ),
-                      language,
-                    )}
+                    <span className="font-semibold tabular-nums">
+                      {formatSubscriptionDate(continueForm.periodEnd, language)}
+                    </span>
                   </p>
                 </div>
               </div>
