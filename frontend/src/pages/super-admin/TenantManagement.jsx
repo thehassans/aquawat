@@ -486,8 +486,11 @@ export default function TenantManagement() {
     const billingCycle = sub.billingCycle === 'yearly' ? 'yearly' : 'monthly'
     const unit = resolveContinueUnitPrice(tenant, plan, billingCycle, currency)
     const cycles = 1
-    // New payment period starts today (same as accept-payment forceFromPaymentDate)
-    const periodStart = toIsoDay(new Date())
+    // Continue from existing end date (same timeline). If missing/expired, start from today.
+    const existingEndIso = toIsoDay(sub.endDate || tenant?.demoTrialEndsAt)
+    const existingEndMs = existingEndIso ? new Date(existingEndIso).getTime() : NaN
+    const stillCovered = Number.isFinite(existingEndMs) && existingEndMs > Date.now()
+    const periodStart = stillCovered || existingEndIso ? (existingEndIso || toIsoDay(new Date())) : toIsoDay(new Date())
     const periodEnd = toIsoDay(previewPeriodEndFromStart(periodStart, billingCycle, cycles))
     setContinueForm({
       plan,
@@ -517,6 +520,7 @@ export default function TenantManagement() {
         )
         next.amount = String(unit)
       }
+      // New end date always follows existing-end (period start) + cycles
       if (field === 'billingCycle' || field === 'cycles' || field === 'periodStart') {
         const cycle = field === 'billingCycle' ? value : next.billingCycle
         const cycles = Math.max(1, Math.min(36, Number(field === 'cycles' ? value : next.cycles) || 1))
@@ -538,7 +542,7 @@ export default function TenantManagement() {
       return
     }
     if (!continueForm.periodStart || !continueForm.periodEnd) {
-      toast.error(language === 'ar' ? 'حدد فترة البداية والنهاية' : 'Set period start and end dates')
+      toast.error(language === 'ar' ? 'حدد تاريخ الانتهاء الجديد' : 'Set the new end date')
       return
     }
     continueMutation.mutate({
@@ -552,7 +556,8 @@ export default function TenantManagement() {
         method: continueForm.method,
         reference: continueForm.reference,
         note: continueForm.note || (language === 'ar' ? 'تجديد من لوحة المشرف' : 'Continued from Super Admin'),
-        forceFromPaymentDate: true,
+        // Extend from existing end — do not restart from payment day
+        forceFromPaymentDate: false,
         periodStart: continueForm.periodStart,
         periodEnd: continueForm.periodEnd,
       },
@@ -1441,20 +1446,30 @@ export default function TenantManagement() {
                     </select>
                   </div>
                   <div>
-                    <label className="label">{language === 'ar' ? 'بداية الفترة' : 'Period start'}</label>
+                    <label className="label">{language === 'ar' ? 'يستمر من (نفس تاريخ الانتهاء الحالي)' : 'Continues from (same as existing end)'}</label>
                     <DayMonthYearInput
-                      className="input tabular-nums"
+                      className="input tabular-nums bg-slate-50 dark:bg-dark-700/50"
                       value={continueForm.periodStart}
                       onChange={(iso) => updateContinueField('periodStart', iso)}
                     />
+                    <p className="mt-1 text-xs text-gray-500">
+                      {language === 'ar'
+                        ? 'يبدأ التجديد من تاريخ الانتهاء الحالي نفسه.'
+                        : 'Renewal starts from the same existing end date.'}
+                    </p>
                   </div>
                   <div>
-                    <label className="label">{language === 'ar' ? 'نهاية الفترة' : 'Period end'}</label>
+                    <label className="label">{language === 'ar' ? 'تاريخ الانتهاء الجديد' : 'New end date'}</label>
                     <DayMonthYearInput
                       className="input tabular-nums"
                       value={continueForm.periodEnd}
                       onChange={(iso) => updateContinueField('periodEnd', iso)}
                     />
+                    <p className="mt-1 text-xs text-gray-500">
+                      {language === 'ar'
+                        ? 'يُحدَّث تلقائياً حسب عدد الدورات (يمكن تعديله).'
+                        : 'Auto from cycles (you can still edit).'}
+                    </p>
                   </div>
                   <div>
                     <label className="label">{language === 'ar' ? 'عدد الدورات' : 'Cycles'}</label>
@@ -1533,13 +1548,13 @@ export default function TenantManagement() {
                     </span>
                   </p>
                   <p className="mt-1 text-emerald-700 dark:text-emerald-300 tabular-nums">
-                    {language === 'ar' ? 'فترة الدفع:' : 'Payment period:'}{' '}
+                    {language === 'ar' ? 'فترة التجديد:' : 'Renewal period:'}{' '}
                     {formatSubscriptionDate(continueForm.periodStart, language)}
                     {' → '}
                     {formatSubscriptionDate(continueForm.periodEnd, language)}
                   </p>
                   <p className="mt-1 text-emerald-700 dark:text-emerald-300">
-                    {language === 'ar' ? 'ساري حتى:' : 'Valid until:'}{' '}
+                    {language === 'ar' ? 'تاريخ الانتهاء الجديد:' : 'New end date:'}{' '}
                     <span className="font-semibold tabular-nums">
                       {formatSubscriptionDate(continueForm.periodEnd, language)}
                     </span>
