@@ -16,6 +16,7 @@ import TenantAppStorePanel from '../../components/super-admin/TenantAppStorePane
 import TenantPaymentHistory from '../../components/super-admin/TenantPaymentHistory'
 import SuperAdminPortal, { SA_MODAL_Z } from '../../components/super-admin/SuperAdminPortal'
 import { formatSubscriptionDate, getSubscriptionState, addBillingCycle } from '../../lib/subscriptionState'
+import DayMonthYearInput from '../../components/ui/DayMonthYearInput'
 
 export default function TenantForm() {
   const { id } = useParams()
@@ -766,10 +767,11 @@ export default function TenantForm() {
             )}
             <div>
               <label className="label">{language === 'ar' ? 'تاريخ البدء' : 'Start Date'}</label>
-              <input type="date" lang="en-GB" {...register('subscription.startDate')} className="input" />
-              <p className="text-xs text-gray-500 mt-1 tabular-nums">
-                {watchedStartDate ? formatSubscriptionDate(watchedStartDate, language) : 'dd mm yyyy'}
-              </p>
+              <DayMonthYearInput
+                className="input tabular-nums"
+                value={watchedStartDate || ''}
+                onChange={(iso) => setValue('subscription.startDate', iso, { shouldDirty: true })}
+              />
             </div>
             <div>
               <label className="label">
@@ -777,13 +779,13 @@ export default function TenantForm() {
                   {language === 'ar' ? 'تاريخ الانتهاء' : 'End Date'}
                 </span>
               </label>
-              <input type="date" lang="en-GB" {...register('subscription.endDate')} className="input" />
+              <DayMonthYearInput
+                className="input tabular-nums"
+                value={watchedEndDate || ''}
+                onChange={(iso) => setValue('subscription.endDate', iso, { shouldDirty: true })}
+              />
               <p className="text-xs text-gray-500 mt-1">
-                {watchedEndDate ? (
-                  <span className="tabular-nums">{formatSubscriptionDate(watchedEndDate, language)}</span>
-                ) : null}
-                {watchedEndDate ? ' · ' : ''}
-                {language === 'ar' ? 'يتم تحديث التاريخ تلقائياً عند تغيير دورة الفوترة.' : 'End date is auto-recalculated when billing cycle changes.'}
+                {language === 'ar' ? 'يتم تحديث التاريخ تلقائياً عند تغيير دورة الفوترة. (يوم شهر سنة)' : 'End date is auto-recalculated when billing cycle changes. (dd mm yyyy)'}
               </p>
             </div>
             {isEdit && (

@@ -258,14 +258,25 @@ const parseDay = (value) => {
     return Number.isNaN(value.getTime()) ? null : startOfLocalDay(value);
   }
   const raw = String(value).trim();
-  // Accept yyyy-mm-dd from date inputs
+  // yyyy-mm-dd
   const isoDay = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
   if (isoDay) {
     const d = new Date(Number(isoDay[1]), Number(isoDay[2]) - 1, Number(isoDay[3]), 12, 0, 0, 0);
     return Number.isNaN(d.getTime()) ? null : d;
   }
-  const d = new Date(raw);
-  return Number.isNaN(d.getTime()) ? null : startOfLocalDay(d);
+  // dd mm yyyy / dd/mm/yyyy / dd-mm-yyyy (day-month-year, never US)
+  const dmy = /^(\d{1,2})[/.\-\s]+(\d{1,2})[/.\-\s]+(\d{4})$/.exec(raw);
+  if (dmy) {
+    const day = Number(dmy[1]);
+    const month = Number(dmy[2]);
+    const year = Number(dmy[3]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      const d = new Date(year, month - 1, day, 12, 0, 0, 0);
+      if (d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day) return d;
+    }
+    return null;
+  }
+  return null;
 };
 
 export const updateTenantPaymentPeriod = async (paymentId, { periodStart, periodEnd }) => {

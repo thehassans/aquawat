@@ -60,25 +60,51 @@ export function parseCalendarDate(value) {
     return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 12, 0, 0, 0)
   }
   const raw = String(value).trim()
+  // ISO day: yyyy-mm-dd (API / native date values)
   const isoDay = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw)
   if (isoDay) {
     return new Date(Number(isoDay[1]), Number(isoDay[2]) - 1, Number(isoDay[3]), 12, 0, 0, 0)
   }
-  const parsed = new Date(raw)
-  if (Number.isNaN(parsed.getTime())) return null
-  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), 12, 0, 0, 0)
+  // Always treat spaced/slashed/dashed numeric dates as day-month-year (never US mm/dd).
+  const dmy = /^(\d{1,2})[/.\-\s]+(\d{1,2})[/.\-\s]+(\d{4})$/.exec(raw)
+  if (dmy) {
+    const day = Number(dmy[1])
+    const month = Number(dmy[2])
+    const year = Number(dmy[3])
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      const d = new Date(year, month - 1, day, 12, 0, 0, 0)
+      if (d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day) return d
+    }
+    return null
+  }
+  return null
+}
+
+/** Format as "25 12 2026" (dd mm yyyy). Returns empty string if invalid. */
+export function toDayMonthYear(value) {
+  const d = parseCalendarDate(value)
+  if (!d) return ''
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yyyy = d.getFullYear()
+  return `${dd} ${mm} ${yyyy}`
+}
+
+/** Convert any accepted date to yyyy-mm-dd for APIs / form storage. */
+export function toIsoDay(value) {
+  const d = parseCalendarDate(value)
+  if (!d) return ''
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
 }
 
 /** Display dates as "25 12 2026" (dd mm yyyy). */
 export function formatSubscriptionDate(dateString, language = 'en') {
-  const d = parseCalendarDate(dateString)
-  if (!d) return '—'
-  const dd = String(d.getDate()).padStart(2, '0')
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const yyyy = d.getFullYear()
-  // language kept for API compatibility; format is always numeric day-month-year
+  const formatted = toDayMonthYear(dateString)
   void language
-  return `${dd} ${mm} ${yyyy}`
+  return formatted || '—'
 }
 
 export function getPlanDisplayName(plan, language = 'en') {

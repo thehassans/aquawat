@@ -8,8 +8,9 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
-import { formatSubscriptionDate } from '../../lib/subscriptionState'
+import { formatSubscriptionDate, toIsoDay } from '../../lib/subscriptionState'
 import { TenantLogoAvatar } from '../../components/super-admin/SuperAdminPortal'
+import DayMonthYearInput from '../../components/ui/DayMonthYearInput'
 
 const methodLabel = (method, isAr) => {
   switch (String(method || '').toLowerCase()) {
@@ -24,16 +25,6 @@ const methodLabel = (method, isAr) => {
     default:
       return method || (isAr ? 'أخرى' : 'Other')
   }
-}
-
-const toDateInputValue = (value) => {
-  if (!value) return ''
-  const d = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(d.getTime())) return ''
-  const yyyy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
 }
 
 export default function TenantPayments() {
@@ -285,20 +276,16 @@ export default function TenantPayments() {
                         {editingId === row._id ? (
                           <div className="flex flex-col gap-1.5 py-1">
                             <div className="flex items-center gap-1.5">
-                              <input
-                                type="date"
-                                lang="en-GB"
-                                className="input input-sm py-1 text-xs"
+                              <DayMonthYearInput
+                                className="input input-sm py-1 text-xs w-[7.5rem] tabular-nums"
                                 value={draft.periodStart}
-                                onChange={(e) => setDraft((d) => ({ ...d, periodStart: e.target.value }))}
+                                onChange={(iso) => setDraft((d) => ({ ...d, periodStart: iso }))}
                               />
                               <span className="text-gray-400">→</span>
-                              <input
-                                type="date"
-                                lang="en-GB"
-                                className="input input-sm py-1 text-xs"
+                              <DayMonthYearInput
+                                className="input input-sm py-1 text-xs w-[7.5rem] tabular-nums"
                                 value={draft.periodEnd}
-                                onChange={(e) => setDraft((d) => ({ ...d, periodEnd: e.target.value }))}
+                                onChange={(iso) => setDraft((d) => ({ ...d, periodEnd: iso }))}
                               />
                             </div>
                             <div className="flex items-center gap-1">
@@ -325,7 +312,7 @@ export default function TenantPayments() {
                           </div>
                         ) : (
                           <div className="flex items-center gap-1.5 whitespace-nowrap">
-                            <span>
+                            <span className="tabular-nums">
                               {row.periodStart || row.periodEnd
                                 ? `${formatSubscriptionDate(row.periodStart, language)} → ${formatSubscriptionDate(row.periodEnd, language)}`
                                 : '—'}
@@ -337,8 +324,8 @@ export default function TenantPayments() {
                               onClick={() => {
                                 setEditingId(row._id)
                                 setDraft({
-                                  periodStart: toDateInputValue(row.periodStart),
-                                  periodEnd: toDateInputValue(row.periodEnd),
+                                  periodStart: toIsoDay(row.periodStart),
+                                  periodEnd: toIsoDay(row.periodEnd),
                                 })
                               }}
                             >

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, Pencil, Trash2, X } from 'lucide-react'
 import { formatSubscriptionDate } from '../../lib/subscriptionState'
+import DayMonthYearInput from '../ui/DayMonthYearInput'
 
 const methodLabel = (method, language) => {
   const isAr = language === 'ar'
@@ -18,8 +19,9 @@ const methodLabel = (method, language) => {
   }
 }
 
-const toDateInputValue = (value) => {
+const toIsoFromAny = (value) => {
   if (!value) return ''
+  if (/^\d{4}-\d{2}-\d{2}/.test(String(value))) return String(value).slice(0, 10)
   const d = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(d.getTime())) return ''
   const yyyy = d.getFullYear()
@@ -65,8 +67,8 @@ export default function TenantPaymentHistory({
     if (!row?._id) return
     setEditingId(String(row._id))
     setDraft({
-      periodStart: toDateInputValue(row.periodStart),
-      periodEnd: toDateInputValue(row.periodEnd),
+      periodStart: toIsoFromAny(row.periodStart),
+      periodEnd: toIsoFromAny(row.periodEnd),
     })
   }
 
@@ -161,24 +163,20 @@ export default function TenantPaymentHistory({
                   <td className="font-mono text-xs max-w-[10rem] truncate" title={row.reference || ''}>
                     {row.reference || '—'}
                   </td>
-                  <td className="min-w-[14rem] text-xs text-gray-600 dark:text-gray-300">
+                  <td className="min-w-[16rem] text-xs text-gray-600 dark:text-gray-300">
                     {isEditing ? (
                       <div className="flex flex-col gap-1.5 py-1">
                         <div className="flex items-center gap-1.5">
-                          <input
-                            type="date"
-                            lang="en-GB"
-                            className="input input-sm py-1 text-xs"
+                          <DayMonthYearInput
+                            className="input input-sm py-1 text-xs w-[7.5rem] tabular-nums"
                             value={draft.periodStart}
-                            onChange={(e) => setDraft((d) => ({ ...d, periodStart: e.target.value }))}
+                            onChange={(iso) => setDraft((d) => ({ ...d, periodStart: iso }))}
                           />
                           <span className="text-gray-400">→</span>
-                          <input
-                            type="date"
-                            lang="en-GB"
-                            className="input input-sm py-1 text-xs"
+                          <DayMonthYearInput
+                            className="input input-sm py-1 text-xs w-[7.5rem] tabular-nums"
                             value={draft.periodEnd}
-                            onChange={(e) => setDraft((d) => ({ ...d, periodEnd: e.target.value }))}
+                            onChange={(iso) => setDraft((d) => ({ ...d, periodEnd: iso }))}
                           />
                         </div>
                         <div className="flex items-center gap-1">
@@ -200,12 +198,11 @@ export default function TenantPaymentHistory({
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
-                          <span className="text-[10px] text-gray-400">dd mm yyyy</span>
                         </div>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1.5 whitespace-nowrap">
-                        <span>
+                        <span className="tabular-nums">
                           {row.periodStart || row.periodEnd
                             ? `${formatSubscriptionDate(row.periodStart, language)} → ${formatSubscriptionDate(row.periodEnd, language)}`
                             : '—'}
