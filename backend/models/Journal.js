@@ -17,6 +17,9 @@ const schema = new mongoose.Schema({
   },
   /** Prefix for JournalEntry.entryNumber (defaults to code). */
   sequencePrefix: { type: String, default: '', trim: true, uppercase: true },
+  /** Suggested opposite accounts when creating entries in this book (UX defaults). */
+  defaultDebitAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+  defaultCreditAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
   active: { type: Boolean, default: true },
   isSystem: { type: Boolean, default: false },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

@@ -14,24 +14,49 @@ import ExportMenu from '../../components/ui/ExportMenu'
 import Vouchers from '../finance/Vouchers'
 import {
   AccountReportPanel,
+  AccountingDefaultsPanel,
+  AccountingLockDatesPanel,
+  AgedPayablesPanel,
+  AgedReceivablesPanel,
+  AnalyticAccountsPanel,
+  AnalyticReportPanel,
+  BankReconPanel,
+  CashFlowPanel,
   CustomerAccountPanel,
   CustomerSummaryPanel,
   DailyRestrictionPanel,
+  FirmClientsPanel,
   GeneralVoucherPanel,
+  JournalBooksPanel,
+  JournalsBoardPanel,
   LedgerSearchPanel,
+  PeriodClosePanel,
   SupplierAccountPanel,
   SupplierSummaryPanel,
+  TaxesPanel,
 } from './AccountingModules'
 
 const TABS = [
   { id: 'overview', labelEn: 'Overview', labelAr: 'نظرة عامة', icon: Landmark },
   { id: 'chart-of-accounts', labelEn: 'Chart of Accounts', labelAr: 'دليل الحسابات', icon: BookOpen },
+  { id: 'journal-books', labelEn: 'Journal Books', labelAr: 'دفاتر القيود', icon: FileSpreadsheet },
+  { id: 'defaults', labelEn: 'Default Accounts', labelAr: 'الحسابات الافتراضية', icon: Landmark },
+  { id: 'taxes', labelEn: 'Taxes', labelAr: 'الضريبة', icon: Scale },
+  { id: 'analytic-accounts', labelEn: 'Analytic accounts', labelAr: 'الحسابات التحليلية', icon: Users },
+  { id: 'analytic-report', labelEn: 'Analytic report', labelAr: 'تقرير تحليلي', icon: TrendingUp },
+  { id: 'period-close', labelEn: 'Period close', labelAr: 'إقفال الفترة', icon: Scale },
+  { id: 'journals-board', labelEn: 'Journals board', labelAr: 'لوحة القيود', icon: FileSpreadsheet },
+  { id: 'firm-clients', labelEn: 'Firm clients', labelAr: 'عملاء المكتب', icon: Users },
+  { id: 'bank-recon', labelEn: 'Bank reconciliation', labelAr: 'التسوية البنكية', icon: Wallet },
   { id: 'daily-restriction', labelEn: 'Daily Restriction', labelAr: 'القيود اليومية', icon: FileSpreadsheet },
   { id: 'general-voucher', labelEn: 'General Voucher', labelAr: 'سند قيد عام', icon: FileText },
   { id: 'receipt-voucher', labelEn: 'Receipt Voucher', labelAr: 'سند قبض', icon: Receipt },
   { id: 'payment-voucher', labelEn: 'Payment Voucher', labelAr: 'سند صرف', icon: Wallet },
   { id: 'account-report', labelEn: 'Account of Report', labelAr: 'تقرير الحساب', icon: BookOpen },
   { id: 'balance-sheet', labelEn: 'Balance Sheet', labelAr: 'الميزانية العمومية', icon: Scale },
+  { id: 'cash-flow', labelEn: 'Cash flow', labelAr: 'التدفقات النقدية', icon: Wallet },
+  { id: 'aged-ar', labelEn: 'Aged receivables', labelAr: 'أعمار المدينين', icon: Users },
+  { id: 'aged-ap', labelEn: 'Aged payables', labelAr: 'أعمار الدائنين', icon: Truck },
   { id: 'customer-account', labelEn: 'Customer Account', labelAr: 'كشف حساب العميل', icon: Users },
   { id: 'customer-summary', labelEn: 'Customer Summary', labelAr: 'ملخص العملاء', icon: Users },
   { id: 'supplier-account', labelEn: 'Supplier Account', labelAr: 'كشف حساب المورد', icon: Truck },
@@ -41,7 +66,7 @@ const TABS = [
   { id: 'pnl', labelEn: 'Profit & Loss', labelAr: 'الأرباح والخسائر', icon: TrendingUp },
 ]
 
-const emptyLine = () => ({ accountId: '', debit: '', credit: '', description: '' })
+const emptyLine = () => ({ accountId: '', debit: '', credit: '', description: '', analyticAccountId: '' })
 
 const asMoney = (value) => Number(value || 0).toFixed(2)
 
@@ -69,6 +94,7 @@ export default function Accounting() {
   const [journalForm, setJournalForm] = useState({
     memo: '',
     entryDate: new Date().toISOString().slice(0, 10),
+    journalId: '',
     lines: [emptyLine(), emptyLine()],
   })
   const isAr = language === 'ar'
@@ -105,7 +131,19 @@ export default function Accounting() {
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounting-accounts'],
     queryFn: () => api.get('/accounting/accounts').then((r) => r.data),
-    enabled: ['chart-of-accounts', 'daily-restriction', 'general-voucher', 'overview'].includes(tab) || showJournalForm,
+    enabled: ['chart-of-accounts', 'daily-restriction', 'general-voucher', 'overview', 'defaults', 'journal-books'].includes(tab) || showJournalForm,
+  })
+
+  const { data: journalBooks = [] } = useQuery({
+    queryKey: ['accounting-journal-books'],
+    queryFn: () => api.get('/accounting/journal-books').then((r) => r.data || []),
+    enabled: showJournalForm || tab === 'journal-books' || tab === 'overview',
+  })
+
+  const { data: analyticAccounts = [] } = useQuery({
+    queryKey: ['accounting-analytic-accounts'],
+    queryFn: () => api.get('/accounting/analytic-accounts').then((r) => r.data || []),
+    enabled: showJournalForm || tab === 'analytic-accounts' || tab === 'analytic-report',
   })
 
   const { refetch: refetchJournals } = useQuery({
@@ -137,7 +175,7 @@ export default function Accounting() {
     onSuccess: () => {
       toast.success(isAr ? 'تم إنشاء القيد' : 'Journal created')
       setShowJournalForm(false)
-      setJournalForm({ memo: '', entryDate: new Date().toISOString().slice(0, 10), lines: [emptyLine(), emptyLine()] })
+      setJournalForm({ memo: '', entryDate: new Date().toISOString().slice(0, 10), journalId: '', lines: [emptyLine(), emptyLine()] })
       refetchJournals()
       queryClient.invalidateQueries({ queryKey: ['accounting-dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['accounting-daily'] })
@@ -165,6 +203,22 @@ export default function Accounting() {
     onError: (e) => toast.error(e.response?.data?.error || 'Failed to post'),
   })
 
+  const reverseJournalMutation = useMutation({
+    mutationFn: (id) => api.post(`/accounting/journals/${id}/reverse`, {
+      reason: isAr ? 'عكس قيد' : 'Manual reversal',
+    }),
+    onSuccess: () => {
+      toast.success(isAr ? 'تم إنشاء قيد عكسي' : 'Reversal entry created')
+      refetchJournals()
+      queryClient.invalidateQueries({ queryKey: ['accounting-dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-accounts'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-daily'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-general-vouchers'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-ledger-search'] })
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'Failed to reverse'),
+  })
+
   const journalTotals = useMemo(() => {
     const debit = journalForm.lines.reduce((s, l) => s + (Number(l.debit) || 0), 0)
     const credit = journalForm.lines.reduce((s, l) => s + (Number(l.credit) || 0), 0)
@@ -177,6 +231,7 @@ export default function Accounting() {
       entryDate: journalForm.entryDate,
       type: 'manual',
       status: 'draft',
+      journalId: journalForm.journalId || undefined,
       lines: journalForm.lines
         .filter((l) => l.accountId && (Number(l.debit) > 0 || Number(l.credit) > 0))
         .map((l) => ({
@@ -184,6 +239,7 @@ export default function Accounting() {
           debit: Number(l.debit) || 0,
           credit: Number(l.credit) || 0,
           description: l.description || '',
+          analyticAccountId: l.analyticAccountId || undefined,
         })),
     })
   }
@@ -373,6 +429,57 @@ export default function Accounting() {
               ))}
             </div>
 
+            <div className="grid gap-3 lg:grid-cols-2">
+              {[
+                {
+                  key: 'ar',
+                  titleEn: 'Aged receivables',
+                  titleAr: 'أعمار المدينين',
+                  href: '/app/dashboard/accounting/aged-ar',
+                  data: dashboard?.agedAr,
+                },
+                {
+                  key: 'ap',
+                  titleEn: 'Aged payables',
+                  titleAr: 'أعمار الدائنين',
+                  href: '/app/dashboard/accounting/aged-ap',
+                  data: dashboard?.agedAp,
+                },
+              ].map((block) => (
+                <div key={block.key} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                      {isAr ? block.titleAr : block.titleEn}
+                    </h3>
+                    <Link to={block.href} className="text-xs font-semibold text-primary-700 dark:text-primary-300">
+                      {isAr ? 'التفاصيل' : 'Details'}
+                    </Link>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {dashLoading
+                      ? '—'
+                      : `${block.data?.openCount ?? 0} ${isAr ? 'فاتورة مفتوحة' : 'open invoices'} · `}
+                    {!dashLoading ? <Money value={block.data?.buckets?.total || 0} /> : null}
+                  </p>
+                  <div className="mt-3 grid grid-cols-4 gap-2">
+                    {[
+                      ['d0_30', isAr ? '٠–٣٠' : '0–30'],
+                      ['d31_60', isAr ? '٣١–٦٠' : '31–60'],
+                      ['d61_90', isAr ? '٦١–٩٠' : '61–90'],
+                      ['d90_plus', isAr ? '٩٠+' : '90+'],
+                    ].map(([key, label]) => (
+                      <div key={key} className="rounded-xl bg-slate-50 px-2 py-2 dark:bg-dark-900">
+                        <p className="text-[10px] uppercase tracking-wide text-slate-400">{label}</p>
+                        <p className="mt-0.5 text-xs font-semibold tabular-nums">
+                          {dashLoading ? '—' : <Money value={block.data?.buckets?.[key] || 0} />}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <div className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800 lg:col-span-2">
                 <div className="flex items-center justify-between gap-3">
@@ -502,14 +609,89 @@ export default function Accounting() {
                     </div>
                     <div className="text-end">
                       <p className="font-semibold tabular-nums"><Money value={j.totalDebit} /></p>
-                      <p className={`text-[10px] font-semibold uppercase tracking-wide ${j.status === 'posted' ? 'text-emerald-600' : j.status === 'void' ? 'text-rose-500' : 'text-amber-600'}`}>{j.status}</p>
+                      <p className={`text-[10px] font-semibold uppercase tracking-wide ${j.status === 'posted' ? 'text-emerald-600' : j.status === 'void' || j.status === 'reversed' ? 'text-rose-500' : 'text-amber-600'}`}>{j.status}</p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
+
+            <AccountingLockDatesPanel language={language} />
+            <AccountingDefaultsPanel language={language} />
           </motion.div>
         )}
+
+          {tab === 'journal-books' && (
+            <motion.div key="journal-books" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <JournalBooksPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'defaults' && (
+            <motion.div key="defaults" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <AccountingDefaultsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'taxes' && (
+            <motion.div key="taxes" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <TaxesPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'analytic-accounts' && (
+            <motion.div key="analytic-accounts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <AnalyticAccountsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'analytic-report' && (
+            <motion.div key="analytic-report" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <AnalyticReportPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'period-close' && (
+            <motion.div key="period-close" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <PeriodClosePanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'journals-board' && (
+            <motion.div key="journals-board" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <JournalsBoardPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'firm-clients' && (
+            <motion.div key="firm-clients" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <FirmClientsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'cash-flow' && (
+            <motion.div key="cash-flow" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <CashFlowPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'aged-ar' && (
+            <motion.div key="aged-ar" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <AgedReceivablesPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'aged-ap' && (
+            <motion.div key="aged-ap" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <AgedPayablesPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'bank-recon' && (
+            <motion.div key="bank-recon" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <BankReconPanel language={language} />
+            </motion.div>
+          )}
 
           {tab === 'chart-of-accounts' && (
             <motion.div key="accounts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
@@ -555,13 +737,27 @@ export default function Accounting() {
 
           {tab === 'daily-restriction' && (
             <motion.div key="daily-restriction" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              <DailyRestrictionPanel language={language} onNew={() => setShowJournalForm(true)} onPost={(id) => postJournalMutation.mutate(id)} posting={postJournalMutation.isPending} />
+              <DailyRestrictionPanel
+                language={language}
+                onNew={() => setShowJournalForm(true)}
+                onPost={(id) => postJournalMutation.mutate(id)}
+                posting={postJournalMutation.isPending}
+                onReverse={(id) => reverseJournalMutation.mutate(id)}
+                reversing={reverseJournalMutation.isPending}
+              />
             </motion.div>
           )}
 
           {tab === 'general-voucher' && (
             <motion.div key="general-voucher" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              <GeneralVoucherPanel language={language} onNew={() => setShowJournalForm(true)} onPost={(id) => postJournalMutation.mutate(id)} posting={postJournalMutation.isPending} />
+              <GeneralVoucherPanel
+                language={language}
+                onNew={() => setShowJournalForm(true)}
+                onPost={(id) => postJournalMutation.mutate(id)}
+                posting={postJournalMutation.isPending}
+                onReverse={(id) => reverseJournalMutation.mutate(id)}
+                reversing={reverseJournalMutation.isPending}
+              />
             </motion.div>
           )}
 
@@ -609,7 +805,13 @@ export default function Accounting() {
 
           {tab === 'ledger-search' && (
             <motion.div key="ledger-search" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              <LedgerSearchPanel language={language} onPost={(id) => postJournalMutation.mutate(id)} posting={postJournalMutation.isPending} />
+              <LedgerSearchPanel
+                language={language}
+                onPost={(id) => postJournalMutation.mutate(id)}
+                posting={postJournalMutation.isPending}
+                onReverse={(id) => reverseJournalMutation.mutate(id)}
+                reversing={reverseJournalMutation.isPending}
+              />
             </motion.div>
           )}
 
@@ -738,7 +940,7 @@ export default function Accounting() {
                 </div>
                 <button type="button" onClick={() => setShowJournalForm(false)} className="rounded-xl px-2 text-slate-400 hover:text-slate-700">✕</button>
               </div>
-              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div>
                   <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{isAr ? 'التاريخ' : 'Date'}</label>
                   <input type="date" value={journalForm.entryDate} onChange={(e) => setJournalForm((f) => ({ ...f, entryDate: e.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm dark:border-dark-600 dark:bg-dark-900" />
@@ -747,12 +949,42 @@ export default function Accounting() {
                   <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{isAr ? 'البيان' : 'Memo'}</label>
                   <input value={journalForm.memo} onChange={(e) => setJournalForm((f) => ({ ...f, memo: e.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm dark:border-dark-600 dark:bg-dark-900" />
                 </div>
+                <div>
+                  <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{isAr ? 'دفتر القيد' : 'Journal book'}</label>
+                  <select
+                    value={journalForm.journalId}
+                    onChange={(e) => {
+                      const id = e.target.value
+                      const book = (Array.isArray(journalBooks) ? journalBooks : []).find((b) => String(b._id) === id)
+                      setJournalForm((f) => {
+                        const next = { ...f, journalId: id }
+                        if (book && f.lines?.length) {
+                          const lines = [...f.lines]
+                          const debitId = book.defaultDebitAccountId?._id || book.defaultDebitAccountId
+                          const creditId = book.defaultCreditAccountId?._id || book.defaultCreditAccountId
+                          if (debitId && !lines[0]?.accountId) lines[0] = { ...lines[0], accountId: String(debitId) }
+                          if (creditId && lines[1] && !lines[1]?.accountId) lines[1] = { ...lines[1], accountId: String(creditId) }
+                          next.lines = lines
+                        }
+                        return next
+                      })
+                    }}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm dark:border-dark-600 dark:bg-dark-900"
+                  >
+                    <option value="">{isAr ? 'بدون دفتر (JE)' : 'No book (JE)'}</option>
+                    {(Array.isArray(journalBooks) ? journalBooks : []).map((b) => (
+                      <option key={b._id} value={b._id}>
+                        {b.code} — {isAr ? (b.nameAr || b.name) : b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="mt-5 space-y-3">
                 {journalForm.lines.map((line, idx) => (
                   <div key={idx} className="grid grid-cols-1 gap-2 rounded-2xl bg-slate-50 p-3 md:grid-cols-12 dark:bg-dark-900">
                     <select
-                      className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm dark:border-dark-600 dark:bg-dark-800 md:col-span-5"
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm dark:border-dark-600 dark:bg-dark-800 md:col-span-4"
                       value={line.accountId}
                       onChange={(e) => {
                         const next = [...journalForm.lines]
@@ -763,6 +995,20 @@ export default function Accounting() {
                       <option value="">{isAr ? 'اختر حساب' : 'Select account'}</option>
                       {accounts.filter((a) => a.isPostable !== false).map((a) => (
                         <option key={a._id} value={a._id}>{a.code} — {isAr ? (a.nameAr || a.name) : a.name}</option>
+                      ))}
+                    </select>
+                    <select
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm dark:border-dark-600 dark:bg-dark-800 md:col-span-2"
+                      value={line.analyticAccountId || ''}
+                      onChange={(e) => {
+                        const next = [...journalForm.lines]
+                        next[idx] = { ...next[idx], analyticAccountId: e.target.value }
+                        setJournalForm((f) => ({ ...f, lines: next }))
+                      }}
+                    >
+                      <option value="">{isAr ? 'تحليلي' : 'Analytic'}</option>
+                      {(Array.isArray(analyticAccounts) ? analyticAccounts : []).map((a) => (
+                        <option key={a._id} value={a._id}>{a.code}</option>
                       ))}
                     </select>
                     <input type="number" min="0" step="0.01" placeholder="Debit" value={line.debit} onChange={(e) => {
@@ -779,7 +1025,7 @@ export default function Accounting() {
                       const next = [...journalForm.lines]
                       next[idx] = { ...next[idx], description: e.target.value }
                       setJournalForm((f) => ({ ...f, lines: next }))
-                    }} className="rounded-lg border border-slate-200 px-2 py-2 text-sm dark:border-dark-600 dark:bg-dark-800 md:col-span-3" />
+                    }} className="rounded-lg border border-slate-200 px-2 py-2 text-sm dark:border-dark-600 dark:bg-dark-800 md:col-span-2" />
                   </div>
                 ))}
               </div>

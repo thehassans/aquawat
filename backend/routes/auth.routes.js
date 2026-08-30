@@ -79,7 +79,7 @@ const clearAuthCookie = (res) => {
   });
 };
 
-const authTenantSelect = 'name slug businessType businessTypes business settings branding subscription isActive isDemo demoTrialEndsAt demoUpgraded terminationNotice zatca nbr';
+const authTenantSelect = 'name slug businessType businessTypes business settings branding subscription isActive isDemo demoTrialEndsAt demoUpgraded terminationNotice zatca nbr accountingFirmMode accountingFirmTenantId';
 
 const demoLoginAllowed = () => {
   if (process.env.ALLOW_DEMO_LOGIN === 'true') return true;
@@ -388,7 +388,9 @@ router.post('/login', async (req, res) => {
         branchId: user.branchId,
         permissions: user.permissions,
         preferences: user.preferences,
-        avatar: user.avatar
+        avatar: user.avatar,
+        firmHomeTenantId: user.firmHomeTenantId || null,
+        accessibleTenantIds: user.accessibleTenantIds || [],
       },
       tenant: responseTenant
     });
@@ -434,7 +436,10 @@ router.get('/me', protect, async (req, res) => {
         branchId: user.branchId,
         permissions: user.permissions,
         preferences: user.preferences,
-        avatar: user.avatar
+        avatar: user.avatar,
+        tenantId: user.tenantId || null,
+        firmHomeTenantId: user.firmHomeTenantId || null,
+        accessibleTenantIds: user.accessibleTenantIds || [],
       },
       tenant
     });

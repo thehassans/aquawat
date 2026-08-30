@@ -735,7 +735,7 @@ router.post('/rma', checkPermission('sales', 'create'), async (req, res) => {
         ...req.tenantFilter,
         flow: 'sell',
         purchaseOrderId: dn.purchaseOrderId,
-        invoiceType: { $ne: 'credit_note' },
+        invoiceType: { $nin: ['381', 'credit_note'] },
         status: { $nin: ['cancelled', 'draft'] },
       }).sort({ createdAt: -1 });
       if (linked) invoiceId = linked._id;
@@ -765,7 +765,8 @@ router.post('/rma', checkPermission('sales', 'create'), async (req, res) => {
             transactionType: inv.transactionType || 'B2B',
             status: 'draft',
             invoiceNumber: `CN-${Date.now().toString(36).toUpperCase()}`,
-            invoiceType: 'credit_note',
+            invoiceType: '381',
+            originalInvoiceId: inv._id,
             relatedInvoiceId: inv._id,
             sourcePurchaseOrderId: dn.purchaseOrderId,
             purchaseOrderId: dn.purchaseOrderId,

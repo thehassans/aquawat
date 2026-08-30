@@ -9,6 +9,31 @@ import {
   createJournalEntry,
   postJournalEntry,
   voidJournalEntry,
+  reverseJournalEntry,
+  getAccountingLockDates,
+  setAccountingLockDates,
+  listJournalItems,
+  backfillJournalItems,
+  getAccountingDefaults,
+  setAccountingDefaults,
+  ensureAccountingDefaults,
+  DEFAULT_ACCOUNT_KEYS,
+  listTaxes,
+  createTax,
+  updateTax,
+  ensureDefaultTaxes,
+  listAnalyticAccounts,
+  createAnalyticAccount,
+  updateAnalyticAccount,
+  ensureDefaultAnalyticAccounts,
+  buildAnalyticReport,
+  closeAccountingPeriod,
+  buildCashFlowStatement,
+  buildAgedReceivables,
+  buildAgedPayables,
+  getJournalBoard,
+  buildPartnerLedger,
+  backfillJournalPartnerIds,
   buildTrialBalance,
   buildProfitAndLoss,
   buildBalanceSheet,
@@ -21,6 +46,15 @@ import {
   normaliseLines,
   assertBalanced,
 } from '../services/accountingService.js';
+import {
+  enableAccountingFirmMode,
+  listFirmClients,
+  linkFirmClient,
+  unlinkFirmClient,
+  switchFirmClient,
+  searchTenantsForFirm,
+} from '../services/accountingFirmService.js';
+import JournalItem from '../models/JournalItem.js';
 
 const router = express.Router();
 router.use(protect);
@@ -154,11 +188,72 @@ router.post('/journal-books', checkPermission('finance', 'create'), async (req, 
       type: req.body.type || 'miscellaneous',
       sequencePrefix: String(req.body.sequencePrefix || code).trim().toUpperCase(),
       active: req.body.active !== false,
+      defaultDebitAccountId: req.body.defaultDebitAccountId || null,
+      defaultCreditAccountId: req.body.defaultCreditAccountId || null,
       createdBy: req.user._id,
     });
     res.status(201).json(book);
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+router.put('/journal-books/:id', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const Journal = (await import('../models/Journal.js')).default;
+    const book = await Journal.findOne({ _id: req.params.id, tenantId: tenantIdOf(req) });
+    if (!book) return res.status(404).json({ error: 'Journal book not found' });
+
+    if (req.body.name !== undefined) book.name = String(req.body.name).trim();
+    if (req.body.nameAr !== undefined) book.nameAr = String(req.body.nameAr || '').trim();
+    if (req.body.type !== undefined && !book.isSystem) book.type = req.body.type;
+    if (req.body.sequencePrefix !== undefined) {
+      book.sequencePrefix = String(req.body.sequencePrefix || book.code).trim().toUpperCase();
+    }
+    if (req.body.active !== undefined) book.active = Boolean(req.body.active);
+    if (req.body.defaultDebitAccountId !== undefined) {
+      book.defaultDebitAccountId = req.body.defaultDebitAccountId || null;
+    }
+    if (req.body.defaultCreditAccountId !== undefined) {
+      book.defaultCreditAccountId = req.body.defaultCreditAccountId || null;
+    }
+    book.updatedBy = req.user._id;
+    await book.save();
+    res.json(book);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// ─── Tenant default GL accounts ──────────────────────────────────────────────
+router.get('/defaults', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const data = await getAccountingDefaults(tenantIdOf(req));
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/defaults', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    const patch = {};
+    for (const key of DEFAULT_ACCOUNT_KEYS) {
+      if (req.body[key] !== undefined) patch[key] = req.body[key];
+    }
+    const data = await setAccountingDefaults(tenantIdOf(req), patch);
+    res.json(data);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/defaults/ensure', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    await ensureAccountingDefaults(tenantIdOf(req), req.user._id);
+    res.json(await getAccountingDefaults(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -169,6 +264,7 @@ router.get('/journals', checkPermission('finance', 'read'), async (req, res) => 
     const filter = { tenantId };
     if (req.query.status) filter.status = req.query.status;
     if (req.query.type) filter.type = req.query.type;
+    if (req.query.journalId) filter.journalId = req.query.journalId;
     if (req.query.from || req.query.to) {
       filter.entryDate = {};
       if (req.query.from) filter.entryDate.$gte = new Date(req.query.from);
@@ -203,6 +299,17 @@ router.get('/journals', checkPermission('finance', 'read'), async (req, res) => 
   }
 });
 
+router.get('/journals/board', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getJournalBoard(tenantIdOf(req), {
+      journalId: req.query.journalId || null,
+      limit: req.query.limit,
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 router.get('/journals/:id', checkPermission('finance', 'read'), async (req, res) => {
   try {
     const entry = await JournalEntry.findOne({ _id: req.params.id, tenantId: tenantIdOf(req) });
@@ -226,6 +333,7 @@ router.post('/journals', checkPermission('finance', 'create'), async (req, res) 
       currency: req.body.currency || req.tenant?.settings?.currency || 'SAR',
       lines: req.body.lines || [],
       status: req.body.status === 'posted' ? 'posted' : 'draft',
+      journalId: req.body.journalId || null,
     });
     res.status(201).json(entry);
   } catch (error) {
@@ -258,6 +366,25 @@ router.put('/journals/:id', checkPermission('finance', 'update'), async (req, re
       entry.lines = enriched;
     }
     await entry.save();
+    await JournalItem.deleteMany({ tenantId: tenantIdOf(req), moveId: entry._id });
+    const docs = (entry.lines || []).map((line, lineIndex) => ({
+      tenantId: entry.tenantId,
+      moveId: entry._id,
+      journalId: entry.journalId || null,
+      entryNumber: entry.entryNumber || '',
+      entryDate: entry.entryDate,
+      accountId: line.accountId,
+      accountCode: line.accountCode || '',
+      accountName: line.accountName || '',
+      partnerId: line.partnerId || null,
+      description: line.description || '',
+      debit: Number(line.debit || 0),
+      credit: Number(line.credit || 0),
+      currency: entry.currency || 'SAR',
+      state: 'draft',
+      lineIndex,
+    }));
+    if (docs.length) await JournalItem.insertMany(docs);
     res.json(entry);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -287,6 +414,73 @@ router.post('/journals/:id/void', checkPermission('finance', 'update'), async (r
   try {
     const entry = await voidJournalEntry(tenantIdOf(req), req.params.id, req.user._id, req.body.reason || '');
     res.json(entry);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+/** Formal reversal of a posted journal entry (preferred over void for posted moves). */
+router.post('/journals/:id/reverse', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const entry = await reverseJournalEntry(
+      tenantIdOf(req),
+      req.params.id,
+      req.user._id,
+      req.body.reason || '',
+    );
+    res.json(entry);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// ─── Journal items (account.move.line) ───────────────────────────────────────
+router.get('/journal-items', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const data = await listJournalItems(tenantIdOf(req), {
+      accountId: req.query.accountId,
+      partnerId: req.query.partnerId,
+      moveId: req.query.moveId,
+      analyticAccountId: req.query.analyticAccountId,
+      from: req.query.from,
+      to: req.query.to,
+      state: req.query.state || 'posted',
+      limit: req.query.limit,
+      skip: req.query.skip,
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/journal-items/backfill', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const data = await backfillJournalItems(tenantIdOf(req), { limit: req.body.limit });
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── Accounting lock dates ───────────────────────────────────────────────────
+router.get('/lock-dates', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const data = await getAccountingLockDates(tenantIdOf(req));
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/lock-dates', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    const data = await setAccountingLockDates(tenantIdOf(req), {
+      lockDate: req.body.lockDate,
+      taxLockDate: req.body.taxLockDate,
+      hardLockDate: req.body.hardLockDate,
+    });
+    res.json(data);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -420,6 +614,317 @@ router.get('/reports/supplier-account', checkPermission('finance', 'read'), asyn
       from: req.query.from,
       to: req.query.to,
     });
+    res.json(data);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+/** GL partner ledger from JournalItems (posted move lines tagged with partnerId). */
+router.get('/reports/partner-ledger', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const partnerId = req.query.partnerId || req.query.customerId || req.query.supplierId;
+    const data = await buildPartnerLedger(tenantIdOf(req), partnerId, {
+      from: req.query.from,
+      to: req.query.to,
+      accountId: req.query.accountId || null,
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/journal-items/backfill-partners', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const data = await backfillJournalPartnerIds(tenantIdOf(req), { limit: req.body.limit });
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── Tax master ──────────────────────────────────────────────────────────────
+router.get('/taxes', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const rows = await listTaxes(tenantIdOf(req), {
+      type: req.query.type || null,
+      activeOnly: req.query.active !== 'false',
+    });
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/taxes', checkPermission('finance', 'create'), async (req, res) => {
+  try {
+    const tax = await createTax(tenantIdOf(req), req.user._id, req.body);
+    res.status(201).json(tax);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.put('/taxes/:id', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const tax = await updateTax(tenantIdOf(req), req.user._id, req.params.id, req.body);
+    res.json(tax);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/taxes/ensure', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    await ensureDefaultTaxes(tenantIdOf(req), req.user._id);
+    res.json(await listTaxes(tenantIdOf(req), { activeOnly: false }));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── Bank reconciliation ─────────────────────────────────────────────────────
+router.get('/bank-statements', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { listBankStatements } = await import('../services/bankReconciliationService.js');
+    res.json(await listBankStatements(tenantIdOf(req), {
+      accountId: req.query.accountId || null,
+      limit: req.query.limit,
+    }));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/bank-statements/:id', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { getBankStatement } = await import('../services/bankReconciliationService.js');
+    res.json(await getBankStatement(tenantIdOf(req), req.params.id));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/bank-statements', checkPermission('finance', 'create'), async (req, res) => {
+  try {
+    const { createBankStatement } = await import('../services/bankReconciliationService.js');
+    const data = await createBankStatement(tenantIdOf(req), req.user._id, req.body);
+    res.status(201).json(data);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/bank-statements/:id/lines', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const { addBankStatementLines } = await import('../services/bankReconciliationService.js');
+    const data = await addBankStatementLines(tenantIdOf(req), req.params.id, req.body.lines || []);
+    res.json(data);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/bank-recon/unmatched-items', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { listUnmatchedJournalItems } = await import('../services/bankReconciliationService.js');
+    if (!req.query.accountId) return res.status(400).json({ error: 'accountId required' });
+    res.json(await listUnmatchedJournalItems(tenantIdOf(req), req.query.accountId, {
+      from: req.query.from,
+      to: req.query.to,
+      limit: req.query.limit,
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/bank-recon/unmatched-lines', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { listUnmatchedStatementLines } = await import('../services/bankReconciliationService.js');
+    res.json(await listUnmatchedStatementLines(tenantIdOf(req), {
+      statementId: req.query.statementId || null,
+      accountId: req.query.accountId || null,
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/bank-recon/summary', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { getReconciliationSummary } = await import('../services/bankReconciliationService.js');
+    if (!req.query.accountId) return res.status(400).json({ error: 'accountId required' });
+    res.json(await getReconciliationSummary(tenantIdOf(req), req.query.accountId));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/bank-recon/match', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const { matchBankReconciliation } = await import('../services/bankReconciliationService.js');
+    res.json(await matchBankReconciliation(tenantIdOf(req), req.user._id, {
+      statementLineId: req.body.statementLineId,
+      journalItemIds: req.body.journalItemIds || [],
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/bank-recon/unmatch', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const { unmatchBankReconciliation } = await import('../services/bankReconciliationService.js');
+    res.json(await unmatchBankReconciliation(tenantIdOf(req), {
+      reconcileId: req.body.reconcileId || null,
+      statementLineId: req.body.statementLineId || null,
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// ─── Analytic accounts ───────────────────────────────────────────────────────
+router.get('/analytic-accounts', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await listAnalyticAccounts(tenantIdOf(req), {
+      type: req.query.type || null,
+      activeOnly: req.query.active !== 'false',
+    }));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/analytic-accounts', checkPermission('finance', 'create'), async (req, res) => {
+  try {
+    const row = await createAnalyticAccount(tenantIdOf(req), req.user._id, req.body);
+    res.status(201).json(row);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.put('/analytic-accounts/:id', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    res.json(await updateAnalyticAccount(tenantIdOf(req), req.user._id, req.params.id, req.body));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/analytic-accounts/ensure', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    await ensureDefaultAnalyticAccounts(tenantIdOf(req), req.user._id);
+    res.json(await listAnalyticAccounts(tenantIdOf(req), { activeOnly: false }));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/reports/analytic', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await buildAnalyticReport(tenantIdOf(req), {
+      analyticAccountId: req.query.analyticAccountId || null,
+      from: req.query.from,
+      to: req.query.to,
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+/** Close P&L into retained earnings and optionally set hard lock. */
+router.post('/period-close', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    const data = await closeAccountingPeriod(tenantIdOf(req), req.user._id, {
+      from: req.body.from,
+      to: req.body.to,
+      setHardLock: req.body.setHardLock !== false,
+      currency: req.body.currency || req.tenant?.settings?.currency || 'SAR',
+    });
+    res.status(201).json(data);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/reports/cash-flow', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await buildCashFlowStatement(tenantIdOf(req), {
+      from: req.query.from,
+      to: req.query.to,
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/reports/aged-ar', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await buildAgedReceivables(tenantIdOf(req), { asOf: req.query.asOf || null }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/reports/aged-ap', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await buildAgedPayables(tenantIdOf(req), { asOf: req.query.asOf || null }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// ─── Accounting Firms Mode ───────────────────────────────────────────────────
+router.get('/firm/clients', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await listFirmClients(req.user));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/firm/tenants/search', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await searchTenantsForFirm(req.user, { q: req.query.q || '' }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/firm/enable', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await enableAccountingFirmMode(tenantIdOf(req), req.user._id));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/firm/clients', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.status(201).json(await linkFirmClient(req.user, {
+      clientTenantId: req.body.clientTenantId || req.body.tenantId,
+      grantAccess: req.body.grantAccess !== false,
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.delete('/firm/clients/:id', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await unlinkFirmClient(req.user, req.params.id));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/firm/switch', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const data = await switchFirmClient(req.user, req.body.tenantId || req.body.clientTenantId);
     res.json(data);
   } catch (error) {
     res.status(400).json({ error: error.message });

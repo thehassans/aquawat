@@ -95,7 +95,7 @@ async function applyResolvedPayment(invoice) {
 async function postSellInvoiceLedgers(invoice, req, tenant) {
   if (
     invoice.flow === 'purchase' ||
-    invoice.invoiceType !== '388' ||
+    !['388', '381'].includes(String(invoice.invoiceType || '')) ||
     invoice.invoiceSubtype === 'proforma' ||
     ['draft', 'cancelled'].includes(invoice.status)
   ) {
@@ -105,12 +105,43 @@ async function postSellInvoiceLedgers(invoice, req, tenant) {
   // Accounting journals only — stock never moves from sell/purchase invoices.
   // Sell stock: Delivery Notes. Purchase stock: GRNs.
   try {
-    const { postSalesInvoiceJournal, postInvoicePaymentJournal } = await import('../services/accountingService.js');
+    const {
+      postSalesInvoiceJournal,
+      postInvoicePaymentJournal,
+      postCreditNoteJournal,
+      postCreditNoteRefundJournal,
+    } = await import('../services/accountingService.js');
+
+    const currency = invoice.currency || tenant?.settings?.currency || 'SAR';
+
+    if (String(invoice.invoiceType) === '381') {
+      await postCreditNoteJournal({
+        tenantId: invoice.tenantId,
+        userId: req.user._id,
+        creditNote: invoice,
+        currency,
+      });
+      const refundAmt = Number(invoice.paidAmount || 0);
+      if (refundAmt > 0) {
+        await postCreditNoteRefundJournal({
+          tenantId: invoice.tenantId,
+          userId: req.user._id,
+          creditNote: invoice,
+          amount: Math.abs(refundAmt),
+          paymentMethod: invoice.paymentMethod || 'cash',
+          paymentDate: invoice.issueDate || new Date(),
+          reference: `refund-${invoice.invoiceNumber}`,
+          currency,
+        });
+      }
+      return;
+    }
+
     await postSalesInvoiceJournal({
       tenantId: invoice.tenantId,
       userId: req.user._id,
       invoice,
-      currency: invoice.currency || tenant?.settings?.currency || 'SAR',
+      currency,
     });
     if (Number(invoice.paidAmount || 0) > 0) {
       await postInvoicePaymentJournal({
@@ -121,7 +152,7 @@ async function postSellInvoiceLedgers(invoice, req, tenant) {
         paymentMethod: invoice.paymentMethod || 'bank_transfer',
         paymentDate: invoice.issueDate || new Date(),
         reference: `initial-${invoice.invoiceNumber}`,
-        currency: invoice.currency || tenant?.settings?.currency || 'SAR',
+        currency,
       });
     }
   } catch (glError) {
@@ -2133,6 +2164,11 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
     await invoice.save();
     afterInvoiceWrite(invoice, { userId: req.user._id });
 
+    // Post GL when leaving draft (standard invoice or credit note)
+    if (!['draft', 'cancelled'].includes(invoice.status)) {
+      await postSellInvoiceLedgers(invoice, req, tenant);
+    }
+
     if (invoice.flow === 'sell' && (invoice.status === 'approved' || invoice.zatca?.signedXml)) {
       try {
         await autoSendInvoice(invoice._id, invoice.tenantId, {
@@ -2323,6 +2359,8 @@ router.post('/:id/sign', checkPermission('invoicing', 'approve'), async (req, re
     if (invoice.customerId) {
       await syncCustomerStats(invoice.tenantId, invoice.customerId);
     }
+
+    await postSellInvoiceLedgers(invoice, req, tenant);
 
     afterInvoiceWrite(invoice, { userId: req.user._id });
 
@@ -2588,9 +2626,7 @@ router.post('/:id/credit-note', checkPermission('invoicing', 'create'), async (r
       await syncCustomerStats(originalInvoice.tenantId, originalInvoice.customerId);
     }
 
-    // Credit note starts as draft — GL posts when amounts are finalized on first non-draft save.
-    // Also keep an issued marker journal once amounts exist (draft allowed for traceability via type=adjustment when posted later from UI).
-    
+    // Credit note starts as draft — GL posts on first non-draft save / sign.
     res.status(201).json(creditNote);
   } catch (error) {
     res.status(500).json({ error: error.message });

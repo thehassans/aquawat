@@ -21,15 +21,27 @@ const toObjectId = (value) => {
  * Resolve a concrete tenant id for data access.
  * Never returns null — throws TenantScopeError instead (prevents cross-tenant leaks).
  * Super-admin: x-tenant-id (or query/body tenantId) wins over JWT tenantId so impersonation works.
+ * Firm accountants: x-tenant-id allowed only when listed in accessibleTenantIds / firm home.
  */
 export function resolveTenantId(user, req = null) {
+  const headerRaw = req?.headers?.['x-tenant-id'] || req?.query?.tenantId || req?.body?.tenantId;
+
   if (user?.role === 'super_admin') {
-    const headerId = req?.headers?.['x-tenant-id'] || req?.query?.tenantId || req?.body?.tenantId;
-    if (headerId) {
-      const id = toObjectId(headerId);
+    if (headerRaw) {
+      const id = toObjectId(headerRaw);
       if (!id) throw new TenantScopeError('Invalid tenant id', 400);
       return id;
     }
+  } else if (headerRaw) {
+    const id = toObjectId(headerRaw);
+    if (!id) throw new TenantScopeError('Invalid tenant id', 400);
+    const allowed = new Set([
+      String(user?.tenantId || ''),
+      String(user?.firmHomeTenantId || ''),
+      ...((user?.accessibleTenantIds || []).map((x) => String(x))),
+    ].filter(Boolean));
+    if (allowed.has(String(id))) return id;
+    // Do not honor spoofed headers for non-firm users
   }
 
   if (user?.tenantId) {

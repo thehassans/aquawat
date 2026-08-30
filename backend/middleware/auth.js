@@ -314,6 +314,24 @@ export const tenantFilter = (req, res, next) => {
       // Tenant-data routes must call resolveTenantId() / requireTenantFilter.
       req.tenantFilter = {};
     }
+  } else if (
+    req.headers['x-tenant-id']
+    && (
+      Array.isArray(req.user.accessibleTenantIds) && req.user.accessibleTenantIds.length > 0
+      || req.user.firmHomeTenantId
+    )
+  ) {
+    const headerId = String(req.headers['x-tenant-id']);
+    const allowed = new Set([
+      String(req.user.tenantId || ''),
+      String(req.user.firmHomeTenantId || ''),
+      ...((req.user.accessibleTenantIds || []).map((x) => String(x))),
+    ].filter(Boolean));
+    if (!allowed.has(headerId)) {
+      return res.status(403).json({ error: 'Not authorized for this client tenant' });
+    }
+    req.tenantFilter = { tenantId: headerId };
+    req.user = Object.assign(Object.create(Object.getPrototypeOf(req.user)), req.user, { tenantId: headerId });
   } else {
     if (!req.user.tenantId) {
       return res.status(403).json({ error: 'Tenant context required' });

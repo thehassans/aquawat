@@ -88,24 +88,128 @@ export async function ensureDefaultStockJournal(tenantId, userId = null) {
 
 /** System Sales journal book (SAL) for invoice revenue entries. */
 export async function ensureDefaultSalesJournal(tenantId, userId = null) {
+  return ensureJournalBook(tenantId, {
+    code: 'SAL',
+    name: 'Sales Journal',
+    nameAr: 'دفتر المبيعات',
+    type: 'sales',
+    sequencePrefix: 'SAL',
+    userId,
+    defaultDebitRole: 'ar',
+    defaultCreditRole: 'sales',
+  });
+}
+
+export async function ensureDefaultPurchaseJournal(tenantId, userId = null) {
+  return ensureJournalBook(tenantId, {
+    code: 'PUR',
+    name: 'Purchase Journal',
+    nameAr: 'دفتر المشتريات',
+    type: 'purchase',
+    sequencePrefix: 'PUR',
+    userId,
+    defaultDebitRole: 'inventory',
+    defaultCreditRole: 'ap',
+  });
+}
+
+export async function ensureDefaultCashJournal(tenantId, userId = null) {
+  return ensureJournalBook(tenantId, {
+    code: 'CSH',
+    name: 'Cash Journal',
+    nameAr: 'دفتر النقدية',
+    type: 'cash',
+    sequencePrefix: 'CSH',
+    userId,
+    defaultDebitRole: 'cash',
+    defaultCreditRole: 'ar',
+  });
+}
+
+export async function ensureDefaultBankJournal(tenantId, userId = null) {
+  return ensureJournalBook(tenantId, {
+    code: 'BNK',
+    name: 'Bank Journal',
+    nameAr: 'دفتر البنك',
+    type: 'bank',
+    sequencePrefix: 'BNK',
+    userId,
+    defaultDebitRole: 'bank',
+    defaultCreditRole: 'ar',
+  });
+}
+
+export async function ensureDefaultMiscJournal(tenantId, userId = null) {
+  return ensureJournalBook(tenantId, {
+    code: 'MISC',
+    name: 'Miscellaneous Journal',
+    nameAr: 'دفتر متنوع',
+    type: 'miscellaneous',
+    sequencePrefix: 'MISC',
+    userId,
+    defaultDebitRole: 'suspense',
+    defaultCreditRole: 'suspense',
+  });
+}
+
+async function ensureJournalBook(tenantId, {
+  code,
+  name,
+  nameAr,
+  type,
+  sequencePrefix,
+  userId = null,
+  defaultDebitRole = null,
+  defaultCreditRole = null,
+} = {}) {
   const tid = toObjectId(tenantId);
   const Journal = (await import('../../models/Journal.js')).default;
-  let book = await Journal.findOne({ tenantId: tid, code: 'SAL' });
+  let book = await Journal.findOne({ tenantId: tid, code });
   if (!book) {
-    book = await Journal.findOne({ tenantId: tid, type: 'sales', isSystem: true });
+    book = await Journal.findOne({ tenantId: tid, type, isSystem: true });
   }
+
+  let debitId = null;
+  let creditId = null;
+  try {
+    const { resolveRoleAccount, ensureAccountingDefaults } = await import('../accountingService.js');
+    await ensureAccountingDefaults(tid, userId);
+    if (defaultDebitRole) {
+      const acct = await resolveRoleAccount(tid, defaultDebitRole);
+      debitId = acct?._id || null;
+    }
+    if (defaultCreditRole) {
+      const acct = await resolveRoleAccount(tid, defaultCreditRole);
+      creditId = acct?._id || null;
+    }
+  } catch {
+    // optional
+  }
+
   if (!book) {
     book = await Journal.create({
       tenantId: tid,
-      code: 'SAL',
-      name: 'Sales Journal',
-      nameAr: 'دفتر المبيعات',
-      type: 'sales',
-      sequencePrefix: 'SAL',
+      code,
+      name,
+      nameAr,
+      type,
+      sequencePrefix: sequencePrefix || code,
       active: true,
       isSystem: true,
+      defaultDebitAccountId: debitId,
+      defaultCreditAccountId: creditId,
       createdBy: userId || undefined,
     });
+    return book;
+  }
+
+  const patch = {};
+  if (!book.defaultDebitAccountId && debitId) patch.defaultDebitAccountId = debitId;
+  if (!book.defaultCreditAccountId && creditId) patch.defaultCreditAccountId = creditId;
+  if (Object.keys(patch).length) {
+    Object.assign(book, patch);
+    if (userId) book.updatedBy = userId;
+    await book.save();
   }
   return book;
 }
@@ -115,11 +219,18 @@ export async function listJournalBooks(tenantId, { type = null, activeOnly = tru
   await ensureDefaultStockJournal(tid);
   await ensureDefaultSalesJournal(tid);
   await ensureDefaultPurchaseJournal(tid);
+  await ensureDefaultCashJournal(tid);
+  await ensureDefaultBankJournal(tid);
+  await ensureDefaultMiscJournal(tid);
   const Journal = (await import('../../models/Journal.js')).default;
   const filter = { tenantId: tid };
   if (type) filter.type = type;
   if (activeOnly) filter.active = { $ne: false };
-  return Journal.find(filter).sort({ type: 1, code: 1 }).lean();
+  return Journal.find(filter)
+    .populate('defaultDebitAccountId', 'code name nameAr')
+    .populate('defaultCreditAccountId', 'code name nameAr')
+    .sort({ type: 1, code: 1 })
+    .lean();
 }
 
 /**
@@ -833,6 +944,7 @@ export async function postPurchaseInvoiceJournal({
       journalId = book?._id || null;
     } catch { /* optional */ }
 
+    const partnerId = invoice.supplierId || null;
     const entry = await createJournalEntry({
       tenantId: tid,
       userId,
@@ -848,6 +960,7 @@ export async function postPurchaseInvoiceJournal({
         debit: l.debit,
         credit: l.credit,
         description: l.description || `Bill ${invoice.invoiceNumber || ''}`,
+        partnerId,
       })),
       sourceModel: 'PurchaseInvoice',
       sourceId: invoice._id,
@@ -1020,7 +1133,10 @@ export async function postPurchaseInvoiceJournal({
     memoAr: `فاتورة مشتريات ${invoice.invoiceNumber || ''}`,
     reference: invoice.invoiceNumber || '',
     currency,
-    lines,
+    lines: (lines || []).map((l) => ({
+      ...l,
+      partnerId: l.partnerId || invoice.supplierId || null,
+    })),
     sourceModel: 'PurchaseInvoice',
     sourceId: invoice._id,
     sourceNumber: invoice.invoiceNumber || '',
@@ -1066,30 +1182,4 @@ export async function resolvePriceDifferenceAccount(tenantId, productId) {
     .select('priceDifferenceAccountId')
     .lean();
   return loadActiveAccount(tid, cat?.priceDifferenceAccountId);
-}
-
-/**
- * Ensure a system Purchase journal book exists.
- */
-export async function ensureDefaultPurchaseJournal(tenantId, userId = null) {
-  const tid = toObjectId(tenantId);
-  const Journal = (await import('../../models/Journal.js')).default;
-  let book = await Journal.findOne({ tenantId: tid, code: 'PUR' });
-  if (!book) {
-    book = await Journal.findOne({ tenantId: tid, type: 'purchase', isSystem: true });
-  }
-  if (!book) {
-    book = await Journal.create({
-      tenantId: tid,
-      code: 'PUR',
-      name: 'Purchase Journal',
-      nameAr: 'دفتر المشتريات',
-      type: 'purchase',
-      sequencePrefix: 'PUR',
-      active: true,
-      isSystem: true,
-      createdBy: userId || undefined,
-    });
-  }
-  return book;
 }

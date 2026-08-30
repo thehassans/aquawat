@@ -104,6 +104,8 @@ export const serializeAuthTenant = (tenant) => {
     isDemo: Boolean(source.isDemo),
     demoTrialEndsAt: source.demoTrialEndsAt || null,
     demoUpgraded: Boolean(source.demoUpgraded),
+    accountingFirmMode: Boolean(source.accountingFirmMode),
+    accountingFirmTenantId: source.accountingFirmTenantId || null,
     zatca: serializeZatcaForAuth(source.zatca),
     nbr: serializeNbrForAuth(source.nbr),
     fbr: serializeFbrForAuth(source.fbr),

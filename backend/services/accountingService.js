@@ -1,5 +1,7 @@
 import ChartOfAccount from '../models/ChartOfAccount.js';
 import JournalEntry from '../models/JournalEntry.js';
+import JournalItem from '../models/JournalItem.js';
+import Tenant from '../models/Tenant.js';
 import Invoice from '../models/Invoice.js';
 import Customer from '../models/Customer.js';
 import Supplier from '../models/Supplier.js';
@@ -18,6 +20,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS = [
   { code: '1400', name: 'VAT Input (Recoverable)', nameAr: 'ضريبة المدخلات', type: 'asset', subtype: 'other_asset' },
   { code: '1500', name: 'Prepaid Expenses', nameAr: 'مصروفات مدفوعة مقدماً', type: 'asset', subtype: 'other_asset' },
   { code: '1600', name: 'Fixed Assets', nameAr: 'الأصول الثابتة', type: 'asset', subtype: 'fixed_asset' },
+  { code: '1900', name: 'Suspense / Clearing', nameAr: 'حساب وسيط / مقاصة', type: 'asset', subtype: 'other_asset' },
   { code: '2000', name: 'Accounts Payable', nameAr: 'الذمم الدائنة', type: 'liability', subtype: 'payable' },
   { code: '2100', name: 'VAT Output (Payable)', nameAr: 'ضريبة المخرجات', type: 'liability', subtype: 'tax' },
   { code: '2200', name: 'Accrued Expenses', nameAr: 'مصروفات مستحقة', type: 'liability', subtype: 'other_liability' },
@@ -43,6 +46,7 @@ const ACCOUNT_CODE_MAP = {
   ar: '1200',
   inventory: '1300',
   vatInput: '1400',
+  suspense: '1900',
   ap: '2000',
   vatOutput: '2100',
   capital: '3000',
@@ -58,6 +62,49 @@ const ACCOUNT_CODE_MAP = {
   bankCharges: '5500',
 };
 
+/** Tenant settings.accounting.defaultAccounts keys ↔ posting roles */
+export const DEFAULT_ACCOUNT_KEYS = [
+  'receivableAccountId',
+  'payableAccountId',
+  'incomeAccountId',
+  'expenseAccountId',
+  'cogsAccountId',
+  'bankAccountId',
+  'cashAccountId',
+  'taxInputAccountId',
+  'taxOutputAccountId',
+  'suspenseAccountId',
+  'inventoryAccountId',
+];
+
+const ROLE_TO_DEFAULT_KEY = {
+  ar: 'receivableAccountId',
+  ap: 'payableAccountId',
+  sales: 'incomeAccountId',
+  opex: 'expenseAccountId',
+  cogs: 'cogsAccountId',
+  bank: 'bankAccountId',
+  cash: 'cashAccountId',
+  vatInput: 'taxInputAccountId',
+  vatOutput: 'taxOutputAccountId',
+  suspense: 'suspenseAccountId',
+  inventory: 'inventoryAccountId',
+};
+
+const DEFAULT_KEY_TO_CODE = {
+  receivableAccountId: ACCOUNT_CODE_MAP.ar,
+  payableAccountId: ACCOUNT_CODE_MAP.ap,
+  incomeAccountId: ACCOUNT_CODE_MAP.sales,
+  expenseAccountId: ACCOUNT_CODE_MAP.opex,
+  cogsAccountId: ACCOUNT_CODE_MAP.cogs,
+  bankAccountId: ACCOUNT_CODE_MAP.bank,
+  cashAccountId: ACCOUNT_CODE_MAP.cash,
+  taxInputAccountId: ACCOUNT_CODE_MAP.vatInput,
+  taxOutputAccountId: ACCOUNT_CODE_MAP.vatOutput,
+  suspenseAccountId: ACCOUNT_CODE_MAP.suspense,
+  inventoryAccountId: ACCOUNT_CODE_MAP.inventory,
+};
+
 export function normaliseLines(lines = []) {
   return (Array.isArray(lines) ? lines : [])
     .map((line) => ({
@@ -67,6 +114,9 @@ export function normaliseLines(lines = []) {
       description: String(line.description || '').trim(),
       debit: round2(Math.max(0, Number(line.debit) || 0)),
       credit: round2(Math.max(0, Number(line.credit) || 0)),
+      partnerId: line.partnerId || null,
+      taxIds: Array.isArray(line.taxIds) ? line.taxIds.filter(Boolean) : [],
+      analyticAccountId: line.analyticAccountId || null,
     }))
     .filter((line) => line.accountId && (line.debit > 0 || line.credit > 0));
 }
@@ -90,22 +140,36 @@ export function assertBalanced(lines) {
 
 export async function ensureDefaultChartOfAccounts(tenantId, userId = null, currency = 'SAR') {
   const existing = await ChartOfAccount.countDocuments({ tenantId });
-  if (existing > 0) {
-    return ChartOfAccount.find({ tenantId }).sort({ code: 1 }).lean();
+  if (existing === 0) {
+    const docs = DEFAULT_CHART_OF_ACCOUNTS.map((row) => ({
+      ...row,
+      tenantId,
+      currency,
+      isSystem: true,
+      isActive: true,
+      isPostable: true,
+      balance: 0,
+      createdBy: userId || undefined,
+    }));
+    await ChartOfAccount.insertMany(docs);
+  } else {
+    // Backfill any newly added system codes (e.g. suspense 1900) without wiping custom CoA
+    for (const row of DEFAULT_CHART_OF_ACCOUNTS) {
+      const found = await ChartOfAccount.findOne({ tenantId, code: row.code }).select('_id').lean();
+      if (found) continue;
+      await ChartOfAccount.create({
+        ...row,
+        tenantId,
+        currency,
+        isSystem: true,
+        isActive: true,
+        isPostable: true,
+        balance: 0,
+        createdBy: userId || undefined,
+      });
+    }
   }
 
-  const docs = DEFAULT_CHART_OF_ACCOUNTS.map((row) => ({
-    ...row,
-    tenantId,
-    currency,
-    isSystem: true,
-    isActive: true,
-    isPostable: true,
-    balance: 0,
-    createdBy: userId || undefined,
-  }));
-
-  await ChartOfAccount.insertMany(docs);
   return ChartOfAccount.find({ tenantId }).sort({ code: 1 }).lean();
 }
 
@@ -117,12 +181,240 @@ export async function getAccountMap(tenantId) {
   await ensureDefaultChartOfAccounts(tenantId);
   const rows = await ChartOfAccount.find({ tenantId, isActive: true }).lean();
   const byCode = {};
+  const byId = {};
   const bySubtype = {};
   for (const row of rows) {
     byCode[row.code] = row;
+    byId[String(row._id)] = row;
     if (row.subtype && !bySubtype[row.subtype]) bySubtype[row.subtype] = row;
   }
-  return { byCode, bySubtype, rows };
+  return { byCode, byId, bySubtype, rows };
+}
+
+/**
+ * Raw ObjectIds from tenant.settings.accounting.defaultAccounts (may be null).
+ */
+export async function getAccountingDefaultAccountIds(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.defaultAccounts').lean();
+  const raw = tenant?.settings?.accounting?.defaultAccounts || {};
+  const out = {};
+  for (const key of DEFAULT_ACCOUNT_KEYS) {
+    out[key] = raw[key] || null;
+  }
+  return out;
+}
+
+/**
+ * Ensure missing default account ids are filled from standard CoA codes.
+ * Returns { ids, accounts } where accounts are lean CoA docs keyed by DEFAULT_ACCOUNT_KEYS.
+ */
+export async function ensureAccountingDefaults(tenantId, userId = null) {
+  await ensureDefaultChartOfAccounts(tenantId, userId);
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const ids = await getAccountingDefaultAccountIds(tenantId);
+  const update = {};
+  let changed = false;
+
+  for (const key of DEFAULT_ACCOUNT_KEYS) {
+    const current = ids[key];
+    if (current && byId[String(current)]) continue;
+    const code = DEFAULT_KEY_TO_CODE[key];
+    const acct = code ? byCode[code] : null;
+    if (acct?._id) {
+      ids[key] = acct._id;
+      update[`settings.accounting.defaultAccounts.${key}`] = acct._id;
+      changed = true;
+    } else {
+      ids[key] = null;
+    }
+  }
+
+  if (changed) {
+    await Tenant.findByIdAndUpdate(tenantId, { $set: update });
+  }
+
+  const accounts = {};
+  for (const key of DEFAULT_ACCOUNT_KEYS) {
+    accounts[key] = ids[key] ? (byId[String(ids[key])] || null) : null;
+  }
+  return { ids, accounts };
+}
+
+export async function getAccountingDefaults(tenantId) {
+  const { ids, accounts } = await ensureAccountingDefaults(tenantId);
+  return {
+    ...ids,
+    accounts,
+    roles: Object.fromEntries(
+      Object.entries(ROLE_TO_DEFAULT_KEY).map(([role, key]) => [role, accounts[key] || null]),
+    ),
+  };
+}
+
+export async function setAccountingDefaults(tenantId, patch = {}) {
+  const { byId } = await getAccountMap(tenantId);
+  const update = {};
+  for (const key of DEFAULT_ACCOUNT_KEYS) {
+    if (patch[key] === undefined) continue;
+    const val = patch[key];
+    if (val === null || val === '') {
+      update[`settings.accounting.defaultAccounts.${key}`] = null;
+      continue;
+    }
+    if (!byId[String(val)]) {
+      throw new Error(`Invalid account for ${key}`);
+    }
+    update[`settings.accounting.defaultAccounts.${key}`] = val;
+  }
+  if (Object.keys(update).length) {
+    await Tenant.findByIdAndUpdate(tenantId, { $set: update });
+  }
+  return getAccountingDefaults(tenantId);
+}
+
+/** Ensure system 15% VAT sales/purchase taxes linked to default tax GL accounts. */
+export async function ensureDefaultTaxes(tenantId, userId = null) {
+  const Tax = (await import('../models/Tax.js')).default;
+  const { byCode } = await getAccountMap(tenantId);
+  const salesAcct = byCode[ACCOUNT_CODE_MAP.vatOutput]
+    || (await resolveRoleAccount(tenantId, 'vatOutput'));
+  const purchaseAcct = byCode[ACCOUNT_CODE_MAP.vatInput]
+    || (await resolveRoleAccount(tenantId, 'vatInput'));
+  const seeds = [
+    {
+      code: 'VAT15-OUT',
+      name: 'VAT 15% (Output)',
+      nameAr: 'ضريبة القيمة المضافة ١٥٪ (مخرجات)',
+      rate: 15,
+      type: 'sales',
+      accountId: salesAcct?._id,
+    },
+    {
+      code: 'VAT15-IN',
+      name: 'VAT 15% (Input)',
+      nameAr: 'ضريبة القيمة المضافة ١٥٪ (مدخلات)',
+      rate: 15,
+      type: 'purchase',
+      accountId: purchaseAcct?._id,
+    },
+  ];
+
+  const out = [];
+  for (const seed of seeds) {
+    if (!seed.accountId) continue;
+    let tax = await Tax.findOne({ tenantId, code: seed.code });
+    if (!tax) {
+      tax = await Tax.create({
+        ...seed,
+        tenantId,
+        active: true,
+        isSystem: true,
+        createdBy: userId || undefined,
+      });
+    } else if (!tax.accountId) {
+      tax.accountId = seed.accountId;
+      await tax.save();
+    }
+    out.push(tax);
+  }
+  return out;
+}
+
+export async function listTaxes(tenantId, { type = null, activeOnly = true } = {}) {
+  await ensureDefaultTaxes(tenantId);
+  const Tax = (await import('../models/Tax.js')).default;
+  const filter = { tenantId };
+  if (type) filter.type = type;
+  if (activeOnly) filter.active = { $ne: false };
+  return Tax.find(filter)
+    .populate('accountId', 'code name nameAr')
+    .sort({ type: 1, rate: 1, code: 1 })
+    .lean();
+}
+
+export async function createTax(tenantId, userId, payload = {}) {
+  const Tax = (await import('../models/Tax.js')).default;
+  const code = String(payload.code || '').trim().toUpperCase();
+  const name = String(payload.name || '').trim();
+  const type = payload.type === 'purchase' ? 'purchase' : 'sales';
+  const rate = Number(payload.rate);
+  const accountId = payload.accountId;
+  if (!code || !name) throw new Error('code and name required');
+  if (!(rate >= 0)) throw new Error('rate required');
+  if (!accountId) throw new Error('accountId required');
+  const existing = await Tax.findOne({ tenantId, code });
+  if (existing) throw new Error('Tax code already exists');
+  return Tax.create({
+    tenantId,
+    code,
+    name,
+    nameAr: payload.nameAr || '',
+    rate,
+    type,
+    accountId,
+    active: payload.active !== false,
+    createdBy: userId || undefined,
+  });
+}
+
+export async function updateTax(tenantId, userId, taxId, patch = {}) {
+  const Tax = (await import('../models/Tax.js')).default;
+  const tax = await Tax.findOne({ _id: taxId, tenantId });
+  if (!tax) throw new Error('Tax not found');
+  if (patch.name !== undefined) tax.name = String(patch.name).trim();
+  if (patch.nameAr !== undefined) tax.nameAr = String(patch.nameAr || '').trim();
+  if (patch.rate !== undefined) tax.rate = Number(patch.rate);
+  if (patch.accountId !== undefined) tax.accountId = patch.accountId;
+  if (patch.active !== undefined) tax.active = Boolean(patch.active);
+  if (patch.type !== undefined && !tax.isSystem) {
+    tax.type = patch.type === 'purchase' ? 'purchase' : 'sales';
+  }
+  tax.updatedBy = userId || undefined;
+  await tax.save();
+  return tax;
+}
+
+/** Default tax ObjectId for sales or purchase (system VAT 15% preferred). */
+export async function resolveDefaultTaxId(tenantId, type = 'sales') {
+  await ensureDefaultTaxes(tenantId);
+  const Tax = (await import('../models/Tax.js')).default;
+  const tax = await Tax.findOne({
+    tenantId,
+    type: type === 'purchase' ? 'purchase' : 'sales',
+    active: { $ne: false },
+  }).sort({ isSystem: -1, rate: -1 }).select('_id').lean();
+  return tax?._id || null;
+}
+
+/**
+ * Resolve a posting role account: partner override → tenant default → CoA code.
+ * @param {string} role — ACCOUNT_CODE_MAP key (ar, ap, sales, cash, bank, …)
+ */
+export async function resolveRoleAccount(tenantId, role, {
+  byCode = null,
+  byId = null,
+  defaultIds = null,
+  partnerAccountId = null,
+} = {}) {
+  const map = byCode && byId
+    ? { byCode, byId }
+    : await getAccountMap(tenantId);
+
+  if (partnerAccountId) {
+    const partnerAcct = map.byId[String(partnerAccountId)]
+      || await ChartOfAccount.findOne({ _id: partnerAccountId, tenantId, isActive: true }).lean();
+    if (partnerAcct) return partnerAcct;
+  }
+
+  const ids = defaultIds || (await ensureAccountingDefaults(tenantId)).ids;
+  const key = ROLE_TO_DEFAULT_KEY[role];
+  if (key && ids[key]) {
+    const fromDefault = map.byId[String(ids[key])];
+    if (fromDefault) return fromDefault;
+  }
+
+  const code = ACCOUNT_CODE_MAP[role];
+  return (code && map.byCode[code]) || null;
 }
 
 async function nextEntryNumber(tenantId, sequencePrefix = null) {
@@ -154,6 +446,178 @@ async function applyBalanceDelta(tenantId, lines, direction = 1) {
   }
 }
 
+/** Start-of-day UTC for date-only comparison */
+function startOfDay(d) {
+  const x = new Date(d);
+  if (Number.isNaN(x.getTime())) return null;
+  x.setUTCHours(0, 0, 0, 0);
+  return x;
+}
+
+export async function getAccountingLockDates(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting').lean();
+  const a = tenant?.settings?.accounting || {};
+  return {
+    lockDate: a.lockDate || null,
+    taxLockDate: a.taxLockDate || null,
+    hardLockDate: a.hardLockDate || null,
+  };
+}
+
+export async function setAccountingLockDates(tenantId, { lockDate, taxLockDate, hardLockDate } = {}) {
+  const update = {};
+  if (lockDate !== undefined) {
+    update['settings.accounting.lockDate'] = lockDate ? new Date(lockDate) : null;
+  }
+  if (taxLockDate !== undefined) {
+    update['settings.accounting.taxLockDate'] = taxLockDate ? new Date(taxLockDate) : null;
+  }
+  if (hardLockDate !== undefined) {
+    update['settings.accounting.hardLockDate'] = hardLockDate ? new Date(hardLockDate) : null;
+  }
+  await Tenant.findByIdAndUpdate(tenantId, { $set: update });
+  return getAccountingLockDates(tenantId);
+}
+
+/**
+ * Block posting (and hard-block reverses) when entryDate is on/before a lock date.
+ * @param {'post'|'reverse'|'tax'} mode — tax also respects taxLockDate
+ */
+export async function assertAccountingPeriodOpen(tenantId, entryDate, mode = 'post') {
+  const locks = await getAccountingLockDates(tenantId);
+  const day = startOfDay(entryDate || new Date());
+  if (!day) throw new Error('Invalid entry date');
+
+  const hard = locks.hardLockDate ? startOfDay(locks.hardLockDate) : null;
+  if (hard && day.getTime() <= hard.getTime()) {
+    throw new Error(
+      `Accounting period is hard-locked through ${hard.toISOString().slice(0, 10)}. No posts or reversals allowed.`,
+    );
+  }
+
+  if (mode === 'post' || mode === 'tax') {
+    const soft = locks.lockDate ? startOfDay(locks.lockDate) : null;
+    if (soft && day.getTime() <= soft.getTime()) {
+      throw new Error(
+        `Accounting period is locked through ${soft.toISOString().slice(0, 10)}. Cannot post entries on or before this date.`,
+      );
+    }
+  }
+
+  if (mode === 'tax' || mode === 'post') {
+    const tax = locks.taxLockDate ? startOfDay(locks.taxLockDate) : null;
+    if (mode === 'tax' && tax && day.getTime() <= tax.getTime()) {
+      throw new Error(
+        `Tax period is locked through ${tax.toISOString().slice(0, 10)}. Cannot post tax-affecting entries on or before this date.`,
+      );
+    }
+  }
+}
+
+async function syncJournalItemsFromMove(entry, { state = 'posted' } = {}) {
+  if (!entry?._id) return;
+  // Preserve reconciliation matches across re-sync
+  const existing = await JournalItem.find({ tenantId: entry.tenantId, moveId: entry._id })
+    .select('lineIndex reconcileId')
+    .lean();
+  const reconcileByIndex = new Map(
+    existing.filter((r) => r.reconcileId).map((r) => [Number(r.lineIndex), r.reconcileId]),
+  );
+
+  await JournalItem.deleteMany({ tenantId: entry.tenantId, moveId: entry._id });
+  const lines = Array.isArray(entry.lines) ? entry.lines : [];
+  if (!lines.length) return;
+  const docs = lines.map((line, lineIndex) => ({
+    tenantId: entry.tenantId,
+    moveId: entry._id,
+    journalId: entry.journalId || null,
+    entryNumber: entry.entryNumber || '',
+    entryDate: entry.entryDate,
+    postingDate: entry.postingDate || (state === 'posted' ? new Date() : null),
+    accountId: line.accountId,
+    accountCode: line.accountCode || '',
+    accountName: line.accountName || '',
+    partnerId: line.partnerId || null,
+    taxIds: Array.isArray(line.taxIds) ? line.taxIds : [],
+    analyticAccountId: line.analyticAccountId || null,
+    reconcileId: reconcileByIndex.get(lineIndex) || null,
+    description: line.description || '',
+    debit: Number(line.debit || 0),
+    credit: Number(line.credit || 0),
+    currency: entry.currency || 'SAR',
+    state,
+    sourceModel: entry.sourceModel || '',
+    sourceId: entry.sourceId || undefined,
+    lineIndex,
+  }));
+  await JournalItem.insertMany(docs);
+}
+
+async function cancelJournalItemsForMove(tenantId, moveId) {
+  await JournalItem.updateMany(
+    { tenantId, moveId },
+    { $set: { state: 'cancelled' } },
+  );
+}
+
+/**
+ * Backfill JournalItem rows for already-posted moves (idempotent per move).
+ */
+export async function backfillJournalItems(tenantId, { limit = 500 } = {}) {
+  const posted = await JournalEntry.find({
+    tenantId,
+    status: 'posted',
+  })
+    .sort({ entryDate: 1 })
+    .limit(Math.min(2000, Number(limit) || 500));
+
+  let synced = 0;
+  for (const entry of posted) {
+    const existing = await JournalItem.countDocuments({ tenantId, moveId: entry._id, state: 'posted' });
+    if (existing === (entry.lines || []).length && existing > 0) continue;
+    await syncJournalItemsFromMove(entry, { state: 'posted' });
+    synced += 1;
+  }
+  return { scanned: posted.length, synced };
+}
+
+export async function listJournalItems(tenantId, {
+  accountId,
+  partnerId,
+  moveId,
+  analyticAccountId,
+  from,
+  to,
+  state = 'posted',
+  limit = 100,
+  skip = 0,
+} = {}) {
+  const filter = { tenantId };
+  if (accountId) filter.accountId = accountId;
+  if (partnerId) filter.partnerId = partnerId;
+  if (moveId) filter.moveId = moveId;
+  if (analyticAccountId) filter.analyticAccountId = analyticAccountId;
+  if (state) filter.state = state;
+  if (from || to) {
+    filter.entryDate = {};
+    if (from) filter.entryDate.$gte = new Date(from);
+    if (to) {
+      const end = new Date(to);
+      end.setHours(23, 59, 59, 999);
+      filter.entryDate.$lte = end;
+    }
+  }
+  const [items, total] = await Promise.all([
+    JournalItem.find(filter)
+      .sort({ entryDate: -1, createdAt: -1 })
+      .skip(Number(skip) || 0)
+      .limit(Math.min(500, Number(limit) || 100))
+      .lean(),
+    JournalItem.countDocuments(filter),
+  ]);
+  return { items, total };
+}
+
 export async function createJournalEntry({
   tenantId,
   userId,
@@ -170,6 +634,7 @@ export async function createJournalEntry({
   status = 'draft',
   entryNumber = null,
   journalId = null,
+  bypassLockCheck = false,
 }) {
   const normalised = normaliseLines(lines);
   assertBalanced(normalised);
@@ -184,6 +649,9 @@ export async function createJournalEntry({
       ...line,
       accountCode: account.code,
       accountName: account.name,
+      partnerId: line.partnerId || null,
+      taxIds: line.taxIds || [],
+      analyticAccountId: line.analyticAccountId || null,
     });
   }
 
@@ -200,6 +668,14 @@ export async function createJournalEntry({
   }
 
   const number = entryNumber || await nextEntryNumber(tenantId, sequencePrefix);
+
+  if (status === 'posted' && !bypassLockCheck) {
+    await assertAccountingPeriodOpen(tenantId, entryDate, 'post');
+    const hasTax = enriched.some((l) => Array.isArray(l.taxIds) && l.taxIds.length);
+    if (hasTax) {
+      await assertAccountingPeriodOpen(tenantId, entryDate, 'tax');
+    }
+  }
 
   const entry = await JournalEntry.create({
     tenantId,
@@ -221,17 +697,28 @@ export async function createJournalEntry({
     createdBy: userId || undefined,
   });
 
+  await syncJournalItemsFromMove(entry, { state: 'draft' });
+
   if (status === 'posted') {
-    return postJournalEntry(tenantId, entry._id, userId);
+    return postJournalEntry(tenantId, entry._id, userId, { bypassLockCheck });
   }
   return entry;
 }
 
-export async function postJournalEntry(tenantId, entryId, userId) {
+export async function postJournalEntry(tenantId, entryId, userId, { bypassLockCheck = false } = {}) {
   const entry = await JournalEntry.findOne({ _id: entryId, tenantId });
   if (!entry) throw new Error('Journal entry not found');
   if (entry.status === 'posted') return entry;
   if (entry.status === 'void') throw new Error('Cannot post a voided entry');
+  if (entry.status === 'reversed') throw new Error('Cannot post a reversed entry');
+
+  if (!bypassLockCheck) {
+    await assertAccountingPeriodOpen(tenantId, entry.entryDate, 'post');
+    const hasTax = (entry.lines || []).some((l) => Array.isArray(l.taxIds) && l.taxIds.length);
+    if (hasTax) {
+      await assertAccountingPeriodOpen(tenantId, entry.entryDate, 'tax');
+    }
+  }
 
   const lines = normaliseLines(entry.lines);
   assertBalanced(lines);
@@ -243,22 +730,103 @@ export async function postJournalEntry(tenantId, entryId, userId) {
   entry.totalDebit = round2(lines.reduce((s, l) => s + l.debit, 0));
   entry.totalCredit = round2(lines.reduce((s, l) => s + l.credit, 0));
   await entry.save();
+  await syncJournalItemsFromMove(entry, { state: 'posted' });
   return entry;
 }
 
+/**
+ * Draft → void (no balance impact).
+ * Posted → formal reverse move (immutability). Never mutate posted balances in-place.
+ */
 export async function voidJournalEntry(tenantId, entryId, userId, reason = '') {
   const entry = await JournalEntry.findOne({ _id: entryId, tenantId });
   if (!entry) throw new Error('Journal entry not found');
-  if (entry.status === 'void') return entry;
+  if (entry.status === 'void' || entry.status === 'reversed') return entry;
+
   if (entry.status === 'posted') {
-    await applyBalanceDelta(tenantId, normaliseLines(entry.lines), -1);
+    return reverseJournalEntry(tenantId, entryId, userId, reason || 'Reversal');
   }
+
   entry.status = 'void';
   entry.voidedAt = new Date();
   entry.voidedBy = userId || undefined;
   entry.voidReason = reason || '';
   await entry.save();
+  await cancelJournalItemsForMove(tenantId, entry._id);
   return entry;
+}
+
+/**
+ * Create a counter-entry that reverses a posted move. Original stays posted→reversed.
+ */
+export async function reverseJournalEntry(tenantId, entryId, userId, reason = '') {
+  const entry = await JournalEntry.findOne({ _id: entryId, tenantId });
+  if (!entry) throw new Error('Journal entry not found');
+  if (entry.status === 'reversed') {
+    if (entry.reversedById) {
+      const existing = await JournalEntry.findOne({ _id: entry.reversedById, tenantId });
+      if (existing) return existing;
+    }
+    throw new Error('Entry already reversed');
+  }
+  if (entry.status !== 'posted') {
+    throw new Error('Only posted entries can be reversed');
+  }
+  if (entry.reversedById) {
+    throw new Error('Entry already has a reversal');
+  }
+
+  await assertAccountingPeriodOpen(tenantId, entry.entryDate, 'reverse');
+
+  const reverseLines = normaliseLines(entry.lines).map((line) => ({
+    accountId: line.accountId,
+    accountCode: line.accountCode,
+    accountName: line.accountName,
+    description: reason
+      ? `${reason} — reverse ${entry.entryNumber}`
+      : `Reverse ${entry.entryNumber}`,
+    debit: line.credit,
+    credit: line.debit,
+    partnerId: line.partnerId || null,
+    taxIds: line.taxIds || [],
+    analyticAccountId: line.analyticAccountId || null,
+  }));
+
+  const reversal = await createJournalEntry({
+    tenantId,
+    userId,
+    entryDate: new Date(),
+    type: 'reversal',
+    memo: reason || `Reversal of ${entry.entryNumber}`,
+    memoAr: '',
+    reference: entry.entryNumber,
+    currency: entry.currency || 'SAR',
+    lines: reverseLines,
+    sourceModel: entry.sourceModel || 'JournalEntry',
+    sourceId: entry._id,
+    sourceNumber: entry.entryNumber,
+    status: 'posted',
+    journalId: entry.journalId || null,
+  });
+
+  // createJournalEntry with posted already posts; attach reverse linkage
+  const postedReversal = await JournalEntry.findOne({ _id: reversal._id, tenantId });
+  if (postedReversal) {
+    postedReversal.reversalOfId = entry._id;
+    postedReversal.type = 'reversal';
+    await postedReversal.save();
+  }
+
+  entry.status = 'reversed';
+  entry.reversedById = postedReversal?._id || reversal._id;
+  entry.voidedAt = new Date();
+  entry.voidedBy = userId || undefined;
+  entry.voidReason = reason || 'Reversed';
+  await entry.save();
+  // Keep original JournalItems posted; reversal items provide the counter-lines.
+  // Net of all posted items matches COA balances.
+
+  return postedReversal || reversal;
 }
 
 async function findExistingSourceEntry(tenantId, sourceModel, sourceId) {
@@ -267,7 +835,7 @@ async function findExistingSourceEntry(tenantId, sourceModel, sourceId) {
     tenantId,
     sourceModel,
     sourceId,
-    status: { $ne: 'void' },
+    status: { $nin: ['void', 'reversed'] },
   });
 }
 
@@ -275,6 +843,63 @@ function paymentAccountCode(method = 'bank_transfer') {
   const m = String(method || '').toLowerCase();
   if (m.includes('cash')) return ACCOUNT_CODE_MAP.cash;
   return ACCOUNT_CODE_MAP.bank;
+}
+
+function paymentLiquidityRole(method = 'bank_transfer') {
+  return paymentAccountCode(method) === ACCOUNT_CODE_MAP.cash ? 'cash' : 'bank';
+}
+
+async function resolveLiquidityAccount(tenantId, paymentMethod, ctx = {}) {
+  const role = paymentLiquidityRole(paymentMethod);
+  const primary = await resolveRoleAccount(tenantId, role, ctx);
+  if (primary) return { account: primary, role };
+  const fallbackRole = role === 'cash' ? 'bank' : 'cash';
+  const fallback = await resolveRoleAccount(tenantId, fallbackRole, ctx);
+  return { account: fallback, role: fallback ? fallbackRole : role };
+}
+
+async function resolveJournalBookId(tenantId, userId, ensureFnName) {
+  try {
+    const mod = await import('./inventory/stockAccounting.js');
+    const fn = mod[ensureFnName];
+    if (typeof fn !== 'function') return null;
+    const book = await fn(tenantId, userId);
+    return book?._id || null;
+  } catch {
+    return null;
+  }
+}
+
+function stampPartnerId(lines = [], partnerId = null) {
+  if (!partnerId) return lines;
+  return lines.map((l) => ({ ...l, partnerId: l.partnerId || partnerId }));
+}
+
+async function loadPartnerAccountIds(tenantId, partnerId) {
+  if (!partnerId) return { receivableAccountId: null, payableAccountId: null };
+  try {
+    const Partner = (await import('../models/Partner.js')).default;
+    const partner = await Partner.findOne({ _id: partnerId, tenantId })
+      .select('receivableAccountId payableAccountId')
+      .lean();
+    return {
+      receivableAccountId: partner?.receivableAccountId || null,
+      payableAccountId: partner?.payableAccountId || null,
+    };
+  } catch {
+    return { receivableAccountId: null, payableAccountId: null };
+  }
+}
+
+/**
+ * Absolute economics from an invoice/credit-note document (handles negative ZATCA CN totals).
+ */
+function absInvoiceAmounts(doc = {}) {
+  const tax = Math.abs(round2(Number(doc.totalTax ?? doc.taxAmount ?? 0)));
+  const gross = Math.abs(round2(Number(doc.grandTotal || 0)));
+  let net = Math.abs(round2(Number(doc.taxableAmount ?? doc.subtotal ?? (gross - tax))));
+  if (round2(net + tax) !== gross && gross > 0) net = round2(Math.max(0, gross - tax));
+  return { net, tax, gross };
 }
 
 /**
@@ -289,11 +914,14 @@ export function buildSalesInvoiceJournalLines({
   defaultSales = null,
   revenueCredits = null,
   description = '',
+  partnerId = null,
+  taxIds = null,
 }) {
   const net = round2(Math.abs(Number(netAmount) || 0));
   const tax = round2(Math.max(0, Number(taxAmount) || 0));
   const gross = round2(net + tax);
   if (gross <= 0 || !ar) return [];
+  const vatTaxIds = Array.isArray(taxIds) && taxIds.length ? taxIds.filter(Boolean) : [];
 
   const lines = [
     {
@@ -302,6 +930,7 @@ export function buildSalesInvoiceJournalLines({
       debit: gross,
       credit: 0,
       description: description || 'Accounts receivable',
+      partnerId: partnerId || null,
     },
   ];
 
@@ -320,6 +949,7 @@ export function buildSalesInvoiceJournalLines({
           debit: 0,
           credit: amt,
           description: description || 'Sales revenue',
+          partnerId: partnerId || null,
         });
       }
     }
@@ -331,6 +961,7 @@ export function buildSalesInvoiceJournalLines({
       debit: 0,
       credit: net,
       description: description || 'Sales revenue',
+      partnerId: partnerId || null,
     });
   } else {
     return [];
@@ -343,6 +974,8 @@ export function buildSalesInvoiceJournalLines({
       debit: 0,
       credit: tax,
       description: description || 'VAT output',
+      partnerId: partnerId || null,
+      taxIds: vatTaxIds,
     });
   } else if (tax > 0 && lines.length > 1) {
     // Fold tax into first revenue credit when no VAT account
@@ -350,7 +983,7 @@ export function buildSalesInvoiceJournalLines({
     if (rev) rev.credit = round2(rev.credit + tax);
   }
 
-  return lines;
+  return stampPartnerId(lines, partnerId);
 }
 
 function normalizeAccountingOverrideLines(rawLines = []) {
@@ -363,6 +996,7 @@ function normalizeAccountingOverrideLines(rawLines = []) {
       credit: round2(Math.max(0, Number(line?.credit) || 0)),
       description: String(line?.description || '').trim(),
       role: String(line?.role || '').trim(),
+      partnerId: line?.partnerId || null,
     }))
     .filter((line) => line.accountId && (line.debit > 0 || line.credit > 0));
   const debit = round2(lines.reduce((s, l) => s + l.debit, 0));
@@ -375,10 +1009,12 @@ function normalizeAccountingOverrideLines(rawLines = []) {
  * Preview sales invoice GL lines (no persistence) for the invoice composer journal panel.
  */
 export async function previewSalesInvoiceJournal({ tenantId, invoice = {} }) {
-  const { byCode } = await getAccountMap(tenantId);
-  const ar = byCode[ACCOUNT_CODE_MAP.ar];
-  const sales = byCode[ACCOUNT_CODE_MAP.sales];
-  const vatOut = byCode[ACCOUNT_CODE_MAP.vatOutput];
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+  const ctx = { byCode, byId, defaultIds };
+  const ar = await resolveRoleAccount(tenantId, 'ar', ctx);
+  const sales = await resolveRoleAccount(tenantId, 'sales', ctx);
+  const vatOut = await resolveRoleAccount(tenantId, 'vatOutput', ctx);
   if (!ar || !sales) {
     return { lines: [], debit: 0, credit: 0, balanced: false, error: 'Missing AR or Sales account in chart of accounts' };
   }
@@ -435,10 +1071,10 @@ export async function previewSalesInvoiceJournal({ tenantId, invoice = {} }) {
   const accounts = accountIds.length
     ? await ChartOfAccount.find({ _id: { $in: accountIds }, tenantId }).select('code name nameAr').lean()
     : [];
-  const byId = new Map(accounts.map((a) => [String(a._id), a]));
+  const accountById = new Map(accounts.map((a) => [String(a._id), a]));
 
   const lines = built.map((l) => {
-    const acct = byId.get(String(l.accountId));
+    const acct = accountById.get(String(l.accountId));
     let role = 'other';
     if (String(l.accountCode) === ACCOUNT_CODE_MAP.ar || String(acct?.code) === ACCOUNT_CODE_MAP.ar) role = 'ar';
     else if (String(l.accountCode) === ACCOUNT_CODE_MAP.vatOutput || String(acct?.code) === ACCOUNT_CODE_MAP.vatOutput) role = 'vat_out';
@@ -463,11 +1099,13 @@ export async function previewSalesInvoiceJournal({ tenantId, invoice = {} }) {
  * Preview purchase invoice GL lines (simplified AP / expense|stock / VAT in).
  */
 export async function previewPurchaseInvoiceJournal({ tenantId, invoice = {} }) {
-  const { byCode } = await getAccountMap(tenantId);
-  const ap = byCode[ACCOUNT_CODE_MAP.ap];
-  const vatIn = byCode[ACCOUNT_CODE_MAP.vatInput];
-  const cogs = byCode[ACCOUNT_CODE_MAP.cogs];
-  const inventory = byCode[ACCOUNT_CODE_MAP.inventory];
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+  const ctx = { byCode, byId, defaultIds };
+  const ap = await resolveRoleAccount(tenantId, 'ap', ctx);
+  const vatIn = await resolveRoleAccount(tenantId, 'vatInput', ctx);
+  const cogs = await resolveRoleAccount(tenantId, 'cogs', ctx);
+  const inventory = await resolveRoleAccount(tenantId, 'inventory', ctx);
   if (!ap) {
     return { lines: [], debit: 0, credit: 0, balanced: false, error: 'Missing Accounts Payable in chart of accounts' };
   }
@@ -583,10 +1221,17 @@ export async function postSalesInvoiceJournal({
   const existing = await findExistingSourceEntry(tenantId, 'Invoice', invoice._id);
   if (existing) return existing;
 
-  const { byCode } = await getAccountMap(tenantId);
-  const ar = byCode[ACCOUNT_CODE_MAP.ar];
-  const sales = byCode[ACCOUNT_CODE_MAP.sales];
-  const vatOut = byCode[ACCOUNT_CODE_MAP.vatOutput];
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+  const partnerId = invoice.customerId || null;
+  const partnerAccounts = await loadPartnerAccountIds(tenantId, partnerId);
+  const ctx = { byCode, byId, defaultIds };
+  const ar = await resolveRoleAccount(tenantId, 'ar', {
+    ...ctx,
+    partnerAccountId: partnerAccounts.receivableAccountId,
+  });
+  const sales = await resolveRoleAccount(tenantId, 'sales', ctx);
+  const vatOut = await resolveRoleAccount(tenantId, 'vatOutput', ctx);
   if (!ar || !sales) return null;
 
   const tax = round2(Number(invoice.totalTax ?? invoice.taxAmount ?? 0));
@@ -597,14 +1242,17 @@ export async function postSalesInvoiceJournal({
   }
   if (gross <= 0) return null;
 
+  const salesTaxId = tax > 0 ? await resolveDefaultTaxId(tenantId, 'sales') : null;
+
   const override = normalizeAccountingOverrideLines(invoice.accountingLines);
-  let lines = override.balanced ? override.lines.map((l) => ({
+  let lines = override.balanced ? stampPartnerId(override.lines.map((l) => ({
     accountId: l.accountId,
     accountCode: l.accountCode,
     debit: l.debit,
     credit: l.credit,
     description: l.description || `Invoice ${invoice.invoiceNumber || ''}`,
-  })) : null;
+    partnerId: l.partnerId || partnerId,
+  })), partnerId) : null;
 
   if (!lines) {
   const lineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
@@ -650,18 +1298,13 @@ export async function postSalesInvoiceJournal({
     defaultSales: sales,
     revenueCredits,
     description: `Invoice ${invoice.invoiceNumber || ''}`,
+    partnerId,
+    taxIds: salesTaxId ? [salesTaxId] : [],
   });
   }
   if (!lines || lines.length < 2) return null;
 
-  let journalId = null;
-  try {
-    const { ensureDefaultSalesJournal } = await import('./inventory/stockAccounting.js');
-    const book = await ensureDefaultSalesJournal(tenantId, userId);
-    journalId = book?._id || null;
-  } catch {
-    // optional
-  }
+  const journalId = await resolveJournalBookId(tenantId, userId, 'ensureDefaultSalesJournal');
 
   return createJournalEntry({
     tenantId,
@@ -695,10 +1338,16 @@ export async function postInvoicePaymentJournal({
   const payAmt = round2(amount);
   if (!invoice?._id || payAmt <= 0) return null;
 
-  const { byCode } = await getAccountMap(tenantId);
-  const cashCode = paymentAccountCode(paymentMethod);
-  const cash = byCode[cashCode] || byCode[ACCOUNT_CODE_MAP.bank];
-  const ar = byCode[ACCOUNT_CODE_MAP.ar];
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+  const partnerId = invoice.customerId || null;
+  const partnerAccounts = await loadPartnerAccountIds(tenantId, partnerId);
+  const ctx = { byCode, byId, defaultIds };
+  const { account: cash, role: liqRole } = await resolveLiquidityAccount(tenantId, paymentMethod, ctx);
+  const ar = await resolveRoleAccount(tenantId, 'ar', {
+    ...ctx,
+    partnerAccountId: partnerAccounts.receivableAccountId,
+  });
   if (!cash || !ar) return null;
 
   const key = `InvoicePayment:${invoice._id}:${payAmt}:${reference || paymentDate}`;
@@ -711,6 +1360,12 @@ export async function postInvoicePaymentJournal({
   });
   if (dup) return dup;
 
+  const journalId = await resolveJournalBookId(
+    tenantId,
+    userId,
+    liqRole === 'cash' ? 'ensureDefaultCashJournal' : 'ensureDefaultBankJournal',
+  );
+
   return createJournalEntry({
     tenantId,
     userId,
@@ -719,14 +1374,15 @@ export async function postInvoicePaymentJournal({
     memo: `Payment for invoice ${invoice.invoiceNumber}`,
     reference: key,
     currency,
-    lines: [
+    lines: stampPartnerId([
       { accountId: cash._id, accountCode: cash.code, debit: payAmt, credit: 0, description: 'Customer payment' },
       { accountId: ar._id, accountCode: ar.code, debit: 0, credit: payAmt, description: `Settle AR ${invoice.invoiceNumber}` },
-    ],
+    ], partnerId),
     sourceModel: 'InvoicePayment',
     sourceId: invoice._id,
     sourceNumber: invoice.invoiceNumber,
     status: 'posted',
+    journalId,
   });
 }
 
@@ -745,10 +1401,16 @@ export async function postSupplierPaymentJournal({
   const payAmt = round2(amount);
   if (!purchaseOrder?._id || payAmt <= 0) return null;
 
-  const { byCode } = await getAccountMap(tenantId);
-  const cashCode = paymentAccountCode(paymentMethod);
-  const cash = byCode[cashCode] || byCode[ACCOUNT_CODE_MAP.bank] || byCode[ACCOUNT_CODE_MAP.cash];
-  const ap = byCode[ACCOUNT_CODE_MAP.ap];
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+  const partnerId = purchaseOrder.supplierId?._id || purchaseOrder.supplierId || null;
+  const partnerAccounts = await loadPartnerAccountIds(tenantId, partnerId);
+  const ctx = { byCode, byId, defaultIds };
+  const { account: cash, role: liqRole } = await resolveLiquidityAccount(tenantId, paymentMethod, ctx);
+  const ap = await resolveRoleAccount(tenantId, 'ap', {
+    ...ctx,
+    partnerAccountId: partnerAccounts.payableAccountId,
+  });
   if (!cash || !ap) return null;
 
   const refKey = reference || (paymentDate instanceof Date ? paymentDate.toISOString() : String(paymentDate)) || String(Date.now());
@@ -766,6 +1428,12 @@ export async function postSupplierPaymentJournal({
   const supplierName = purchaseOrder.supplierId?.nameAr || purchaseOrder.supplierId?.nameEn || purchaseOrder.supplierId?.name || '';
   const desc = supplierName ? `${poNumber} (${supplierName})` : poNumber;
 
+  const journalId = await resolveJournalBookId(
+    tenantId,
+    userId,
+    liqRole === 'cash' ? 'ensureDefaultCashJournal' : 'ensureDefaultBankJournal',
+  );
+
   return createJournalEntry({
     tenantId,
     userId,
@@ -775,28 +1443,27 @@ export async function postSupplierPaymentJournal({
     memoAr: `سداد دفعة للمورد لأمر الشراء ${desc}`,
     reference: key,
     currency,
-    lines: [
+    lines: stampPartnerId([
       {
         accountId: ap._id,
         accountCode: ap.code,
-        accountName: ap.name,
         debit: payAmt,
         credit: 0,
-        description: `Settle AP / ${desc}${notes ? ` - ${notes}` : ''}`,
+        description: `Pay AP ${desc}${notes ? ` — ${notes}` : ''}`,
       },
       {
         accountId: cash._id,
         accountCode: cash.code,
-        accountName: cash.name,
         debit: 0,
         credit: payAmt,
-        description: `Payment via ${paymentMethod} / ${desc}`,
+        description: `Cash/Bank out ${desc}`,
       },
-    ],
+    ], partnerId),
     sourceModel: 'PurchaseOrderPayment',
     sourceId: purchaseOrder._id,
     sourceNumber: poNumber,
     status: 'posted',
+    journalId,
   });
 }
 
@@ -811,7 +1478,9 @@ export async function postExpensePaidJournal({
   const existing = await findExistingSourceEntry(tenantId, 'Expense', expense._id);
   if (existing) return existing;
 
-  const { byCode } = await getAccountMap(tenantId);
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+  const ctx = { byCode, byId, defaultIds };
   const category = String(expense.category || '').toLowerCase();
   let expenseCode = ACCOUNT_CODE_MAP.opex;
   if (category.includes('salary') || category.includes('payroll') || category.includes('wage')) {
@@ -822,7 +1491,7 @@ export async function postExpensePaidJournal({
     expenseCode = ACCOUNT_CODE_MAP.utilities;
   }
 
-  let expenseAcct = byCode[expenseCode] || byCode[ACCOUNT_CODE_MAP.opex];
+  let expenseAcct = byCode[expenseCode] || await resolveRoleAccount(tenantId, 'opex', ctx);
   // Prefer product / category expense account when an expense product is linked
   if (expense.productId) {
     try {
@@ -834,8 +1503,8 @@ export async function postExpensePaidJournal({
     }
   }
 
-  const vatIn = byCode[ACCOUNT_CODE_MAP.vatInput];
-  const cash = byCode[paymentAccountCode(expense.paymentMethod)] || byCode[ACCOUNT_CODE_MAP.bank];
+  const vatIn = await resolveRoleAccount(tenantId, 'vatInput', ctx);
+  const { account: cash, role: liqRole } = await resolveLiquidityAccount(tenantId, expense.paymentMethod, ctx);
   if (!expenseAcct || !cash) return null;
 
   const net = round2(Number(expense.amount || 0));
@@ -843,6 +1512,7 @@ export async function postExpensePaidJournal({
   const total = round2(Number(expense.totalAmount || net + tax));
   if (total <= 0) return null;
 
+  const purchaseTaxId = tax > 0 ? await resolveDefaultTaxId(tenantId, 'purchase') : null;
   const lines = [
     { accountId: expenseAcct._id, accountCode: expenseAcct.code, debit: net, credit: 0, description: expense.description || expense.expenseNumber },
   ];
@@ -853,6 +1523,7 @@ export async function postExpensePaidJournal({
       debit: tax,
       credit: 0,
       description: `VAT input ${expense.expenseNumber}`,
+      taxIds: purchaseTaxId ? [purchaseTaxId] : [],
     });
   }
   lines.push({
@@ -862,6 +1533,12 @@ export async function postExpensePaidJournal({
     credit: total,
     description: `Pay ${expense.expenseNumber}`,
   });
+
+  const journalId = await resolveJournalBookId(
+    tenantId,
+    userId,
+    liqRole === 'cash' ? 'ensureDefaultCashJournal' : 'ensureDefaultBankJournal',
+  );
 
   return createJournalEntry({
     tenantId,
@@ -876,6 +1553,7 @@ export async function postExpensePaidJournal({
     sourceId: expense._id,
     sourceNumber: expense.expenseNumber,
     status: 'posted',
+    journalId,
   });
 }
 
@@ -890,14 +1568,24 @@ export async function postVoucherJournal({
   const existing = await findExistingSourceEntry(tenantId, 'Voucher', voucher._id);
   if (existing) return existing;
 
-  const { byCode } = await getAccountMap(tenantId);
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+  const partnerId = voucher.partyId || voucher.customerId || voucher.supplierId || null;
+  const partnerAccounts = await loadPartnerAccountIds(tenantId, partnerId);
+  const ctx = { byCode, byId, defaultIds };
   const amount = round2(Number(voucher.amount || voucher.totalAmount || 0));
   if (amount <= 0) return null;
 
-  const cash = byCode[paymentAccountCode(voucher.paymentMethod)] || byCode[ACCOUNT_CODE_MAP.bank];
-  const ar = byCode[ACCOUNT_CODE_MAP.ar];
-  const ap = byCode[ACCOUNT_CODE_MAP.ap];
-  const opex = byCode[ACCOUNT_CODE_MAP.opex];
+  const { account: cash, role: liqRole } = await resolveLiquidityAccount(tenantId, voucher.paymentMethod, ctx);
+  const ar = await resolveRoleAccount(tenantId, 'ar', {
+    ...ctx,
+    partnerAccountId: partnerAccounts.receivableAccountId,
+  });
+  const ap = await resolveRoleAccount(tenantId, 'ap', {
+    ...ctx,
+    partnerAccountId: partnerAccounts.payableAccountId,
+  });
+  const opex = await resolveRoleAccount(tenantId, 'opex', ctx);
   const otherIncome = byCode[ACCOUNT_CODE_MAP.otherIncome];
   if (!cash) return null;
 
@@ -918,6 +1606,13 @@ export async function postVoucherJournal({
       { accountId: cash._id, accountCode: cash.code, debit: 0, credit: amount, description: `Payment ${voucher.voucherNumber}` },
     ];
   }
+  lines = stampPartnerId(lines, partnerId);
+
+  const journalId = await resolveJournalBookId(
+    tenantId,
+    userId,
+    liqRole === 'cash' ? 'ensureDefaultCashJournal' : 'ensureDefaultBankJournal',
+  );
 
   return createJournalEntry({
     tenantId,
@@ -932,10 +1627,11 @@ export async function postVoucherJournal({
     sourceId: voucher._id,
     sourceNumber: voucher.voucherNumber,
     status: 'posted',
+    journalId,
   });
 }
 
-/** Credit note — reverse sales invoice economics */
+/** Credit note — reverse sales invoice economics (Sales/VAT Dr, AR Cr) with partnerId */
 export async function postCreditNoteJournal({
   tenantId,
   userId,
@@ -946,30 +1642,51 @@ export async function postCreditNoteJournal({
   const existing = await findExistingSourceEntry(tenantId, 'CreditNote', creditNote._id);
   if (existing) return existing;
 
-  const { byCode } = await getAccountMap(tenantId);
-  const ar = byCode[ACCOUNT_CODE_MAP.ar];
-  const sales = byCode[ACCOUNT_CODE_MAP.sales];
-  const vatOut = byCode[ACCOUNT_CODE_MAP.vatOutput];
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+  const partnerId = creditNote.customerId || null;
+  const partnerAccounts = await loadPartnerAccountIds(tenantId, partnerId);
+  const ctx = { byCode, byId, defaultIds };
+  const ar = await resolveRoleAccount(tenantId, 'ar', {
+    ...ctx,
+    partnerAccountId: partnerAccounts.receivableAccountId,
+  });
+  const sales = await resolveRoleAccount(tenantId, 'sales', ctx);
+  const vatOut = await resolveRoleAccount(tenantId, 'vatOutput', ctx);
   if (!ar || !sales) return null;
 
-  const net = Math.abs(round2(Number(creditNote.subtotal ?? 0)));
-  const tax = Math.abs(round2(Number(creditNote.taxAmount || 0)));
-  const gross = Math.abs(round2(Number(creditNote.grandTotal || net + tax)));
+  const { net, tax, gross } = absInvoiceAmounts(creditNote);
   if (gross <= 0) return null;
 
-  const lines = [
-    { accountId: sales._id, accountCode: sales.code, debit: net, credit: 0, description: `CN ${creditNote.invoiceNumber}` },
-    { accountId: ar._id, accountCode: ar.code, debit: 0, credit: gross, description: `CN settle ${creditNote.invoiceNumber}` },
-  ];
-  if (tax > 0 && vatOut) {
-    lines.splice(1, 0, {
-      accountId: vatOut._id,
-      accountCode: vatOut.code,
-      debit: tax,
+  const salesTaxId = tax > 0 ? await resolveDefaultTaxId(tenantId, 'sales') : null;
+  const lines = stampPartnerId([
+    {
+      accountId: sales._id,
+      accountCode: sales.code,
+      debit: net,
       credit: 0,
-      description: `CN VAT ${creditNote.invoiceNumber}`,
-    });
-  }
+      description: `CN ${creditNote.invoiceNumber}`,
+    },
+    ...(tax > 0 && vatOut
+      ? [{
+        accountId: vatOut._id,
+        accountCode: vatOut.code,
+        debit: tax,
+        credit: 0,
+        description: `CN VAT ${creditNote.invoiceNumber}`,
+        taxIds: salesTaxId ? [salesTaxId] : [],
+      }]
+      : []),
+    {
+      accountId: ar._id,
+      accountCode: ar.code,
+      debit: 0,
+      credit: gross,
+      description: `CN settle ${creditNote.invoiceNumber}`,
+    },
+  ], partnerId);
+
+  const journalId = await resolveJournalBookId(tenantId, userId, 'ensureDefaultSalesJournal');
 
   return createJournalEntry({
     tenantId,
@@ -977,6 +1694,7 @@ export async function postCreditNoteJournal({
     entryDate: creditNote.issueDate || new Date(),
     type: 'adjustment',
     memo: `Credit note ${creditNote.invoiceNumber}`,
+    memoAr: `إشعار دائن ${creditNote.invoiceNumber}`,
     reference: creditNote.invoiceNumber,
     currency,
     lines,
@@ -984,7 +1702,223 @@ export async function postCreditNoteJournal({
     sourceId: creditNote._id,
     sourceNumber: creditNote.invoiceNumber,
     status: 'posted',
+    journalId,
   });
+}
+
+/**
+ * Cash/bank refund against a credit note (or CN with paidAmount).
+ * AR Dr, Cash/Bank Cr — money leaving the business to the customer.
+ */
+export async function postCreditNoteRefundJournal({
+  tenantId,
+  userId,
+  creditNote,
+  amount = null,
+  paymentMethod = 'cash',
+  paymentDate = new Date(),
+  reference = '',
+  currency = 'SAR',
+}) {
+  if (!creditNote?._id) return null;
+  const { net, tax, gross } = absInvoiceAmounts(creditNote);
+  const payAmt = round2(amount != null ? amount : (Number(creditNote.paidAmount) > 0 ? creditNote.paidAmount : gross));
+  const refundAmt = Math.abs(payAmt);
+  if (refundAmt <= 0) return null;
+
+  const key = `CreditNoteRefund:${creditNote._id}:${refundAmt}:${reference || paymentDate}`;
+  const dup = await JournalEntry.findOne({
+    tenantId,
+    sourceModel: 'CreditNoteRefund',
+    sourceId: creditNote._id,
+    reference: key,
+    status: { $nin: ['void', 'reversed'] },
+  });
+  if (dup) return dup;
+
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+  const partnerId = creditNote.customerId || null;
+  const partnerAccounts = await loadPartnerAccountIds(tenantId, partnerId);
+  const ctx = { byCode, byId, defaultIds };
+  const { account: cash, role: liqRole } = await resolveLiquidityAccount(tenantId, paymentMethod, ctx);
+  const ar = await resolveRoleAccount(tenantId, 'ar', {
+    ...ctx,
+    partnerAccountId: partnerAccounts.receivableAccountId,
+  });
+  if (!cash || !ar) return null;
+
+  // Ensure the CN AR credit exists first when possible
+  await postCreditNoteJournal({ tenantId, userId, creditNote, currency });
+
+  const journalId = await resolveJournalBookId(
+    tenantId,
+    userId,
+    liqRole === 'cash' ? 'ensureDefaultCashJournal' : 'ensureDefaultBankJournal',
+  );
+
+  return createJournalEntry({
+    tenantId,
+    userId,
+    entryDate: paymentDate || creditNote.issueDate || new Date(),
+    type: 'payment',
+    memo: `Refund for credit note ${creditNote.invoiceNumber}`,
+    memoAr: `استرداد لإشعار دائن ${creditNote.invoiceNumber}`,
+    reference: key,
+    currency,
+    lines: stampPartnerId([
+      {
+        accountId: ar._id,
+        accountCode: ar.code,
+        debit: refundAmt,
+        credit: 0,
+        description: `Refund AR ${creditNote.invoiceNumber}`,
+      },
+      {
+        accountId: cash._id,
+        accountCode: cash.code,
+        debit: 0,
+        credit: refundAmt,
+        description: `Cash/Bank refund ${creditNote.invoiceNumber}`,
+      },
+    ], partnerId),
+    sourceModel: 'CreditNoteRefund',
+    sourceId: creditNote._id,
+    sourceNumber: creditNote.invoiceNumber,
+    status: 'posted',
+    journalId,
+  });
+}
+
+/**
+ * Backfill partnerId on JournalEntry lines + JournalItems from source documents.
+ */
+export async function backfillJournalPartnerIds(tenantId, { limit = 500 } = {}) {
+  const SOURCE_MAP = {
+    Invoice: async (id) => {
+      const inv = await Invoice.findOne({ _id: id, tenantId }).select('customerId supplierId flow').lean();
+      if (!inv) return null;
+      return inv.flow === 'purchase' ? (inv.supplierId || null) : (inv.customerId || null);
+    },
+    InvoicePayment: async (id) => {
+      const inv = await Invoice.findOne({ _id: id, tenantId }).select('customerId').lean();
+      return inv?.customerId || null;
+    },
+    CreditNote: async (id) => {
+      const inv = await Invoice.findOne({ _id: id, tenantId }).select('customerId').lean();
+      return inv?.customerId || null;
+    },
+    CreditNoteRefund: async (id) => {
+      const inv = await Invoice.findOne({ _id: id, tenantId }).select('customerId').lean();
+      return inv?.customerId || null;
+    },
+    PurchaseInvoice: async (id) => {
+      const inv = await Invoice.findOne({ _id: id, tenantId }).select('supplierId').lean();
+      return inv?.supplierId || null;
+    },
+    PurchaseOrderPayment: async (id) => {
+      const po = await PurchaseOrder.findOne({ _id: id, tenantId }).select('supplierId').lean();
+      return po?.supplierId || null;
+    },
+    Voucher: async (id) => {
+      const v = await Voucher.findOne({ _id: id, tenantId }).select('partyId').lean();
+      return v?.partyId || null;
+    },
+  };
+
+  const entries = await JournalEntry.find({
+    tenantId,
+    status: 'posted',
+    sourceModel: { $in: Object.keys(SOURCE_MAP) },
+    sourceId: { $ne: null },
+    'lines.partnerId': { $in: [null, undefined] },
+  })
+    .sort({ entryDate: -1 })
+    .limit(Math.min(2000, Math.max(1, Number(limit) || 500)));
+
+  let updated = 0;
+  for (const entry of entries) {
+    const resolver = SOURCE_MAP[entry.sourceModel];
+    if (!resolver) continue;
+    const partnerId = await resolver(entry.sourceId);
+    if (!partnerId) continue;
+    let changed = false;
+    entry.lines = (entry.lines || []).map((line) => {
+      if (line.partnerId) return line;
+      changed = true;
+      const obj = typeof line.toObject === 'function' ? line.toObject() : { ...line };
+      return { ...obj, partnerId };
+    });
+    if (!changed) continue;
+    entry.markModified('lines');
+    await entry.save();
+    await syncJournalItemsFromMove(entry, { state: 'posted' });
+    updated += 1;
+  }
+  return { scanned: entries.length, updated };
+}
+
+/**
+ * Partner GL ledger from posted JournalItems (AR/AP nature: debit − credit running).
+ */
+export async function buildPartnerLedger(tenantId, partnerId, { from, to, accountId = null } = {}) {
+  if (!partnerId) throw new Error('partnerId is required');
+  const Partner = (await import('../models/Partner.js')).default;
+  const partner = await Partner.findOne({ _id: partnerId, tenantId }).lean();
+  if (!partner) throw new Error('Partner not found');
+
+  const { start, end } = periodRange({ from, to });
+  const filter = {
+    tenantId,
+    partnerId,
+    state: 'posted',
+    entryDate: { $lte: end },
+  };
+  if (accountId) filter.accountId = accountId;
+
+  const items = await JournalItem.find(filter)
+    .sort({ entryDate: 1, createdAt: 1, lineIndex: 1 })
+    .populate('accountId', 'code name nameAr type subtype')
+    .lean();
+
+  let running = 0;
+  let openingBalance = 0;
+  const lines = [];
+  for (const item of items) {
+    const debit = round2(item.debit);
+    const credit = round2(item.credit);
+    running = round2(running + debit - credit);
+    if (new Date(item.entryDate) < start) {
+      openingBalance = running;
+      continue;
+    }
+    lines.push({
+      date: item.entryDate,
+      entryNumber: item.entryNumber,
+      moveId: item.moveId,
+      accountCode: item.accountCode || item.accountId?.code || '',
+      accountName: item.accountName || item.accountId?.name || '',
+      accountNameAr: item.accountId?.nameAr || '',
+      description: item.description || '',
+      debit,
+      credit,
+      balance: running,
+      sourceModel: item.sourceModel || '',
+      sourceId: item.sourceId || null,
+    });
+  }
+
+  return {
+    partner,
+    partnerId,
+    from: start,
+    to: end,
+    openingBalance,
+    closingBalance: lines.length ? lines[lines.length - 1].balance : openingBalance,
+    lines,
+    totalDebit: round2(lines.reduce((s, l) => s + l.debit, 0)),
+    totalCredit: round2(lines.reduce((s, l) => s + l.credit, 0)),
+  };
 }
 
 export async function buildTrialBalance(tenantId, { asOf = null } = {}) {
@@ -1209,12 +2143,14 @@ export async function buildGeneralLedger(tenantId, accountId, { from, to } = {})
 
 export async function getAccountingDashboard(tenantId) {
   await ensureDefaultChartOfAccounts(tenantId);
-  const [accountCount, draftCount, postedCount, pnl, tb] = await Promise.all([
+  const [accountCount, draftCount, postedCount, pnl, tb, agedAr, agedAp] = await Promise.all([
     ChartOfAccount.countDocuments({ tenantId, isActive: true }),
     JournalEntry.countDocuments({ tenantId, status: 'draft' }),
     JournalEntry.countDocuments({ tenantId, status: 'posted' }),
     buildProfitAndLoss(tenantId),
     buildTrialBalance(tenantId),
+    buildAgedReceivables(tenantId),
+    buildAgedPayables(tenantId),
   ]);
 
   const cash = tb.rows.find((r) => r.code === '1000');
@@ -1239,6 +2175,14 @@ export async function getAccountingDashboard(tenantId) {
     apBalance: ap?.balance || 0,
     trialBalanced: tb.balanced,
     recent,
+    agedAr: {
+      buckets: agedAr.buckets,
+      openCount: (agedAr.rows || []).length,
+    },
+    agedAp: {
+      buckets: agedAp.buckets,
+      openCount: (agedAp.rows || []).length,
+    },
   };
 }
 
@@ -1589,17 +2533,598 @@ export async function buildSupplierAccountReport(tenantId, supplierId, { from, t
   };
 }
 
+// ─── Analytic accounts (Phase 6) ─────────────────────────────────────────────
+
+export async function ensureDefaultAnalyticAccounts(tenantId, userId = null) {
+  const AnalyticAccount = (await import('../models/AnalyticAccount.js')).default;
+  const seeds = [
+    { code: 'GEN', name: 'General', nameAr: 'عام', type: 'general' },
+    { code: 'OPS', name: 'Operations', nameAr: 'العمليات', type: 'department' },
+    { code: 'SALES', name: 'Sales', nameAr: 'المبيعات', type: 'department' },
+    { code: 'ADMIN', name: 'Administration', nameAr: 'الإدارة', type: 'department' },
+  ];
+  const out = [];
+  for (const seed of seeds) {
+    let row = await AnalyticAccount.findOne({ tenantId, code: seed.code });
+    if (!row) {
+      row = await AnalyticAccount.create({
+        ...seed,
+        tenantId,
+        active: true,
+        isSystem: true,
+        createdBy: userId || undefined,
+      });
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+export async function listAnalyticAccounts(tenantId, { type = null, activeOnly = true } = {}) {
+  await ensureDefaultAnalyticAccounts(tenantId);
+  const AnalyticAccount = (await import('../models/AnalyticAccount.js')).default;
+  const filter = { tenantId };
+  if (type) filter.type = type;
+  if (activeOnly) filter.active = { $ne: false };
+  return AnalyticAccount.find(filter).sort({ type: 1, code: 1 }).lean();
+}
+
+export async function createAnalyticAccount(tenantId, userId, payload = {}) {
+  const AnalyticAccount = (await import('../models/AnalyticAccount.js')).default;
+  const code = String(payload.code || '').trim().toUpperCase();
+  const name = String(payload.name || '').trim();
+  if (!code || !name) throw new Error('code and name required');
+  const existing = await AnalyticAccount.findOne({ tenantId, code });
+  if (existing) throw new Error('Analytic account code already exists');
+  return AnalyticAccount.create({
+    tenantId,
+    code,
+    name,
+    nameAr: payload.nameAr || '',
+    type: ['general', 'department', 'project', 'cost_center'].includes(payload.type)
+      ? payload.type
+      : 'general',
+    active: payload.active !== false,
+    createdBy: userId || undefined,
+  });
+}
+
+export async function updateAnalyticAccount(tenantId, userId, id, patch = {}) {
+  const AnalyticAccount = (await import('../models/AnalyticAccount.js')).default;
+  const row = await AnalyticAccount.findOne({ _id: id, tenantId });
+  if (!row) throw new Error('Analytic account not found');
+  if (patch.name !== undefined) row.name = String(patch.name).trim();
+  if (patch.nameAr !== undefined) row.nameAr = String(patch.nameAr || '').trim();
+  if (patch.active !== undefined) row.active = Boolean(patch.active);
+  if (patch.type !== undefined && !row.isSystem) {
+    row.type = ['general', 'department', 'project', 'cost_center'].includes(patch.type)
+      ? patch.type
+      : row.type;
+  }
+  row.updatedBy = userId || undefined;
+  await row.save();
+  return row;
+}
+
+/**
+ * Analytic ledger / summary from posted JournalItems tagged with analyticAccountId.
+ */
+export async function buildAnalyticReport(tenantId, {
+  analyticAccountId = null,
+  from,
+  to,
+} = {}) {
+  const { start, end } = periodRange({ from, to });
+  const AnalyticAccount = (await import('../models/AnalyticAccount.js')).default;
+
+  let analytics = [];
+  if (analyticAccountId) {
+    const one = await AnalyticAccount.findOne({ _id: analyticAccountId, tenantId }).lean();
+    if (!one) throw new Error('Analytic account not found');
+    analytics = [one];
+  } else {
+    analytics = await AnalyticAccount.find({ tenantId, active: { $ne: false } }).sort({ code: 1 }).lean();
+  }
+
+  const filter = {
+    tenantId,
+    state: 'posted',
+    analyticAccountId: { $ne: null },
+    entryDate: { $gte: start, $lte: end },
+  };
+  if (analyticAccountId) filter.analyticAccountId = analyticAccountId;
+
+  const items = await JournalItem.find(filter)
+    .sort({ entryDate: 1, lineIndex: 1 })
+    .populate('accountId', 'code name nameAr type')
+    .lean();
+
+  const byAnalytic = new Map(analytics.map((a) => [String(a._id), {
+    analytic: a,
+    totalDebit: 0,
+    totalCredit: 0,
+    lines: [],
+  }]));
+
+  for (const item of items) {
+    const key = String(item.analyticAccountId);
+    if (!byAnalytic.has(key)) continue;
+    const bucket = byAnalytic.get(key);
+    const debit = round2(item.debit);
+    const credit = round2(item.credit);
+    bucket.totalDebit = round2(bucket.totalDebit + debit);
+    bucket.totalCredit = round2(bucket.totalCredit + credit);
+    bucket.lines.push({
+      date: item.entryDate,
+      entryNumber: item.entryNumber,
+      moveId: item.moveId,
+      accountCode: item.accountCode || item.accountId?.code || '',
+      accountName: item.accountName || item.accountId?.name || '',
+      description: item.description || '',
+      debit,
+      credit,
+      net: round2(debit - credit),
+    });
+  }
+
+  const rows = [...byAnalytic.values()].map((b) => ({
+    ...b,
+    net: round2(b.totalDebit - b.totalCredit),
+  }));
+
+  return {
+    from: start,
+    to: end,
+    analyticAccountId: analyticAccountId || null,
+    rows,
+    totalDebit: round2(rows.reduce((s, r) => s + r.totalDebit, 0)),
+    totalCredit: round2(rows.reduce((s, r) => s + r.totalCredit, 0)),
+  };
+}
+
+/**
+ * Close P&L into Retained Earnings for [from, to], post type=closing, set hardLockDate.
+ */
+export async function closeAccountingPeriod(tenantId, userId, {
+  from,
+  to,
+  setHardLock = true,
+  currency = 'SAR',
+} = {}) {
+  if (!to) throw new Error('Period end date (to) is required');
+  const end = new Date(to);
+  end.setHours(23, 59, 59, 999);
+  const start = from
+    ? new Date(from)
+    : new Date(end.getFullYear(), 0, 1);
+  start.setHours(0, 0, 0, 0);
+
+  const closeKey = `CLOSE-${end.toISOString().slice(0, 10)}`;
+  const existing = await JournalEntry.findOne({
+    tenantId,
+    type: 'closing',
+    reference: closeKey,
+    status: { $nin: ['void', 'reversed'] },
+  });
+  if (existing) {
+    throw new Error(`Period already closed (${existing.entryNumber}). Reverse that entry first to re-close.`);
+  }
+
+  const pnl = await buildProfitAndLoss(tenantId, { from: start, to: end });
+  const retained = await getAccountByCode(tenantId, ACCOUNT_CODE_MAP.retained);
+  if (!retained) throw new Error('Retained earnings account (3100) not found');
+
+  const lines = [];
+  for (const rev of pnl.revenue || []) {
+    const amt = round2(rev.amount);
+    if (amt <= 0.009) continue;
+    lines.push({
+      accountId: rev._id,
+      accountCode: rev.code,
+      debit: amt,
+      credit: 0,
+      description: `Close revenue ${rev.code}`,
+    });
+  }
+  for (const exp of pnl.expenses || []) {
+    const amt = round2(exp.amount);
+    if (amt <= 0.009) continue;
+    lines.push({
+      accountId: exp._id,
+      accountCode: exp.code,
+      debit: 0,
+      credit: amt,
+      description: `Close expense ${exp.code}`,
+    });
+  }
+
+  const net = round2(pnl.netIncome);
+  if (Math.abs(net) > 0.009) {
+    if (net > 0) {
+      lines.push({
+        accountId: retained._id,
+        accountCode: retained.code,
+        debit: 0,
+        credit: net,
+        description: 'Close net income to retained earnings',
+      });
+    } else {
+      lines.push({
+        accountId: retained._id,
+        accountCode: retained.code,
+        debit: Math.abs(net),
+        credit: 0,
+        description: 'Close net loss to retained earnings',
+      });
+    }
+  }
+
+  if (lines.length < 2) {
+    throw new Error('Nothing to close — no P&L activity in this period');
+  }
+
+  const locks = await getAccountingLockDates(tenantId);
+  const hard = locks.hardLockDate ? startOfDay(locks.hardLockDate) : null;
+  const day = startOfDay(end);
+  if (hard && day && day.getTime() <= hard.getTime()) {
+    throw new Error(
+      `Accounting period is hard-locked through ${hard.toISOString().slice(0, 10)}. Cannot close again.`,
+    );
+  }
+
+  const journalId = await resolveJournalBookId(tenantId, userId, 'ensureDefaultMiscJournal');
+
+  const entry = await createJournalEntry({
+    tenantId,
+    userId,
+    entryDate: end,
+    type: 'closing',
+    memo: `Period close ${start.toISOString().slice(0, 10)} → ${end.toISOString().slice(0, 10)}`,
+    memoAr: `إقفال الفترة ${start.toISOString().slice(0, 10)} → ${end.toISOString().slice(0, 10)}`,
+    reference: closeKey,
+    currency,
+    lines,
+    sourceModel: 'PeriodClose',
+    sourceNumber: closeKey,
+    status: 'posted',
+    journalId,
+    bypassLockCheck: true,
+  });
+
+  let locksAfter = locks;
+  if (setHardLock !== false) {
+    locksAfter = await setAccountingLockDates(tenantId, { hardLockDate: end });
+  }
+
+  return {
+    entry,
+    pnl: {
+      from: start,
+      to: end,
+      totalRevenue: pnl.totalRevenue,
+      totalExpenses: pnl.totalExpenses,
+      netIncome: pnl.netIncome,
+    },
+    locks: locksAfter,
+  };
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function cashFlowSection() {
+  return { rows: [], net: 0 };
+}
+
+function classifyCashFlowBucket(account) {
+  if (!account) return 'operating';
+  const subtype = account.subtype || '';
+  const type = account.type || '';
+  if (subtype === 'fixed_asset' || subtype === 'inventory') {
+    return subtype === 'fixed_asset' ? 'investing' : 'operating';
+  }
+  if (type === 'equity' || subtype === 'other_liability' || /loan/i.test(account.name || '') || ['2300', '3000', '3200'].includes(account.code)) {
+    return 'financing';
+  }
+  return 'operating';
+}
+
+/**
+ * Direct-method cash flow from posted cash/bank JournalEntry lines.
+ * Counterpart lines (non-cash) classify into operating / investing / financing.
+ */
+export async function buildCashFlowStatement(tenantId, { from, to } = {}) {
+  const { start, end } = periodRange({ from, to });
+  await ensureDefaultChartOfAccounts(tenantId);
+
+  const accounts = await ChartOfAccount.find({ tenantId, isActive: true }).lean();
+  const byId = Object.fromEntries(accounts.map((a) => [String(a._id), a]));
+  const cashIds = new Set(
+    accounts.filter((a) => a.subtype === 'cash' || a.subtype === 'bank').map((a) => String(a._id)),
+  );
+
+  const balanceAt = async (asOfEnd) => {
+    const entries = await JournalEntry.find({
+      tenantId,
+      status: 'posted',
+      entryDate: { $lte: asOfEnd },
+    }).select('lines').lean();
+    let total = 0;
+    for (const entry of entries) {
+      for (const line of entry.lines || []) {
+        if (!cashIds.has(String(line.accountId))) continue;
+        total = round2(total + Number(line.debit || 0) - Number(line.credit || 0));
+      }
+    }
+    return total;
+  };
+
+  const dayBefore = new Date(start);
+  dayBefore.setMilliseconds(dayBefore.getMilliseconds() - 1);
+  const [openingCash, closingCash] = await Promise.all([balanceAt(dayBefore), balanceAt(end)]);
+
+  const entries = await JournalEntry.find({
+    tenantId,
+    status: 'posted',
+    entryDate: { $gte: start, $lte: end },
+  }).sort({ entryDate: 1, entryNumber: 1 }).lean();
+
+  const operating = cashFlowSection();
+  const investing = cashFlowSection();
+  const financing = cashFlowSection();
+  const sections = { operating, investing, financing };
+
+  const bump = (sectionKey, label, amount) => {
+    if (Math.abs(amount) < 0.005) return;
+    const sec = sections[sectionKey];
+    const existing = sec.rows.find((r) => r.label === label);
+    if (existing) existing.amount = round2(existing.amount + amount);
+    else sec.rows.push({ label, amount: round2(amount) });
+    sec.net = round2(sec.net + amount);
+  };
+
+  for (const entry of entries) {
+    const lines = entry.lines || [];
+    const cashLines = lines.filter((l) => cashIds.has(String(l.accountId)));
+    if (!cashLines.length) continue;
+    const otherLines = lines.filter((l) => !cashIds.has(String(l.accountId)));
+    const cashNet = round2(cashLines.reduce((s, l) => s + Number(l.debit || 0) - Number(l.credit || 0), 0));
+    if (Math.abs(cashNet) < 0.005) continue;
+
+    if (!otherLines.length) {
+      bump('operating', entry.memo || entry.entryNumber || 'Cash transfer', cashNet);
+      continue;
+    }
+
+    const otherAbs = otherLines.reduce(
+      (s, l) => s + Math.abs(Number(l.debit || 0) - Number(l.credit || 0)),
+      0,
+    ) || 1;
+
+    for (const line of otherLines) {
+      const account = byId[String(line.accountId)];
+      const lineNet = Number(line.debit || 0) - Number(line.credit || 0);
+      const weight = Math.abs(lineNet) / otherAbs;
+      // Cash increase when other side is credit-heavy (typical); allocate cashNet by weight
+      const allocated = round2(cashNet * weight);
+      const label = account
+        ? `${account.code} — ${account.name}`
+        : (line.accountCode || line.description || 'Other');
+      bump(classifyCashFlowBucket(account), label, allocated);
+    }
+  }
+
+  for (const key of Object.keys(sections)) {
+    sections[key].rows.sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+    sections[key].net = round2(sections[key].net);
+  }
+
+  const netChange = round2(operating.net + investing.net + financing.net);
+  const expectedChange = round2(closingCash - openingCash);
+  const reconciled = Math.abs(netChange - expectedChange) < 0.05;
+
+  let pnl;
+  try {
+    pnl = await buildProfitAndLoss(tenantId, { from: start, to: end });
+  } catch {
+    pnl = { netIncome: 0 };
+  }
+
+  const plug = round2(expectedChange - (pnl.netIncome || 0));
+  const indirect = {
+    netIncome: round2(pnl.netIncome || 0),
+    nonCashAndWorkingCapital: plug,
+    netCashFromOperationsApprox: round2((pnl.netIncome || 0) + plug),
+    noteEn: 'Indirect bridge: net income plus a single working-capital / non-cash plug so the result equals the period cash change. Prefer the direct sections above for detail.',
+    noteAr: 'جسر غير مباشر: صافي الدخل مع تسوية واحدة لرأس المال العامل/البنود غير النقدية لتطابق التغير النقدي. التفصيل في الأقسام المباشرة أعلاه.',
+  };
+
+  const notes = [
+    {
+      en: 'Direct method: cash and bank journal lines classified by counterpart account (operating / investing / financing).',
+      ar: 'الطريقة المباشرة: تصنيف حركات النقد والبنك حسب الحساب المقابل (تشغيلي / استثماري / تمويلي).',
+    },
+    {
+      en: reconciled
+        ? 'Sections reconcile to opening → closing cash & bank.'
+        : `Sections total ${netChange} vs cash change ${expectedChange}; review multi-line journals or transfers between cash accounts.`,
+      ar: reconciled
+        ? 'الأقسام تطابق التغير من الرصيد الافتتاحي إلى الختامي للنقد والبنك.'
+        : `مجموع الأقسام ${netChange} مقابل تغير النقد ${expectedChange}؛ راجع القيود متعددة البنود أو التحويلات بين حسابات النقد.`,
+    },
+  ];
+
+  return {
+    from: start,
+    to: end,
+    method: 'direct',
+    operating,
+    investing,
+    financing,
+    netChange,
+    openingCash: round2(openingCash),
+    closingCash: round2(closingCash),
+    expectedChange,
+    reconciled,
+    indirect,
+    notes,
+  };
+}
+
+function agingBucket(ageDays) {
+  if (ageDays <= 30) return 'd0_30';
+  if (ageDays <= 60) return 'd31_60';
+  if (ageDays <= 90) return 'd61_90';
+  return 'd90_plus';
+}
+
+const EMPTY_AGING_BUCKETS = () => ({
+  d0_30: 0,
+  d31_60: 0,
+  d61_90: 0,
+  d90_plus: 0,
+  total: 0,
+});
+
+async function buildAgedInvoices(tenantId, { flow, asOf = null } = {}) {
+  const asOfDate = asOf ? new Date(asOf) : new Date();
+  asOfDate.setHours(23, 59, 59, 999);
+
+  const invoices = await Invoice.find({
+    tenantId,
+    flow,
+    status: { $nin: ['draft', 'cancelled'] },
+    paymentStatus: { $nin: ['paid', 'cancelled'] },
+    issueDate: { $lte: asOfDate },
+  })
+    .select('invoiceNumber invoiceType issueDate dueDate grandTotal paidAmount customerId supplierId paymentStatus')
+    .lean();
+
+  const partnerIds = [
+    ...new Set(
+      invoices
+        .map((inv) => String(flow === 'sell' ? inv.customerId : inv.supplierId || inv.customerId || ''))
+        .filter((id) => id && id !== 'undefined' && id !== 'null'),
+    ),
+  ];
+  const partners = partnerIds.length
+    ? await Customer.find({ _id: { $in: partnerIds }, tenantId }).select('name nameAr displayName').lean()
+    : [];
+  const partnerById = Object.fromEntries(partners.map((p) => [String(p._id), p]));
+
+  const buckets = EMPTY_AGING_BUCKETS();
+  const rows = [];
+
+  for (const inv of invoices) {
+    const residual = round2(Math.max(0, Number(inv.grandTotal || 0) - Number(inv.paidAmount || 0)));
+    if (residual < 0.01) continue;
+
+    const partnerId = flow === 'sell' ? inv.customerId : (inv.supplierId || inv.customerId);
+    const partner = partnerId ? partnerById[String(partnerId)] : null;
+    const baseDate = new Date(inv.dueDate || inv.issueDate || asOfDate);
+    const ageDays = Math.max(0, Math.floor((asOfDate - baseDate) / MS_PER_DAY));
+    const bucket = agingBucket(ageDays);
+    buckets[bucket] = round2(buckets[bucket] + residual);
+    buckets.total = round2(buckets.total + residual);
+
+    rows.push({
+      invoiceId: inv._id,
+      invoiceNumber: inv.invoiceNumber,
+      invoiceType: inv.invoiceType,
+      partnerId: partnerId || null,
+      partnerName: partner?.displayName || partner?.name || partner?.nameAr || '—',
+      issueDate: inv.issueDate,
+      dueDate: inv.dueDate || null,
+      grandTotal: round2(inv.grandTotal),
+      paidAmount: round2(inv.paidAmount),
+      residual,
+      ageDays,
+      bucket,
+      paymentStatus: inv.paymentStatus,
+    });
+  }
+
+  rows.sort((a, b) => b.ageDays - a.ageDays || b.residual - a.residual);
+
+  return {
+    asOf: asOfDate,
+    flow,
+    buckets,
+    rows,
+  };
+}
+
+export async function buildAgedReceivables(tenantId, opts = {}) {
+  return buildAgedInvoices(tenantId, { ...opts, flow: 'sell' });
+}
+
+export async function buildAgedPayables(tenantId, opts = {}) {
+  return buildAgedInvoices(tenantId, { ...opts, flow: 'purchase' });
+}
+
+/** Kanban board: draft / posted / reversed / void columns. */
+export async function getJournalBoard(tenantId, { journalId = null, limit = 40 } = {}) {
+  const filter = { tenantId };
+  if (journalId) filter.journalId = journalId;
+  const cap = Math.min(80, Math.max(5, Number(limit) || 40));
+  const statuses = ['draft', 'posted', 'reversed', 'void'];
+
+  const columns = {};
+  await Promise.all(statuses.map(async (status) => {
+    columns[status] = await JournalEntry.find({ ...filter, status })
+      .sort({ entryDate: -1, createdAt: -1 })
+      .limit(cap)
+      .select('entryNumber entryDate memo type status totalDebit totalCredit journalId sourceNumber createdAt')
+      .lean();
+  }));
+
+  const counts = {};
+  await Promise.all(statuses.map(async (status) => {
+    counts[status] = await JournalEntry.countDocuments({ ...filter, status });
+  }));
+
+  return { journalId: journalId || null, columns, counts, limit: cap };
+}
+
 export default {
   ensureDefaultChartOfAccounts,
+  ensureDefaultTaxes,
+  listTaxes,
+  createTax,
+  updateTax,
+  resolveDefaultTaxId,
+  ensureDefaultAnalyticAccounts,
+  listAnalyticAccounts,
+  createAnalyticAccount,
+  updateAnalyticAccount,
+  buildAnalyticReport,
+  closeAccountingPeriod,
+  buildCashFlowStatement,
+  buildAgedReceivables,
+  buildAgedPayables,
+  getJournalBoard,
+  ensureAccountingDefaults,
+  getAccountingDefaults,
+  setAccountingDefaults,
+  resolveRoleAccount,
+  DEFAULT_ACCOUNT_KEYS,
   createJournalEntry,
   postJournalEntry,
   voidJournalEntry,
+  reverseJournalEntry,
+  getAccountingLockDates,
+  setAccountingLockDates,
+  assertAccountingPeriodOpen,
+  listJournalItems,
+  backfillJournalItems,
   postSalesInvoiceJournal,
   postInvoicePaymentJournal,
   postSupplierPaymentJournal,
   postExpensePaidJournal,
   postVoucherJournal,
   postCreditNoteJournal,
+  postCreditNoteRefundJournal,
+  backfillJournalPartnerIds,
+  buildPartnerLedger,
   buildTrialBalance,
   buildProfitAndLoss,
   buildBalanceSheet,

@@ -24,6 +24,13 @@ const userSchema = new mongoose.Schema({
     default: 'viewer'
   },
   resellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Reseller', default: null, index: true },
+  /**
+   * Accounting Firms Mode: home firm tenant for this user.
+   * When switching client books, tenantId changes but firmHomeTenantId stays.
+   */
+  firmHomeTenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', default: null, index: true },
+  /** Client tenants (and firm home) this accountant may open */
+  accessibleTenantIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' }],
   permissions: [{
     module: { type: String },
     actions: [{ type: String, enum: ['create', 'read', 'update', 'delete', 'approve', 'export', 'margin'] }]

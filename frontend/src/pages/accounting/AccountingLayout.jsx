@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, Navigate } from 'react-router-dom'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Calculator, ChevronDown, Menu, X } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -10,6 +10,14 @@ import SalesComposerChrome from '../../components/sales/SalesComposerChrome'
 
 const LEDGER_ITEMS = [
   { href: '/app/dashboard/accounting/chart-of-accounts', labelEn: 'Chart of Accounts', labelAr: 'دليل الحسابات' },
+  { href: '/app/dashboard/accounting/journal-books', labelEn: 'Journal books', labelAr: 'دفاتر القيود' },
+  { href: '/app/dashboard/accounting/defaults', labelEn: 'Default accounts', labelAr: 'الحسابات الافتراضية' },
+  { href: '/app/dashboard/accounting/taxes', labelEn: 'Taxes', labelAr: 'الضريبة' },
+  { href: '/app/dashboard/accounting/bank-recon', labelEn: 'Bank reconciliation', labelAr: 'التسوية البنكية' },
+  { href: '/app/dashboard/accounting/analytic-accounts', labelEn: 'Analytic accounts', labelAr: 'الحسابات التحليلية' },
+  { href: '/app/dashboard/accounting/period-close', labelEn: 'Period close', labelAr: 'إقفال الفترة' },
+  { href: '/app/dashboard/accounting/journals-board', labelEn: 'Journals board', labelAr: 'لوحة القيود' },
+  { href: '/app/dashboard/accounting/firm-clients', labelEn: 'Firm clients', labelAr: 'عملاء المكتب' },
   { href: '/app/dashboard/accounting/daily-restriction', labelEn: 'Daily Restriction', labelAr: 'القيود اليومية' },
   { href: '/app/dashboard/accounting/general-voucher', labelEn: 'General Voucher', labelAr: 'سند قيد عام' },
   { href: '/app/dashboard/accounting/receipt-voucher', labelEn: 'Receipt Voucher', labelAr: 'سند قبض' },
@@ -21,12 +29,16 @@ const LEDGER_ITEMS = [
 const REPORT_ITEMS = [
   { href: '/app/dashboard/accounting/account-report', labelEn: 'Account report', labelAr: 'تقرير الحساب' },
   { href: '/app/dashboard/accounting/balance-sheet', labelEn: 'Balance sheet', labelAr: 'الميزانية' },
+  { href: '/app/dashboard/accounting/cash-flow', labelEn: 'Cash flow', labelAr: 'التدفقات النقدية' },
+  { href: '/app/dashboard/accounting/aged-ar', labelEn: 'Aged receivables', labelAr: 'أعمار المدينين' },
+  { href: '/app/dashboard/accounting/aged-ap', labelEn: 'Aged payables', labelAr: 'أعمار الدائنين' },
   { href: '/app/dashboard/accounting/customer-account', labelEn: 'Customer account', labelAr: 'كشف العميل' },
   { href: '/app/dashboard/accounting/customer-summary', labelEn: 'Customer summary', labelAr: 'ملخص العملاء' },
   { href: '/app/dashboard/accounting/supplier-account', labelEn: 'Supplier account', labelAr: 'كشف المورد' },
   { href: '/app/dashboard/accounting/supplier-summary', labelEn: 'Supplier summary', labelAr: 'ملخص الموردين' },
   { href: '/app/dashboard/accounting/trial', labelEn: 'Trial balance', labelAr: 'ميزان المراجعة' },
   { href: '/app/dashboard/accounting/pnl', labelEn: 'Profit & Loss', labelAr: 'الأرباح والخسائر' },
+  { href: '/app/dashboard/accounting/analytic-report', labelEn: 'Analytic report', labelAr: 'تقرير تحليلي' },
 ]
 
 const INVOICE_ITEMS = [
@@ -139,6 +151,7 @@ export function isAccountingInvoiceComposerPath(pathname = '') {
 
 export default function AccountingLayout() {
   const { language } = useSelector((s) => s.ui)
+  const { tenant } = useSelector((s) => s.auth)
   const location = useLocation()
   const queryClient = useQueryClient()
   const isAr = language === 'ar'
@@ -146,6 +159,24 @@ export default function AccountingLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [openId, setOpenId] = useState(null)
   const composerMode = isAccountingInvoiceComposerPath(path)
+
+  const { data: firmData } = useQuery({
+    queryKey: ['accounting-firm-clients'],
+    queryFn: () => api.get('/accounting/firm/clients').then((r) => r.data),
+    staleTime: 60_000,
+  })
+
+  const switchFirm = useMutation({
+    mutationFn: (tenantId) => api.post('/accounting/firm/switch', { tenantId }).then((r) => r.data),
+    onSuccess: (payload) => {
+      localStorage.setItem('token', payload.token)
+      if (payload?.user) localStorage.setItem('auth_user', JSON.stringify(payload.user))
+      if (payload?.tenant) localStorage.setItem('auth_tenant', JSON.stringify(payload.tenant))
+      toast.success(isAr ? 'تم تبديل دفاتر العميل' : 'Switched client books')
+      window.location.href = '/app/dashboard/accounting'
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'Switch failed'),
+  })
 
   const seedMutation = useMutation({
     mutationFn: () => api.post('/accounting/accounts/seed'),
@@ -221,6 +252,29 @@ export default function AccountingLayout() {
                 {isAr ? 'فواتير ودفتر وتقارير' : 'Invoices, ledger, and reports'}
               </p>
             </div>
+            {(firmData?.firmMode || (firmData?.clients || []).length > 0) ? (
+              <label className="ms-2 hidden text-[10px] font-medium uppercase tracking-wide text-slate-400 sm:block">
+                {isAr ? 'دفاتر العميل' : 'Client books'}
+                <select
+                  className="mt-1 block min-w-[180px] rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 dark:border-dark-600 dark:bg-dark-800 dark:text-white"
+                  value={String(firmData?.activeTenantId || tenant?._id || '')}
+                  disabled={switchFirm.isPending}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    if (next && next !== String(firmData?.activeTenantId || '')) switchFirm.mutate(next)
+                  }}
+                >
+                  {firmData?.home ? (
+                    <option value={String(firmData.home._id)}>
+                      {isAr ? 'المكتب' : 'Firm'} — {firmData.home.name}
+                    </option>
+                  ) : null}
+                  {(firmData?.clients || []).map((c) => (
+                    <option key={c._id} value={String(c._id)}>{c.name || c.slug}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
           </div>
 
           <button

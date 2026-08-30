@@ -370,6 +370,29 @@ const tenantSchema = new mongoose.Schema({
     fiscalYearStart: { type: Number, default: 1 },
     dateFormat: { type: String, default: 'DD/MM/YYYY' },
     useHijriDates: { type: Boolean, default: true },
+    /** Accounting period locks + tenant default GL accounts */
+    accounting: {
+      /** Soft lock: no new posts on/before this date (managers may still reverse with reason) */
+      lockDate: { type: Date, default: null },
+      /** Tax lock: VAT/tax-affecting moves blocked on/before */
+      taxLockDate: { type: Date, default: null },
+      /** Hard close: no posts or reverses on/before */
+      hardLockDate: { type: Date, default: null },
+      /** Role → ChartOfAccount ObjectIds used when posting (fallback: standard CoA codes) */
+      defaultAccounts: {
+        receivableAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+        payableAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+        incomeAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+        expenseAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+        cogsAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+        bankAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+        cashAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+        taxInputAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+        taxOutputAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+        suspenseAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+        inventoryAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+      },
+    },
     hiddenUoms: [{ type: String }],
     couriers: {
       smsa: { type: courierProviderSchema, default: () => ({}) },
@@ -727,6 +750,10 @@ const tenantSchema = new mongoose.Schema({
   demoTrialEndsAt: { type: Date, default: null },
   demoUpgraded: { type: Boolean, default: false },
   resellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Reseller', default: null, index: true },
+  /** When true, this tenant is an accounting firm that manages client books */
+  accountingFirmMode: { type: Boolean, default: false, index: true },
+  /** Client tenants point at their accounting firm tenant */
+  accountingFirmTenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', default: null, index: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, {
   timestamps: true

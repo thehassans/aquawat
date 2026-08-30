@@ -7,7 +7,10 @@ const journalLineSchema = new mongoose.Schema({
   description: { type: String, default: '' },
   debit: { type: Number, default: 0, min: 0 },
   credit: { type: Number, default: 0, min: 0 },
-}, { _id: false });
+  partnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', default: null },
+  taxIds: [{ type: mongoose.Schema.Types.ObjectId }],
+  analyticAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'AnalyticAccount', default: null },
+}, { _id: true });
 
 const journalEntrySchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
@@ -16,13 +19,14 @@ const journalEntrySchema = new mongoose.Schema({
   postingDate: { type: Date },
   type: {
     type: String,
-    enum: ['manual', 'invoice', 'payment', 'expense', 'voucher', 'adjustment', 'opening', 'closing', 'stock'],
+    enum: ['manual', 'invoice', 'payment', 'expense', 'voucher', 'adjustment', 'opening', 'closing', 'stock', 'reversal'],
     default: 'manual',
     index: true,
   },
   status: {
     type: String,
-    enum: ['draft', 'posted', 'void'],
+    /** void = draft cancelled; reversed = posted entry closed by a formal reversal move */
+    enum: ['draft', 'posted', 'void', 'reversed'],
     default: 'draft',
     index: true,
   },
@@ -38,6 +42,10 @@ const journalEntrySchema = new mongoose.Schema({
   sourceNumber: { type: String, default: '' },
   /** Optional journal book (series) this entry belongs to */
   journalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Journal', default: null, index: true },
+  /** This move reverses that posted move */
+  reversalOfId: { type: mongoose.Schema.Types.ObjectId, ref: 'JournalEntry', default: null, index: true },
+  /** Posted move that reversed this one */
+  reversedById: { type: mongoose.Schema.Types.ObjectId, ref: 'JournalEntry', default: null, index: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   postedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   voidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
