@@ -375,7 +375,7 @@ export default function AppCatalogManagement() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className={`fixed inset-4 max-w-xl mx-auto my-auto h-fit max-h-[90vh] overflow-y-auto bg-white dark:bg-dark-800 rounded-2xl shadow-2xl ${SA_MODAL_Z} p-6 border border-gray-200 dark:border-dark-700`}
+              className={`fixed inset-0 m-auto h-fit w-[min(100%-2rem,36rem)] max-h-[90vh] overflow-y-auto bg-white dark:bg-dark-800 rounded-2xl shadow-2xl ${SA_MODAL_Z} p-6 border border-gray-200 dark:border-dark-700`}
             >
               <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-dark-700 mb-5">
                 <div className="flex items-center gap-3">

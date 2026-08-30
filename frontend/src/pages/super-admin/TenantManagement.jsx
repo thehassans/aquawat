@@ -16,7 +16,7 @@ import {
 import { normalizeCheckoutPlan, resolveCheckoutLane, resolvePlanPrice } from '../../lib/checkoutPricing'
 import { getPrimaryBusinessType } from '../../lib/businessTypes'
 import TenantPaymentHistory from '../../components/super-admin/TenantPaymentHistory'
-import SuperAdminPortal, { SA_BACKDROP_Z, SA_MODAL_Z } from '../../components/super-admin/SuperAdminPortal'
+import SuperAdminPortal, { SA_BACKDROP_Z, SA_MODAL_Z, TenantLogoAvatar } from '../../components/super-admin/SuperAdminPortal'
 
 const FALLBACK_CONTINUE_PLANS = [
   {
@@ -738,9 +738,7 @@ export default function TenantManagement() {
                       </td>
                       <td>
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center text-white font-bold">
-                            {tenant.name?.[0]}
-                          </div>
+                          <TenantLogoAvatar tenant={tenant} />
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
                               <button
@@ -969,7 +967,7 @@ export default function TenantManagement() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className={`fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg bg-white dark:bg-dark-800 rounded-2xl shadow-xl ${SA_MODAL_Z} overflow-hidden`}
+              className={`fixed inset-0 m-auto h-fit w-[min(100%-2rem,32rem)] max-h-[90vh] bg-white dark:bg-dark-800 rounded-2xl shadow-xl ${SA_MODAL_Z} overflow-hidden`}
             >
               <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-dark-700">
                 <div className="flex items-center gap-3">
@@ -1135,13 +1133,11 @@ export default function TenantManagement() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className={`fixed inset-4 ${SA_MODAL_Z} overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-dark-800 md:inset-auto md:left-1/2 md:top-1/2 md:h-auto md:max-h-[90vh] md:w-full md:max-w-5xl md:-translate-x-1/2 md:-translate-y-1/2`}
+              className={`fixed inset-0 m-auto h-fit w-[min(100%-2rem,64rem)] max-h-[90vh] ${SA_MODAL_Z} overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-dark-800`}
             >
               <div className="flex items-center justify-between border-b border-gray-100 p-6 dark:border-dark-700">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-white font-bold">
-                    {historyTenant.name?.[0]}
-                  </div>
+                  <TenantLogoAvatar tenant={historyTenantData?.tenant || historyTenant} />
                   <div>
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                       {language === 'ar' ? 'سجل مدفوعات الاشتراك' : 'Subscription payment history'}
@@ -1237,7 +1233,7 @@ export default function TenantManagement() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className={`fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg bg-white dark:bg-dark-800 rounded-2xl shadow-xl ${SA_MODAL_Z} overflow-hidden`}
+              className={`fixed inset-0 m-auto h-fit w-[min(100%-2rem,32rem)] max-h-[90vh] bg-white dark:bg-dark-800 rounded-2xl shadow-xl ${SA_MODAL_Z} overflow-hidden`}
             >
               <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-dark-700">
                 <div className="flex items-center gap-3">
@@ -1408,7 +1404,7 @@ export default function TenantManagement() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className={`fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md bg-white dark:bg-dark-800 rounded-2xl shadow-xl ${SA_MODAL_Z} overflow-hidden`}
+              className={`fixed inset-0 m-auto h-fit w-[min(100%-2rem,28rem)] max-h-[90vh] bg-white dark:bg-dark-800 rounded-2xl shadow-xl ${SA_MODAL_Z} overflow-hidden`}
             >
               <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-dark-700">
                 <div className="flex items-center gap-3">

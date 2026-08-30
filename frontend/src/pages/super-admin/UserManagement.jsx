@@ -181,7 +181,7 @@ export default function UserManagement() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className={`fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg bg-white dark:bg-dark-800 rounded-2xl shadow-xl ${SA_MODAL_Z} overflow-hidden`}
+              className={`fixed inset-0 m-auto h-fit w-[min(100%-2rem,32rem)] max-h-[90vh] bg-white dark:bg-dark-800 rounded-2xl shadow-xl ${SA_MODAL_Z} overflow-hidden`}
             >
               <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-dark-700">
                 <h3 className="text-lg font-semibold">{editingUser ? (language === 'ar' ? 'تعديل مستخدم' : 'Edit User') : (language === 'ar' ? 'إضافة مستخدم' : 'Add User')}</h3>
