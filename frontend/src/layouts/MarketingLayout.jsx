@@ -44,6 +44,7 @@ export default function MarketingLayout() {
 
   useEffect(() => {
     setMobileOpen(false)
+    window.scrollTo(0, 0)
   }, [location.pathname])
 
   useEffect(() => {
@@ -70,7 +71,7 @@ export default function MarketingLayout() {
   ]
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 antialiased font-body flex flex-col justify-between" dir="ltr" lang="en">
+    <div className="min-h-screen bg-white text-slate-900 antialiased font-body flex flex-col" dir="ltr" lang="en">
       {/* ── STICKY MODERN HEADER ── */}
       <header
         className={`sticky top-0 z-50 transition-all duration-300 ${
