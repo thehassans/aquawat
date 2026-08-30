@@ -847,7 +847,11 @@ export default function TenantForm() {
                 />
               </div>
               <div>
-                <label className="label">{language === 'ar' ? 'المبلغ' : 'Amount'}</label>
+                <label className="label">
+                  {language === 'ar'
+                    ? (paymentForm.billingCycle === 'yearly' ? 'السعر السنوي (للدورة)' : 'السعر الشهري (للدورة)')
+                    : (paymentForm.billingCycle === 'yearly' ? 'Yearly price (per cycle)' : 'Monthly price (per cycle)')}
+                </label>
                 <input
                   type="number"
                   min={0}

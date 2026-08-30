@@ -3,16 +3,57 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Search, Building2, Edit, Users, LogIn, AlertCircle, RefreshCw, Trash2, RotateCcw, Send, X, XCircle, FileSpreadsheet, FileText, Eraser, Sliders, Ban, Play, Activity, Server, Database, Cpu, Download } from 'lucide-react'
+import { Plus, Search, Building2, Edit, Users, LogIn, AlertCircle, RefreshCw, Trash2, RotateCcw, Send, X, XCircle, FileSpreadsheet, FileText, Eraser, Sliders, Ban, Play, Activity, Server, Database, Cpu, Download, CreditCard } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
-import { getSubscriptionState } from '../../lib/subscriptionState'
+import { addBillingCycle, formatSubscriptionDate, getSubscriptionState, previewRenewedEndDate } from '../../lib/subscriptionState'
 import {
   getAliasSlugFromHost,
   getTenantAliasHandoffUrl,
   issueHandoffCode,
 } from '../../lib/tenantHost'
+import { normalizeCheckoutPlan, resolveCheckoutLane, resolvePlanPrice } from '../../lib/checkoutPricing'
+import { getPrimaryBusinessType } from '../../lib/businessTypes'
+
+const FALLBACK_CONTINUE_PLANS = [
+  {
+    id: 'starter',
+    nameEn: 'Starter',
+    nameAr: 'البداية',
+    priceMonthlyUsd: 29.99,
+    priceYearlyUsd: 299,
+    priceMonthlySar: 49.99,
+    priceYearlySar: 499,
+  },
+  {
+    id: 'professional',
+    nameEn: 'Professional',
+    nameAr: 'الاحترافية',
+    priceMonthlyUsd: 59.99,
+    priceYearlyUsd: 599,
+    priceMonthlySar: 99.99,
+    priceYearlySar: 999,
+  },
+  {
+    id: 'enterprise',
+    nameEn: 'Enterprise',
+    nameAr: 'المؤسسات',
+    priceMonthlyUsd: 0,
+    priceYearlyUsd: 0,
+    priceMonthlySar: 0,
+    priceYearlySar: 0,
+  },
+]
+
+function previewContinuedEndDate(currentEndDate, billingCycle = 'monthly', cycles = 1) {
+  const count = Math.max(1, Math.min(36, Number(cycles) || 1))
+  let end = previewRenewedEndDate(currentEndDate, billingCycle)
+  for (let i = 1; i < count; i += 1) {
+    end = addBillingCycle(end, billingCycle)
+  }
+  return end
+}
 
 function subscriptionBadge(tenant, language) {
   const state = getSubscriptionState(tenant)
@@ -43,12 +84,29 @@ export default function TenantManagement() {
   const [filters, setFilters] = useState({ status: '', plan: '', businessType: '', subStatus: '', demo: '' })
   const [page, setPage] = useState(1)
   const [selectedIds, setSelectedIds] = useState([])
+  const [continueTenant, setContinueTenant] = useState(null)
+  const [continueForm, setContinueForm] = useState({
+    plan: 'professional',
+    billingCycle: 'monthly',
+    cycles: 1,
+    amount: '',
+    currency: 'SAR',
+    method: 'bank_transfer',
+    reference: '',
+    note: '',
+  })
   const [backupTenant, setBackupTenant] = useState(null)
   const [backupForm, setBackupForm] = useState({ period: 'monthly', startDate: '', endDate: '', email: '', formats: ['excel', 'pdf'] })
   const [backupErrorCode, setBackupErrorCode] = useState(null)
   const [terminationTenant, setTerminationTenant] = useState(null)
   const [terminationForm, setTerminationForm] = useState({ date: '', reason: '' })
   const [monitoringTenant, setMonitoringTenant] = useState(null)
+
+  const { data: websiteSettingsData } = useQuery({
+    queryKey: ['website-settings'],
+    queryFn: () => api.get('/super-admin/settings/website').then((res) => res.data),
+    staleTime: 5 * 60 * 1000,
+  })
 
   const { data: monitoringData, isLoading: isLoadingMonitoring } = useQuery({
     queryKey: ['tenantMonitoring', monitoringTenant?._id],
@@ -309,7 +367,8 @@ export default function TenantManagement() {
   })
 
   const resumeMutation = useMutation({
-    mutationFn: ({ tenantId, days }) => api.post(`/super-admin/tenants/${tenantId}/resume`, { days }).then(res => res.data),
+    mutationFn: ({ tenantId, days, billingCycle, cycles }) =>
+      api.post(`/super-admin/tenants/${tenantId}/resume`, { days, billingCycle, cycles }).then((res) => res.data),
     onSuccess: () => {
       toast.success(language === 'ar' ? 'تم استئناف المستأجر بنجاح' : 'Tenant resumed successfully')
       setTerminationTenant(null)
@@ -317,6 +376,111 @@ export default function TenantManagement() {
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to resume tenant')
   })
+
+  const continueMutation = useMutation({
+    mutationFn: ({ tenantId, payload }) =>
+      api.post(`/super-admin/tenants/${tenantId}/accept-payment`, payload, { timeout: 60000 }).then((res) => res.data),
+    onSuccess: () => {
+      toast.success(
+        language === 'ar'
+          ? 'تم تفعيل/تجديد الاشتراك بنجاح'
+          : 'Subscription continued / renewed successfully',
+      )
+      setContinueTenant(null)
+      queryClient.invalidateQueries({ queryKey: ['tenants'] })
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to continue subscription'),
+  })
+
+  const getPricingPlansForTenant = (tenant) => {
+    const website = websiteSettingsData?.website
+    const businessType = getPrimaryBusinessType(tenant)
+    const byType = Array.isArray(website?.pricing?.plansByBusinessType)
+      ? website.pricing.plansByBusinessType.find((row) => row?.businessType === businessType)?.plans
+      : null
+    const source = (Array.isArray(byType) && byType.length > 0)
+      ? byType
+      : (Array.isArray(website?.pricing?.plans) && website.pricing.plans.length > 0
+        ? website.pricing.plans
+        : FALLBACK_CONTINUE_PLANS)
+    const lane = resolveCheckoutLane(tenant)
+    return source
+      .map((plan) => {
+        const fallback = FALLBACK_CONTINUE_PLANS.find((p) => p.id === plan.id) || {}
+        return normalizeCheckoutPlan(plan, fallback, lane)
+      })
+      .filter((plan) => ['starter', 'professional', 'enterprise'].includes(String(plan.id || '').toLowerCase()))
+  }
+
+  const resolveContinueUnitPrice = (tenant, planId, billingCycle, currency) => {
+    const plans = getPricingPlansForTenant(tenant)
+    const plan = plans.find((p) => String(p.id).toLowerCase() === String(planId).toLowerCase())
+      || FALLBACK_CONTINUE_PLANS.find((p) => p.id === planId)
+      || FALLBACK_CONTINUE_PLANS[1]
+    const lane = String(currency || resolveCheckoutLane(tenant) || 'SAR').toUpperCase() === 'USD' ? 'USD' : 'SAR'
+    return resolvePlanPrice(plan, billingCycle, lane)
+  }
+
+  const openContinueModal = (tenant) => {
+    const sub = tenant?.subscription || {}
+    const currency = String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'USD' ? 'USD' : 'SAR'
+    const plan = ['starter', 'professional', 'enterprise'].includes(String(sub.plan || '').toLowerCase())
+      ? String(sub.plan).toLowerCase()
+      : 'professional'
+    const billingCycle = sub.billingCycle === 'yearly' ? 'yearly' : 'monthly'
+    const unit = resolveContinueUnitPrice(tenant, plan, billingCycle, currency)
+    setContinueForm({
+      plan,
+      billingCycle,
+      cycles: 1,
+      amount: String(unit),
+      currency,
+      method: 'bank_transfer',
+      reference: '',
+      note: '',
+    })
+    setContinueTenant(tenant)
+  }
+
+  const updateContinueField = (field, value) => {
+    setContinueForm((prev) => {
+      const next = { ...prev, [field]: value }
+      if (!continueTenant) return next
+      if (field === 'plan' || field === 'billingCycle' || field === 'currency') {
+        const unit = resolveContinueUnitPrice(
+          continueTenant,
+          field === 'plan' ? value : next.plan,
+          field === 'billingCycle' ? value : next.billingCycle,
+          field === 'currency' ? value : next.currency,
+        )
+        next.amount = String(unit)
+      }
+      return next
+    })
+  }
+
+  const handleContinueSubmit = () => {
+    if (!continueTenant) return
+    const cycles = Math.max(1, Math.min(36, Number(continueForm.cycles) || 1))
+    const amount = Number(continueForm.amount)
+    if (!Number.isFinite(amount) || amount < 0) {
+      toast.error(language === 'ar' ? 'أدخل سعراً صالحاً' : 'Enter a valid price')
+      return
+    }
+    continueMutation.mutate({
+      tenantId: continueTenant._id,
+      payload: {
+        plan: continueForm.plan,
+        billingCycle: continueForm.billingCycle,
+        cycles,
+        amount,
+        currency: continueForm.currency,
+        method: continueForm.method,
+        reference: continueForm.reference,
+        note: continueForm.note || (language === 'ar' ? 'تجديد من لوحة المشرف' : 'Continued from Super Admin'),
+      },
+    })
+  }
 
   const openTerminationModal = (tenant) => {
     setTerminationForm({
@@ -682,7 +846,7 @@ export default function TenantManagement() {
                               <XCircle className="w-4 h-4" />
                             </button>
                           )}
-                          {(!tenant.isActive || tenant.subscription?.status === 'terminated') && (
+                          {(!tenant.isActive || tenant.subscription?.status === 'terminated' || getSubscriptionState(tenant).isExpired) && (
                             <button
                               type="button"
                               onClick={() => {
@@ -697,6 +861,18 @@ export default function TenantManagement() {
                               <Play className="w-4 h-4 fill-current" />
                             </button>
                           )}
+                          <button
+                            type="button"
+                            onClick={() => openContinueModal(tenant)}
+                            className="p-2 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg text-emerald-700 disabled:opacity-50"
+                            title={
+                              getSubscriptionState(tenant).isExpired
+                                ? (language === 'ar' ? 'متابعة / تجديد الاشتراك المنتهي' : 'Continue / renew expired subscription')
+                                : (language === 'ar' ? 'تجديد الاشتراك (شهري/سنوي)' : 'Renew subscription (monthly/yearly)')
+                            }
+                          >
+                            <CreditCard className="w-4 h-4" />
+                          </button>
                           <button
                             type="button"
                             onClick={() => setMonitoringTenant(tenant)}
@@ -925,6 +1101,177 @@ export default function TenantManagement() {
                   ) : (
                     <><Send className="w-4 h-4" />{language === 'ar' ? 'إرسال النسخة الاحتياطية' : 'Send Backup'}</>
                   )}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Continue / Renew Subscription Modal ── */}
+      <AnimatePresence>
+        {continueTenant && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setContinueTenant(null)} className="fixed inset-0 bg-black/50 z-40" />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg bg-white dark:bg-dark-800 rounded-2xl shadow-xl z-50 overflow-hidden"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-dark-700">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
+                    <CreditCard className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                      {getSubscriptionState(continueTenant).isExpired
+                        ? (language === 'ar' ? 'متابعة اشتراك منتهٍ' : 'Continue expired subscription')
+                        : (language === 'ar' ? 'تجديد الاشتراك' : 'Renew subscription')}
+                    </h3>
+                    <p className="text-sm text-gray-500">{continueTenant.name}</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setContinueTenant(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="px-6 py-5 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm dark:border-dark-600 dark:bg-dark-700/40">
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {language === 'ar' ? 'الحالة الحالية' : 'Current status'}:{' '}
+                    {subscriptionBadge(continueTenant, language).label}
+                  </p>
+                  <p className="mt-1 text-gray-500">
+                    {language === 'ar' ? 'ينتهي:' : 'Ends:'}{' '}
+                    {formatSubscriptionDate(continueTenant.subscription?.endDate || continueTenant.demoTrialEndsAt, language)}
+                    {' · '}
+                    {continueTenant.subscription?.plan || 'trial'}
+                    {' / '}
+                    {continueTenant.subscription?.billingCycle || 'monthly'}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="label">{language === 'ar' ? 'الخطة' : 'Plan'}</label>
+                    <select className="select" value={continueForm.plan} onChange={(e) => updateContinueField('plan', e.target.value)}>
+                      {getPricingPlansForTenant(continueTenant).map((plan) => (
+                        <option key={plan.id} value={plan.id}>
+                          {language === 'ar' ? (plan.nameAr || plan.id) : (plan.nameEn || plan.id)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'دورة الفوترة' : 'Billing cycle'}</label>
+                    <select className="select" value={continueForm.billingCycle} onChange={(e) => updateContinueField('billingCycle', e.target.value)}>
+                      <option value="monthly">{language === 'ar' ? 'شهري' : 'Monthly'}</option>
+                      <option value="yearly">{language === 'ar' ? 'سنوي' : 'Yearly'}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'عدد الدورات' : 'Cycles'}</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={36}
+                      className="input"
+                      value={continueForm.cycles}
+                      onChange={(e) => updateContinueField('cycles', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">
+                      {language === 'ar'
+                        ? (continueForm.billingCycle === 'yearly' ? 'السعر السنوي' : 'السعر الشهري')
+                        : (continueForm.billingCycle === 'yearly' ? 'Yearly price' : 'Monthly price')}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        className="input pe-14"
+                        value={continueForm.amount}
+                        onChange={(e) => updateContinueField('amount', e.target.value)}
+                      />
+                      <span className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400">
+                        {continueForm.currency}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'العملة' : 'Currency'}</label>
+                    <select className="select" value={continueForm.currency} onChange={(e) => updateContinueField('currency', e.target.value)}>
+                      <option value="SAR">SAR</option>
+                      <option value="USD">USD</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">{language === 'ar' ? 'طريقة الدفع' : 'Method'}</label>
+                    <select className="select" value={continueForm.method} onChange={(e) => updateContinueField('method', e.target.value)}>
+                      <option value="bank_transfer">{language === 'ar' ? 'تحويل بنكي' : 'Bank transfer'}</option>
+                      <option value="cash">{language === 'ar' ? 'نقداً' : 'Cash'}</option>
+                      <option value="card">{language === 'ar' ? 'بطاقة' : 'Card'}</option>
+                      <option value="stc_pay">STC Pay</option>
+                      <option value="other">{language === 'ar' ? 'أخرى' : 'Other'}</option>
+                    </select>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="label">{language === 'ar' ? 'المرجع' : 'Reference'}</label>
+                    <input
+                      className="input"
+                      value={continueForm.reference}
+                      onChange={(e) => updateContinueField('reference', e.target.value)}
+                      placeholder={language === 'ar' ? 'رقم التحويل…' : 'Transfer ref…'}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm dark:border-emerald-900/40 dark:bg-emerald-950/20">
+                  <p className="font-semibold text-emerald-900 dark:text-emerald-100">
+                    {language === 'ar' ? 'الملخص' : 'Summary'}
+                  </p>
+                  <p className="mt-1 text-emerald-800 dark:text-emerald-200">
+                    {(Number(continueForm.amount) || 0).toFixed(2)} {continueForm.currency}
+                    {' × '}
+                    {Math.max(1, Number(continueForm.cycles) || 1)}
+                    {' = '}
+                    <span className="font-bold">
+                      {((Number(continueForm.amount) || 0) * Math.max(1, Number(continueForm.cycles) || 1)).toFixed(2)} {continueForm.currency}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-emerald-700 dark:text-emerald-300">
+                    {language === 'ar' ? 'ساري حتى:' : 'Valid until:'}{' '}
+                    {formatSubscriptionDate(
+                      previewContinuedEndDate(
+                        continueTenant.subscription?.endDate || continueTenant.demoTrialEndsAt,
+                        continueForm.billingCycle,
+                        continueForm.cycles,
+                      ),
+                      language,
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-dark-700">
+                <button type="button" onClick={() => setContinueTenant(null)} className="btn btn-secondary">
+                  {t('cancel')}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleContinueSubmit}
+                  disabled={continueMutation.isPending}
+                  className="btn btn-primary bg-emerald-600 hover:bg-emerald-700 border-emerald-600 hover:border-emerald-700 disabled:opacity-50"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  {continueMutation.isPending
+                    ? '…'
+                    : (language === 'ar' ? 'تفعيل ومتابعة' : 'Activate & continue')}
                 </button>
               </div>
             </motion.div>

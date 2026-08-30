@@ -46,6 +46,8 @@ const subscriptionSchema = new mongoose.Schema({
     note: { type: String, default: '' },
     plan: { type: String, default: '' },
     billingCycle: { type: String, default: 'monthly' },
+    cycles: { type: Number, default: 1 },
+    unitPrice: { type: Number, default: 0 },
     periodStart: { type: Date },
     periodEnd: { type: Date },
     recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

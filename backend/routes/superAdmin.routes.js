@@ -1389,6 +1389,52 @@ router.put('/tenants/:id/subscription', async (req, res) => {
   }
 });
 
+const DEFAULT_PLAN_UNIT_PRICES = {
+  starter: { monthly: { SAR: 49.99, USD: 29.99 }, yearly: { SAR: 499, USD: 299 } },
+  professional: { monthly: { SAR: 99.99, USD: 59.99 }, yearly: { SAR: 999, USD: 599 } },
+  enterprise: { monthly: { SAR: 0, USD: 0 }, yearly: { SAR: 0, USD: 0 } },
+};
+
+const pickPlanUnitPriceFromRow = (planRow, billingCycle, currency) => {
+  const cycle = billingCycle === 'yearly' ? 'yearly' : 'monthly';
+  const code = String(currency || 'SAR').toUpperCase() === 'USD' ? 'USD' : 'SAR';
+  if (!planRow) return null;
+  if (code === 'USD') {
+    const v = cycle === 'yearly'
+      ? Number(planRow.priceYearlyUsd ?? planRow.priceYearly)
+      : Number(planRow.priceMonthlyUsd ?? planRow.priceMonthly);
+    return Number.isFinite(v) ? Math.round(v * 100) / 100 : null;
+  }
+  const v = cycle === 'yearly'
+    ? Number(planRow.priceYearlySar ?? planRow.priceYearly)
+    : Number(planRow.priceMonthlySar ?? planRow.priceMonthly);
+  return Number.isFinite(v) ? Math.round(v * 100) / 100 : null;
+};
+
+const resolveWebsitePlanUnitPrice = async ({ planId, billingCycle, currency, businessType } = {}) => {
+  const id = String(planId || 'starter').toLowerCase();
+  const cycle = billingCycle === 'yearly' ? 'yearly' : 'monthly';
+  const code = String(currency || 'SAR').toUpperCase() === 'USD' ? 'USD' : 'SAR';
+
+  try {
+    const settings = await SystemSettings.findOne({ key: 'global' }).lean();
+    const website = mergeWebsiteDefaults(settings?.website);
+    const byType = Array.isArray(website?.pricing?.plansByBusinessType)
+      ? website.pricing.plansByBusinessType.find((row) => row?.businessType === businessType)?.plans
+      : null;
+    const plans = (Array.isArray(byType) && byType.length > 0)
+      ? byType
+      : (Array.isArray(website?.pricing?.plans) ? website.pricing.plans : []);
+    const match = plans.find((p) => String(p?.id || '').toLowerCase() === id);
+    const fromCms = pickPlanUnitPriceFromRow(match, cycle, code);
+    if (fromCms != null) return fromCms;
+  } catch (_) {
+    // fall through to defaults
+  }
+
+  return DEFAULT_PLAN_UNIT_PRICES[id]?.[cycle]?.[code] ?? 0;
+};
+
 /** Record an accepted SaaS payment and extend / activate the subscription. */
 // @route   POST /api/super-admin/tenants/:id/accept-payment
 router.post('/tenants/:id/accept-payment', async (req, res) => {
@@ -1397,7 +1443,7 @@ router.post('/tenants/:id/accept-payment', async (req, res) => {
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
     const {
-      amount = 0,
+      amount,
       currency = 'SAR',
       method = 'bank_transfer',
       reference = '',
@@ -1412,10 +1458,25 @@ router.post('/tenants/:id/accept-payment', async (req, res) => {
       ? 'yearly'
       : 'monthly';
     const cycleCount = Math.max(1, Math.min(36, Number(cycles) || 1));
+    const payCurrency = String(currency || tenant.settings?.currency || 'SAR').toUpperCase();
 
     if (nextPlan === 'trial') {
       return res.status(400).json({ error: 'Select a paid plan when accepting payment' });
     }
+
+    let unitPrice = NaN;
+    if (amount !== undefined && amount !== null && amount !== '') {
+      unitPrice = Number(amount);
+    }
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      unitPrice = await resolveWebsitePlanUnitPrice({
+        planId: nextPlan,
+        billingCycle: nextCycle,
+        currency: payCurrency,
+        businessType: tenant.businessType || (Array.isArray(tenant.businessTypes) ? tenant.businessTypes[0] : null),
+      });
+    }
+    const totalPaid = Math.round(unitPrice * cycleCount * 100) / 100;
 
     const now = new Date();
     const priorEnd = tenant.subscription?.endDate;
@@ -1438,7 +1499,8 @@ router.post('/tenants/:id/accept-payment', async (req, res) => {
     if (!paidPrior || !tenant.subscription.startDate) {
       tenant.subscription.startDate = now;
     }
-    tenant.subscription.price = Number(amount) || Number(tenant.subscription.price) || 0;
+    // Recurring list price for the selected cycle (not multiplied by cycles)
+    tenant.subscription.price = unitPrice;
     tenant.subscription.maxUsers = entitlements.maxUsers;
     tenant.subscription.maxInvoices = entitlements.maxInvoices;
     tenant.subscription.maxQuotations = entitlements.maxQuotations;
@@ -1451,13 +1513,15 @@ router.post('/tenants/:id/accept-payment', async (req, res) => {
       tenant.subscription.paymentHistory = [];
     }
     tenant.subscription.paymentHistory.push({
-      amount: Number(amount) || 0,
-      currency: String(currency || 'SAR').toUpperCase(),
+      amount: totalPaid,
+      currency: payCurrency,
       method: String(method || 'bank_transfer'),
       reference: String(reference || ''),
       note: String(note || ''),
       plan: nextPlan,
       billingCycle: nextCycle,
+      cycles: cycleCount,
+      unitPrice,
       periodStart,
       periodEnd,
       recordedBy: req.user?._id,
@@ -1472,8 +1536,8 @@ router.post('/tenants/:id/accept-payment', async (req, res) => {
       tenantId: String(tenant._id),
       plan: nextPlan,
       billingCycle: nextCycle,
-      amount: Number(amount) || 0,
-      currency: String(currency || 'SAR').toUpperCase(),
+      amount: totalPaid,
+      currency: payCurrency,
       paymentId: reference || `manual_${now.getTime()}`,
     });
 
@@ -1522,30 +1586,50 @@ router.put('/tenants/:id/toggle-status', async (req, res) => {
 router.post('/tenants/:id/resume', async (req, res) => {
   try {
     const { id } = req.params;
-    const { days } = req.body;
+    const { days, billingCycle, cycles } = req.body || {};
 
     const tenant = await Tenant.findById(id);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
     tenant.terminationNotice = undefined;
     tenant.isActive = true;
-    if (tenant.subscription && tenant.subscription.status === 'terminated') {
+    if (!tenant.subscription) tenant.subscription = {};
+
+    const status = String(tenant.subscription.status || '').toLowerCase();
+    if (['terminated', 'expired', 'trial_ended', 'cancelled', 'inactive'].includes(status) || !status) {
       tenant.subscription.status = 'active';
     }
 
-    if (days && !isNaN(days)) {
+    const cycle = String(billingCycle || tenant.subscription.billingCycle || 'monthly').toLowerCase() === 'yearly'
+      ? 'yearly'
+      : 'monthly';
+    const cycleCount = Math.max(0, Math.min(36, Number(cycles) || 0));
+
+    if (cycleCount > 0) {
+      tenant.subscription.billingCycle = cycle;
       const now = new Date();
       let currentEndDate = tenant.subscription.endDate ? new Date(tenant.subscription.endDate) : now;
-      if (currentEndDate < now) {
+      if (!(currentEndDate instanceof Date) || Number.isNaN(currentEndDate.getTime()) || currentEndDate < now) {
         currentEndDate = now;
       }
-      
+      for (let i = 0; i < cycleCount; i += 1) {
+        if (cycle === 'yearly') currentEndDate.setFullYear(currentEndDate.getFullYear() + 1);
+        else currentEndDate.setMonth(currentEndDate.getMonth() + 1);
+      }
+      tenant.subscription.endDate = currentEndDate;
+    } else if (days && !Number.isNaN(Number(days))) {
+      const now = new Date();
+      let currentEndDate = tenant.subscription.endDate ? new Date(tenant.subscription.endDate) : now;
+      if (!(currentEndDate instanceof Date) || Number.isNaN(currentEndDate.getTime()) || currentEndDate < now) {
+        currentEndDate = now;
+      }
       currentEndDate.setDate(currentEndDate.getDate() + Number(days));
       tenant.subscription.endDate = currentEndDate;
     }
 
     await tenant.save();
-    res.json(tenant);
+    invalidateAuthCache(null, tenant._id);
+    res.json(serializeTenantForSuperAdmin(tenant));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
