@@ -10,6 +10,7 @@ import {
   getTenantWorkspaceUrl,
   escapeHtml,
 } from './premiumEmailShell.js';
+import { addBillingCycle } from './subscriptionPeriod.js';
 
 const normalizeLanguage = (language) => {
   if (language === 'ar') return 'ar';
@@ -572,7 +573,7 @@ export const sendUpgradeWelcomeEmail = async ({ email, tenant, plan, billingCycl
     const amountStr = amount ? `${amount} ${currency}` : '';
     const now = new Date();
     const startDate = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-    const endDate = new Date(now.getTime() + (billingCycle === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000);
+    const endDate = addBillingCycle(now, billingCycle === 'yearly' ? 'yearly' : 'monthly');
     const endDateStr = endDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
     const companyName = String(tenant?.name || 'Valued customer').trim();
     const subject = `Welcome to ${brandName} — your subscription is active`;
