@@ -123,6 +123,7 @@ import { generateTermsPdf } from '../utils/termsPdf.js';
 import { provisionTenantApps, provisionAllTenants, getDefaultInstalledApps } from '../utils/appProvisioning.js';
 import { buildDraftInvoiceQr } from '../utils/zatca/draftInvoiceQr.js';
 import { enrichInvoiceArabicFields } from '../utils/invoiceArabic.js';
+import { wipeTenantOperationalData, resetTenantCounters } from '../services/wipeTenantOperationalData.js';
 
 const router = express.Router();
 const parsedDatabaseQueryTimeoutMs = Number(process.env.MONGODB_QUERY_TIMEOUT_MS || 10000);
@@ -1587,10 +1588,10 @@ router.delete('/tenants/:id/invoices', async (req, res) => {
 });
 
 // @route   POST /api/super-admin/tenants/:id/reset
-// @desc    Hard-reset the tenant's workspace: wipe all business data across every
-//          module so the panel starts fresh. The tenant record, its users/employees
-//          and tenant settings (branding, ZATCA config, invoice template, etc.) are
-//          preserved.
+// @desc    Hard-reset the tenant workspace: wipe ALL operational data
+//          (PO, GRN, sales orders, inventory engine stock, invoices, quotations,
+//          partners, warehouses, …) so everything starts from 0.
+//          Preserves the tenant record, login users, and employees.
 router.post('/tenants/:id/reset', async (req, res) => {
   try {
     const tenant = await Tenant.findById(req.params.id);
@@ -1599,147 +1600,24 @@ router.post('/tenants/:id/reset', async (req, res) => {
     }
 
     const tenantId = tenant._id;
-    const filter = { tenantId };
-
-    const collections = [
-      ['invoices', Invoice],
-      ['customers', Customer],
-      ['travelBookings', TravelBooking],
-      ['restaurantOrders', RestaurantOrder],
-      ['restaurantDeliveryOrders', DeliveryOrder],
-      ['restaurantDeliveryConfigs', DeliveryPlatformConfig],
-      ['restaurantMenuSyncLogs', MenuSyncLog],
-      ['messSubscribers', MessSubscriber],
-      ['messPlans', MessPlan],
-      ['messBillings', MessBilling],
-      ['messAttendances', MessAttendance],
-      ['restaurantReservation', RestaurantReservation],
-      ['restaurantTable', RestaurantTable],
-      ['restaurantCombo', RestaurantCombo],
-      ['restaurantInventory', RestaurantInventory],
-      ['restaurantKDSStation', RestaurantKDSStation],
-      ['emails', EmailMessage],
-      ['expenses', Expense],
-      ['expenseClaims', ExpenseClaim],
-      ['products', Product],
-      ['purchaseOrders', PurchaseOrder],
-      ['purchaseReturns', PurchaseReturn],
-      ['grns', GRN],
-      ['landedCosts', LandedCost],
-      ['stockTransfers', StockTransfer],
-      ['inventoryAdjustments', InventoryAdjustment],
-      ['suppliers', Supplier],
-      ['warehouses', Warehouse],
-      ['shipments', Shipment],
-      ['vatReturns', VatReturn],
-      ['tasks', Task],
-      ['projects', Project],
-      ['payroll', Payroll],
-      ['jobCostEntries', JobCostEntry],
-      ['jobCostingJobs', JobCostingJob],
-      ['iotDevices', IoTDevice],
-      ['iotReadings', IoTReading],
-      ['whatsappContacts', WhatsAppContact],
-      ['whatsappMessages', WhatsAppMessage],
-      ['whatsappTemplates', WhatsAppTemplate],
-      ['whatsappQuickReplies', QuickReply],
-      ['whatsappBroadcasts', Broadcast],
-      ['quotations', Quotation],
-      ['deliveryNotes', DeliveryNote],
-      ['reportSchedules', ReportSchedule],
-      ['transactions', Transaction],
-      ['journalEntries', JournalEntry],
-      ['chartOfAccounts', ChartOfAccount],
-      ['vouchers', Voucher],
-      ['dailyPnL', DailyPnL],
-      ['bakalaProducts', BakalaProduct],
-      ['bakalaCategories', BakalaCategory],
-      ['bakalaBrands', BakalaBrand],
-      ['bakalaShifts', BakalaShift],
-      ['bakalaUnits', BakalaUnit],
-      ['boutiqueProducts', BoutiqueProduct],
-      ['boutiqueRentals', BoutiqueRental],
-      ['boutiqueAlterations', BoutiqueAlteration],
-      ['laundryOrders', LaundryOrder],
-      ['laundryCustomers', LaundryCustomer],
-      ['laundryInventory', LaundryInventory],
-      ['laundryServices', LaundryService],
-      ['laundryDeliveryRoutes', LaundryDeliveryRoute],
-      ['rentalCars', RentalCar],
-      ['rentalContracts', RentalContract],
-      ['rentalCustomers', RentalCustomer],
-      ['rentalInspections', RentalInspection],
-      ['rentalInvoices', RentalInvoice],
-      ['rentalMaintenance', RentalMaintenance],
-      ['saloonOrders', SaloonOrder],
-      ['saloonAppointments', SaloonAppointment],
-      ['saloonServices', SaloonService],
-      ['saloonStaff', SaloonStaff],
-      ['workshopJobCards', WorkshopJobCard],
-      ['workshopVehicles', WorkshopVehicle],
-      ['workshopEstimates', WorkshopEstimate],
-      ['workshopInventoryItems', WorkshopInventoryItem],
-      ['workshopPurchaseOrders', WorkshopPurchaseOrder],
-      ['workshopServiceReminders', WorkshopServiceReminder],
-      ['contracts', Contract],
-      ['manpowerTimesheets', ManpowerTimesheet],
-      ['manpowerWorkers', ManpowerWorker],
-      ['manpowerAssignments', ManpowerAssignment],
-      ['candidates', Candidate],
-      ['jobRequisitions', JobRequisition],
-      ['leaveRequests', LeaveRequest],
-      ['performanceReviews', PerformanceReview],
-      ['calendarEvents', CalendarEvent],
-      ['crmLeads', CRMLead],
-      ['crmDeals', CRMDeal],
-      ['crmContacts', CRMContact],
-      ['crmCampaigns', CRMCampaign],
-      ['crmActivities', CRMActivity],
-      ['wasteEntries', WasteEntry],
-      ['maintenanceRecords', MaintenanceRecord],
-      ['govIntegrationLogs', GovIntegrationLog],
-    ];
-
-    const results = await Promise.all(
-      collections.map(async ([key, Model]) => {
-        try {
-          const result = await Model.deleteMany(filter);
-          return [key, result?.deletedCount || 0];
-        } catch (err) {
-          return [key, { error: err.message }];
-        }
-      })
-    );
-
-    // Reset installed apps so the tenant starts with fresh apps catalog
-    if (!tenant.settings) tenant.settings = {};
-    tenant.settings.installedApps = {};
-    tenant.installedApps = [];
-    tenant.apps = [];
-    tenant.markModified('settings.installedApps');
-    tenant.markModified('installedApps');
-    tenant.markModified('apps');
+    const deleted = await wipeTenantOperationalData(tenantId);
 
     try {
       await AppAddon.deleteMany({ tenantId });
     } catch (_) {}
 
-    // Reset the ZATCA invoice chain so the next invoice starts from scratch.
-    tenant.zatca = {
-      ...(tenant.zatca?.toObject?.() || tenant.zatca || {}),
-      invoiceCounter: 0,
-      lastInvoiceHash: '',
-    };
-    tenant.markModified('zatca');
+    resetTenantCounters(tenant);
     await tenant.save();
 
     invalidateAuthCache(tenantId);
 
-    const summary = Object.fromEntries(results);
+    const totalRemoved = Object.values(deleted).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
+
     res.json({
       success: true,
       tenantId: String(tenantId),
-      deleted: summary,
+      totalRemoved,
+      deleted,
     });
   } catch (error) {
     sendRouteError(res, error);
@@ -1756,127 +1634,29 @@ router.delete('/tenants/:id', async (req, res) => {
     }
 
     const tenantId = tenant._id;
-    const filter = { tenantId };
 
-    const collections = [
-      ['invoices', Invoice],
-      ['customers', Customer],
-      ['travelBookings', TravelBooking],
-      ['restaurantDeliveryOrders', DeliveryOrder],
-      ['restaurantDeliveryConfigs', DeliveryPlatformConfig],
-      ['restaurantMenuSyncLogs', MenuSyncLog],
-      ['messSubscribers', MessSubscriber],
-      ['messPlans', MessPlan],
-      ['messBillings', MessBilling],
-      ['messAttendances', MessAttendance],
-      ['restaurantReservation', RestaurantReservation],
-      ['restaurantTable', RestaurantTable],
-      ['restaurantCombo', RestaurantCombo],
-      ['restaurantInventory', RestaurantInventory],
-      ['restaurantKDSStation', RestaurantKDSStation],
-      ['emails', EmailMessage],
-      ['expenses', Expense],
-      ['expenseClaims', ExpenseClaim],
-      ['products', Product],
-      ['purchaseOrders', PurchaseOrder],
-      ['purchaseReturns', PurchaseReturn],
-      ['grns', GRN],
-      ['landedCosts', LandedCost],
-      ['stockTransfers', StockTransfer],
-      ['inventoryAdjustments', InventoryAdjustment],
-      ['suppliers', Supplier],
-      ['warehouses', Warehouse],
-      ['shipments', Shipment],
-      ['vatReturns', VatReturn],
-      ['tasks', Task],
-      ['projects', Project],
-      ['payroll', Payroll],
-      ['jobCostEntries', JobCostEntry],
-      ['jobCostingJobs', JobCostingJob],
-      ['iotDevices', IoTDevice],
-      ['iotReadings', IoTReading],
-      ['whatsappContacts', WhatsAppContact],
-      ['whatsappMessages', WhatsAppMessage],
-      ['whatsappTemplates', WhatsAppTemplate],
-      ['whatsappQuickReplies', QuickReply],
-      ['whatsappBroadcasts', Broadcast],
-      ['quotations', Quotation],
-      ['deliveryNotes', DeliveryNote],
-      ['reportSchedules', ReportSchedule],
-      ['transactions', Transaction],
-      ['journalEntries', JournalEntry],
-      ['chartOfAccounts', ChartOfAccount],
-      ['vouchers', Voucher],
-      ['dailyPnL', DailyPnL],
-      ['bakalaProducts', BakalaProduct],
-      ['bakalaCategories', BakalaCategory],
-      ['bakalaBrands', BakalaBrand],
-      ['bakalaShifts', BakalaShift],
-      ['bakalaUnits', BakalaUnit],
-      ['boutiqueProducts', BoutiqueProduct],
-      ['boutiqueRentals', BoutiqueRental],
-      ['boutiqueAlterations', BoutiqueAlteration],
-      ['laundryOrders', LaundryOrder],
-      ['laundryCustomers', LaundryCustomer],
-      ['laundryInventory', LaundryInventory],
-      ['laundryServices', LaundryService],
-      ['laundryDeliveryRoutes', LaundryDeliveryRoute],
-      ['rentalCars', RentalCar],
-      ['rentalContracts', RentalContract],
-      ['rentalCustomers', RentalCustomer],
-      ['rentalInspections', RentalInspection],
-      ['rentalInvoices', RentalInvoice],
-      ['rentalMaintenance', RentalMaintenance],
-      ['saloonOrders', SaloonOrder],
-      ['saloonAppointments', SaloonAppointment],
-      ['saloonServices', SaloonService],
-      ['saloonStaff', SaloonStaff],
-      ['workshopJobCards', WorkshopJobCard],
-      ['workshopVehicles', WorkshopVehicle],
-      ['workshopEstimates', WorkshopEstimate],
-      ['workshopInventoryItems', WorkshopInventoryItem],
-      ['workshopPurchaseOrders', WorkshopPurchaseOrder],
-      ['workshopServiceReminders', WorkshopServiceReminder],
-      ['contracts', Contract],
-      ['manpowerTimesheets', ManpowerTimesheet],
-      ['manpowerWorkers', ManpowerWorker],
-      ['manpowerAssignments', ManpowerAssignment],
-      ['candidates', Candidate],
-      ['jobRequisitions', JobRequisition],
-      ['leaveRequests', LeaveRequest],
-      ['performanceReviews', PerformanceReview],
-      ['calendarEvents', CalendarEvent],
-      ['crmLeads', CRMLead],
-      ['crmDeals', CRMDeal],
-      ['crmContacts', CRMContact],
-      ['crmCampaigns', CRMCampaign],
-      ['crmActivities', CRMActivity],
-      ['wasteEntries', WasteEntry],
-      ['maintenanceRecords', MaintenanceRecord],
-      ['govIntegrationLogs', GovIntegrationLog],
-      ['users', User],
-      ['employees', Employee]
-    ];
+    const deleted = await wipeTenantOperationalData(tenantId);
 
-    const results = await Promise.all(
-      collections.map(async ([key, Model]) => {
-        try {
-          const result = await Model.deleteMany(filter);
-          return [key, result?.deletedCount || 0];
-        } catch (err) {
-          return [key, { error: err.message }];
-        }
-      })
-    );
+    try {
+      await AppAddon.deleteMany({ tenantId });
+    } catch (_) {}
+
+    const [usersDeleted, employeesDeleted] = await Promise.all([
+      User.deleteMany({ tenantId }).then((r) => r?.deletedCount || 0).catch(() => 0),
+      Employee.deleteMany({ tenantId }).then((r) => r?.deletedCount || 0).catch(() => 0),
+    ]);
+    deleted.User = usersDeleted;
+    deleted.Employee = employeesDeleted;
 
     await Tenant.findByIdAndDelete(tenantId);
-    results.push(['tenant', 1]);
+    deleted.Tenant = 1;
+    invalidateAuthCache(tenantId);
 
-    const summary = Object.fromEntries(results);
     res.json({
       success: true,
       message: 'Tenant and all associated data completely deleted',
-      deleted: summary,
+      tenantId: String(tenantId),
+      deleted,
     });
   } catch (error) {
     sendRouteError(res, error);

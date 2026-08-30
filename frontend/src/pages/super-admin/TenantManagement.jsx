@@ -89,11 +89,12 @@ export default function TenantManagement() {
   const resetPanelMutation = useMutation({
     mutationFn: (tenantId) => api.post(`/super-admin/tenants/${tenantId}/reset`, {}, { timeout: 120000 }).then(res => res.data),
     onSuccess: (result) => {
-      const totals = Object.values(result?.deleted || {}).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0)
+      const totals = result?.totalRemoved
+        ?? Object.values(result?.deleted || {}).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0)
       toast.success(
         language === 'ar'
-          ? `تم تصفير اللوحة (${totals} سجلاً)`
-          : `Panel reset — ${totals} records removed`
+          ? `تم تصفير المستأجر بالكامل (${totals} سجلاً)`
+          : `Tenant fully reset — ${totals} records removed`
       )
       queryClient.invalidateQueries()
     },
@@ -256,8 +257,8 @@ export default function TenantManagement() {
   const handleResetPanel = (tenant) => {
     const label = tenant?.name || tenant?.business?.legalNameEn || ''
     const firstConfirm = language === 'ar'
-      ? `تحذير: سيتم حذف جميع البيانات (الفواتير، العملاء، المنتجات، الحجوزات، الطلبات، المصروفات، المستودعات، المهام، المشاريع، ...) للمستأجر "${label}". سيبدأ المستأجر من الصفر. هل أنت متأكد؟`
-      : `WARNING: This will erase ALL business data (invoices, customers, products, bookings, orders, expenses, warehouses, tasks, projects, ...) for "${label}". The tenant will start from scratch. Continue?`
+      ? `تحذير: سيتم حذف كل بيانات التشغيل للمستأجر "${label}" (طلبات الشراء، إشعارات الاستلام، أوامر البيع، المخزون، المنتجات، الفواتير، عروض الأسعار، العملاء، الموردين، المستودعات، ...). سيبدأ المستأجر من الصفر. هل أنت متأكد؟`
+      : `WARNING: This will permanently erase ALL operational data for "${label}" — purchase orders, GRNs, sales orders, inventory stock, products, invoices, quotations, customers, suppliers, warehouses, and more. The tenant will start from zero. Continue?`
     if (!window.confirm(firstConfirm)) return
     const confirmText = label ? label.trim() : 'RESET'
     const typed = window.prompt(
