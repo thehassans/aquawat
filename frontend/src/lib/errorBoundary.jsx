@@ -1,52 +1,46 @@
 import { Component } from 'react'
-
-const isChunkLoadError = (error) => {
-  const msg = String(error?.message || error?.name || error || '').toLowerCase()
-  return (
-    msg.includes('failed to fetch dynamically imported module') ||
-    msg.includes('importing a module script failed') ||
-    msg.includes('loading chunk') ||
-    msg.includes('unexpected token <') ||
-    msg.includes('error loading dynamically imported module') ||
-    msg.includes('dynamically imported') ||
-    msg.includes('failed to load module script') ||
-    msg.includes('chunkloaderror') ||
-    msg.includes('load failed') ||
-    msg.includes('mime type') ||
-    msg.includes('is not defined') ||
-    msg.includes('failed to fetch')
-  )
-}
-
-const purgeAndReload = async () => {
-  try {
-    if ('caches' in window) {
-      const keys = await caches.keys()
-      await Promise.all(keys.map((k) => caches.delete(k)))
-    }
-    if ('serviceWorker' in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations()
-      await Promise.all(regs.map((r) => {
-        const url = r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || ''
-        if (url.includes('maqder-install-sw')) return Promise.resolve()
-        return r.unregister()
-      }))
-    }
-  } catch (err) {
-    console.warn('[ErrorBoundary] Cache purge warning:', err)
-  }
-  const target = new URL(window.location.href)
-  target.searchParams.set('_v', Date.now().toString())
-  window.location.replace(target.toString())
-}
+import {
+  isChunkLoadError,
+  tryRecoverFromChunkError,
+  purgeStaleCachesAndReload,
+} from './chunkRecovery'
 
 const refreshPage = () => {
-  purgeAndReload()
+  void purgeStaleCachesAndReload()
 }
 
 const isArabicUi = () => {
   if (typeof document === 'undefined') return false
   return document.documentElement.dir === 'rtl' || document.documentElement.lang === 'ar'
+}
+
+function SoftRouteError({ onRetry, error }) {
+  const ar = isArabicUi()
+  return (
+    <div className="mx-auto flex min-h-[40vh] max-w-lg flex-col items-center justify-center px-6 py-16 text-center">
+      <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-teal-700">Maqder</p>
+      <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
+        {ar ? 'تعذر تحميل الصفحة' : 'This page could not load'}
+      </h2>
+      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+        {ar
+          ? 'جرّب مرة أخرى، أو انتقل لصفحة أخرى. بياناتك محفوظة.'
+          : 'Try again, or open another page. Your data is safe.'}
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-6 rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-600"
+      >
+        {ar ? 'إعادة المحاولة' : 'Try again'}
+      </button>
+      {import.meta.env.DEV && error ? (
+        <pre className="mt-4 max-h-32 w-full overflow-auto rounded-lg bg-slate-50 p-3 text-left text-[11px] text-red-700 dark:bg-dark-800 dark:text-red-300">
+          {error?.message || String(error)}
+        </pre>
+      ) : null}
+    </div>
+  )
 }
 
 function PremiumErrorScreen({ recovering = false, error = null }) {
@@ -114,20 +108,6 @@ function PremiumErrorScreen({ recovering = false, error = null }) {
           pointerEvents: 'none',
         }}
       />
-      <div
-        aria-hidden
-        style={{
-          position: 'absolute',
-          width: 380,
-          height: 380,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(180,83,9,0.08) 0%, rgba(180,83,9,0) 70%)',
-          bottom: '-120px',
-          [ar ? 'right' : 'left']: '-60px',
-          pointerEvents: 'none',
-        }}
-      />
-
       <div
         className="maqder-error-card"
         style={{
@@ -225,7 +205,7 @@ function PremiumErrorScreen({ recovering = false, error = null }) {
             <button
               type="button"
               className="maqder-error-ghost"
-              onClick={() => purgeAndReload()}
+              onClick={() => purgeStaleCachesAndReload()}
               style={{
                 height: 50,
                 borderRadius: 16,
@@ -245,7 +225,7 @@ function PremiumErrorScreen({ recovering = false, error = null }) {
           </div>
         )}
 
-        {error && (
+        {error && !recovering && (
           <details
             style={{
               marginTop: 18,
@@ -277,26 +257,6 @@ function PremiumErrorScreen({ recovering = false, error = null }) {
             >
               {error?.stack || error?.message || String(error)}
             </pre>
-            <button
-              type="button"
-              onClick={() => {
-                navigator.clipboard?.writeText(error?.stack || error?.message || String(error))
-                alert('Error copied to clipboard!')
-              }}
-              style={{
-                marginTop: 8,
-                padding: '4px 10px',
-                fontSize: 11,
-                fontWeight: 600,
-                color: '#0f766e',
-                background: '#f0fdfa',
-                border: '1px solid #ccfbf1',
-                borderRadius: 6,
-                cursor: 'pointer',
-              }}
-            >
-              {ar ? 'نسخ تفاصيل الخطأ' : 'Copy error'}
-            </button>
           </details>
         )}
       </div>
@@ -311,17 +271,11 @@ export class ErrorBoundary extends Component {
   }
 
   static getDerivedStateFromError(error) {
-    if (isChunkLoadError(error)) {
-      const lastRetry = Number(sessionStorage.getItem('chunk-error-retry-ts') || 0)
-      if (Date.now() - lastRetry > 8000) {
-        sessionStorage.setItem('chunk-error-retry-ts', Date.now().toString())
-        // Keep a visible loader while purge+reload runs — never return hasError:false
-        // (that remounts broken children and leaves #root blank until refresh).
-        purgeAndReload()
-        return { hasError: true, error: null, recovering: true }
-      }
+    return {
+      hasError: true,
+      error: isChunkLoadError(error) ? null : error,
+      recovering: false,
     }
-    return { hasError: true, error, recovering: false }
   }
 
   componentDidCatch(error, errorInfo) {
@@ -329,14 +283,36 @@ export class ErrorBoundary extends Component {
     if (window.__ERROR_TRACKING_ENABLED__ && window.__captureError__) {
       window.__captureError__(error, { componentStack: errorInfo.componentStack })
     }
+
+    // Route-level soft boundaries never hard-reload — navigation stays usable.
+    if (this.props.soft) return
+
+    if (isChunkLoadError(error) && tryRecoverFromChunkError()) {
+      this.setState({ recovering: true, error: null })
+    } else if (isChunkLoadError(error)) {
+      this.setState({ recovering: false, error })
+    }
+  }
+
+  componentDidUpdate(prevProps) {
+    if (this.props.resetKey !== undefined && this.props.resetKey !== prevProps.resetKey && this.state.hasError) {
+      this.setState({ hasError: false, error: null, recovering: false })
+    }
+  }
+
+  reset = () => {
+    this.setState({ hasError: false, error: null, recovering: false })
   }
 
   render() {
-    if (this.state.recovering) {
+    if (this.state.recovering && !this.props.soft) {
       return <PremiumErrorScreen recovering />
     }
 
     if (this.state.hasError) {
+      if (this.props.soft) {
+        return <SoftRouteError error={this.state.error} onRetry={this.reset} />
+      }
       return <PremiumErrorScreen error={this.state.error} />
     }
     return this.props.children

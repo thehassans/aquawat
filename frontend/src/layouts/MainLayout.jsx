@@ -1,5 +1,5 @@
 import { Outlet, useLocation } from 'react-router-dom'
-import { Suspense, lazy, useEffect } from 'react'
+import { Suspense, useEffect } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import Sidebar from '../components/layout/Sidebar'
 import Header from '../components/layout/Header'
@@ -12,8 +12,10 @@ import { setHideSidebar } from '../store/slices/uiSlice'
 import { PanelLeft } from 'lucide-react'
 import { useOfflineSync } from '../hooks/useOfflineSync'
 import { preloadCriticalRoutes } from '../lib/routePreloader'
+import { ErrorBoundary } from '../lib/errorBoundary'
+import { lazyRetry } from '../lib/lazyRetry'
 
-const AppLauncher = lazy(() => import('../components/layout/AppLauncher'))
+const AppLauncher = lazyRetry(() => import('../components/layout/AppLauncher'))
 
 export default function MainLayout() {
   useOfflineSync()
@@ -74,9 +76,11 @@ export default function MainLayout() {
             <Header />
           </div>
           <main className="p-4 lg:p-6 print:p-0 print:bg-white">
-            <Suspense fallback={<PageLoader />}>
-              <Outlet />
-            </Suspense>
+            <ErrorBoundary soft resetKey={location.pathname}>
+              <Suspense fallback={<PageLoader />}>
+                <Outlet />
+              </Suspense>
+            </ErrorBoundary>
           </main>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense } from 'react'
+import { useEffect, Suspense } from 'react'
 import { Routes, Route, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import { getMe, setTenantInactive, forceLogout } from './store/slices/authSlice'
@@ -8,6 +8,8 @@ import { getTenantBusinessTypes } from './lib/businessTypes'
 import { isNavItemAppVisible } from './lib/appStorePartners'
 import { showArabicUi } from './lib/saudiTenant'
 import { ErrorBoundary } from './lib/errorBoundary'
+import { lazyRetry as lazy } from './lib/lazyRetry'
+import { CHUNK_RETRY_KEY } from './lib/chunkRecovery'
 import { initSocket, disconnectSocket } from './lib/socket'
 import MainLayout from './layouts/MainLayout'
 import AuthLayout from './layouts/AuthLayout'
@@ -550,7 +552,11 @@ function App() {
     dispatch(setDisplayMode(displayMode))
     
     // Clear chunk loading retry flag on successful app load
+    sessionStorage.removeItem(CHUNK_RETRY_KEY)
     sessionStorage.removeItem('chunk-load-retry')
+    sessionStorage.removeItem('chunk-load-retry-ts')
+    sessionStorage.removeItem('chunk-error-retry-ts')
+    sessionStorage.removeItem('vite-preload-reloaded-ts')
   }, [])
 
   // Non–Middle East tenants (PK, BD, …) must stay on English UI — no Arabic chrome.
