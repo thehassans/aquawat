@@ -299,6 +299,17 @@ const captureElementSnapshotCanvas = async (sourceElement) => {
       logging: false,
       width,
       windowWidth: width,
+      onclone: (_document, clonedElement) => {
+        // html2canvas + CSS uppercase/letter-spacing shred Arabic ligatures.
+        clonedElement.querySelectorAll('[dir="rtl"], [lang="ar"], [dir=rtl], [lang=ar]').forEach((node) => {
+          if (!(node instanceof HTMLElement)) return
+          node.style.letterSpacing = '0'
+          node.style.textTransform = 'none'
+          if (!node.style.fontFamily) {
+            node.style.fontFamily = '"InvoiceAlmarai", "Almarai", Arial, sans-serif'
+          }
+        })
+      },
     })
   } catch (error) {
     console.warn('[invoicePdf] html2canvas snapshot failed', error)

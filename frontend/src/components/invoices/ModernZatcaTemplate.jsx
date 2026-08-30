@@ -8,7 +8,7 @@ import { getInvoiceBranding, getLetterheadContact, hexColorToRgb } from '../../l
 import { formatCurrencyAmount } from '../../lib/currency'
 import { Calendar, Hash, User, Phone, MapPin, CreditCard, FileText, Mail, Info } from 'lucide-react'
 import { getAmountInWords } from '../../lib/amountInWords'
-import { bilingualLabel, localizeSecondaryText, setActiveInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
+import { localizeSecondaryText, setActiveInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 import { getTaxIdLabel, getTaxQrLabel } from '../../lib/saudiTenant'
 import {
   getCommercialCounterpartyLabel,
@@ -29,8 +29,29 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
   setActiveInvoiceSecondaryLanguage(resolvedSecondary)
   const secondaryDir = resolvedSecondary === 'bn' ? 'ltr' : 'rtl'
   const isArabicSecondary = bilingual && resolvedSecondary === 'ar'
-  const L = (en, ar) => bilingualLabel(en, ar, bilingual)
   const S = (ar) => localizeSecondaryText(ar)
+  // Separate Arabic from English so CSS uppercase/letter-spacing cannot break ligatures
+  // (html2canvas / print also inherit those from parents).
+  const ArText = ({ children, className = '' }) => (
+    <span
+      className={`font-['Almarai'] normal-case tracking-normal [letter-spacing:0] [text-transform:none] ${className}`}
+      dir={secondaryDir}
+      lang={isArabicSecondary ? 'ar' : undefined}
+    >
+      {children}
+    </span>
+  )
+  const EnAr = ({ en, ar, enClassName = '', arClassName = '', className = '' }) => {
+    const secondary = bilingual ? S(ar) : ''
+    if (!secondary) return <span className={enClassName}>{en}</span>
+    return (
+      <span className={`inline-flex items-center gap-1.5 ${className}`}>
+        <span className={enClassName}>{en}</span>
+        <span className="opacity-60" aria-hidden>/</span>
+        <ArText className={arClassName}>{secondary}</ArText>
+      </span>
+    )
+  }
 
   const currency = invoice?.currency || tenant?.settings?.currency || 'SAR'
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
@@ -174,7 +195,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
         `}</style>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
           <div
-            className={`inline-flex w-fit items-center justify-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-center align-middle ${
+            className={`inline-flex w-fit items-center justify-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold text-center align-middle ${
               isPurchaseOrder || isPurchaseFlow
                 ? 'bg-slate-900 text-white border-slate-900'
                 : invoice?.businessContext === 'furniture' || (typeof window !== 'undefined' && window.location.pathname.includes('/furniture'))
@@ -194,20 +215,20 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
             <FileText className="h-4 w-4 shrink-0" />
             <span className="inline-flex items-center gap-1.5 leading-none">
               {isPurchaseOrder
-                ? L('Purchase Order', 'طلب شراء')
+                ? <EnAr en="Purchase Order" ar="طلب شراء" enClassName="uppercase tracking-wider" />
                 : isVendorBill
-                ? L('Purchase Order Bill', 'فاتورة أمر الشراء')
+                ? <EnAr en="Purchase Order Bill" ar="فاتورة أمر الشراء" enClassName="uppercase tracking-wider" />
                 : isPurchaseFlow
-                ? L('Purchase Invoice', 'فاتورة شراء')
+                ? <EnAr en="Purchase Invoice" ar="فاتورة شراء" enClassName="uppercase tracking-wider" />
                 : invoice?.businessContext === 'furniture' || (typeof window !== 'undefined' && window.location.pathname.includes('/furniture'))
-                ? L('Furniture Sale Invoice', 'فاتورة بيع مفروشات')
+                ? <EnAr en="Furniture Sale Invoice" ar="فاتورة بيع مفروشات" enClassName="uppercase tracking-wider" />
                 : invoice?.businessContext === 'boutique'
                 ? invoice?.boutiqueDetails?.transactionType === 'sale'
-                  ? L('Boutique Sale Invoice', 'فاتورة بيع بوتيك')
-                  : L('Boutique Rental Invoice', 'فاتورة إيجار بوتيك')
+                  ? <EnAr en="Boutique Sale Invoice" ar="فاتورة بيع بوتيك" enClassName="uppercase tracking-wider" />
+                  : <EnAr en="Boutique Rental Invoice" ar="فاتورة إيجار بوتيك" enClassName="uppercase tracking-wider" />
                 : isQuotation
-                ? L('Quotation', 'عرض سعر')
-                : L('Tax Invoice', 'فاتورة ضريبية')}
+                ? <EnAr en="Quotation" ar="عرض سعر" enClassName="uppercase tracking-wider" />
+                : <EnAr en="Tax Invoice" ar="فاتورة ضريبية" enClassName="uppercase tracking-wider" />}
             </span>
           </div>
         </div>
@@ -218,12 +239,17 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
           <div className="rounded-xl border bg-gray-50 p-3">
             <h3 className="mb-2 flex items-center gap-2 font-semibold text-gray-900 border-b pb-1 text-sm">
               <User className="h-4 w-4 text-primary-600" />
-              {L(getCommercialCounterpartyLabel(documentType, 'en', invoice?.flow), getCommercialCounterpartyLabel(documentType, 'ar', invoice?.flow))}
+              <EnAr
+                en={getCommercialCounterpartyLabel(documentType, 'en', invoice?.flow)}
+                ar={getCommercialCounterpartyLabel(documentType, 'ar', invoice?.flow)}
+                enClassName="font-semibold text-gray-900"
+                arClassName="font-semibold text-gray-900"
+              />
             </h3>
             <div className="space-y-1 text-sm text-gray-700">
               <p className="font-bold text-gray-900 text-base">{counterpartyName}</p>
               {bilingual && counterpartyNameAr && (
-                <p className="font-bold text-gray-500" dir="rtl">{counterpartyNameAr}</p>
+                <p className="font-bold text-gray-500 font-['Almarai'] normal-case tracking-normal" dir="rtl" lang={isArabicSecondary ? 'ar' : undefined}>{counterpartyNameAr}</p>
               )}
 
               <div className="mt-2 space-y-1.5">
@@ -242,32 +268,38 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                   </p>
                 )}
                 {(counterpartyData?.idNumber || counterpartyData?.customerIdNumber) && (
-                  <div className="flex flex-col gap-1">
-                    <p className="flex items-center gap-2">
+                  <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <p className="inline-flex items-center gap-2">
                       <span className="font-semibold text-gray-900">{counterpartyData?.idType === 'vat' ? 'VAT No' : counterpartyData?.idType === 'id' ? 'ID' : 'Iqama'}:</span>
                       <span className="font-mono">{counterpartyData.idNumber || counterpartyData.customerIdNumber}</span>
                     </p>
                     {bilingual && (
-                      <p className="flex gap-2" dir={secondaryDir}>
-                        <span className="font-semibold text-gray-900">
-                          {counterpartyData?.idType === 'vat' ? S('الرقم الضريبي') : counterpartyData?.idType === 'id' ? (isArabicSecondary ? 'الهوية' : 'ID') : (isArabicSecondary ? 'الإقامة' : 'Iqama')}:
-                        </span>
-                        <span className="font-sans">{isArabicSecondary ? toEasternArabicNumerals(counterpartyData.idNumber || counterpartyData.customerIdNumber) : (counterpartyData.idNumber || counterpartyData.customerIdNumber)}</span>
-                      </p>
+                      <>
+                        <span className="text-gray-400" aria-hidden>/</span>
+                        <p className="inline-flex items-center gap-1.5" dir={secondaryDir}>
+                          <ArText className="font-semibold text-gray-900">
+                            {counterpartyData?.idType === 'vat' ? S('الرقم الضريبي') : counterpartyData?.idType === 'id' ? (isArabicSecondary ? 'الهوية' : 'ID') : (isArabicSecondary ? 'الإقامة' : 'Iqama')}:
+                          </ArText>
+                          <ArText>{isArabicSecondary ? toEasternArabicNumerals(counterpartyData.idNumber || counterpartyData.customerIdNumber) : (counterpartyData.idNumber || counterpartyData.customerIdNumber)}</ArText>
+                        </p>
+                      </>
                     )}
                   </div>
                 )}
                 {counterpartyVat && (
-                  <div className="mt-2 flex flex-col gap-1">
-                    <p>
-                      <span className="font-semibold text-gray-900">VAT No:</span>{" "}
+                  <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <p className="inline-flex items-center gap-2">
+                      <span className="font-semibold text-gray-900">VAT No:</span>
                       <span className="font-mono">{counterpartyVat}</span>
                     </p>
                     {bilingual && S('الرقم الضريبي') && (
-                      <p className="flex gap-2" dir={secondaryDir}>
-                        <span className="font-semibold text-gray-900">{S('الرقم الضريبي')}:</span>
-                        <span className="font-sans">{isArabicSecondary ? toEasternArabicNumerals(counterpartyVat) : counterpartyVat}</span>
-                      </p>
+                      <>
+                        <span className="text-gray-400" aria-hidden>/</span>
+                        <p className="inline-flex items-center gap-1.5" dir={secondaryDir}>
+                          <ArText className="font-semibold text-gray-900">{S('الرقم الضريبي')}:</ArText>
+                          <ArText>{isArabicSecondary ? toEasternArabicNumerals(counterpartyVat) : counterpartyVat}</ArText>
+                        </p>
+                      </>
                     )}
                   </div>
                 )}
@@ -284,7 +316,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
           <div className="rounded-xl border bg-gray-50 p-3">
             <h3 className="mb-2 flex items-center gap-2 font-semibold text-gray-900 border-b pb-1 text-sm">
               <Calendar className="h-4 w-4 text-primary-600" />
-              {L('Details', 'التفاصيل')}
+              <EnAr en="Details" ar="التفاصيل" enClassName="font-semibold text-gray-900" arClassName="font-semibold text-gray-900" />
             </h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between items-center">
@@ -434,7 +466,7 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                       <div>
                         <p className="font-medium text-gray-900 whitespace-pre-wrap">{productNameEn}</p>
                         {bilingual && productNameAr && (
-                          <p className="text-sm text-gray-500 mt-1 whitespace-pre-wrap" dir="rtl">
+                          <p className="text-sm text-gray-500 mt-1 whitespace-pre-wrap font-['Almarai'] normal-case tracking-normal" dir="rtl" lang={isArabicSecondary ? 'ar' : undefined}>
                             {productNameAr}
                           </p>
                         )}
@@ -479,7 +511,9 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
         <div className={`flex flex-col gap-3 ${(invoice?.notes || invoice?.notesAr) ? 'md:flex-row md:items-start' : 'md:flex-row md:justify-end'}`}>
           {(invoice?.notes || invoice?.notesAr) && (
             <div className="min-w-0 flex-1 rounded-xl border bg-gray-50 p-3">
-              <h4 className="mb-2 font-semibold text-gray-900 border-b pb-1 text-sm">{L('Notes', 'ملاحظات')}</h4>
+              <h4 className="mb-2 font-semibold text-gray-900 border-b pb-1 text-sm">
+                <EnAr en="Notes" ar="ملاحظات" enClassName="font-semibold text-gray-900" arClassName="font-semibold text-gray-900" />
+              </h4>
               <p className="text-sm text-gray-600 whitespace-pre-wrap">{invoice?.notes || '—'}</p>
               {bilingual && invoice?.notesAr && (
                 <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap" dir="rtl">{invoice?.notesAr}</p>
@@ -491,28 +525,24 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
             {invoice?.paymentMethod && (
               <div className="mb-2 flex items-center gap-2 border-b border-gray-200 pb-2 text-sm">
                 <CreditCard className="h-4 w-4 shrink-0 text-gray-400" />
-                <span className="font-semibold text-gray-900">{L('Payment Method', 'طريقة الدفع')}:</span>
+                <span className="font-semibold text-gray-900">
+                  <EnAr en="Payment Method" ar="طريقة الدفع" enClassName="font-semibold text-gray-900" arClassName="font-semibold text-gray-900" />:
+                </span>
                 <span className="text-gray-700 capitalize">{invoice.paymentMethod}</span>
               </div>
             )}
             <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <div className="flex flex-col">
-                  <span className="text-gray-500">Subtotal</span>
-                  {bilingual && S('المجموع الفرعي') && <span className="text-xs text-gray-400" dir={secondaryDir}>{S('المجموع الفرعي')}</span>}
-                </div>
-                <span className="font-mono font-semibold text-gray-900">
+              <div className="flex justify-between gap-3 text-sm">
+                <EnAr en="Subtotal" ar="المجموع الفرعي" enClassName="text-gray-500" arClassName="text-xs text-gray-400" className="min-w-0" />
+                <span className="font-mono font-semibold text-gray-900 shrink-0">
                   {renderMoney(totals.subtotal)}
                 </span>
               </div>
               <hr className="border-gray-200" />
               
-              <div className="flex justify-between text-sm">
-                <div className="flex flex-col">
-                  <span className="text-gray-500">VAT Total</span>
-                  {bilingual && S('إجمالي الضريبة') && <span className="text-xs text-gray-400" dir={secondaryDir}>{S('إجمالي الضريبة')}</span>}
-                </div>
-                <span className="font-mono font-semibold text-gray-900">
+              <div className="flex justify-between gap-3 text-sm">
+                <EnAr en="VAT Total" ar="إجمالي الضريبة" enClassName="text-gray-500" arClassName="text-xs text-gray-400" className="min-w-0" />
+                <span className="font-mono font-semibold text-gray-900 shrink-0">
                   {renderMoney(totals.totalTax)}
                 </span>
               </div>
@@ -520,12 +550,9 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
 
               {invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental' && toNumber(invoice.boutiqueDetails.totalDeposit) > 0 && (
                 <>
-                  <div className="flex justify-between text-sm">
-                    <div className="flex flex-col">
-                      <span className="text-gray-500">Security Deposit</span>
-                      {bilingual && S('تأمين') && <span className="text-xs text-gray-400" dir={secondaryDir}>{S('تأمين')}</span>}
-                    </div>
-                    <span className="font-mono font-semibold text-gray-900">
+                  <div className="flex justify-between gap-3 text-sm">
+                    <EnAr en="Security Deposit" ar="تأمين" enClassName="text-gray-500" arClassName="text-xs text-gray-400" className="min-w-0" />
+                    <span className="font-mono font-semibold text-gray-900 shrink-0">
                       {renderMoney(toNumber(invoice.boutiqueDetails.totalDeposit))}
                     </span>
                   </div>
@@ -534,14 +561,11 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
               )}
               
               <div
-                className="flex justify-between rounded-lg p-3 border"
+                className="flex justify-between gap-3 rounded-lg p-3 border"
                 style={{ backgroundColor: 'var(--inv-accent-soft)', borderColor: 'var(--inv-accent-border)' }}
               >
-                <div className="flex flex-col">
-                  <span className="font-bold text-gray-900">Total</span>
-                  {bilingual && S('الإجمالي') && <span className="text-xs font-semibold text-gray-600" dir={secondaryDir}>{S('الإجمالي')}</span>}
-                </div>
-                <span className="font-mono text-xl font-bold text-primary-700">
+                <EnAr en="Total" ar="الإجمالي" enClassName="font-bold text-gray-900" arClassName="text-xs font-semibold text-gray-600" className="min-w-0" />
+                <span className="font-mono text-xl font-bold text-primary-700 shrink-0">
                   {renderMoney(totals.grandTotal)}
                 </span>
               </div>
@@ -556,11 +580,11 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
               <Hash className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
               <div className="flex-1 text-sm text-gray-600">
                 <p className="mb-1 font-semibold text-gray-900">
-                  {L('Amount in Words', 'المبلغ كتابةً')}
+                  <EnAr en="Amount in Words" ar="المبلغ كتابةً" enClassName="font-semibold text-gray-900" arClassName="font-semibold text-gray-900" />
                 </p>
                 <p className="font-medium text-gray-800">{getAmountInWords(totals.grandTotal, currency, 'en')}</p>
                 {bilingual && resolvedSecondary && resolvedSecondary !== 'bn' && (
-                  <p dir={secondaryDir} className="mt-1 font-medium text-gray-800">
+                  <p dir={secondaryDir} className="mt-1 font-medium text-gray-800 font-['Almarai'] normal-case tracking-normal" lang={isArabicSecondary ? 'ar' : undefined}>
                     {getAmountInWords(totals.grandTotal, currency, resolvedSecondary)}
                   </p>
                 )}
