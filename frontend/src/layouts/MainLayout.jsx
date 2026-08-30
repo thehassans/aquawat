@@ -7,6 +7,7 @@ import DemoWelcome from '../components/layout/DemoWelcome'
 import OfflineBanner from '../components/ui/OfflineBanner'
 import PageLoader from '../components/ui/PageLoader'
 import TerminationBanner, { TerminationBlocker, InactiveBlocker, isTenantTerminated, isTenantInactive } from '../components/ui/TerminationBanner'
+import SubscriptionEndedBlocker, { shouldBlockExpiredSubscription } from '../components/layout/SubscriptionEndedBlocker'
 import { getTenantBusinessTypes } from '../lib/businessTypes'
 import { setHideSidebar } from '../store/slices/uiSlice'
 import { PanelLeft } from 'lucide-react'
@@ -37,6 +38,10 @@ export default function MainLayout() {
 
   if (isTenantInactive(tenant)) {
     return <InactiveBlocker />
+  }
+
+  if (shouldBlockExpiredSubscription(tenant)) {
+    return <SubscriptionEndedBlocker />
   }
 
   const isSidebarVisible = navigationStyle === 'sidebar' && !hideSidebar

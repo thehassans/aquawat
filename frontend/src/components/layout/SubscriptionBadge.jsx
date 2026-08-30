@@ -127,9 +127,9 @@ export default function SubscriptionBadge({ tenant, language }) {
                       ? (isAr
                         ? 'انتهت التجربة. النظام مفتوح — اختر باقة للمتابعة.'
                         : 'Trial ended. Workspace stays open — choose a plan to continue.')
-                      : (isAr
-                        ? 'انتهى الاشتراك. النظام مفتوح — جدّد للمتابعة.'
-                        : 'Subscription ended. Workspace stays open — renew to continue.')}
+                        : (isAr
+                        ? 'انتهى الاشتراك. جدّد عبر واتساب للمتابعة.'
+                        : 'Subscription ended. Renew via WhatsApp to continue.')}
                   </p>
                 )}
               </div>
