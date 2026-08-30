@@ -169,6 +169,41 @@ const TENANT_TYPE_META = {
   manufacturing: { Icon: Factory, labelEn: 'Manufacturing', labelAr: 'تصنيع' },
 }
 
+/** Extra keywords so modules resolve when users type shortcuts like PO / GRN */
+const MODULE_SEARCH_ALIASES = {
+  '/app/dashboard/purchases/orders': ['po', 'purchase order', 'purchase orders', 'طلبات الشراء', 'أمر شراء'],
+  '/app/dashboard/purchases/grn': ['grn', 'goods receipt', 'receipt', 'receipts', 'إشعار استلام', 'استلام'],
+  '/app/dashboard/purchases/suppliers': ['supplier', 'suppliers', 'vendor', 'مورد', 'موردون'],
+  '/app/dashboard/accounting/invoices': ['invoice', 'invoices', 'فاتورة', 'فواتير', 'inv'],
+  '/app/dashboard/quotations': ['quotation', 'quotations', 'quote', 'quotes', 'عرض سعر', 'عروض الأسعار'],
+  '/app/dashboard/sales/orders': ['sales order', 'sales orders', 'sale order', 'so', 'أمر بيع', 'أوامر البيع'],
+  '/app/dashboard/inventory/products': ['product', 'products', 'منتج', 'منتجات'],
+  '/app/dashboard/inventory/warehouses': ['warehouse', 'warehouses', 'مستودع', 'مستودعات'],
+  '/app/dashboard/customers': ['customer', 'customers', 'عميل', 'عملاء'],
+  '/app/dashboard/suppliers': ['supplier', 'suppliers', 'vendor', 'مورد'],
+}
+
+function normalizeSearchText(value = '') {
+  return String(value).toLowerCase().trim()
+}
+
+function matchesSearchQuery(query, ...parts) {
+  if (!query) return true
+  const haystack = parts
+    .flat()
+    .filter(Boolean)
+    .map(normalizeSearchText)
+    .join(' ')
+  if (!haystack) return false
+  if (haystack.includes(query)) return true
+  // Allow short aliases like "po" to match when query is exact alias token
+  return parts
+    .flat()
+    .filter(Boolean)
+    .map(normalizeSearchText)
+    .some((part) => part === query || (query.length >= 2 && part.startsWith(query)))
+}
+
 export default function AppLauncher() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
@@ -269,8 +304,8 @@ export default function AppLauncher() {
   }
 
   // Calculate visible apps (similar to Sidebar logic but flattened)
-  const allApps = useMemo(() => {
-    if (!appLauncherOpen) return []
+  const { allApps, allModules } = useMemo(() => {
+    if (!appLauncherOpen) return { allApps: [], allModules: [] }
     const navSections = getNavSections({ language, t, tenant, businessTypes, govChildren })
     const apps = []
 
@@ -312,14 +347,64 @@ export default function AppLauncher() {
       }
     }
 
-    return uniqueApps
+    // Expand nested children into searchable modules (PO, Invoices, Quotations, …)
+    const modules = []
+    const seenModulePaths = new Set()
+    for (const app of uniqueApps) {
+      const children = Array.isArray(app.children) ? app.children : []
+      children.forEach((child) => {
+        if (!child?.path || hiddenMenuSet.has(child.path)) return
+        if (Array.isArray(child.excludeBusinessTypes) && child.excludeBusinessTypes.some((type) => businessTypes.includes(type))) {
+          return
+        }
+        if (child.perm && !hasAccess(child.perm.module, child.perm.action)) return
+        // Skip overview/duplicate of parent root
+        if (child.path === app.path && (child.end || /overview/i.test(child.label || ''))) return
+        if (seenModulePaths.has(child.path)) return
+        seenModulePaths.add(child.path)
+        modules.push({
+          ...child,
+          icon: child.icon || app.icon,
+          parentLabel: app.label,
+          parentPath: app.path,
+          aliases: MODULE_SEARCH_ALIASES[child.path] || [],
+          isModule: true,
+        })
+      })
+    }
+
+    return { allApps: uniqueApps, allModules: modules }
   }, [appLauncherOpen, language, tenant, businessTypes, hiddenMenuSet, user, govChildren, t])
 
   const filteredApps = useMemo(() => {
-    if (!searchQuery) return allApps
-    const query = searchQuery.toLowerCase()
-    return allApps.filter(app => app.label?.toLowerCase().includes(query))
-  }, [allApps, searchQuery])
+    if (!searchQuery.trim()) return allApps
+
+    const query = normalizeSearchText(searchQuery)
+
+    const matchedApps = allApps.filter((app) => {
+      const path = app.path || app.children?.[0]?.path
+      return matchesSearchQuery(query, app.label, MODULE_SEARCH_ALIASES[path], path)
+    })
+
+    // When searching, surface modules (Purchase Orders, Invoices, Quotations, …)
+    const matchedModules = allModules.filter((mod) =>
+      matchesSearchQuery(query, mod.label, mod.parentLabel, mod.aliases, mod.path)
+    )
+
+    const merged = []
+    const seen = new Set()
+    // Prefer exact module hits first so "PO" → Purchase Orders, not only Purchases app
+    ;[...matchedModules, ...matchedApps].forEach((item) => {
+      const path = item.path || item.children?.[0]?.path
+      if (!path || seen.has(path)) return
+      seen.add(path)
+      merged.push(item)
+    })
+
+    return merged
+  }, [allApps, allModules, searchQuery])
+
+  const isSearching = Boolean(searchQuery.trim())
 
   // Prevent background scrolling when open and support ESC key
   useEffect(() => {
@@ -391,7 +476,7 @@ export default function AppLauncher() {
                   <input
                     type="text"
                     autoFocus
-                    placeholder={language === 'ar' ? 'بحث عن التطبيقات...' : 'Search apps...'}
+                    placeholder={language === 'ar' ? 'بحث عن التطبيقات والوحدات...' : 'Search apps & modules...'}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className={`w-full rounded-2xl border border-slate-200/90 bg-slate-50/80 py-2.5 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-white/[0.06] dark:text-white dark:placeholder:text-white/40 dark:focus:border-emerald-400/50 dark:focus:bg-white/[0.1] ${language === 'ar' ? 'pl-4 pr-11' : 'pl-11 pr-4'}`}
@@ -720,7 +805,7 @@ export default function AppLauncher() {
               <Search className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder={language === 'ar' ? 'بحث عن التطبيقات...' : 'Search apps...'}
+                placeholder={language === 'ar' ? 'بحث عن التطبيقات والوحدات...' : 'Search apps & modules...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full rounded-2xl border border-slate-200/90 bg-white/90 py-2.5 pl-11 pr-4 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10 dark:border-white/10 dark:bg-white/[0.06] dark:text-white dark:placeholder:text-white/40"
@@ -738,7 +823,15 @@ export default function AppLauncher() {
               </span>
               <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950 dark:text-white sm:text-3xl lg:text-4xl">
                 {language === 'ar' ? (
-                  <HighlightText variant="lime">تطبيقاتك</HighlightText>
+                  isSearching ? (
+                    <HighlightText variant="lime">الوحدات</HighlightText>
+                  ) : (
+                    <HighlightText variant="lime">تطبيقاتك</HighlightText>
+                  )
+                ) : isSearching ? (
+                  <>
+                    Matching <HighlightText variant="lime">Modules</HighlightText>
+                  </>
                 ) : (
                   <>
                     Your <HighlightText variant="lime">Apps</HighlightText>
@@ -747,18 +840,24 @@ export default function AppLauncher() {
               </h2>
               <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-500 dark:text-slate-400">
                 {language === 'ar'
-                  ? 'اختر تطبيقاً للبدء — كل شيء في مكان واحد.'
-                  : 'Pick an app to get started — everything in one place.'}
+                  ? isSearching
+                    ? 'نتائج من التطبيقات والوحدات مثل طلبات الشراء والفواتير وعروض الأسعار.'
+                    : 'اختر تطبيقاً للبدء — كل شيء في مكان واحد.'
+                  : isSearching
+                    ? 'Results include modules like Purchase Orders, Invoices, and Quotations.'
+                    : 'Pick an app to get started — everything in one place.'}
               </p>
             </div>
 
             <div className="mx-auto grid max-w-7xl grid-cols-3 gap-x-3 gap-y-9 sm:grid-cols-4 sm:gap-x-5 sm:gap-y-11 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
               {filteredApps.map((app, index) => {
                 const targetPath = app.path || (app.children && app.children[0]?.path)
+                const title = app.label || ''
+                const subtitle = app.isModule && app.parentLabel ? app.parentLabel : null
 
                 return (
                   <motion.button
-                    key={index}
+                    key={targetPath || index}
                     type="button"
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -770,7 +869,7 @@ export default function AppLauncher() {
                       <div className="pointer-events-none absolute inset-[1px] rounded-[21%] bg-gradient-to-b from-white/90 via-white/15 to-transparent dark:from-white/[0.08] dark:via-transparent" />
                       <App3DIcon
                         path={targetPath || ''}
-                        label={app.label || ''}
+                        label={title}
                         className="relative h-12 w-12 drop-shadow-[0_2px_6px_rgba(15,23,42,0.12)] transition-transform duration-300 group-hover:scale-105 sm:h-[3.35rem] sm:w-[3.35rem]"
                       />
                       {navigatingTo === targetPath && (
@@ -780,8 +879,13 @@ export default function AppLauncher() {
                       )}
                     </div>
                     <span className="mt-3 max-w-[96px] text-center text-[11.5px] font-semibold leading-snug tracking-wide text-slate-600 transition-colors line-clamp-2 group-hover:text-slate-950 dark:text-slate-300 dark:group-hover:text-white sm:text-[12.5px]">
-                      {app.label}
+                      {title}
                     </span>
+                    {subtitle ? (
+                      <span className="mt-0.5 max-w-[96px] text-center text-[10px] font-medium text-slate-400 line-clamp-1 dark:text-slate-500">
+                        {subtitle}
+                      </span>
+                    ) : null}
                   </motion.button>
                 )
               })}
@@ -789,7 +893,9 @@ export default function AppLauncher() {
               {filteredApps.length === 0 && (
                 <div className="col-span-full flex flex-col items-center justify-center py-20 text-slate-400 dark:text-white/50">
                   <Search className="mb-4 h-14 w-14 opacity-50" />
-                  <p className="text-lg font-semibold">{language === 'ar' ? 'لا توجد تطبيقات مطابقة' : 'No apps found'}</p>
+                  <p className="text-lg font-semibold">
+                    {language === 'ar' ? 'لا توجد تطبيقات أو وحدات مطابقة' : 'No apps or modules found'}
+                  </p>
                 </div>
               )}
             </div>
