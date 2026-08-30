@@ -1050,6 +1050,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                                 productId={watch(`lineItems.${index}.productId`)}
                                 value={watch(`lineItems.${index}.variantId`)}
                                 language={language}
+                                required
                                 onChange={(variantId, variant) => {
                                   setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })
                                   if (variant?.name) {
@@ -1171,6 +1172,10 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
           <SalesEnhancementBar
             subtotal={totals.subtotal}
             customerId={values?.customerId}
+            language={language}
+            showMatrix={isTradingContext}
+            matrixProductId={lineItems.find((l) => l?.productId)?.productId || ''}
+            matrixProductLabel={lineItems.find((l) => l?.productId)?.productName || ''}
             incoterm={values?.incoterm || ''}
             onIncotermChange={(v) => setValue('incoterm', v)}
             onApplyDiscountLine={(line) => append({

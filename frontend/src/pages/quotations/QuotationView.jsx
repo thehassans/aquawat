@@ -84,17 +84,25 @@ export default function QuotationView() {
   const convertedOrderNumber = quotation?.convertedOrderId?.poNumber || ''
   const templateId = resolveQuotationTemplateId(quotation?.pdfTemplateId)
 
-  const excelRows = useMemo(() => (Array.isArray(quotation?.lineItems) ? quotation.lineItems : []).map((line, index) => ({
-    no: index + 1,
-    item: language === 'ar' ? (line?.productNameAr || line?.productName || '') : (line?.productName || line?.productNameAr || ''),
-    productType: language === 'ar' ? (line?.productType === 'service' ? 'خدمة' : 'بضاعة') : (line?.productType === 'service' ? 'Service' : 'Goods'),
-    description: language === 'ar' ? (line?.descriptionAr || line?.description || '') : (line?.description || line?.descriptionAr || ''),
-    quantity: Number(line?.quantity || 0),
-    unitPrice: Number(line?.unitPrice || 0),
-    taxRate: Number(line?.taxRate || 0),
-    taxAmount: Number(line?.taxAmount || 0),
-    total: Number(line?.lineTotalWithTax || 0),
-  })), [language, quotation?.lineItems])
+  const excelRows = useMemo(() => (Array.isArray(quotation?.lineItems) ? quotation.lineItems : []).map((line, index) => {
+    const base = language === 'ar' ? (line?.productNameAr || line?.productName || '') : (line?.productName || line?.productNameAr || '')
+    const variant = line?.variantId && typeof line.variantId === 'object' ? line.variantId : null
+    const variantName = variant
+      ? (language === 'ar' && variant.nameAr ? variant.nameAr : (variant.name || variant.sku || ''))
+      : ''
+    return {
+      no: index + 1,
+      item: variantName ? `${base} (${variantName})` : base,
+      variant: variantName || '—',
+      productType: language === 'ar' ? (line?.productType === 'service' ? 'خدمة' : 'بضاعة') : (line?.productType === 'service' ? 'Service' : 'Goods'),
+      description: language === 'ar' ? (line?.descriptionAr || line?.description || '') : (line?.description || line?.descriptionAr || ''),
+      quantity: Number(line?.quantity || 0),
+      unitPrice: Number(line?.unitPrice || 0),
+      taxRate: Number(line?.taxRate || 0),
+      taxAmount: Number(line?.taxAmount || 0),
+      total: Number(line?.lineTotalWithTax || 0),
+    }
+  }), [language, quotation?.lineItems])
 
   const sendEmailMutation = useMutation({
     mutationFn: async () => {
@@ -329,6 +337,7 @@ export default function QuotationView() {
                   columns: [
                     { key: 'no', label: '#' },
                     { key: 'item', label: language === 'ar' ? 'البند' : 'Item' },
+                    { key: 'variant', label: language === 'ar' ? 'المتغير' : 'Variant' },
                     { key: 'productType', label: language === 'ar' ? 'النوع' : 'Type' },
                     { key: 'description', label: language === 'ar' ? 'الوصف' : 'Description' },
                     { key: 'quantity', label: language === 'ar' ? 'الكمية' : 'Qty' },

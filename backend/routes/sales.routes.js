@@ -206,7 +206,7 @@ router.use('/activity-types', crudRoutes(SalesActivityType));
 router.use('/activity-plans', crudRoutes(SalesActivityPlan, 'sales', 'steps.activityTypeId'));
 router.use('/payment-providers', crudRoutes(SalesPaymentProvider));
 router.use('/payment-methods', crudRoutes(SalesPaymentMethod, 'sales', 'providerId'));
-router.use('/pricelists', crudRoutes(Pricelist));
+router.use('/pricelists', crudRoutes(Pricelist, 'sales', 'items.productId items.variantId items.uomId'));
 router.use('/quotation-templates', crudRoutes(QuotationTemplate));
 router.use('/promotions', crudRoutes(SalesPromotion));
 router.use('/carrier-connectors', crudRoutes(CarrierConnector));

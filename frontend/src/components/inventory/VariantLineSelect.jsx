@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import api from '../../lib/api'
 
-/** Variant picker for sales/purchase line editors (v5). */
+/** Variant picker for sales/purchase line editors — shows attributes + on-hand stock. */
 export default function VariantLineSelect({
   productId,
   value,
@@ -10,14 +10,15 @@ export default function VariantLineSelect({
   language = 'en',
   className = 'select select-sm w-full',
   autoSelectSingle = true,
+  required = false,
 }) {
   const ar = language === 'ar'
 
-  const { data: variants = [] } = useQuery({
-    queryKey: ['line-variants', productId],
+  const { data: variants = [], isLoading } = useQuery({
+    queryKey: ['line-variants', productId, 'enrich'],
     queryFn: () => api.get('/stock/variants', {
       params: { productId, active: 'true', limit: 200, enrich: '1' },
-    }).then((r) => r.data?.items || []),
+    }).then((r) => r.data?.items || r.data || []),
     enabled: Boolean(productId),
     staleTime: 30_000,
   })
@@ -30,35 +31,56 @@ export default function VariantLineSelect({
     }
   }, [autoSelectSingle, productId, variants, value, onChange])
 
-  if (!productId || variants.length === 0) return null
+  if (!productId) return null
+  if (isLoading) {
+    return <div className="text-[11px] text-slate-400">{ar ? 'جاري تحميل المتغيرات…' : 'Loading variants…'}</div>
+  }
+  if (variants.length === 0) return null
+
+  const labelOf = (v) => {
+    const name = ar && v.nameAr ? v.nameAr : (v.name || v.attributeValuesLabel || 'Variant')
+    const attrs = v.attributeValuesLabel && v.attributeValuesLabel !== name ? ` · ${v.attributeValuesLabel}` : ''
+    const sku = v.sku ? ` (${v.sku})` : ''
+    const stock = v.onHand != null ? ` · ${ar ? 'متاح' : 'OH'} ${v.onHand}` : ''
+    return `${name}${attrs}${sku}${stock}`
+  }
 
   if (variants.length === 1 && autoSelectSingle) {
     const v = variants[0]
     return (
-      <div className="truncate text-xs text-slate-500" title={v.name}>
+      <div className="truncate text-xs text-slate-500" title={labelOf(v)}>
         {ar ? 'متغير: ' : 'Variant: '}
-        {ar && v.nameAr ? v.nameAr : v.name}
+        {labelOf(v)}
       </div>
     )
   }
 
+  const missing = required && !value
+
   return (
-    <select
-      className={`${className} ${!value ? 'border-amber-400' : ''}`}
-      value={value || ''}
-      onChange={(e) => {
-        const id = e.target.value
-        const v = variants.find((x) => String(x._id) === String(id))
-        onChange(id || '', v || null)
-      }}
-    >
-      <option value="">{ar ? '— اختر متغير —' : '— Select variant —'}</option>
-      {variants.map((v) => (
-        <option key={v._id} value={v._id}>
-          {ar && v.nameAr ? v.nameAr : v.name}
-          {v.sku ? ` (${v.sku})` : ''}
-        </option>
-      ))}
-    </select>
+    <div className="space-y-0.5">
+      <select
+        className={`${className} ${missing ? 'border-amber-400 ring-1 ring-amber-300/60' : ''}`}
+        value={value || ''}
+        required={required}
+        onChange={(e) => {
+          const id = e.target.value
+          const v = variants.find((x) => String(x._id) === String(id))
+          onChange(id || '', v || null)
+        }}
+      >
+        <option value="">{ar ? '— اختر متغير —' : '— Select variant —'}</option>
+        {variants.map((v) => (
+          <option key={v._id} value={v._id}>
+            {labelOf(v)}
+          </option>
+        ))}
+      </select>
+      {missing ? (
+        <p className="text-[10px] font-medium text-amber-600">
+          {ar ? 'المتغير مطلوب للمنتجات ذات الخصائص' : 'Variant required for attributed products'}
+        </p>
+      ) : null}
+    </div>
   )
 }

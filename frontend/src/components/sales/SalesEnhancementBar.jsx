@@ -20,8 +20,10 @@ export default function SalesEnhancementBar({
   onAddShippingLine,
   onIncotermChange,
   incoterm = '',
-  showMatrix = false,
-  variants = [],
+  showMatrix = true,
+  matrixProductId = '',
+  matrixProductLabel = '',
+  language = 'en',
 }) {
   const {
     showIncotermOnDocuments,
@@ -70,7 +72,7 @@ export default function SalesEnhancementBar({
 
           {showMatrix ? (
             <button type="button" className={ghostActionClass} onClick={() => setMatrixOpen(true)}>
-              Variant grid
+              {language === 'ar' ? 'شبكة المتغيرات' : 'Variant grid'}
             </button>
           ) : null}
           {showComputeShipping ? (
@@ -117,12 +119,16 @@ export default function SalesEnhancementBar({
         />
       ) : null}
 
-      <VariantMatrixModal
-        open={matrixOpen}
-        onClose={() => setMatrixOpen(false)}
-        variants={variants}
-        onAddLines={onAddLines}
-      />
+      {showMatrix ? (
+        <VariantMatrixModal
+          open={matrixOpen}
+          onClose={() => setMatrixOpen(false)}
+          onApply={onAddLines}
+          language={language}
+          initialProductId={matrixProductId}
+          initialProductLabel={matrixProductLabel}
+        />
+      ) : null}
     </div>
   )
 }

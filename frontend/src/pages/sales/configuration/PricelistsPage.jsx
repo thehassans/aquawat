@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
 import { Plus, Trash2 } from 'lucide-react'
 import api from '../../../lib/api'
+import AsyncCombobox from '../../../components/ui/AsyncCombobox'
+import VariantLineSelect from '../../../components/inventory/VariantLineSelect'
 import {
   fieldControlClass,
   fieldLabelClass,
@@ -20,6 +22,8 @@ import {
 
 const emptyItem = () => ({
   productId: '',
+  product: null,
+  variantId: '',
   uomId: '',
   fixedPrice: '',
   minQuantity: 1,
@@ -28,6 +32,16 @@ const emptyItem = () => ({
   validTo: '',
   partnerIdsText: '',
 })
+
+function productOptionFromId(it) {
+  const p = it.productId
+  if (p && typeof p === 'object') {
+    return { _id: p._id, name: p.nameEn || p.name || p.sku || String(p._id), sub: p.sku }
+  }
+  if (it.product) return it.product
+  if (it.productId) return { _id: it.productId, name: String(it.productId) }
+  return null
+}
 
 export default function PricelistsPage() {
   const { language } = useSelector((s) => s.ui)
@@ -53,6 +67,16 @@ export default function PricelistsPage() {
   })
   const items = useMemo(() => (Array.isArray(data) ? data : []), [data])
 
+  const fetchProducts = useCallback(async (q) => {
+    const { data: res } = await api.get('/products', { params: { search: q, limit: 20, isActive: true } })
+    const list = res?.products || res?.items || res || []
+    return (Array.isArray(list) ? list : []).map((p) => ({
+      _id: p._id,
+      name: p.nameEn || p.name || p.sku,
+      sub: p.sku,
+    }))
+  }, [])
+
   const reset = () => {
     setEditingId(null)
     setForm({
@@ -76,16 +100,22 @@ export default function PricelistsPage() {
       validFrom: row.validFrom ? String(row.validFrom).slice(0, 10) : '',
       validTo: row.validTo ? String(row.validTo).slice(0, 10) : '',
       items: (row.items || []).length
-        ? row.items.map((it) => ({
-            productId: it.productId?._id || it.productId || '',
-            uomId: it.uomId?._id || it.uomId || '',
-            fixedPrice: it.fixedPrice ?? '',
-            minQuantity: it.minQuantity ?? 1,
-            uomFactor: it.uomFactor ?? 1,
-            validFrom: it.validFrom ? String(it.validFrom).slice(0, 10) : '',
-            validTo: it.validTo ? String(it.validTo).slice(0, 10) : '',
-            partnerIdsText: (it.partnerIds || []).map(String).join(','),
-          }))
+        ? row.items.map((it) => {
+            const product = productOptionFromId(it)
+            const variant = it.variantId && typeof it.variantId === 'object' ? it.variantId : null
+            return {
+              productId: product?._id || it.productId?._id || it.productId || '',
+              product,
+              variantId: variant?._id || it.variantId || '',
+              uomId: it.uomId?._id || it.uomId || '',
+              fixedPrice: it.fixedPrice ?? '',
+              minQuantity: it.minQuantity ?? 1,
+              uomFactor: it.uomFactor ?? 1,
+              validFrom: it.validFrom ? String(it.validFrom).slice(0, 10) : '',
+              validTo: it.validTo ? String(it.validTo).slice(0, 10) : '',
+              partnerIdsText: (it.partnerIds || []).map((id) => (id?._id || id)).map(String).join(','),
+            }
+          })
         : [emptyItem()],
     })
   }
@@ -103,6 +133,7 @@ export default function PricelistsPage() {
           .filter((it) => it.productId)
           .map((it) => ({
             productId: it.productId,
+            variantId: it.variantId || null,
             uomId: it.uomId || null,
             fixedPrice: it.fixedPrice === '' ? null : Number(it.fixedPrice),
             minQuantity: Number(it.minQuantity) || 1,
@@ -150,8 +181,8 @@ export default function PricelistsPage() {
         </h2>
         <p className={pageSubtitleClass}>
           {isAr
-            ? 'أسعار حسب المنتج والكمية والعميل والوحدة مع نوافذ صلاحية'
-            : 'Product, volume, partner, and UoM prices with validity windows'}
+            ? 'أسعار حسب المنتج والمتغير والكمية مع نوافذ صلاحية'
+            : 'Product, variant, volume, and UoM prices with validity windows'}
         </p>
       </div>
 
@@ -184,11 +215,11 @@ export default function PricelistsPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className={`${salesTableClass} min-w-[720px]`}>
+          <table className={`${salesTableClass} min-w-[860px]`}>
             <thead>
               <tr>
-                <th className={salesThClass}>{isAr ? 'معرف المنتج' : 'Product ID'}</th>
-                <th className={salesThClass}>{isAr ? 'وحدة القياس' : 'UoM ID'}</th>
+                <th className={salesThClass}>{isAr ? 'المنتج' : 'Product'}</th>
+                <th className={salesThClass}>{isAr ? 'المتغير' : 'Variant'}</th>
                 <th className={salesThClass}>{isAr ? 'السعر' : 'Price'}</th>
                 <th className={salesThClass}>{isAr ? 'حد الكمية' : 'Min qty'}</th>
                 <th className={salesThClass}>{isAr ? 'معامل الوحدة' : 'UoM factor'}</th>
@@ -201,11 +232,29 @@ export default function PricelistsPage() {
             <tbody>
               {form.items.map((it, idx) => (
                 <tr key={idx} className={salesTrClass}>
-                  <td className={salesTdClass}>
-                    <input className={fieldControlClass} value={it.productId} onChange={(e) => setItem(idx, { productId: e.target.value })} placeholder="ObjectId" />
+                  <td className={`${salesTdClass} min-w-[200px]`}>
+                    <AsyncCombobox
+                      value={it.productId}
+                      selectedOption={it.product}
+                      onChange={(id, opt) => setItem(idx, {
+                        productId: id || '',
+                        product: opt || null,
+                        variantId: '',
+                      })}
+                      fetchOptions={fetchProducts}
+                      queryKeyPrefix={`pricelist-prod-${idx}`}
+                      placeholder={isAr ? 'بحث المنتج…' : 'Search product…'}
+                      minChars={0}
+                    />
                   </td>
-                  <td className={salesTdClass}>
-                    <input className={fieldControlClass} value={it.uomId} onChange={(e) => setItem(idx, { uomId: e.target.value })} placeholder="UoM ObjectId" />
+                  <td className={`${salesTdClass} min-w-[160px]`}>
+                    <VariantLineSelect
+                      productId={it.productId}
+                      value={it.variantId}
+                      language={isAr ? 'ar' : 'en'}
+                      autoSelectSingle={false}
+                      onChange={(vid) => setItem(idx, { variantId: vid || '' })}
+                    />
                   </td>
                   <td className={salesTdClass}>
                     <input type="number" className={fieldControlClass} value={it.fixedPrice} onChange={(e) => setItem(idx, { fixedPrice: e.target.value })} />

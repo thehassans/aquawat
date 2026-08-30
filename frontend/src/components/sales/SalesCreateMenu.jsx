@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSelector } from 'react-redux'
-import { ChevronDown, FileText, Plus, Users } from 'lucide-react'
+import { ChevronDown, FileText, Plus, ShoppingCart, Users } from 'lucide-react'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import { PortalDropdown } from '../../pages/inventory/PortalDropdown'
 
@@ -17,6 +17,14 @@ function buildCreateItems({ hideQuotations }) {
       labelAr: 'عرض سعر',
     })
   }
+
+  items.push({
+    id: 'sales-order',
+    href: '/app/dashboard/sales/orders/new',
+    icon: ShoppingCart,
+    labelEn: 'Sale Order',
+    labelAr: 'أمر بيع',
+  })
 
   items.push({
     id: 'customer',

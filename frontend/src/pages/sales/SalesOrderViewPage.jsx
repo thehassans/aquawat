@@ -435,7 +435,7 @@ export default function SalesOrderViewPage() {
             {sourceQuotationId ? (
               <div className={metaRowClass}>
                 <span>{isAr ? 'عرض السعر' : 'Quotation'}</span>
-                <Link className={`${metaValueClass} text-teal-700 underline dark:text-teal-300`} to={`/app/dashboard/sales/quotations/${sourceQuotationId}`}>
+                <Link className={`${metaValueClass} text-teal-700 underline dark:text-teal-300`} to={`/app/dashboard/quotations/${sourceQuotationId}`}>
                   {sourceQuotationNumber || sourceQuotationId}
                 </Link>
               </div>
@@ -454,6 +454,7 @@ export default function SalesOrderViewPage() {
               <thead>
                 <tr>
                   <th className={salesThClass}>{isAr ? 'الصنف' : 'Item'}</th>
+                  <th className={salesThClass}>{isAr ? 'المتغير' : 'Variant'}</th>
                   <th className={salesThClass}>{isAr ? 'الكمية' : 'Qty'}</th>
                   <th className={salesThClass}>{isAr ? 'مُسلّم' : 'Delivered'}</th>
                   <th className={salesThClass}>{isAr ? 'مفوتر' : 'Invoiced'}</th>
@@ -462,16 +463,23 @@ export default function SalesOrderViewPage() {
                 </tr>
               </thead>
               <tbody>
-                {(order.lineItems || []).map((li, idx) => (
+                {(order.lineItems || []).map((li, idx) => {
+                  const variant = li.variantId && typeof li.variantId === 'object' ? li.variantId : null
+                  const variantLabel = variant
+                    ? (isAr && variant.nameAr ? variant.nameAr : (variant.name || variant.sku || '—'))
+                    : (li.variantId ? String(li.variantId).slice(-6) : '—')
+                  return (
                   <tr key={li._id || idx} className={salesTrClass}>
                     <td className={salesTdClass}>{li.manualName || li.description || li.productId?.nameEn || '—'}</td>
+                    <td className={salesTdClass}>{variantLabel}</td>
                     <td className={salesTdClass}>{li.quantityOrdered || 0}</td>
                     <td className={salesTdClass}>{li.quantityDelivered || 0}</td>
                     <td className={salesTdClass}>{li.quantityInvoiced || 0}</td>
                     <td className={salesTdClass}>{Number(li.unitCost || 0).toFixed(2)}</td>
                     <td className={salesTdClass}>{li.procurementRoute || 'mts'}</td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

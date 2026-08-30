@@ -451,7 +451,9 @@ router.get('/:id', checkPermission('invoicing', 'read'), async (req, res) => {
       .populate('customerId', 'name nameAr email phone mobile vatNumber crNumber address')
       .populate('createdBy', 'firstName lastName firstNameAr lastNameAr')
       .populate('convertedInvoiceId', 'invoiceNumber')
-      .populate('convertedOrderId', 'poNumber status');
+      .populate('convertedOrderId', 'poNumber status')
+      .populate('lineItems.productId', 'sku nameEn nameAr')
+      .populate('lineItems.variantId', 'name nameAr sku');
 
     if (!quotation) {
       return res.status(404).json({ error: 'Quotation not found' });

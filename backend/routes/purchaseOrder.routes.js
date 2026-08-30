@@ -444,6 +444,7 @@ router.get('/:id', sellOrSupply('read'), async (req, res) => {
       .populate('salesTeamId', 'name nameAr code teamType')
       .populate('warehouseId', 'code nameEn nameAr')
       .populate('lineItems.productId', 'sku nameEn nameAr barcode unitOfMeasure productType')
+      .populate('lineItems.variantId', 'name nameAr sku')
       .populate('receiving.warehouseId', 'code nameEn nameAr')
       .populate('payments.recordedBy', 'name firstName lastName');
 

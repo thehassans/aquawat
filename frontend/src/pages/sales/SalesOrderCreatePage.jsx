@@ -480,8 +480,16 @@ function SoLineRow({
         <VariantLineSelect
           productId={line.productId}
           value={line.variantId}
-          onChange={(vid) => {
-            onChange({ variantId: vid || '', priceManuallyOverridden: false })
+          language={isAr ? 'ar' : 'en'}
+          required
+          onChange={(vid, variant) => {
+            onChange({
+              variantId: vid || '',
+              priceManuallyOverridden: false,
+              ...(variant?.price != null && Number(variant.price) > 0
+                ? { unitCost: Number(variant.price) }
+                : {}),
+            })
             setTimeout(() => onResolvePrice?.(), 0)
           }}
         />
