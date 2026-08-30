@@ -1729,8 +1729,8 @@ export default function Profile() {
                             ? 'انتهت فترة التجربة. يمكنك فتح النظام واختيار باقة جديدة للمتابعة.'
                             : 'Trial ended. Your tenant stays open — choose a plan to continue with full access.')
                           : (language === 'ar'
-                            ? 'انتهى الاشتراك. يمكنك فتح النظام وتجديد الباقة في أي وقت.'
-                            : 'Subscription expired. Your tenant stays open — renew anytime to restore full access.')}
+                            ? 'انتهى الاشتراك. تواصل عبر واتساب مع حسن أو احتشام للتجديد أو الاستفسار.'
+                            : 'Subscription ended. Contact Hassan or Ahtisham on WhatsApp to renew or for queries.')}
                       </p>
                     )}
                   </div>
