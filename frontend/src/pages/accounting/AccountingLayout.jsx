@@ -13,6 +13,7 @@ const LEDGER_ITEMS = [
   { href: '/app/dashboard/accounting/journal-books', labelEn: 'Journal books', labelAr: 'دفاتر القيود' },
   { href: '/app/dashboard/accounting/defaults', labelEn: 'Default accounts', labelAr: 'الحسابات الافتراضية' },
   { href: '/app/dashboard/accounting/taxes', labelEn: 'Taxes', labelAr: 'الضريبة' },
+  { href: '/app/dashboard/accounting/opening-balances', labelEn: 'Opening balances', labelAr: 'أرصدة افتتاحية' },
   { href: '/app/dashboard/accounting/bank-recon', labelEn: 'Bank reconciliation', labelAr: 'التسوية البنكية' },
   { href: '/app/dashboard/accounting/analytic-accounts', labelEn: 'Analytic accounts', labelAr: 'الحسابات التحليلية' },
   { href: '/app/dashboard/accounting/period-close', labelEn: 'Period close', labelAr: 'إقفال الفترة' },
@@ -38,6 +39,7 @@ const REPORT_ITEMS = [
   { href: '/app/dashboard/accounting/supplier-summary', labelEn: 'Supplier summary', labelAr: 'ملخص الموردين' },
   { href: '/app/dashboard/accounting/trial', labelEn: 'Trial balance', labelAr: 'ميزان المراجعة' },
   { href: '/app/dashboard/accounting/pnl', labelEn: 'Profit & Loss', labelAr: 'الأرباح والخسائر' },
+  { href: '/app/dashboard/accounting/tax-report', labelEn: 'Tax report', labelAr: 'تقرير الضريبة' },
   { href: '/app/dashboard/accounting/analytic-report', labelEn: 'Analytic report', labelAr: 'تقرير تحليلي' },
 ]
 

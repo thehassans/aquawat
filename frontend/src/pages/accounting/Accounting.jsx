@@ -30,10 +30,12 @@ import {
   JournalBooksPanel,
   JournalsBoardPanel,
   LedgerSearchPanel,
+  OpeningBalancesPanel,
   PeriodClosePanel,
   SupplierAccountPanel,
   SupplierSummaryPanel,
   TaxesPanel,
+  VatTaxReportPanel,
 } from './AccountingModules'
 
 const TABS = [
@@ -42,9 +44,11 @@ const TABS = [
   { id: 'journal-books', labelEn: 'Journal Books', labelAr: 'دفاتر القيود', icon: FileSpreadsheet },
   { id: 'defaults', labelEn: 'Default Accounts', labelAr: 'الحسابات الافتراضية', icon: Landmark },
   { id: 'taxes', labelEn: 'Taxes', labelAr: 'الضريبة', icon: Scale },
+  { id: 'tax-report', labelEn: 'Tax report', labelAr: 'تقرير الضريبة', icon: Scale },
   { id: 'analytic-accounts', labelEn: 'Analytic accounts', labelAr: 'الحسابات التحليلية', icon: Users },
   { id: 'analytic-report', labelEn: 'Analytic report', labelAr: 'تقرير تحليلي', icon: TrendingUp },
   { id: 'period-close', labelEn: 'Period close', labelAr: 'إقفال الفترة', icon: Scale },
+  { id: 'opening-balances', labelEn: 'Opening balances', labelAr: 'أرصدة افتتاحية', icon: Landmark },
   { id: 'journals-board', labelEn: 'Journals board', labelAr: 'لوحة القيود', icon: FileSpreadsheet },
   { id: 'firm-clients', labelEn: 'Firm clients', labelAr: 'عملاء المكتب', icon: Users },
   { id: 'bank-recon', labelEn: 'Bank reconciliation', labelAr: 'التسوية البنكية', icon: Wallet },
@@ -95,6 +99,7 @@ export default function Accounting() {
     memo: '',
     entryDate: new Date().toISOString().slice(0, 10),
     journalId: '',
+    type: 'manual',
     lines: [emptyLine(), emptyLine()],
   })
   const isAr = language === 'ar'
@@ -175,7 +180,7 @@ export default function Accounting() {
     onSuccess: () => {
       toast.success(isAr ? 'تم إنشاء القيد' : 'Journal created')
       setShowJournalForm(false)
-      setJournalForm({ memo: '', entryDate: new Date().toISOString().slice(0, 10), journalId: '', lines: [emptyLine(), emptyLine()] })
+      setJournalForm({ memo: '', entryDate: new Date().toISOString().slice(0, 10), journalId: '', type: 'manual', lines: [emptyLine(), emptyLine()] })
       refetchJournals()
       queryClient.invalidateQueries({ queryKey: ['accounting-dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['accounting-daily'] })
@@ -229,7 +234,7 @@ export default function Accounting() {
     createJournalMutation.mutate({
       memo: journalForm.memo,
       entryDate: journalForm.entryDate,
-      type: 'manual',
+      type: journalForm.type === 'opening' ? 'opening' : 'manual',
       status: 'draft',
       journalId: journalForm.journalId || undefined,
       lines: journalForm.lines
@@ -639,6 +644,30 @@ export default function Accounting() {
             </motion.div>
           )}
 
+          {tab === 'tax-report' && (
+            <motion.div key="tax-report" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <VatTaxReportPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'opening-balances' && (
+            <motion.div key="opening-balances" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <OpeningBalancesPanel
+                language={language}
+                onNewOpening={() => {
+                  setJournalForm({
+                    memo: isAr ? 'أرصدة افتتاحية' : 'Opening balances',
+                    entryDate: new Date().toISOString().slice(0, 10),
+                    journalId: '',
+                    type: 'opening',
+                    lines: [emptyLine(), emptyLine()],
+                  })
+                  setShowJournalForm(true)
+                }}
+              />
+            </motion.div>
+          )}
+
           {tab === 'analytic-accounts' && (
             <motion.div key="analytic-accounts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
               <AnalyticAccountsPanel language={language} />
@@ -936,14 +965,29 @@ export default function Accounting() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700/80">{isAr ? 'دفتر الأستاذ' : 'General ledger'}</p>
-                  <h3 className="mt-1 text-lg font-semibold text-slate-900 dark:text-white" style={fontDisplay}>{isAr ? 'قيد يومية جديد' : 'New journal entry'}</h3>
+                  <h3 className="mt-1 text-lg font-semibold text-slate-900 dark:text-white" style={fontDisplay}>
+                    {journalForm.type === 'opening'
+                      ? (isAr ? 'قيد أرصدة افتتاحية' : 'Opening balance entry')
+                      : (isAr ? 'قيد يومية جديد' : 'New journal entry')}
+                  </h3>
                 </div>
                 <button type="button" onClick={() => setShowJournalForm(false)} className="rounded-xl px-2 text-slate-400 hover:text-slate-700">✕</button>
               </div>
-              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-4">
                 <div>
                   <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{isAr ? 'التاريخ' : 'Date'}</label>
                   <input type="date" value={journalForm.entryDate} onChange={(e) => setJournalForm((f) => ({ ...f, entryDate: e.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm dark:border-dark-600 dark:bg-dark-900" />
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{isAr ? 'النوع' : 'Type'}</label>
+                  <select
+                    value={journalForm.type || 'manual'}
+                    onChange={(e) => setJournalForm((f) => ({ ...f, type: e.target.value }))}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm dark:border-dark-600 dark:bg-dark-900"
+                  >
+                    <option value="manual">{isAr ? 'يدوي' : 'Manual'}</option>
+                    <option value="opening">{isAr ? 'افتتاحي' : 'Opening'}</option>
+                  </select>
                 </div>
                 <div>
                   <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{isAr ? 'البيان' : 'Memo'}</label>

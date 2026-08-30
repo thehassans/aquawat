@@ -1798,12 +1798,42 @@ const AGING_LABELS = {
 function AgedReportPanel({ language, kind }) {
   const isAr = language === 'ar'
   const [asOf, setAsOf] = useState(todayIso())
+  const [selected, setSelected] = useState(() => new Set())
   const endpoint = kind === 'ap' ? '/accounting/reports/aged-ap' : '/accounting/reports/aged-ar'
   const { data, isFetching } = useQuery({
     queryKey: ['accounting-aged', kind, asOf],
     queryFn: () => api.get(endpoint, { params: { asOf } }).then((r) => r.data),
   })
   const buckets = data?.buckets || {}
+
+  const remind = useMutation({
+    mutationFn: (invoiceIds) => api.post('/accounting/follow-up/remind', {
+      invoiceIds,
+      language: isAr ? 'ar' : 'en',
+    }).then((r) => r.data),
+    onSuccess: (payload) => {
+      const first = payload?.results?.[0]
+      if (first?.waLink) window.open(first.waLink, '_blank', 'noopener,noreferrer')
+      if ((payload?.results || []).length > 1) {
+        // Open remaining links with a short delay so the browser allows them
+        payload.results.slice(1, 5).forEach((row, idx) => {
+          setTimeout(() => {
+            if (row.waLink) window.open(row.waLink, '_blank', 'noopener,noreferrer')
+          }, (idx + 1) * 400)
+        })
+      }
+      setSelected(new Set())
+    },
+  })
+
+  const toggle = (id) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   return (
     <div className="space-y-4">
@@ -1818,6 +1848,21 @@ function AgedReportPanel({ language, kind }) {
             : (kind === 'ap' ? 'Aged payables' : 'Aged receivables')}
           {isFetching ? ' · …' : ''}
         </p>
+        {kind === 'ar' ? (
+          <button
+            type="button"
+            disabled={!selected.size || remind.isPending}
+            onClick={() => remind.mutate([...selected])}
+            className="mb-0.5 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+          >
+            {remind.isPending
+              ? '…'
+              : (isAr ? `تذكير واتساب (${selected.size})` : `WhatsApp remind (${selected.size})`)}
+          </button>
+        ) : null}
+        {remind.isError ? (
+          <p className="pb-2 text-xs text-rose-600">{remind.error?.response?.data?.error || remind.error?.message}</p>
+        ) : null}
       </div>
       <div className="grid gap-3 sm:grid-cols-5">
         {['d0_30', 'd31_60', 'd61_90', 'd90_plus'].map((key) => (
@@ -1835,27 +1880,53 @@ function AgedReportPanel({ language, kind }) {
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-400 dark:bg-dark-900">
             <tr>
+              {kind === 'ar' ? <th className="px-3 py-2 text-start" /> : null}
               <th className="px-4 py-2 text-start">{isAr ? 'الشريك' : 'Partner'}</th>
               <th className="px-4 py-2 text-start">{isAr ? 'الفاتورة' : 'Invoice'}</th>
               <th className="px-4 py-2 text-start">{isAr ? 'الاستحقاق' : 'Due'}</th>
               <th className="px-4 py-2 text-end">{isAr ? 'المتبقي' : 'Residual'}</th>
               <th className="px-4 py-2 text-end">{isAr ? 'العمر' : 'Age'}</th>
               <th className="px-4 py-2 text-start">{isAr ? 'الشريحة' : 'Bucket'}</th>
+              {kind === 'ar' ? <th className="px-4 py-2 text-end">{isAr ? 'تذكير' : 'Remind'}</th> : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-white/5">
             {(data?.rows || []).map((row) => (
               <tr key={row.invoiceId}>
-                <td className="px-4 py-2">{row.partnerName}</td>
+                {kind === 'ar' ? (
+                  <td className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(row.invoiceId)}
+                      onChange={() => toggle(row.invoiceId)}
+                    />
+                  </td>
+                ) : null}
+                <td className="px-4 py-2">
+                  <p>{row.partnerName}</p>
+                  {row.partnerPhone ? <p className="font-mono text-[11px] text-slate-400">{row.partnerPhone}</p> : null}
+                </td>
                 <td className="px-4 py-2 font-mono text-xs">{row.invoiceNumber}</td>
                 <td className="px-4 py-2">{row.dueDate ? new Date(row.dueDate).toLocaleDateString() : (row.issueDate ? new Date(row.issueDate).toLocaleDateString() : '—')}</td>
                 <td className="px-4 py-2 text-end"><Money value={row.residual} /></td>
                 <td className="px-4 py-2 text-end tabular-nums">{row.ageDays}</td>
                 <td className="px-4 py-2 text-xs text-slate-500">{AGING_LABELS[row.bucket] ? (isAr ? AGING_LABELS[row.bucket].ar : AGING_LABELS[row.bucket].en) : row.bucket}</td>
+                {kind === 'ar' ? (
+                  <td className="px-4 py-2 text-end">
+                    <button
+                      type="button"
+                      disabled={remind.isPending}
+                      onClick={() => remind.mutate([row.invoiceId])}
+                      className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold dark:border-dark-600"
+                    >
+                      {isAr ? 'واتساب' : 'WA'}
+                    </button>
+                  </td>
+                ) : null}
               </tr>
             ))}
             {!(data?.rows || []).length && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا أرصدة مفتوحة' : 'No open balances'}</td></tr>
+              <tr><td colSpan={kind === 'ar' ? 8 : 6} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا أرصدة مفتوحة' : 'No open balances'}</td></tr>
             )}
           </tbody>
         </table>
@@ -2202,6 +2273,174 @@ export function FirmClientsPanel({ language }) {
             ) : null}
           </tbody>
         </table>
+      </div>
+    </div>
+  )
+}
+
+export function VatTaxReportPanel({ language }) {
+  const isAr = language === 'ar'
+  const [from, setFrom] = useState(yearStartIso())
+  const [to, setTo] = useState(todayIso())
+  const { data: glTax, isFetching: glLoading } = useQuery({
+    queryKey: ['accounting-tax-report', from, to],
+    queryFn: () => api.get('/accounting/reports/tax', { params: { from, to } }).then((r) => r.data),
+  })
+  const { data: vatReturn, isFetching: vatLoading, isError: vatError } = useQuery({
+    queryKey: ['vat-returns-accounting', from, to],
+    queryFn: () => api.get('/reports/vat-return', {
+      params: { startDate: from, endDate: to },
+    }).then((r) => r.data),
+    retry: false,
+  })
+
+  const statement = vatReturn?.vatReturn?.statement || vatReturn?.statement || null
+
+  return (
+    <div className="space-y-4">
+      <DateRangeBar from={from} to={to} setFrom={setFrom} setTo={setTo} language={language} />
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+        <div>
+          <h3 className="text-sm font-semibold">{isAr ? 'تقرير الضريبة' : 'Tax report'}</h3>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {isAr
+              ? 'ملخص خطوط الضريبة في الدفتر + رابط إقرار القيمة المضافة.'
+              : 'GL tax-tagged lines summary plus VAT return link.'}
+          </p>
+        </div>
+        <a
+          href="/app/dashboard/vat-returns"
+          className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600"
+        >
+          {isAr ? 'إقرار ضريبة القيمة المضافة' : 'Full VAT return'}
+        </a>
+      </div>
+
+      {!vatError && statement ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          {[
+            [isAr ? 'المبيعات الخاضعة' : 'Taxable sales', statement.standardRatedSales ?? statement.taxableAmount],
+            [isAr ? 'ضريبة المخرجات' : 'Output VAT', statement.vatOnSales ?? statement.totalTax ?? statement.outputVat],
+            [isAr ? 'صافي الضريبة' : 'Net VAT', statement.netVatPayable ?? statement.netVat],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+              <p className="text-[11px] uppercase tracking-widest text-slate-400">{label}</p>
+              <p className="mt-1 text-lg font-semibold"><Money value={value} /></p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400">
+          {vatLoading
+            ? (isAr ? 'جاري تحميل إقرار الضريبة…' : 'Loading VAT return…')
+            : (isAr ? 'إقرار ضريبة القيمة المضافة متاح لمستأجري الريال السعودي.' : 'Statutory VAT return applies to SAR tenants.')}
+        </p>
+      )}
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+        <div className="border-b border-slate-100 px-4 py-3 dark:border-white/10">
+          <p className="text-sm font-semibold">{isAr ? 'ملخص الضريبة من القيود' : 'GL tax summary'}</p>
+          {glLoading ? <p className="text-xs text-slate-400">…</p> : null}
+        </div>
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-400 dark:bg-dark-900">
+            <tr>
+              <th className="px-4 py-2 text-start">{isAr ? 'الرمز' : 'Code'}</th>
+              <th className="px-4 py-2 text-start">{isAr ? 'الاسم' : 'Name'}</th>
+              <th className="px-4 py-2 text-end">{isAr ? 'مدين' : 'Debit'}</th>
+              <th className="px-4 py-2 text-end">{isAr ? 'دائن' : 'Credit'}</th>
+              <th className="px-4 py-2 text-end">{isAr ? 'صافي' : 'Net'}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+            {(glTax?.rows || []).map((row) => (
+              <tr key={row.taxId || row.code}>
+                <td className="px-4 py-2 font-mono text-xs">{row.code}</td>
+                <td className="px-4 py-2">{isAr ? (row.nameAr || row.name) : row.name}{row.rate != null ? ` (${row.rate}%)` : ''}</td>
+                <td className="px-4 py-2 text-end"><Money value={row.debit} /></td>
+                <td className="px-4 py-2 text-end"><Money value={row.credit} /></td>
+                <td className="px-4 py-2 text-end"><Money value={row.net} /></td>
+              </tr>
+            ))}
+            {!(glTax?.rows || []).length ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا خطوط ضريبة موسومة' : 'No tax-tagged journal lines'}</td></tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+export function OpeningBalancesPanel({ language, onNewOpening }) {
+  const isAr = language === 'ar'
+  const { data, isFetching, refetch } = useQuery({
+    queryKey: ['accounting-opening-journals'],
+    queryFn: () => api.get('/accounting/journals', {
+      params: { type: 'opening', limit: 50 },
+    }).then((r) => r.data),
+  })
+  const post = useMutation({
+    mutationFn: (id) => api.post(`/accounting/journals/${id}/post`).then((r) => r.data),
+    onSuccess: () => refetch(),
+  })
+
+  const rows = data?.rows || []
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+            {isAr ? 'أرصدة افتتاحية' : 'Opening balances'}
+          </h3>
+          <p className="mt-1 text-xs text-slate-500">
+            {isAr
+              ? 'قيود من نوع opening لترحيل أرصدة بداية الفترة. راعِ تواريخ الإقفال.'
+              : 'Journals with type opening for period start balances. Respect lock dates when posting.'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onNewOpening?.()}
+          className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white"
+        >
+          {isAr ? 'قيد افتتاحي جديد' : 'New opening entry'}
+        </button>
+      </div>
+      {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
+      <div className="space-y-3">
+        {rows.map((j) => (
+          <div key={j._id} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold">{j.entryNumber}</p>
+                <p className="text-sm text-slate-500">{j.memo || '—'}</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {j.entryDate ? new Date(j.entryDate).toLocaleDateString() : '—'} · {j.status}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold tabular-nums"><Money value={j.totalDebit} /></span>
+                {j.status === 'draft' ? (
+                  <button
+                    type="button"
+                    disabled={post.isPending}
+                    onClick={() => post.mutate(j._id)}
+                    className="rounded-full bg-emerald-700 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                  >
+                    {isAr ? 'ترحيل' : 'Post'}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ))}
+        {!rows.length ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-400 dark:border-dark-600">
+            {isAr ? 'لا قيود افتتاحية بعد' : 'No opening journals yet'}
+          </div>
+        ) : null}
       </div>
     </div>
   )

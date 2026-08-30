@@ -31,6 +31,7 @@ import {
   buildCashFlowStatement,
   buildAgedReceivables,
   buildAgedPayables,
+  buildTaxReport,
   getJournalBoard,
   buildPartnerLedger,
   backfillJournalPartnerIds,
@@ -873,6 +874,75 @@ router.get('/reports/aged-ar', checkPermission('finance', 'read'), async (req, r
 router.get('/reports/aged-ap', checkPermission('finance', 'read'), async (req, res) => {
   try {
     res.json(await buildAgedPayables(tenantIdOf(req), { asOf: req.query.asOf || null }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/reports/tax', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await buildTaxReport(tenantIdOf(req), {
+      from: req.query.from,
+      to: req.query.to,
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+/** Batch AR payment reminders — reuses invoice WhatsApp endpoint semantics (wa.me + optional send). */
+router.post('/follow-up/remind', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const tenantId = tenantIdOf(req);
+    const ids = Array.isArray(req.body.invoiceIds) ? req.body.invoiceIds.filter(Boolean) : [];
+    if (!ids.length) throw new Error('invoiceIds required');
+    const language = req.body.language === 'en' ? 'en' : 'ar';
+    const Invoice = (await import('../models/Invoice.js')).default;
+    const Customer = (await import('../models/Customer.js')).default;
+    const Tenant = (await import('../models/Tenant.js')).default;
+    const tenant = req.tenant || await Tenant.findById(tenantId);
+    const invoices = await Invoice.find({
+      _id: { $in: ids.slice(0, 50) },
+      tenantId,
+      flow: 'sell',
+      status: { $nin: ['draft', 'cancelled'] },
+    }).lean();
+
+    const partnerIds = [...new Set(invoices.map((i) => String(i.customerId || '')).filter(Boolean))];
+    const partners = partnerIds.length
+      ? await Customer.find({ _id: { $in: partnerIds }, tenantId }).select('name nameAr phone mobile').lean()
+      : [];
+    const byPartner = Object.fromEntries(partners.map((p) => [String(p._id), p]));
+
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    const baseUrl = process.env.APP_URL || `${protocol}://${tenant?.domain || 'app.maqder.com'}`;
+
+    const results = invoices.map((invoice) => {
+      const customer = invoice.customerId ? byPartner[String(invoice.customerId)] : null;
+      const phone = customer?.mobile || customer?.phone || invoice?.buyer?.phone || '';
+      const cleanPhone = String(phone || '').replace(/[^0-9]/g, '');
+      const residual = Math.max(0, Number(invoice.grandTotal || 0) - Number(invoice.paidAmount || 0));
+      const amountLabel = `${residual.toFixed(2)} ${invoice.currency || 'SAR'}`;
+      const customerName = customer?.name || customer?.nameAr || invoice?.buyer?.name || 'Customer';
+      const link = `${baseUrl}/app/dashboard/accounting/invoices/${invoice._id}`;
+      const textEn = `Dear ${customerName}, friendly reminder: invoice ${invoice.invoiceNumber} has an outstanding balance of ${amountLabel}. View: ${link}`;
+      const textAr = `عزيزي ${customerName}، تذكير ودي: الفاتورة ${invoice.invoiceNumber} عليها رصيد متبقي ${amountLabel}. العرض: ${link}`;
+      const messageText = language === 'ar' ? textAr : textEn;
+      const waLink = cleanPhone
+        ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`
+        : `https://wa.me/?text=${encodeURIComponent(messageText)}`;
+      return {
+        invoiceId: invoice._id,
+        invoiceNumber: invoice.invoiceNumber,
+        partnerName: customerName,
+        phone: cleanPhone || null,
+        residual: Math.round(residual * 100) / 100,
+        waLink,
+        messageText,
+      };
+    });
+
+    res.json({ count: results.length, language, results });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

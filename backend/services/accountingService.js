@@ -3007,7 +3007,7 @@ async function buildAgedInvoices(tenantId, { flow, asOf = null } = {}) {
     ),
   ];
   const partners = partnerIds.length
-    ? await Customer.find({ _id: { $in: partnerIds }, tenantId }).select('name nameAr displayName').lean()
+    ? await Customer.find({ _id: { $in: partnerIds }, tenantId }).select('name nameAr displayName phone mobile').lean()
     : [];
   const partnerById = Object.fromEntries(partners.map((p) => [String(p._id), p]));
 
@@ -3032,6 +3032,7 @@ async function buildAgedInvoices(tenantId, { flow, asOf = null } = {}) {
       invoiceType: inv.invoiceType,
       partnerId: partnerId || null,
       partnerName: partner?.displayName || partner?.name || partner?.nameAr || '—',
+      partnerPhone: partner?.mobile || partner?.phone || '',
       issueDate: inv.issueDate,
       dueDate: inv.dueDate || null,
       grandTotal: round2(inv.grandTotal),
@@ -3059,6 +3060,71 @@ export async function buildAgedReceivables(tenantId, opts = {}) {
 
 export async function buildAgedPayables(tenantId, opts = {}) {
   return buildAgedInvoices(tenantId, { ...opts, flow: 'purchase' });
+}
+
+/**
+ * Accounting tax summary from posted JournalItems tagged with taxIds (Phase 4 stamp).
+ * Complements the statutory VAT return under /reports/vat-return.
+ */
+export async function buildTaxReport(tenantId, { from, to } = {}) {
+  const { start, end } = periodRange({ from, to });
+  const Tax = (await import('../models/Tax.js')).default;
+  const taxes = await Tax.find({ tenantId }).lean();
+  const taxById = Object.fromEntries(taxes.map((t) => [String(t._id), t]));
+
+  const items = await JournalItem.find({
+    tenantId,
+    state: 'posted',
+    entryDate: { $gte: start, $lte: end },
+    taxIds: { $exists: true, $ne: [] },
+  }).lean();
+
+  const byTax = {};
+  let totalDebit = 0;
+  let totalCredit = 0;
+
+  for (const item of items) {
+    const ids = item.taxIds || [];
+    if (!ids.length) continue;
+    const debit = Number(item.debit || 0);
+    const credit = Number(item.credit || 0);
+    totalDebit = round2(totalDebit + debit);
+    totalCredit = round2(totalCredit + credit);
+    for (const tid of ids) {
+      const key = String(tid);
+      if (!byTax[key]) {
+        const tax = taxById[key];
+        byTax[key] = {
+          taxId: tid,
+          code: tax?.code || 'TAX',
+          name: tax?.name || 'Tax',
+          nameAr: tax?.nameAr || '',
+          rate: tax?.rate ?? null,
+          type: tax?.type || '',
+          debit: 0,
+          credit: 0,
+          lineCount: 0,
+        };
+      }
+      byTax[key].debit = round2(byTax[key].debit + debit / ids.length);
+      byTax[key].credit = round2(byTax[key].credit + credit / ids.length);
+      byTax[key].lineCount += 1;
+    }
+  }
+
+  const rows = Object.values(byTax).map((r) => ({
+    ...r,
+    net: round2(r.credit - r.debit),
+  })).sort((a, b) => String(a.code).localeCompare(String(b.code)));
+
+  return {
+    from: start,
+    to: end,
+    rows,
+    totalDebit,
+    totalCredit,
+    net: round2(totalCredit - totalDebit),
+  };
 }
 
 /** Kanban board: draft / posted / reversed / void columns. */
@@ -3101,6 +3167,7 @@ export default {
   buildCashFlowStatement,
   buildAgedReceivables,
   buildAgedPayables,
+  buildTaxReport,
   getJournalBoard,
   ensureAccountingDefaults,
   getAccountingDefaults,
