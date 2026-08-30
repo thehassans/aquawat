@@ -7,13 +7,35 @@ import { Plus, Search, Building2, Edit, Users, LogIn, AlertCircle, RefreshCw, Tr
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
+import { getSubscriptionState } from '../../lib/subscriptionState'
+
+function subscriptionBadge(tenant, language) {
+  const state = getSubscriptionState(tenant)
+  const isAr = language === 'ar'
+  if (state.isTrialEnded || tenant?.subscription?.status === 'trial_ended') {
+    return { label: isAr ? 'انتهت التجربة' : 'Trial Ended', cls: 'badge-warning' }
+  }
+  if (state.isExpired || tenant?.subscription?.status === 'expired') {
+    return { label: isAr ? 'منتهي' : 'Expired', cls: 'badge-danger' }
+  }
+  if (tenant?.subscription?.status === 'terminated') {
+    return { label: isAr ? 'موقوف' : 'Terminated', cls: 'badge-danger' }
+  }
+  if (state.isExpiringSoon) {
+    return { label: isAr ? `ينتهي خلال ${state.daysLeft}ي` : `Ends in ${state.daysLeft}d`, cls: 'badge-warning' }
+  }
+  if (state.isActive) {
+    return { label: isAr ? 'نشط' : 'Active', cls: 'badge-success' }
+  }
+  return { label: tenant?.subscription?.status || '—', cls: 'badge-neutral' }
+}
 
 export default function TenantManagement() {
   const { language } = useSelector((state) => state.ui)
   const { t } = useTranslation(language)
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState({ status: '', plan: '', businessType: '' })
+  const [filters, setFilters] = useState({ status: '', plan: '', businessType: '', subStatus: '' })
   const [page, setPage] = useState(1)
   const [backupTenant, setBackupTenant] = useState(null)
   const [backupForm, setBackupForm] = useState({ period: 'monthly', startDate: '', endDate: '', email: '', formats: ['excel', 'pdf'] })
@@ -305,6 +327,13 @@ export default function TenantManagement() {
             <option value="professional">Professional</option>
             <option value="enterprise">Enterprise</option>
           </select>
+          <select value={filters.subStatus} onChange={(e) => { setFilters({ ...filters, subStatus: e.target.value }); setPage(1) }} className="select w-full sm:w-44">
+            <option value="">{language === 'ar' ? 'كل الاشتراكات' : 'All subscriptions'}</option>
+            <option value="active">{language === 'ar' ? 'اشتراك نشط' : 'Sub Active'}</option>
+            <option value="ending_soon">{language === 'ar' ? 'ينتهي قريباً' : 'Ending soon'}</option>
+            <option value="expired">{language === 'ar' ? 'منتهي' : 'Expired'}</option>
+            <option value="trial_ended">{language === 'ar' ? 'انتهت التجربة' : 'Trial Ended'}</option>
+          </select>
           <select value={filters.businessType} onChange={(e) => setFilters({ ...filters, businessType: e.target.value })} className="select w-full sm:w-40">
             <option value="">{language === 'ar' ? 'كل الأنشطة' : 'All Types'}</option>
             <option value="trading">{language === 'ar' ? 'تجارة' : 'Trading'}</option>
@@ -363,6 +392,7 @@ export default function TenantManagement() {
                     <th>{language === 'ar' ? 'النشاط' : 'Business Type'}</th>
                     <th>{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</th>
                     <th>{language === 'ar' ? 'الخطة' : 'Plan'}</th>
+                    <th>{language === 'ar' ? 'الاشتراك' : 'Subscription'}</th>
                     <th>{language === 'ar' ? 'المستخدمين' : 'Users'}</th>
                     <th>{language === 'ar' ? 'الفواتير' : 'Invoices'}</th>
                     <th>{t('status')}</th>
@@ -406,6 +436,12 @@ export default function TenantManagement() {
                         }`}>
                           {tenant.subscription?.plan}
                         </span>
+                      </td>
+                      <td>
+                        {(() => {
+                          const badge = subscriptionBadge(tenant, language)
+                          return <span className={`badge ${badge.cls}`}>{badge.label}</span>
+                        })()}
                       </td>
                       <td>
                         <div className="flex items-center gap-1">

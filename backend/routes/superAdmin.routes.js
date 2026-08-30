@@ -18,6 +18,8 @@ import EmailMessage from '../models/EmailMessage.js';
 import Employee from '../models/Employee.js';
 import SystemSettings, { getDefaultPricingPlans, getDefaultPlansByBusinessType, overlayCatalogPrices } from '../models/SystemSettings.js';
 import { getPlanEntitlements } from '../utils/planEntitlements.js';
+import { isPaidPlanId } from '../utils/subscriptionPeriod.js';
+import { expireEndedSubscriptions } from '../jobs/expireSubscriptions.js';
 import Expense from '../models/Expense.js';
 import Product from '../models/Product.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
@@ -971,7 +973,7 @@ router.post('/settings/ai/test', async (req, res) => {
 // @route   GET /api/super-admin/tenants
 router.get('/tenants', async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, plan, search, resellerId } = req.query;
+    const { page = 1, limit = 20, status, plan, search, resellerId, subStatus, businessType } = req.query;
     const parsedPage = Number.parseInt(page, 10);
     const parsedLimit = Number.parseInt(limit, 10);
     const safePage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
@@ -983,17 +985,67 @@ router.get('/tenants', async (req, res) => {
     if (status === 'inactive') query.isActive = false;
     if (plan) query['subscription.plan'] = plan;
     if (resellerId) query.resellerId = resellerId;
-    if (normalizedSearch) {
-      query.$or = [
-        { name: { $regex: normalizedSearch, $options: 'i' } },
-        { 'business.legalNameEn': { $regex: normalizedSearch, $options: 'i' } },
-        { 'business.vatNumber': { $regex: normalizedSearch, $options: 'i' } }
-      ];
+
+    const andParts = [];
+    if (businessType) {
+      andParts.push({
+        $or: [
+          { businessType },
+          { businessTypes: businessType },
+        ],
+      });
     }
+
+    const now = new Date();
+    const in7 = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    if (subStatus === 'trial_ended') {
+      andParts.push({
+        $or: [
+          { 'subscription.status': 'trial_ended' },
+          { 'subscription.plan': 'trial', 'subscription.status': 'expired' },
+          { 'subscription.plan': 'trial', 'subscription.endDate': { $lt: now }, 'subscription.status': { $nin: ['terminated', 'cancelled'] } },
+        ],
+      });
+    } else if (subStatus === 'expired') {
+      andParts.push({
+        $or: [
+          { 'subscription.status': 'expired', 'subscription.plan': { $ne: 'trial' } },
+          {
+            'subscription.endDate': { $lt: now },
+            'subscription.status': { $nin: ['terminated', 'cancelled', 'trial_ended'] },
+            'subscription.plan': { $ne: 'trial' },
+          },
+        ],
+      });
+    } else if (subStatus === 'ending_soon') {
+      query['subscription.status'] = 'active';
+      query['subscription.endDate'] = { $gte: now, $lte: in7 };
+    } else if (subStatus === 'active') {
+      query['subscription.status'] = 'active';
+      andParts.push({
+        $or: [
+          { 'subscription.endDate': null },
+          { 'subscription.endDate': { $exists: false } },
+          { 'subscription.endDate': { $gte: now } },
+        ],
+      });
+    }
+
+    if (normalizedSearch) {
+      andParts.push({
+        $or: [
+          { name: { $regex: normalizedSearch, $options: 'i' } },
+          { 'business.legalNameEn': { $regex: normalizedSearch, $options: 'i' } },
+          { 'business.vatNumber': { $regex: normalizedSearch, $options: 'i' } },
+        ],
+      });
+    }
+
+    if (andParts.length) query.$and = andParts;
     
     const tenants = await withQueryTimeout(
       Tenant.find(query)
-        .select('name slug businessType businessTypes business subscription isActive createdAt resellerId settings.communication.email terminationNotice')
+        .select('name slug businessType businessTypes business subscription isActive createdAt resellerId settings.communication.email terminationNotice demoTrialEndsAt isDemo demoUpgraded')
         .sort({ createdAt: -1 })
         .skip((safePage - 1) * safeLimit)
         .limit(safeLimit)
@@ -1311,7 +1363,7 @@ router.put('/tenants/:id/subscription', async (req, res) => {
     
     invalidateAuthCache(null, tenant._id);
 
-    const canceledStatuses = new Set(['cancelled', 'canceled', 'terminated', 'expired']);
+    const canceledStatuses = new Set(['cancelled', 'canceled', 'terminated', 'expired', 'trial_ended']);
     if (
       status &&
       canceledStatuses.has(String(status)) &&
@@ -1326,6 +1378,118 @@ router.put('/tenants/:id/subscription', async (req, res) => {
     }
 
     res.json(tenant);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/** Record an accepted SaaS payment and extend / activate the subscription. */
+// @route   POST /api/super-admin/tenants/:id/accept-payment
+router.post('/tenants/:id/accept-payment', async (req, res) => {
+  try {
+    const tenant = await Tenant.findById(req.params.id);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    const {
+      amount = 0,
+      currency = 'SAR',
+      method = 'bank_transfer',
+      reference = '',
+      note = '',
+      plan,
+      billingCycle,
+      cycles = 1,
+    } = req.body || {};
+
+    const nextPlan = String(plan || tenant.subscription?.plan || 'starter').toLowerCase();
+    const nextCycle = String(billingCycle || tenant.subscription?.billingCycle || 'monthly').toLowerCase() === 'yearly'
+      ? 'yearly'
+      : 'monthly';
+    const cycleCount = Math.max(1, Math.min(36, Number(cycles) || 1));
+
+    if (nextPlan === 'trial') {
+      return res.status(400).json({ error: 'Select a paid plan when accepting payment' });
+    }
+
+    const now = new Date();
+    const priorEnd = tenant.subscription?.endDate;
+    const periodStart = priorEnd && new Date(priorEnd).getTime() > now.getTime() ? new Date(priorEnd) : now;
+    let periodEnd = new Date(periodStart);
+    for (let i = 0; i < cycleCount; i += 1) {
+      if (nextCycle === 'yearly') periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+      else periodEnd.setMonth(periodEnd.getMonth() + 1);
+    }
+
+    const entitlements = getPlanEntitlements(nextPlan, nextCycle);
+    const paidPrior = isPaidPlanId(tenant.subscription?.plan);
+    const wasTrial = String(tenant.subscription?.plan || '').toLowerCase() === 'trial' || tenant.isDemo === true;
+
+    if (!tenant.subscription) tenant.subscription = {};
+    tenant.subscription.plan = nextPlan;
+    tenant.subscription.status = 'active';
+    tenant.subscription.billingCycle = nextCycle;
+    tenant.subscription.endDate = periodEnd;
+    if (!paidPrior || !tenant.subscription.startDate) {
+      tenant.subscription.startDate = now;
+    }
+    tenant.subscription.price = Number(amount) || Number(tenant.subscription.price) || 0;
+    tenant.subscription.maxUsers = entitlements.maxUsers;
+    tenant.subscription.maxInvoices = entitlements.maxInvoices;
+    tenant.subscription.maxQuotations = entitlements.maxQuotations;
+    tenant.isActive = true;
+    tenant.isDemo = false;
+    tenant.demoUpgraded = true;
+    tenant.terminationNotice = undefined;
+
+    if (!Array.isArray(tenant.subscription.paymentHistory)) {
+      tenant.subscription.paymentHistory = [];
+    }
+    tenant.subscription.paymentHistory.push({
+      amount: Number(amount) || 0,
+      currency: String(currency || 'SAR').toUpperCase(),
+      method: String(method || 'bank_transfer'),
+      reference: String(reference || ''),
+      note: String(note || ''),
+      plan: nextPlan,
+      billingCycle: nextCycle,
+      periodStart,
+      periodEnd,
+      recordedBy: req.user?._id,
+      recordedAt: now,
+    });
+    tenant.markModified('subscription.paymentHistory');
+
+    await tenant.save();
+    invalidateAuthCache(null, tenant._id);
+
+    emitPlatformEvent(paidPrior ? 'subscription_renewed' : 'subscription_started', {
+      tenantId: String(tenant._id),
+      plan: nextPlan,
+      billingCycle: nextCycle,
+      amount: Number(amount) || 0,
+      currency: String(currency || 'SAR').toUpperCase(),
+      paymentId: reference || `manual_${now.getTime()}`,
+    });
+
+    if (!paidPrior && wasTrial) {
+      emitPlatformEvent('trial_converted', {
+        tenantId: String(tenant._id),
+        plan: nextPlan,
+        billingCycle: nextCycle,
+      });
+    }
+
+    res.json(serializeTenantForSuperAdmin(tenant));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/super-admin/subscriptions/expire-due
+router.post('/subscriptions/expire-due', async (req, res) => {
+  try {
+    const result = await expireEndedSubscriptions();
+    res.json({ ok: true, ...result });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

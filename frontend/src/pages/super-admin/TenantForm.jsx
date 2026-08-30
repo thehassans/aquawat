@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useForm } from 'react-hook-form'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Save, Building2, CreditCard, User, Shield, MapPin, Briefcase, Receipt, KeyRound, Eye, EyeOff, Users } from 'lucide-react'
+import { ArrowLeft, Save, Building2, CreditCard, User, Shield, MapPin, Briefcase, Receipt, KeyRound, Eye, EyeOff, Users, Banknote } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
@@ -13,6 +13,7 @@ import { getBusinessTypeOptions, getPrimaryBusinessType, getTenantBusinessTypes,
 import { CURRENCIES, CURRENCY_CODE } from '../../lib/currency'
 import { COUNTRY_OPTIONS, currencyForCountry, timezoneForCountry } from '../../lib/countryCurrency'
 import TenantAppStorePanel from '../../components/super-admin/TenantAppStorePanel'
+import { formatSubscriptionDate, getSubscriptionState } from '../../lib/subscriptionState'
 
 export default function TenantForm() {
   const { id } = useParams()
@@ -25,6 +26,16 @@ export default function TenantForm() {
   const [passwordModal, setPasswordModal] = useState(null)
   const [newPassword, setNewPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [paymentForm, setPaymentForm] = useState({
+    amount: '',
+    currency: 'SAR',
+    method: 'bank_transfer',
+    reference: '',
+    note: '',
+    plan: 'professional',
+    billingCycle: 'monthly',
+    cycles: 1,
+  })
 
   const { register, handleSubmit, reset, setValue, watch } = useForm({
     defaultValues: {
@@ -74,6 +85,14 @@ export default function TenantForm() {
         endDate: tenant.tenant?.subscription?.endDate ? new Date(tenant.tenant.subscription.endDate).toISOString().split('T')[0] : ''
       }
     })
+    const sub = tenant.tenant?.subscription || {}
+    setPaymentForm((p) => ({
+      ...p,
+      plan: ['starter', 'professional', 'enterprise'].includes(sub.plan) ? sub.plan : 'professional',
+      billingCycle: sub.billingCycle === 'yearly' ? 'yearly' : 'monthly',
+      currency: tenant.tenant?.settings?.currency || p.currency || 'SAR',
+      amount: sub.price != null ? String(sub.price) : p.amount,
+    }))
   }, [reset, tenant])
 
   useEffect(() => {
@@ -231,6 +250,20 @@ export default function TenantForm() {
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Error')
   })
+
+  const acceptPaymentMutation = useMutation({
+    mutationFn: (payload) => api.post(`/super-admin/tenants/${id}/accept-payment`, payload).then((res) => res.data),
+    onSuccess: () => {
+      toast.success(language === 'ar' ? 'تم تسجيل الدفع وتفعيل الاشتراك' : 'Payment recorded — subscription activated')
+      queryClient.invalidateQueries({ queryKey: ['tenant', id] })
+      queryClient.invalidateQueries({ queryKey: ['tenants'] })
+      setPaymentForm((p) => ({ ...p, amount: '', reference: '', note: '' }))
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to record payment'),
+  })
+
+  const liveSubState = isEdit && tenant?.tenant ? getSubscriptionState(tenant.tenant) : null
+  const paymentHistory = tenant?.tenant?.subscription?.paymentHistory || []
 
   const handleLogoChange = async (e) => {
     const file = e.target.files?.[0]
@@ -665,6 +698,8 @@ export default function TenantForm() {
                 <option value="active">{language === 'ar' ? 'نشط' : 'Active'}</option>
                 <option value="suspended">{language === 'ar' ? 'معلق' : 'Suspended'}</option>
                 <option value="expired">{language === 'ar' ? 'منتهي' : 'Expired'}</option>
+                <option value="trial_ended">{language === 'ar' ? 'انتهت التجربة' : 'Trial Ended'}</option>
+                <option value="terminated">{language === 'ar' ? 'موقوف' : 'Terminated'}</option>
               </select>
             </div>
             <div>
@@ -735,7 +770,182 @@ export default function TenantForm() {
               </>
             )}
           </div>
+          {isEdit && liveSubState ? (
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className={`badge ${
+                liveSubState.isTrialEnded ? 'badge-warning'
+                  : liveSubState.isExpired ? 'badge-danger'
+                    : liveSubState.isExpiringSoon ? 'badge-warning'
+                      : 'badge-success'
+              }`}>
+                {liveSubState.isTrialEnded
+                  ? (language === 'ar' ? 'انتهت التجربة' : 'Trial Ended')
+                  : liveSubState.isExpired
+                    ? (language === 'ar' ? 'انتهى الاشتراك' : 'Subscription Ended')
+                    : liveSubState.isExpiringSoon
+                      ? (language === 'ar' ? 'ينتهي قريباً' : 'Ending Soon')
+                      : (language === 'ar' ? 'اشتراك نشط' : 'Subscription Active')}
+              </span>
+              {liveSubState.endDate ? (
+                <span className="text-xs text-gray-500">
+                  {language === 'ar' ? 'الانتهاء:' : 'Ends:'} {formatSubscriptionDate(liveSubState.endDate, language)}
+                  {liveSubState.daysLeft != null && !liveSubState.isExpired
+                    ? ` · ${liveSubState.daysLeft} ${language === 'ar' ? 'يوم' : 'days'}`
+                    : ''}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
         </motion.div>
+
+        {isEdit ? (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="card p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg"><Banknote className="w-5 h-5 text-emerald-600" /></div>
+              <div>
+                <h3 className="text-lg font-semibold">{language === 'ar' ? 'تسجيل دفعة مقبولة' : 'Record accepted payment'}</h3>
+                <p className="text-sm text-gray-500">
+                  {language === 'ar'
+                    ? 'عند استلام التحويل: سجّل الدفع لتفعيل الاشتراك وتمديد تاريخ الانتهاء.'
+                    : 'When bank transfer clears: record payment to activate the plan and extend the end date.'}
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="label">{language === 'ar' ? 'الخطة' : 'Plan'}</label>
+                <select
+                  className="select"
+                  value={paymentForm.plan}
+                  onChange={(e) => setPaymentForm((p) => ({ ...p, plan: e.target.value }))}
+                >
+                  <option value="starter">Starter</option>
+                  <option value="professional">Professional</option>
+                  <option value="enterprise">Enterprise</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">{language === 'ar' ? 'دورة الفوترة' : 'Billing cycle'}</label>
+                <select
+                  className="select"
+                  value={paymentForm.billingCycle}
+                  onChange={(e) => setPaymentForm((p) => ({ ...p, billingCycle: e.target.value }))}
+                >
+                  <option value="monthly">{language === 'ar' ? 'شهري' : 'Monthly'}</option>
+                  <option value="yearly">{language === 'ar' ? 'سنوي' : 'Yearly'}</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">{language === 'ar' ? 'عدد الدورات' : 'Cycles'}</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={36}
+                  className="input"
+                  value={paymentForm.cycles}
+                  onChange={(e) => setPaymentForm((p) => ({ ...p, cycles: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="label">{language === 'ar' ? 'المبلغ' : 'Amount'}</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  className="input"
+                  value={paymentForm.amount}
+                  onChange={(e) => setPaymentForm((p) => ({ ...p, amount: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="label">{language === 'ar' ? 'العملة' : 'Currency'}</label>
+                <input
+                  className="input"
+                  value={paymentForm.currency}
+                  onChange={(e) => setPaymentForm((p) => ({ ...p, currency: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="label">{language === 'ar' ? 'طريقة الدفع' : 'Method'}</label>
+                <select
+                  className="select"
+                  value={paymentForm.method}
+                  onChange={(e) => setPaymentForm((p) => ({ ...p, method: e.target.value }))}
+                >
+                  <option value="bank_transfer">{language === 'ar' ? 'تحويل بنكي' : 'Bank transfer'}</option>
+                  <option value="cash">{language === 'ar' ? 'نقداً' : 'Cash'}</option>
+                  <option value="card">{language === 'ar' ? 'بطاقة' : 'Card'}</option>
+                  <option value="stc_pay">STC Pay</option>
+                  <option value="other">{language === 'ar' ? 'أخرى' : 'Other'}</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">{language === 'ar' ? 'المرجع' : 'Reference'}</label>
+                <input
+                  className="input"
+                  value={paymentForm.reference}
+                  onChange={(e) => setPaymentForm((p) => ({ ...p, reference: e.target.value }))}
+                  placeholder={language === 'ar' ? 'رقم التحويل…' : 'Transfer ref…'}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="label">{language === 'ar' ? 'ملاحظة' : 'Note'}</label>
+                <input
+                  className="input"
+                  value={paymentForm.note}
+                  onChange={(e) => setPaymentForm((p) => ({ ...p, note: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn btn-primary bg-emerald-600 hover:bg-emerald-700 border-emerald-600"
+                disabled={acceptPaymentMutation.isPending}
+                onClick={() => acceptPaymentMutation.mutate({
+                  ...paymentForm,
+                  amount: Number(paymentForm.amount) || 0,
+                  cycles: Number(paymentForm.cycles) || 1,
+                })}
+              >
+                <Banknote className="w-4 h-4" />
+                {acceptPaymentMutation.isPending
+                  ? '…'
+                  : (language === 'ar' ? 'قبول وتسجيل الدفع' : 'Accept & record payment')}
+              </button>
+            </div>
+
+            {paymentHistory.length > 0 ? (
+              <div className="mt-6 overflow-x-auto">
+                <p className="mb-2 text-xs font-bold uppercase tracking-widest text-gray-400">
+                  {language === 'ar' ? 'سجل المدفوعات' : 'Payment history'}
+                </p>
+                <table className="table text-sm">
+                  <thead>
+                    <tr>
+                      <th>{language === 'ar' ? 'التاريخ' : 'Date'}</th>
+                      <th>{language === 'ar' ? 'المبلغ' : 'Amount'}</th>
+                      <th>{language === 'ar' ? 'الخطة' : 'Plan'}</th>
+                      <th>{language === 'ar' ? 'المرجع' : 'Ref'}</th>
+                      <th>{language === 'ar' ? 'حتى' : 'Until'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...paymentHistory].reverse().slice(0, 8).map((row, idx) => (
+                      <tr key={row._id || idx}>
+                        <td>{row.recordedAt ? new Date(row.recordedAt).toLocaleDateString() : '—'}</td>
+                        <td>{Number(row.amount || 0).toFixed(2)} {row.currency || ''}</td>
+                        <td>{row.plan} · {row.billingCycle}</td>
+                        <td className="font-mono text-xs">{row.reference || row.method || '—'}</td>
+                        <td>{row.periodEnd ? new Date(row.periodEnd).toLocaleDateString() : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </motion.div>
+        ) : null}
 
         {/* Admin User (New tenant only) */}
         {!isEdit && (

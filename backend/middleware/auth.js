@@ -160,7 +160,7 @@ export const protect = async (req, res, next) => {
       const endMs = endRaw ? new Date(endRaw).getTime() : NaN;
       const dateExpired = Number.isFinite(endMs) && endMs < Date.now();
       const status = String(sub.status || '').toLowerCase();
-      const statusExpired = ['expired', 'cancelled', 'inactive', 'terminated'].includes(status);
+      const statusExpired = ['expired', 'cancelled', 'inactive', 'terminated', 'trial_ended'].includes(status);
       const isDemoPending = tenant.isDemo === true && tenant.demoUpgraded !== true;
       const isTrialPlan = String(sub.plan || '').toLowerCase() === 'trial' || isDemoPending;
       const isExpired = Boolean(dateExpired || statusExpired);

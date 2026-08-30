@@ -155,6 +155,7 @@ import { fetchImapEmails } from './jobs/imapFetcher.js';
 import { startBoutiqueReminderJobs } from './jobs/boutiqueReminderJob.js';
 import { checkRestaurantAutoStatus } from './jobs/restaurantAutoStatusJob.js';
 import { markOverdueInvoices } from './jobs/invoiceOverdueJob.js';
+import { expireEndedSubscriptions } from './jobs/expireSubscriptions.js';
 import { processQueue as processZatcaQueue } from './services/zatcaQueueProcessor.js';
 import { runZatcaMonitoring, runCertExpiryCheck } from './jobs/zatcaMonitoringJob.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
@@ -350,6 +351,11 @@ const startJobs = async () => {
   cron.schedule('5 0 * * *', async () => {
     logger.info('Marking overdue invoices (Asia/Riyadh)...');
     await markOverdueInvoices();
+  }, { timezone: 'Asia/Riyadh' });
+
+  cron.schedule('15 0 * * *', async () => {
+    logger.info('Expiring ended SaaS subscriptions (Asia/Riyadh)...');
+    await expireEndedSubscriptions();
   }, { timezone: 'Asia/Riyadh' });
 
   cron.schedule('*/2 * * * *', async () => {

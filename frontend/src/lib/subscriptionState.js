@@ -28,9 +28,9 @@ export function getSubscriptionState(tenant) {
   }
 
   const dateExpired = hasEnd && endMs < Date.now()
-  const statusExpired = ['expired', 'cancelled', 'inactive', 'terminated'].includes(status)
+  const statusExpired = ['expired', 'cancelled', 'inactive', 'terminated', 'trial_ended'].includes(status)
   const isExpired = dateExpired || statusExpired || (hasEnd && daysLeft === 0 && endMs <= Date.now())
-  const isTrialEnded = Boolean(isTrialPlan && isExpired)
+  const isTrialEnded = Boolean((isTrialPlan && isExpired) || status === 'trial_ended')
   const isExpiringSoon = !isExpired && daysLeft !== null && daysLeft <= 7
   const isActive = !isExpired && (status === 'active' || (isTrialPlan && !isExpired) || (!status && !isExpired))
 

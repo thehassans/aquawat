@@ -9,7 +9,7 @@ const subscriptionSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['active', 'suspended', 'cancelled', 'expired', 'terminated'],
+    enum: ['active', 'suspended', 'cancelled', 'expired', 'terminated', 'trial_ended'],
     default: 'active'
   },
   startDate: { type: Date, default: Date.now },
@@ -36,7 +36,21 @@ const subscriptionSchema = new mongoose.Schema({
     enum: ['monthly', 'yearly'],
     default: 'monthly'
   },
-  price: { type: Number, default: 0 }
+  price: { type: Number, default: 0 },
+  /** Manual / gateway payment ledger for SaaS renewals */
+  paymentHistory: [{
+    amount: { type: Number, default: 0 },
+    currency: { type: String, default: 'SAR' },
+    method: { type: String, default: 'bank_transfer' },
+    reference: { type: String, default: '' },
+    note: { type: String, default: '' },
+    plan: { type: String, default: '' },
+    billingCycle: { type: String, default: 'monthly' },
+    periodStart: { type: Date },
+    periodEnd: { type: Date },
+    recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    recordedAt: { type: Date, default: Date.now },
+  }],
 });
 
 const businessDetailsSchema = new mongoose.Schema({
