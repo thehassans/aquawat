@@ -7,6 +7,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import Money from '../../components/ui/Money'
+import { formatSubscriptionDate } from '../../lib/subscriptionState'
 
 const COLORS = ['#14b8a6', '#f59e0b', '#8b5cf6', '#ef4444']
 
@@ -108,7 +109,7 @@ export default function SuperAdminDashboard() {
                   <span className={`badge ${tenant.subscription?.status === 'active' ? 'badge-success' : 'badge-warning'}`}>
                     {tenant.subscription?.plan}
                   </span>
-                  <p className="text-xs text-gray-500 mt-1">{new Date(tenant.createdAt).toLocaleDateString()}</p>
+                  <p className="text-xs text-gray-500 mt-1">{formatSubscriptionDate(tenant.createdAt, language)}</p>
                 </div>
               </Link>
             ))}

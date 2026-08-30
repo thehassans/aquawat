@@ -13,6 +13,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import SuperAdminPortal, { SA_MODAL_Z } from '../../components/super-admin/SuperAdminPortal'
+import { formatSubscriptionDate } from '../../lib/subscriptionState'
 
 export default function SuperAdminInvoices() {
   const navigate = useNavigate()
@@ -301,7 +302,7 @@ export default function SuperAdminInvoices() {
                         </div>
                       </td>
                       <td className="py-3.5 px-4 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                        {inv.issueDate ? new Date(inv.issueDate).toLocaleDateString(isAr ? 'ar-SA' : 'en-US') : '—'}
+                        {inv.issueDate ? formatSubscriptionDate(inv.issueDate, language) : '—'}
                       </td>
                       <td className="py-3.5 px-4 text-end font-bold text-gray-900 dark:text-white whitespace-nowrap">
                         {(inv.grandTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-[10px] text-gray-400">SAR</span>
@@ -407,7 +408,7 @@ export default function SuperAdminInvoices() {
                       </span>
                     </h3>
                     <p className="text-xs text-gray-400">
-                      {new Date(previewInvoice.issueDate).toLocaleDateString(isAr ? 'ar-SA' : 'en-US')}
+                      {formatSubscriptionDate(previewInvoice.issueDate, language)}
                     </p>
                   </div>
                 </div>

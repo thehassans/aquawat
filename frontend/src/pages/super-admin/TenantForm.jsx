@@ -15,7 +15,7 @@ import { COUNTRY_OPTIONS, currencyForCountry, timezoneForCountry } from '../../l
 import TenantAppStorePanel from '../../components/super-admin/TenantAppStorePanel'
 import TenantPaymentHistory from '../../components/super-admin/TenantPaymentHistory'
 import SuperAdminPortal, { SA_MODAL_Z } from '../../components/super-admin/SuperAdminPortal'
-import { formatSubscriptionDate, getSubscriptionState } from '../../lib/subscriptionState'
+import { formatSubscriptionDate, getSubscriptionState, addBillingCycle } from '../../lib/subscriptionState'
 
 export default function TenantForm() {
   const { id } = useParams()
@@ -153,15 +153,20 @@ export default function TenantForm() {
     extraMonthsRef.current = watchedExtraMonths
     
     const start = watchedStartDate ? new Date(watchedStartDate) : new Date()
-    let days = watchedBillingCycle === 'yearly' ? 365 : 30
-    
+    let end = addBillingCycle(start, watchedBillingCycle === 'yearly' ? 'yearly' : 'monthly')
+
     if (watchedBillingCycle === 'yearly' && watchedExtraMonths) {
-      days += parseInt(watchedExtraMonths) * 30
+      const extra = Math.max(0, parseInt(watchedExtraMonths, 10) || 0)
+      for (let i = 0; i < extra; i += 1) {
+        end = addBillingCycle(end, 'monthly')
+      }
     }
-    
-    const end = new Date(start)
-    end.setDate(end.getDate() + days)
-    const formatted = end.toISOString().split('T')[0]
+
+    const formatted = [
+      end.getFullYear(),
+      String(end.getMonth() + 1).padStart(2, '0'),
+      String(end.getDate()).padStart(2, '0'),
+    ].join('-')
     if (formatted !== watchedEndDate) {
       setValue('subscription.endDate', formatted, { shouldDirty: true })
     }

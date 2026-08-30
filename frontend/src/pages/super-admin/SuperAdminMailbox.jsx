@@ -26,7 +26,7 @@ const formatDate = (v, language) => {
   const now = new Date()
   const isToday = d.toDateString() === now.toDateString()
   if (isToday) return d.toLocaleTimeString(language === 'ar' ? 'ar-SA' : 'en-GB', { hour: '2-digit', minute: '2-digit' })
-  return d.toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB', { day: 'numeric', month: 'short' })
+  return d.toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 const formatDateLong = (v, language) => {

@@ -18,7 +18,7 @@ import EmailMessage from '../models/EmailMessage.js';
 import Employee from '../models/Employee.js';
 import SystemSettings, { getDefaultPricingPlans, getDefaultPlansByBusinessType, overlayCatalogPrices } from '../models/SystemSettings.js';
 import { getPlanEntitlements } from '../utils/planEntitlements.js';
-import { isPaidPlanId } from '../utils/subscriptionPeriod.js';
+import { addBillingCycle, addBillingCycles, isPaidPlanId } from '../utils/subscriptionPeriod.js';
 import { expireEndedSubscriptions } from '../jobs/expireSubscriptions.js';
 import Expense from '../models/Expense.js';
 import Product from '../models/Product.js';
@@ -1152,7 +1152,9 @@ router.post('/tenants', async (req, res) => {
         maxInvoices: subscription?.maxInvoices ?? entitlements.maxInvoices,
         maxQuotations: subscription?.maxQuotations ?? entitlements.maxQuotations,
         startDate: subscription?.startDate ? new Date(subscription.startDate) : new Date(),
-        endDate: subscription?.endDate ? new Date(subscription.endDate) : new Date(Date.now() + (subscription?.billingCycle === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000)
+        endDate: subscription?.endDate
+          ? new Date(subscription.endDate)
+          : addBillingCycle(new Date(), subscription?.billingCycle === 'yearly' ? 'yearly' : 'monthly'),
       },
       createdBy: req.user._id
     });
@@ -1352,8 +1354,7 @@ router.put('/tenants/:id/subscription', async (req, res) => {
     if (endDate) {
       updateData['subscription.endDate'] = new Date(endDate);
     } else if (status === 'active' && !updateData['subscription.endDate']) {
-      const days = billingCycle === 'yearly' ? 365 : 30;
-      updateData['subscription.endDate'] = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+      updateData['subscription.endDate'] = addBillingCycle(new Date(), billingCycle === 'yearly' ? 'yearly' : 'monthly');
     }
     
     const prior = await Tenant.findById(req.params.id).select('subscription').lean();
@@ -1481,11 +1482,7 @@ router.post('/tenants/:id/accept-payment', async (req, res) => {
     const now = new Date();
     const priorEnd = tenant.subscription?.endDate;
     const periodStart = priorEnd && new Date(priorEnd).getTime() > now.getTime() ? new Date(priorEnd) : now;
-    let periodEnd = new Date(periodStart);
-    for (let i = 0; i < cycleCount; i += 1) {
-      if (nextCycle === 'yearly') periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-      else periodEnd.setMonth(periodEnd.getMonth() + 1);
-    }
+    const periodEnd = addBillingCycles(periodStart, nextCycle, cycleCount);
 
     const entitlements = getPlanEntitlements(nextPlan, nextCycle);
     const paidPrior = isPaidPlanId(tenant.subscription?.plan);
@@ -1612,11 +1609,7 @@ router.post('/tenants/:id/resume', async (req, res) => {
       if (!(currentEndDate instanceof Date) || Number.isNaN(currentEndDate.getTime()) || currentEndDate < now) {
         currentEndDate = now;
       }
-      for (let i = 0; i < cycleCount; i += 1) {
-        if (cycle === 'yearly') currentEndDate.setFullYear(currentEndDate.getFullYear() + 1);
-        else currentEndDate.setMonth(currentEndDate.getMonth() + 1);
-      }
-      tenant.subscription.endDate = currentEndDate;
+      tenant.subscription.endDate = addBillingCycles(currentEndDate, cycle, cycleCount);
     } else if (days && !Number.isNaN(Number(days))) {
       const now = new Date();
       let currentEndDate = tenant.subscription.endDate ? new Date(tenant.subscription.endDate) : now;
@@ -4340,7 +4333,7 @@ router.post('/demo-users/:id/upgrade', async (req, res) => {
     }
 
     const now = new Date();
-    const endDate = new Date(now.getTime() + (billingCycle === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000);
+    const endDate = addBillingCycle(now, billingCycle === 'yearly' ? 'yearly' : 'monthly');
 
     await Tenant.findByIdAndUpdate(demoUser.tenantId, {
       isDemo: false,

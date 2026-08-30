@@ -53,12 +53,30 @@ export function getSubscriptionState(tenant) {
   }
 }
 
+export function parseCalendarDate(value) {
+  if (value == null || value === '') return null
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 12, 0, 0, 0)
+  }
+  const raw = String(value).trim()
+  const isoDay = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw)
+  if (isoDay) {
+    return new Date(Number(isoDay[1]), Number(isoDay[2]) - 1, Number(isoDay[3]), 12, 0, 0, 0)
+  }
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return null
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), 12, 0, 0, 0)
+}
+
+/** Display dates as "25 Sep 2026" / Arabic equivalent (day month year). */
 export function formatSubscriptionDate(dateString, language = 'en') {
-  if (!dateString) return '—'
-  return new Date(dateString).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US', {
-    year: 'numeric',
-    month: 'short',
+  const d = parseCalendarDate(dateString)
+  if (!d) return '—'
+  return d.toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB', {
     day: 'numeric',
+    month: 'short',
+    year: 'numeric',
   })
 }
 
@@ -78,11 +96,28 @@ export function getPlanDisplayName(plan, language = 'en') {
 }
 
 export function addBillingCycle(fromDate, billingCycle = 'monthly') {
-  const d = new Date(fromDate)
-  if (Number.isNaN(d.getTime())) return new Date()
-  if (billingCycle === 'yearly') d.setFullYear(d.getFullYear() + 1)
-  else d.setMonth(d.getMonth() + 1)
-  return d
+  const source = fromDate instanceof Date ? fromDate : new Date(fromDate)
+  if (Number.isNaN(source.getTime())) return new Date()
+
+  const year = source.getFullYear()
+  const month = source.getMonth()
+  const day = source.getDate()
+  const hours = source.getHours()
+  const minutes = source.getMinutes()
+  const seconds = source.getSeconds()
+  const ms = source.getMilliseconds()
+
+  let targetYear = year
+  let targetMonth = month
+  if (billingCycle === 'yearly') targetYear += 1
+  else targetMonth += 1
+
+  targetYear += Math.floor(targetMonth / 12)
+  targetMonth = ((targetMonth % 12) + 12) % 12
+
+  const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate()
+  const targetDay = Math.min(day, lastDay)
+  return new Date(targetYear, targetMonth, targetDay, hours, minutes, seconds, ms)
 }
 
 /** Stack a new cycle onto remaining time when the current end is still in the future. */

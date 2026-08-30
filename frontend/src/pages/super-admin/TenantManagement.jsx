@@ -802,8 +802,8 @@ export default function TenantManagement() {
                           {tenant.isActive ? (language === 'ar' ? 'نشط' : 'Active') : (language === 'ar' ? 'غير نشط' : 'Inactive')}
                         </span>
                       </td>
-                      <td className="text-gray-500">{new Date(tenant.createdAt).toLocaleDateString()}</td>
-                      <td className="text-gray-500">{tenant.subscription?.endDate ? new Date(tenant.subscription.endDate).toLocaleDateString() : '-'}</td>
+                      <td className="text-gray-500 whitespace-nowrap">{formatSubscriptionDate(tenant.createdAt, language)}</td>
+                      <td className="text-gray-500 whitespace-nowrap">{tenant.subscription?.endDate ? formatSubscriptionDate(tenant.subscription.endDate, language) : '-'}</td>
                       <td>
                         <div className="flex items-center gap-2">
                           <button 

@@ -5,6 +5,7 @@ import { Plus, Search, Edit, Trash2, Building2, Mail, Phone, Users, X, Eye, EyeO
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import SuperAdminPortal, { SA_MODAL_Z } from '../../components/super-admin/SuperAdminPortal'
+import { formatSubscriptionDate } from '../../lib/subscriptionState'
 import { useTranslation } from '../../lib/translations'
 
 export default function ResellerManagement() {
@@ -412,9 +413,9 @@ export default function ResellerManagement() {
                           {tenant.subscription?.plan || '—'}
                         </span>
                         <span className="text-xs text-gray-500">
-                          {tenant.subscription?.startDate ? new Date(tenant.subscription.startDate).toLocaleDateString() : '—'}
+                          {tenant.subscription?.startDate ? formatSubscriptionDate(tenant.subscription.startDate, language) : '—'}
                           {' → '}
-                          {tenant.subscription?.endDate ? new Date(tenant.subscription.endDate).toLocaleDateString() : '—'}
+                          {tenant.subscription?.endDate ? formatSubscriptionDate(tenant.subscription.endDate, language) : '—'}
                         </span>
                       </div>
                     </div>

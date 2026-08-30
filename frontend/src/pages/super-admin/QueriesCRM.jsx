@@ -11,6 +11,7 @@ import {
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import SuperAdminPortal, { SA_MODAL_Z } from '../../components/super-admin/SuperAdminPortal';
+import { formatSubscriptionDate } from '../../lib/subscriptionState';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 const STATUS = {
@@ -261,7 +262,7 @@ export default function QueriesCRM() {
                         <td><span className="text-xs font-medium text-gray-600">{lead.tenantType ? (tenantLabelMap[lead.tenantType] || lead.tenantType) : '—'}</span></td>
                         <td><span className="text-xs font-medium text-gray-600">{lead.city||'—'}</span></td>
                         <td><p className="text-xs text-gray-500 max-w-[200px] truncate">{lead.notes||'—'}</p></td>
-                        <td className="text-gray-500 text-xs">{new Date(lead.createdAt).toLocaleDateString()}</td>
+                        <td className="text-gray-500 text-xs">{formatSubscriptionDate(lead.createdAt, language)}</td>
                         <td className="text-right">
                           <div className="flex items-center justify-end gap-1">
                             {lead.status!=='interested'&&<button onClick={()=>quickM.mutate({id:lead._id,status:'interested'})} title="Interested" className="p-1.5 rounded-lg hover:bg-emerald-50 text-gray-400 hover:text-emerald-500 transition-colors"><ThumbsUp className="w-3.5 h-3.5"/></button>}

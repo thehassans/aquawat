@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
+import { formatSubscriptionDate } from '../../lib/subscriptionState'
 
 const EVENT_CONFIG = {
   cert_expiry: { icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-200 dark:border-red-800' },
@@ -21,15 +22,15 @@ const SEVERITY_BADGE = {
   info: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
 }
 
-function formatDate(dateStr) {
+function formatDate(dateStr, language = 'en') {
   const d = new Date(dateStr)
   const today = new Date()
   const diffDays = Math.ceil((d - today) / (1000 * 60 * 60 * 24))
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Tomorrow'
-  if (diffDays < 0) return `${Math.abs(diffDays)}d ago`
-  if (diffDays < 30) return `In ${diffDays}d`
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  if (diffDays === 0) return language === 'ar' ? 'اليوم' : 'Today'
+  if (diffDays === 1) return language === 'ar' ? 'غداً' : 'Tomorrow'
+  if (diffDays < 0) return language === 'ar' ? `منذ ${Math.abs(diffDays)}ي` : `${Math.abs(diffDays)}d ago`
+  if (diffDays < 30) return language === 'ar' ? `خلال ${diffDays}ي` : `In ${diffDays}d`
+  return formatSubscriptionDate(dateStr, language)
 }
 
 export default function ZatcaComplianceCalendar() {
@@ -109,7 +110,7 @@ export default function ZatcaComplianceCalendar() {
                           <p className="text-xs text-gray-500 mt-0.5">{event.description}</p>
                         </div>
                         <span className="text-xs text-gray-400 whitespace-nowrap flex items-center gap-1">
-                          {formatDate(event.date)}
+                          {formatDate(event.date, language)}
                           <ChevronRight className="w-3 h-3" />
                         </span>
                       </motion.div>

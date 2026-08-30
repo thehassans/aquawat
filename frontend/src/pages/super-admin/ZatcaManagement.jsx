@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
+import { formatSubscriptionDate } from '../../lib/subscriptionState'
 import { useZatcaQueueStream } from '../../hooks/useZatcaQueueStream'
 import ZatcaComplianceCalendar from '../../components/zatca/ZatcaComplianceCalendar'
 import ZatcaOnboardingWizard from '../../components/zatca/ZatcaOnboardingWizard'
@@ -168,7 +169,7 @@ function TenantRow({ tenant, onAction, onOnboard }) {
                   {status.lastInvoice ? (
                     <p className="text-sm text-gray-700 dark:text-gray-300">
                       {status.lastInvoice.invoiceNumber}<br />
-                      <span className="text-xs text-gray-400">{new Date(status.lastInvoice.issueDate).toLocaleDateString()}</span>
+                      <span className="text-xs text-gray-400">{formatSubscriptionDate(status.lastInvoice.issueDate, language)}</span>
                     </p>
                   ) : (
                     <p className="text-sm text-gray-400">None</p>
@@ -511,7 +512,7 @@ export default function ZatcaManagement() {
                         <td className="px-4 py-2 text-sm text-gray-500">{item.tenantId?.name || 'Unknown'}</td>
                         <td className="px-4 py-2 text-sm text-red-600 dark:text-red-400 max-w-xs truncate">{item.lastError}</td>
                         <td className="px-4 py-2 text-sm text-gray-500">{item.retryCount}</td>
-                        <td className="px-4 py-2 text-sm text-gray-500">{new Date(item.updatedAt).toLocaleDateString()}</td>
+                        <td className="px-4 py-2 text-sm text-gray-500">{formatSubscriptionDate(item.updatedAt, language)}</td>
                         <td className="px-4 py-2 text-right">
                           <button
                             onClick={async () => {

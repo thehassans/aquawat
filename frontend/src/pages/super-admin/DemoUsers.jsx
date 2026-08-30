@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Users, Search, Crown, Clock, CheckCircle, TrendingUp, Building2 } from 'lucide-react'
 import api from '../../lib/api'
 import { getBusinessTypeOptions } from '../../lib/businessTypes'
+import { formatSubscriptionDate } from '../../lib/subscriptionState'
 
 export default function DemoUsers() {
   const queryClient = useQueryClient()
@@ -10,6 +11,7 @@ export default function DemoUsers() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [businessFilter, setBusinessFilter] = useState('')
+  const language = 'en'
 
   const { data, isLoading } = useQuery({
     queryKey: ['super-admin-demo-users', page, search, statusFilter, businessFilter],
@@ -48,10 +50,7 @@ export default function DemoUsers() {
     upgradeMutation.mutate({ id: userId, plan, billingCycle })
   }
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '-'
-    return new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-  }
+  const formatDate = (dateStr) => formatSubscriptionDate(dateStr, language)
 
   const isTrialExpired = (trialEnd) => {
     if (!trialEnd) return false

@@ -12,6 +12,7 @@ import { useDropzone } from 'react-dropzone'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import SuperAdminPortal, { SA_MODAL_Z } from '../../components/super-admin/SuperAdminPortal'
+import { formatSubscriptionDate } from '../../lib/subscriptionState'
 
 export const EXPENSE_CATEGORIES = [
   { id: 'servers_hosting', labelEn: 'Servers & Cloud Hosting', labelAr: 'خوادم واستضافة سحابية', color: 'text-blue-500 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800' },
@@ -482,7 +483,7 @@ export default function SuperAdminExpenses() {
                       </td>
 
                       <td className="py-3.5 px-4 text-xs text-gray-500 whitespace-nowrap">
-                        {exp.expenseDate ? new Date(exp.expenseDate).toLocaleDateString(isAr ? 'ar-SA' : 'en-US') : '—'}
+                        {exp.expenseDate ? formatSubscriptionDate(exp.expenseDate, language) : '—'}
                       </td>
 
                       <td className="py-3.5 px-4 text-end font-mono text-gray-700 dark:text-gray-300">
