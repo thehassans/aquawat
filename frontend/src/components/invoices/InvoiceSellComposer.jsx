@@ -20,9 +20,8 @@ import DocumentPreSaveModal from './DocumentPreSaveModal'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
 import TravelInvoiceFields from './TravelInvoiceFields'
 import ThermalReceipt from '../ui/ThermalReceipt'
-import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
-import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../../lib/uomOptions'
+import { getAvailableUomOptions, getDefaultUom } from '../../lib/uomOptions'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
 import { normalizeProductType, productPickerLabel, productDisplayName, resolveProductSalePrice, hasArabicScript } from '../../lib/productType'
 import ProductTypeToggle from '../ui/ProductTypeToggle'
@@ -1916,33 +1915,19 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
                     )}
                     {!isTravelContext ? (
-                      <div className="col-span-1 lg:col-span-1">
-                        <Select
-                          className="react-select-container"
-                          classNamePrefix="react-select"
-                          isClearable
-                          isSearchable
-                          placeholder="—"
-                          styles={lineSelectStyles}
-                          menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
-                          menuPosition="fixed"
-                          value={
-                            watch(`lineItems.${index}.unitCode`)
-                              ? {
-                                  value: watch(`lineItems.${index}.unitCode`),
-                                  label: getUomLabel(watch(`lineItems.${index}.unitCode`), language)
-                                }
-                              : null
-                          }
-                          onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : '', { shouldValidate: true })}
-                          options={[
-                            { value: '', label: '—' },
-                            ...getAvailableUomOptions(tenant).map((uom) => ({
-                              value: uom.code,
-                              label: language === 'ar' ? uom.labelAr : uom.labelEn
-                            }))
-                          ]}
-                        />
+                      <div className="col-span-1 min-w-[4.5rem] lg:col-span-1">
+                        <select
+                          {...register(`lineItems.${index}.unitCode`)}
+                          className={`${lineGhostInputClass} cursor-pointer tabular-nums`}
+                          aria-label={language === 'ar' ? 'وحدة' : 'UOM'}
+                        >
+                          <option value="">—</option>
+                          {getAvailableUomOptions(tenant).map((uom) => (
+                            <option key={uom.code} value={uom.code}>
+                              {language === 'ar' ? (uom.shortAr || uom.code) : (uom.shortEn || uom.code)}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     ) : null}
                     {isTravelContext ? (

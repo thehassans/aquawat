@@ -28,6 +28,7 @@ const HINT_TARGETS = {
     'Customer',
     'Warehouse',
     'Invoice',
+    'Quotation',
   ],
   ar: [
     'أمر شراء',
@@ -37,6 +38,7 @@ const HINT_TARGETS = {
     'عميل',
     'مستودع',
     'فاتورة',
+    'عرض سعر',
   ],
 };
 
@@ -129,6 +131,9 @@ export default function GlobalSearch({ language }) {
       case 'invoice':
         navigate(`/app/dashboard/accounting/invoices/${result.id}`);
         break;
+      case 'quotation':
+        navigate(`/app/dashboard/quotations/${result.id}`);
+        break;
       case 'customer':
         navigate(`/app/dashboard/customers/${result.id}`);
         break;
@@ -162,6 +167,8 @@ export default function GlobalSearch({ language }) {
     switch (type) {
       case 'invoice':
         return <FileText className="w-4 h-4 text-primary-500" />;
+      case 'quotation':
+        return <ClipboardList className="w-4 h-4 text-rose-500" />;
       case 'customer':
         return <Users className="w-4 h-4 text-emerald-500" />;
       case 'supplier':
@@ -186,7 +193,7 @@ export default function GlobalSearch({ language }) {
   const showPanel = isOpen && query.trim() && panelStyle;
 
   return (
-    <div ref={wrapperRef} className="relative z-[60] w-full max-w-2xl min-w-[28rem] sm:min-w-[36rem]">
+    <div ref={wrapperRef} className="relative z-[60] w-full max-w-sm">
       <div className="relative group">
         <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary-500 transition-colors" />
         <input

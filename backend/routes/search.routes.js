@@ -7,6 +7,7 @@ import PurchaseOrder from '../models/PurchaseOrder.js';
 import GRN from '../models/GRN.js';
 import Product from '../models/Product.js';
 import Warehouse from '../models/Warehouse.js';
+import Quotation from '../models/Quotation.js';
 
 const router = express.Router();
 router.use(protect);
@@ -84,6 +85,16 @@ const SHORTCUTS = [
     path: '/app/dashboard/accounting/invoices',
     badge: 'Invoice',
   },
+  {
+    keys: ['quotation', 'quotations', 'quote', 'quotes', 'عرض سعر', 'عروض الأسعار'],
+    type: 'shortcut',
+    title: 'Quotations',
+    titleAr: 'عروض الأسعار',
+    subtitle: 'Open quotations',
+    subtitleAr: 'فتح عروض الأسعار',
+    path: '/app/dashboard/quotations',
+    badge: 'Quotation',
+  },
 ];
 
 function escapeRegex(value = '') {
@@ -110,6 +121,7 @@ router.get('/', async (req, res) => {
       grns,
       products,
       warehouses,
+      quotations,
     ] = await Promise.all([
       Invoice.find({
         ...filter,
@@ -202,6 +214,20 @@ router.get('/', async (req, res) => {
         .limit(5)
         .select('code nameEn nameAr type isActive')
         .lean(),
+
+      Quotation.find({
+        ...filter,
+        $or: [
+          { quotationNumber: searchRegex },
+          { subject: searchRegex },
+          { subjectAr: searchRegex },
+          { 'buyer.name': searchRegex },
+          { 'buyer.nameAr': searchRegex },
+        ],
+      })
+        .limit(5)
+        .select('quotationNumber subject buyer.name buyer.nameAr grandTotal status issueDate')
+        .lean(),
     ]);
 
     const results = [];
@@ -226,6 +252,16 @@ router.get('/', async (req, res) => {
         title: `${i.invoiceNumber} - ${i.buyer?.name || i.buyer?.nameAr || 'Unknown'}`,
         subtitle: `${Number(i.grandTotal || 0).toFixed(2)} SAR`,
         badge: i.status,
+      });
+    });
+
+    quotations.forEach((q) => {
+      results.push({
+        type: 'quotation',
+        id: q._id,
+        title: `${q.quotationNumber} - ${q.buyer?.name || q.buyer?.nameAr || q.subject || 'Quotation'}`,
+        subtitle: q.subject || `${Number(q.grandTotal || 0).toFixed(2)} SAR`,
+        badge: q.status,
       });
     });
 

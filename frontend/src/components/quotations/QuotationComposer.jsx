@@ -13,11 +13,10 @@ import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { LETTERHEAD_TEMPLATE_ID, resolveQuotationTemplateId } from '../../lib/invoiceTemplates'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, isGccArabicMarket } from '../../lib/invoiceLanguage'
 import { isPakistanTenant, getTenantCountryCode, showArabicFields as isArabicTenantMarket } from '../../lib/saudiTenant'
-import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../../lib/uomOptions'
+import { getAvailableUomOptions, getDefaultUom } from '../../lib/uomOptions'
 import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
 import InvoiceLivePreview from '../invoices/InvoiceLivePreview'
 import DocumentPreSaveModal from '../invoices/DocumentPreSaveModal'
-import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
 import { useForm, useFieldArray } from 'react-hook-form'
 import {
@@ -1077,34 +1076,19 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                         ) : (
                           <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
                         )}
-                        <div className="col-span-1 lg:col-span-1">
-                          <Select
-                            className="react-select-container"
-                            classNamePrefix="react-select"
-                            isClearable
-                            isSearchable
-                            placeholder="—"
-                            styles={lineSelectStyles}
-                            menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
-                            menuPosition="fixed"
-                            value={
-                              watch(`lineItems.${index}.unitCode`)
-                                ? {
-                                    value: watch(`lineItems.${index}.unitCode`),
-                                    label: getUomLabel(watch(`lineItems.${index}.unitCode`), language),
-                                  }
-                                : null
-                            }
-                            onChange={(option) => setValue(`lineItems.${index}.unitCode`, option ? option.value : '', { shouldValidate: true })}
-                            options={[
-                              { value: '', label: '—' },
-                              ...getAvailableUomOptions(tenant).map((uom) => ({
-                                value: uom.code,
-                                label: language === 'ar' ? uom.labelAr : uom.labelEn,
-                              })),
-                            ]}
-                          />
-                          <input type="hidden" {...register(`lineItems.${index}.unitCode`)} />
+                        <div className="col-span-1 min-w-[4.5rem] lg:col-span-1">
+                          <select
+                            {...register(`lineItems.${index}.unitCode`)}
+                            className={`${lineGhostInputClass} cursor-pointer tabular-nums`}
+                            aria-label={language === 'ar' ? 'وحدة' : 'UOM'}
+                          >
+                            <option value="">—</option>
+                            {getAvailableUomOptions(tenant).map((uom) => (
+                              <option key={uom.code} value={uom.code}>
+                                {language === 'ar' ? (uom.shortAr || uom.code) : (uom.shortEn || uom.code)}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                         <div className="col-span-1 lg:col-span-1">
                           <input
