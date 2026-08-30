@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
@@ -40,8 +40,9 @@ export default function TenantManagement() {
   const { t } = useTranslation(language)
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState({ status: '', plan: '', businessType: '', subStatus: '' })
+  const [filters, setFilters] = useState({ status: '', plan: '', businessType: '', subStatus: '', demo: '' })
   const [page, setPage] = useState(1)
+  const [selectedIds, setSelectedIds] = useState([])
   const [backupTenant, setBackupTenant] = useState(null)
   const [backupForm, setBackupForm] = useState({ period: 'monthly', startDate: '', endDate: '', email: '', formats: ['excel', 'pdf'] })
   const [backupErrorCode, setBackupErrorCode] = useState(null)
@@ -64,6 +65,26 @@ export default function TenantManagement() {
 
   const tenants = Array.isArray(data?.tenants) ? data.tenants : []
   const hasTenants = tenants.length > 0
+  const pageIds = tenants.map((t) => String(t._id))
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id))
+  const somePageSelected = pageIds.some((id) => selectedIds.includes(id))
+
+  useEffect(() => {
+    setSelectedIds([])
+  }, [page, search, filters.status, filters.plan, filters.businessType, filters.subStatus, filters.demo])
+
+  const toggleSelectAllPage = () => {
+    if (allPageSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.includes(id)))
+      return
+    }
+    setSelectedIds((prev) => [...new Set([...prev, ...pageIds])])
+  }
+
+  const toggleSelectOne = (tenantId) => {
+    const id = String(tenantId)
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
 
   const loginAsMutation = useMutation({
     mutationFn: (tenantId) => api.post(`/super-admin/tenants/${tenantId}/login-as`),
@@ -165,11 +186,37 @@ export default function TenantManagement() {
 
   const deleteTenantMutation = useMutation({
     mutationFn: (tenantId) => api.delete(`/super-admin/tenants/${tenantId}`, { timeout: 120000 }).then(res => res.data),
-    onSuccess: (data) => {
+    onSuccess: (data, tenantId) => {
       toast.success(language === 'ar' ? 'تم حذف المستأجر بالكامل بنجاح' : 'Tenant completely deleted successfully')
+      setSelectedIds((prev) => prev.filter((id) => id !== String(tenantId)))
       queryClient.invalidateQueries()
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to delete tenant')
+  })
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids) => api.post('/super-admin/tenants/bulk-delete', { ids }, { timeout: 300000 }).then((res) => res.data),
+    onSuccess: (result) => {
+      const deletedCount = result?.deletedCount || 0
+      const failedCount = result?.failedCount || 0
+      if (deletedCount > 0) {
+        toast.success(
+          language === 'ar'
+            ? `تم حذف ${deletedCount} مستأجر`
+            : `Deleted ${deletedCount} tenant${deletedCount === 1 ? '' : 's'}`,
+        )
+      }
+      if (failedCount > 0) {
+        toast.error(
+          language === 'ar'
+            ? `فشل حذف ${failedCount} مستأجر`
+            : `Failed to delete ${failedCount} tenant${failedCount === 1 ? '' : 's'}`,
+        )
+      }
+      setSelectedIds([])
+      queryClient.invalidateQueries()
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to delete tenants'),
   })
 
   const handleDeleteTenant = (tenant) => {
@@ -187,6 +234,21 @@ export default function TenantManagement() {
     if (window.confirm(doubleConfirmMsg)) {
       deleteTenantMutation.mutate(tenant._id)
     }
+  }
+
+  const handleBulkDelete = () => {
+    if (selectedIds.length === 0) return
+    const confirmMsg = language === 'ar'
+      ? `تحذير نهائي: سيتم حذف ${selectedIds.length} مستأجر وكافة بياناتهم بشكل لا يمكن التراجع عنه. هل أنت متأكد تماماً؟`
+      : `FINAL WARNING: This will permanently delete ${selectedIds.length} tenant(s) and ALL of their data. This cannot be undone. Are you absolutely sure?`
+    if (!window.confirm(confirmMsg)) return
+
+    const doubleConfirmMsg = language === 'ar'
+      ? `اضغط "موافق" للتأكيد النهائي لحذف ${selectedIds.length} مستأجر.`
+      : `Click "OK" to finally delete ${selectedIds.length} tenant(s).`
+    if (!window.confirm(doubleConfirmMsg)) return
+
+    bulkDeleteMutation.mutate(selectedIds)
   }
 
   const sendBackupMutation = useMutation({
@@ -374,7 +436,7 @@ export default function TenantManagement() {
             <option value="expired">{language === 'ar' ? 'منتهي' : 'Expired'}</option>
             <option value="trial_ended">{language === 'ar' ? 'انتهت التجربة' : 'Trial Ended'}</option>
           </select>
-          <select value={filters.businessType} onChange={(e) => setFilters({ ...filters, businessType: e.target.value })} className="select w-full sm:w-40">
+          <select value={filters.businessType} onChange={(e) => { setFilters({ ...filters, businessType: e.target.value }); setPage(1) }} className="select w-full sm:w-40">
             <option value="">{language === 'ar' ? 'كل الأنشطة' : 'All Types'}</option>
             <option value="trading">{language === 'ar' ? 'تجارة' : 'Trading'}</option>
             <option value="construction">{language === 'ar' ? 'مقاولات' : 'Construction'}</option>
@@ -386,6 +448,11 @@ export default function TenantManagement() {
             <option value="saloon">{language === 'ar' ? 'صالون' : 'Saloon'}</option>
             <option value="bakala">{language === 'ar' ? 'بقالة' : 'Bakala'}</option>
             <option value="pharmacy">{language === 'ar' ? 'صيدلية' : 'Pharmacy'}</option>
+          </select>
+          <select value={filters.demo} onChange={(e) => { setFilters({ ...filters, demo: e.target.value }); setPage(1) }} className="select w-full sm:w-40">
+            <option value="">{language === 'ar' ? 'الكل (ديمو/حي)' : 'All (Demo/Live)'}</option>
+            <option value="demo">{language === 'ar' ? 'ديمو فقط' : 'Demo only'}</option>
+            <option value="live">{language === 'ar' ? 'بدون ديمو' : 'Live only'}</option>
           </select>
         </div>
       </div>
@@ -424,10 +491,52 @@ export default function TenantManagement() {
           </div>
         ) : (
           <>
+            {selectedIds.length > 0 && (
+              <div className="flex flex-col gap-3 border-b border-rose-100 bg-rose-50/80 px-4 py-3 dark:border-rose-900/40 dark:bg-rose-950/20 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm font-medium text-rose-800 dark:text-rose-200">
+                  {language === 'ar'
+                    ? `تم تحديد ${selectedIds.length} مستأجر`
+                    : `${selectedIds.length} tenant${selectedIds.length === 1 ? '' : 's'} selected`}
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedIds([])}
+                    className="btn btn-secondary"
+                    disabled={bulkDeleteMutation.isPending}
+                  >
+                    {language === 'ar' ? 'إلغاء التحديد' : 'Clear selection'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleBulkDelete}
+                    disabled={bulkDeleteMutation.isPending}
+                    className="btn inline-flex items-center gap-2 bg-rose-600 text-white hover:bg-rose-700 border-rose-600 hover:border-rose-700 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {bulkDeleteMutation.isPending
+                      ? (language === 'ar' ? 'جاري الحذف…' : 'Deleting…')
+                      : (language === 'ar' ? `حذف المحدد (${selectedIds.length})` : `Delete selected (${selectedIds.length})`)}
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="table-container">
               <table className="table">
                 <thead>
                   <tr>
+                    <th className="w-10">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                        checked={allPageSelected}
+                        ref={(el) => {
+                          if (el) el.indeterminate = somePageSelected && !allPageSelected
+                        }}
+                        onChange={toggleSelectAllPage}
+                        aria-label={language === 'ar' ? 'تحديد الكل في الصفحة' : 'Select all on page'}
+                      />
+                    </th>
                     <th>{language === 'ar' ? 'المستأجر' : 'Tenant'}</th>
                     <th>{language === 'ar' ? 'النشاط' : 'Business Type'}</th>
                     <th>{language === 'ar' ? 'الرقم الضريبي' : 'VAT Number'}</th>
@@ -443,14 +552,28 @@ export default function TenantManagement() {
                 </thead>
                 <tbody>
                   {tenants.map((tenant) => (
-                    <tr key={tenant._id}>
+                    <tr key={tenant._id} className={selectedIds.includes(String(tenant._id)) ? 'bg-rose-50/40 dark:bg-rose-950/10' : undefined}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                          checked={selectedIds.includes(String(tenant._id))}
+                          onChange={() => toggleSelectOne(tenant._id)}
+                          aria-label={language === 'ar' ? `تحديد ${tenant.name}` : `Select ${tenant.name}`}
+                        />
+                      </td>
                       <td>
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center text-white font-bold">
                             {tenant.name?.[0]}
                           </div>
                           <div>
-                            <p className="font-medium text-gray-900 dark:text-white">{tenant.name}</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-medium text-gray-900 dark:text-white">{tenant.name}</p>
+                              {tenant.isDemo ? (
+                                <span className="badge badge-warning">{language === 'ar' ? 'ديمو' : 'Demo'}</span>
+                              ) : null}
+                            </div>
                             <p className="text-xs text-gray-500">{tenant.slug}</p>
                           </div>
                         </div>

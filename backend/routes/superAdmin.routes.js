@@ -973,18 +973,24 @@ router.post('/settings/ai/test', async (req, res) => {
 // @route   GET /api/super-admin/tenants
 router.get('/tenants', async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, plan, search, resellerId, subStatus, businessType } = req.query;
+    const { page = 1, limit = 20, status, plan, search, resellerId, subStatus, businessType, demo } = req.query;
     const parsedPage = Number.parseInt(page, 10);
     const parsedLimit = Number.parseInt(limit, 10);
     const safePage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
     const safeLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 20;
     const normalizedSearch = String(search || '').trim();
+    const demoFilter = String(demo || '').trim().toLowerCase();
     
     const query = {};
     if (status === 'active') query.isActive = true;
     if (status === 'inactive') query.isActive = false;
     if (plan) query['subscription.plan'] = plan;
     if (resellerId) query.resellerId = resellerId;
+    if (demoFilter === 'demo' || demoFilter === 'true' || demoFilter === '1') {
+      query.isDemo = true;
+    } else if (demoFilter === 'live' || demoFilter === 'false' || demoFilter === '0') {
+      query.isDemo = { $ne: true };
+    }
 
     const andParts = [];
     if (businessType) {
@@ -1788,6 +1794,66 @@ router.post('/tenants/:id/reset', async (req, res) => {
   }
 });
 
+const completelyDeleteTenantById = async (tenantId) => {
+  const deleted = await wipeTenantOperationalData(tenantId);
+
+  try {
+    await AppAddon.deleteMany({ tenantId });
+  } catch (_) {}
+
+  const [usersDeleted, employeesDeleted] = await Promise.all([
+    User.deleteMany({ tenantId }).then((r) => r?.deletedCount || 0).catch(() => 0),
+    Employee.deleteMany({ tenantId }).then((r) => r?.deletedCount || 0).catch(() => 0),
+  ]);
+  deleted.User = usersDeleted;
+  deleted.Employee = employeesDeleted;
+
+  await Tenant.findByIdAndDelete(tenantId);
+  deleted.Tenant = 1;
+  invalidateAuthCache(tenantId);
+  return deleted;
+};
+
+// @route   POST /api/super-admin/tenants/bulk-delete
+// @desc    Completely delete multiple tenants and all associated data
+router.post('/tenants/bulk-delete', async (req, res) => {
+  try {
+    const rawIds = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    const ids = [...new Set(rawIds.map((id) => String(id || '').trim()).filter(Boolean))];
+    if (ids.length === 0) {
+      return res.status(400).json({ error: 'No tenant ids provided' });
+    }
+    if (ids.length > 50) {
+      return res.status(400).json({ error: 'You can delete at most 50 tenants at once' });
+    }
+
+    const results = [];
+    for (const id of ids) {
+      const tenant = await Tenant.findById(id).select('_id name slug').lean();
+      if (!tenant) {
+        results.push({ id, ok: false, error: 'Tenant not found' });
+        continue;
+      }
+      try {
+        const deleted = await completelyDeleteTenantById(tenant._id);
+        results.push({ id: String(tenant._id), ok: true, name: tenant.name, deleted });
+      } catch (error) {
+        results.push({ id: String(tenant._id), ok: false, name: tenant.name, error: error?.message || 'Delete failed' });
+      }
+    }
+
+    const deletedCount = results.filter((r) => r.ok).length;
+    res.json({
+      success: deletedCount > 0,
+      deletedCount,
+      failedCount: results.length - deletedCount,
+      results,
+    });
+  } catch (error) {
+    sendRouteError(res, error);
+  }
+});
+
 // @route   DELETE /api/super-admin/tenants/:id
 // @desc    Completely delete a tenant and all of its associated data
 router.delete('/tenants/:id', async (req, res) => {
@@ -1798,23 +1864,7 @@ router.delete('/tenants/:id', async (req, res) => {
     }
 
     const tenantId = tenant._id;
-
-    const deleted = await wipeTenantOperationalData(tenantId);
-
-    try {
-      await AppAddon.deleteMany({ tenantId });
-    } catch (_) {}
-
-    const [usersDeleted, employeesDeleted] = await Promise.all([
-      User.deleteMany({ tenantId }).then((r) => r?.deletedCount || 0).catch(() => 0),
-      Employee.deleteMany({ tenantId }).then((r) => r?.deletedCount || 0).catch(() => 0),
-    ]);
-    deleted.User = usersDeleted;
-    deleted.Employee = employeesDeleted;
-
-    await Tenant.findByIdAndDelete(tenantId);
-    deleted.Tenant = 1;
-    invalidateAuthCache(tenantId);
+    const deleted = await completelyDeleteTenantById(tenantId);
 
     res.json({
       success: true,
