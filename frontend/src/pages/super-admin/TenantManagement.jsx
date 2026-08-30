@@ -15,6 +15,7 @@ import {
 } from '../../lib/tenantHost'
 import { normalizeCheckoutPlan, resolveCheckoutLane, resolvePlanPrice } from '../../lib/checkoutPricing'
 import { getPrimaryBusinessType } from '../../lib/businessTypes'
+import TenantPaymentHistory from '../../components/super-admin/TenantPaymentHistory'
 
 const FALLBACK_CONTINUE_PLANS = [
   {
@@ -85,6 +86,7 @@ export default function TenantManagement() {
   const [page, setPage] = useState(1)
   const [selectedIds, setSelectedIds] = useState([])
   const [continueTenant, setContinueTenant] = useState(null)
+  const [historyTenant, setHistoryTenant] = useState(null)
   const [continueForm, setContinueForm] = useState({
     plan: 'professional',
     billingCycle: 'monthly',
@@ -101,6 +103,12 @@ export default function TenantManagement() {
   const [terminationTenant, setTerminationTenant] = useState(null)
   const [terminationForm, setTerminationForm] = useState({ date: '', reason: '' })
   const [monitoringTenant, setMonitoringTenant] = useState(null)
+
+  const { data: historyTenantData, isLoading: isLoadingHistory } = useQuery({
+    queryKey: ['tenant', historyTenant?._id, 'payment-history'],
+    queryFn: () => api.get(`/super-admin/tenants/${historyTenant._id}`).then((res) => res.data),
+    enabled: Boolean(historyTenant?._id),
+  })
 
   const { data: websiteSettingsData } = useQuery({
     queryKey: ['website-settings'],
@@ -388,6 +396,7 @@ export default function TenantManagement() {
       )
       setContinueTenant(null)
       queryClient.invalidateQueries({ queryKey: ['tenants'] })
+      queryClient.invalidateQueries({ queryKey: ['tenant'] })
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to continue subscription'),
   })
@@ -733,7 +742,14 @@ export default function TenantManagement() {
                           </div>
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-medium text-gray-900 dark:text-white">{tenant.name}</p>
+                              <button
+                                type="button"
+                                onClick={() => setHistoryTenant(tenant)}
+                                className="font-medium text-gray-900 dark:text-white hover:text-emerald-700 dark:hover:text-emerald-400 hover:underline text-start"
+                                title={language === 'ar' ? 'عرض سجل المدفوعات' : 'View payment history'}
+                              >
+                                {tenant.name}
+                              </button>
                               {tenant.isDemo ? (
                                 <span className="badge badge-warning">{language === 'ar' ? 'ديمو' : 'Demo'}</span>
                               ) : null}
@@ -1101,6 +1117,108 @@ export default function TenantManagement() {
                   ) : (
                     <><Send className="w-4 h-4" />{language === 'ar' ? 'إرسال النسخة الاحتياطية' : 'Send Backup'}</>
                   )}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Tenant Payment History Modal ── */}
+      <AnimatePresence>
+        {historyTenant && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setHistoryTenant(null)} className="fixed inset-0 bg-black/50 z-40" />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed inset-4 z-50 overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-dark-800 md:inset-auto md:left-1/2 md:top-1/2 md:h-auto md:max-h-[90vh] md:w-full md:max-w-5xl md:-translate-x-1/2 md:-translate-y-1/2"
+            >
+              <div className="flex items-center justify-between border-b border-gray-100 p-6 dark:border-dark-700">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-white font-bold">
+                    {historyTenant.name?.[0]}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                      {language === 'ar' ? 'سجل مدفوعات الاشتراك' : 'Subscription payment history'}
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      {historyTenant.name}
+                      {historyTenant.slug ? ` · ${historyTenant.slug}` : ''}
+                    </p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setHistoryTenant(null)} className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-dark-700">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4 overflow-y-auto px-6 py-5" style={{ maxHeight: 'calc(90vh - 160px)' }}>
+                {(() => {
+                  const detail = historyTenantData?.tenant || historyTenant
+                  const badge = subscriptionBadge(detail, language)
+                  const sub = detail?.subscription || {}
+                  return (
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-dark-600 dark:bg-dark-700/40">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400">{language === 'ar' ? 'الخطة' : 'Plan'}</p>
+                        <p className="mt-1 font-semibold capitalize text-gray-900 dark:text-white">{sub.plan || '—'}</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-dark-600 dark:bg-dark-700/40">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400">{language === 'ar' ? 'الدورة' : 'Billing'}</p>
+                        <p className="mt-1 font-semibold capitalize text-gray-900 dark:text-white">{sub.billingCycle || '—'}</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-dark-600 dark:bg-dark-700/40">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400">{language === 'ar' ? 'السعر' : 'Price'}</p>
+                        <p className="mt-1 font-semibold text-gray-900 dark:text-white">
+                          {Number(sub.price || 0).toFixed(2)} {detail?.settings?.currency || 'SAR'}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-dark-600 dark:bg-dark-700/40">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400">{language === 'ar' ? 'الاشتراك' : 'Subscription'}</p>
+                        <p className="mt-1"><span className={`badge ${badge.cls}`}>{badge.label}</span></p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {language === 'ar' ? 'حتى' : 'Until'} {formatSubscriptionDate(sub.endDate || detail?.demoTrialEndsAt, language)}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {isLoadingHistory ? (
+                  <div className="flex justify-center py-10">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
+                  </div>
+                ) : (
+                  <TenantPaymentHistory
+                    history={historyTenantData?.tenant?.subscription?.paymentHistory || historyTenant?.subscription?.paymentHistory || []}
+                    language={language}
+                  />
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 px-6 py-4 dark:border-dark-700">
+                <Link
+                  to={`/super-admin/tenants/${historyTenant._id}`}
+                  className="btn btn-secondary"
+                  onClick={() => setHistoryTenant(null)}
+                >
+                  <Edit className="h-4 w-4" />
+                  {language === 'ar' ? 'تعديل المستأجر' : 'Edit tenant'}
+                </Link>
+                <button
+                  type="button"
+                  className="btn btn-primary bg-emerald-600 hover:bg-emerald-700 border-emerald-600 hover:border-emerald-700"
+                  onClick={() => {
+                    const tenantForContinue = historyTenantData?.tenant || historyTenant
+                    setHistoryTenant(null)
+                    openContinueModal(tenantForContinue)
+                  }}
+                >
+                  <CreditCard className="h-4 w-4" />
+                  {language === 'ar' ? 'تسجيل دفعة / تجديد' : 'Record payment / renew'}
                 </button>
               </div>
             </motion.div>

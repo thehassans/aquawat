@@ -13,6 +13,7 @@ import { getBusinessTypeOptions, getPrimaryBusinessType, getTenantBusinessTypes,
 import { CURRENCIES, CURRENCY_CODE } from '../../lib/currency'
 import { COUNTRY_OPTIONS, currencyForCountry, timezoneForCountry } from '../../lib/countryCurrency'
 import TenantAppStorePanel from '../../components/super-admin/TenantAppStorePanel'
+import TenantPaymentHistory from '../../components/super-admin/TenantPaymentHistory'
 import { formatSubscriptionDate, getSubscriptionState } from '../../lib/subscriptionState'
 
 export default function TenantForm() {
@@ -919,35 +920,9 @@ export default function TenantForm() {
               </button>
             </div>
 
-            {paymentHistory.length > 0 ? (
-              <div className="mt-6 overflow-x-auto">
-                <p className="mb-2 text-xs font-bold uppercase tracking-widest text-gray-400">
-                  {language === 'ar' ? 'سجل المدفوعات' : 'Payment history'}
-                </p>
-                <table className="table text-sm">
-                  <thead>
-                    <tr>
-                      <th>{language === 'ar' ? 'التاريخ' : 'Date'}</th>
-                      <th>{language === 'ar' ? 'المبلغ' : 'Amount'}</th>
-                      <th>{language === 'ar' ? 'الخطة' : 'Plan'}</th>
-                      <th>{language === 'ar' ? 'المرجع' : 'Ref'}</th>
-                      <th>{language === 'ar' ? 'حتى' : 'Until'}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...paymentHistory].reverse().slice(0, 8).map((row, idx) => (
-                      <tr key={row._id || idx}>
-                        <td>{row.recordedAt ? new Date(row.recordedAt).toLocaleDateString() : '—'}</td>
-                        <td>{Number(row.amount || 0).toFixed(2)} {row.currency || ''}</td>
-                        <td>{row.plan} · {row.billingCycle}</td>
-                        <td className="font-mono text-xs">{row.reference || row.method || '—'}</td>
-                        <td>{row.periodEnd ? new Date(row.periodEnd).toLocaleDateString() : '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
+            <div className="mt-6">
+              <TenantPaymentHistory history={paymentHistory} language={language} />
+            </div>
           </motion.div>
         ) : null}
 
