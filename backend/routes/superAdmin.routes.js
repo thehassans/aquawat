@@ -1923,13 +1923,23 @@ router.post('/tenants/:id/login-as', async (req, res) => {
     if (!tenant) {
       return res.status(404).json({ error: 'Tenant not found' });
     }
+    if (!tenant.slug) {
+      return res.status(400).json({ error: 'Tenant has no slug — cannot open tenant domain' });
+    }
     
-    // Find the admin user for this tenant
-    const adminUser = await User.findOne({ 
+    // Prefer active admin; fall back to any active manager with finance access
+    let adminUser = await User.findOne({ 
       tenantId: tenant._id, 
       role: 'admin',
       isActive: true 
     });
+    if (!adminUser) {
+      adminUser = await User.findOne({
+        tenantId: tenant._id,
+        role: { $in: ['manager', 'accountant'] },
+        isActive: true,
+      }).sort({ role: 1 });
+    }
     
     if (!adminUser) {
       return res.status(404).json({ error: 'No admin user found for this tenant' });
@@ -1941,15 +1951,26 @@ router.post('/tenants/:id/login-as', async (req, res) => {
     const token = jwt.sign({ id: adminUser._id }, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_EXPIRE || '7d'
     });
+
+    let handoffCode = null;
+    try {
+      const { issueHandoffCode } = await import('../utils/handoffCodes.js');
+      handoffCode = await issueHandoffCode(token);
+    } catch (e) {
+      console.warn('[login-as] handoff code issue failed:', e.message);
+    }
     
     res.json({
       token,
+      handoffCode,
+      tenantSlug: tenant.slug,
       user: {
         id: adminUser._id,
         email: adminUser.email,
         firstName: adminUser.firstName,
         lastName: adminUser.lastName,
         role: adminUser.role,
+        tenantId: adminUser.tenantId,
         permissions: adminUser.permissions,
         preferences: adminUser.preferences
       },

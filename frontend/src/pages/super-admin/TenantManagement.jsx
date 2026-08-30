@@ -8,6 +8,11 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import { getSubscriptionState } from '../../lib/subscriptionState'
+import {
+  getAliasSlugFromHost,
+  getTenantAliasHandoffUrl,
+  issueHandoffCode,
+} from '../../lib/tenantHost'
 
 function subscriptionBadge(tenant, language) {
   const state = getSubscriptionState(tenant)
@@ -62,20 +67,55 @@ export default function TenantManagement() {
 
   const loginAsMutation = useMutation({
     mutationFn: (tenantId) => api.post(`/super-admin/tenants/${tenantId}/login-as`),
-    onSuccess: (res) => {
-      localStorage.setItem('token', res.data.token)
+    onSuccess: async (res) => {
+      const token = res.data?.token
+      const tenant = res.data?.tenant
+      const slug = String(tenant?.slug || '').trim().toLowerCase()
+      const lang = language === 'ar' ? 'ar' : 'en'
+
+      if (!token) {
+        toast.error(language === 'ar' ? 'تعذر إنشاء جلسة المستأجر' : 'Could not create tenant session')
+        return
+      }
+
+      // Prefer the tenant alias host ({slug}.maqder.com) — same handoff as apex login.
+      const alreadyOnThisTenant = Boolean(slug) && getAliasSlugFromHost() === slug
+      if (slug && !alreadyOnThisTenant) {
+        const codeOrToken = res.data?.handoffCode || null
+        try {
+          const code = codeOrToken || await issueHandoffCode(api, token)
+          toast.success(
+            language === 'ar'
+              ? `جاري فتح مساحة ${tenant?.name || slug}…`
+              : `Opening ${tenant?.name || slug} workspace…`,
+          )
+          window.location.replace(getTenantAliasHandoffUrl(slug, code, { lang }))
+          return
+        } catch {
+          toast.success(
+            language === 'ar'
+              ? `جاري فتح مساحة ${tenant?.name || slug}…`
+              : `Opening ${tenant?.name || slug} workspace…`,
+          )
+          window.location.replace(getTenantAliasHandoffUrl(slug, token, { lang }))
+          return
+        }
+      }
+
+      // Already on the tenant subdomain (or tenant has no slug) — stay here.
+      localStorage.setItem('token', token)
       if (res.data?.user) {
         localStorage.setItem('auth_user', JSON.stringify(res.data.user))
       } else {
         localStorage.removeItem('auth_user')
       }
-      if (res.data?.tenant) {
-        localStorage.setItem('auth_tenant', JSON.stringify(res.data.tenant))
+      if (tenant) {
+        localStorage.setItem('auth_tenant', JSON.stringify(tenant))
       } else {
         localStorage.removeItem('auth_tenant')
       }
       toast.success(language === 'ar' ? 'تم تسجيل الدخول كمستأجر' : 'Logged in as tenant')
-      window.location.href = '/'
+      window.location.href = '/app/dashboard'
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Login failed')
   })
