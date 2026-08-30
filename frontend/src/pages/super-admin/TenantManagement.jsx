@@ -503,6 +503,7 @@ export default function TenantManagement() {
         method: continueForm.method,
         reference: continueForm.reference,
         note: continueForm.note || (language === 'ar' ? 'تجديد من لوحة المشرف' : 'Continued from Super Admin'),
+        forceFromPaymentDate: true,
       },
     })
   }

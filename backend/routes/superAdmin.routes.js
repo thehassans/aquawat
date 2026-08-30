@@ -1496,7 +1496,7 @@ router.post('/tenants/:id/accept-payment', async (req, res) => {
       billingCycle: nextCycle,
       cycles,
       recordedBy: req.user?._id,
-      forceFromPaymentDate: forceFromPaymentDate === true,
+      forceFromPaymentDate: forceFromPaymentDate !== false,
     });
 
     res.json({

@@ -69,15 +69,16 @@ export function parseCalendarDate(value) {
   return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), 12, 0, 0, 0)
 }
 
-/** Display dates as "25 Sep 2026" / Arabic equivalent (day month year). */
+/** Display dates as "25 12 2026" (dd mm yyyy). */
 export function formatSubscriptionDate(dateString, language = 'en') {
   const d = parseCalendarDate(dateString)
   if (!d) return '—'
-  return d.toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yyyy = d.getFullYear()
+  // language kept for API compatibility; format is always numeric day-month-year
+  void language
+  return `${dd} ${mm} ${yyyy}`
 }
 
 export function getPlanDisplayName(plan, language = 'en') {

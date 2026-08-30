@@ -753,7 +753,10 @@ export default function TenantForm() {
             )}
             <div>
               <label className="label">{language === 'ar' ? 'تاريخ البدء' : 'Start Date'}</label>
-              <input type="date" {...register('subscription.startDate')} className="input" />
+              <input type="date" lang="en-GB" {...register('subscription.startDate')} className="input" />
+              <p className="text-xs text-gray-500 mt-1 tabular-nums">
+                {watchedStartDate ? formatSubscriptionDate(watchedStartDate, language) : 'dd mm yyyy'}
+              </p>
             </div>
             <div>
               <label className="label">
@@ -761,8 +764,12 @@ export default function TenantForm() {
                   {language === 'ar' ? 'تاريخ الانتهاء' : 'End Date'}
                 </span>
               </label>
-              <input type="date" {...register('subscription.endDate')} className="input" />
+              <input type="date" lang="en-GB" {...register('subscription.endDate')} className="input" />
               <p className="text-xs text-gray-500 mt-1">
+                {watchedEndDate ? (
+                  <span className="tabular-nums">{formatSubscriptionDate(watchedEndDate, language)}</span>
+                ) : null}
+                {watchedEndDate ? ' · ' : ''}
                 {language === 'ar' ? 'يتم تحديث التاريخ تلقائياً عند تغيير دورة الفوترة.' : 'End date is auto-recalculated when billing cycle changes.'}
               </p>
             </div>
@@ -937,6 +944,7 @@ export default function TenantForm() {
                   ...paymentForm,
                   amount: Number(paymentForm.amount) || 0,
                   cycles: Number(paymentForm.cycles) || 1,
+                  forceFromPaymentDate: true,
                 })}
               >
                 <Banknote className="w-4 h-4" />

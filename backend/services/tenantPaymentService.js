@@ -164,8 +164,7 @@ export const recordTenantPayment = async ({
   const payCurrency = String(currency || tenant.settings?.currency || 'SAR').toUpperCase();
 
   const now = new Date();
-  const force = forceFromPaymentDate === true
-    || (forceFromPaymentDate !== false && shouldForcePeriodFromPaymentDate(tenant));
+  const force = forceFromPaymentDate !== false;
 
   const { periodStart, periodEnd } = resolvePaymentPeriod({
     priorEnd: tenant.subscription?.endDate,
