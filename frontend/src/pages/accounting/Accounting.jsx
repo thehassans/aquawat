@@ -171,6 +171,26 @@ const journalExportColumns = (isAr) => [
   { key: 'totalCredit', label: isAr ? 'دائن' : 'Credit', value: (row) => asMoney(row.totalCredit) },
 ]
 
+const PANEL_EXPORT_TABS = new Set([
+  'trial',
+  'pnl',
+  'balance-sheet',
+  'general-ledger',
+  'account-report',
+  'cash-flow',
+  'executive-summary',
+  'tax-report',
+  'invoice-analysis',
+  'journal-report',
+  'aged-ar',
+  'aged-ap',
+  'follow-up-reports',
+  'analytic-report',
+  'partner-ledger',
+  'assets',
+  'depreciation-schedule',
+])
+
 const fontPage = { fontFamily: "'Plus Jakarta Sans', 'DM Sans', 'Tajawal', sans-serif" }
 const fontDisplay = { fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif" }
 
@@ -438,14 +458,16 @@ export default function Accounting() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <ExportMenu
-            language={language}
-            rows={[]}
-            getRows={getExportRows}
-            columns={exportColumns}
-            fileBaseName={`maqder-accounting-${tab}`}
-            title={isAr ? activeTab.labelAr : activeTab.labelEn}
-          />
+          {!PANEL_EXPORT_TABS.has(tab) ? (
+            <ExportMenu
+              language={language}
+              rows={[]}
+              getRows={getExportRows}
+              columns={exportColumns}
+              fileBaseName={`maqder-accounting-${tab}`}
+              title={isAr ? activeTab.labelAr : activeTab.labelEn}
+            />
+          ) : null}
           <button
             type="button"
             onClick={() => setShowJournalForm(true)}

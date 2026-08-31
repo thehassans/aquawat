@@ -381,6 +381,7 @@ router.get('/reports/invoice-analysis', checkPermission('finance', 'read'), asyn
       from: req.query.from,
       to: req.query.to,
       flow: req.query.flow,
+      groupBy: req.query.groupBy,
     }));
   } catch (error) {
     res.status(500).json({ error: error.message });

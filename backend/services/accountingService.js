@@ -4013,7 +4013,7 @@ export async function postMonthlyAmortization(tenantId, userId, {
   return { entry, created: true, periodKey, kind: k, lineCount: lines.length / 2 };
 }
 
-export async function buildInvoiceAnalysis(tenantId, { from, to, flow } = {}) {
+export async function buildInvoiceAnalysis(tenantId, { from, to, flow, groupBy = 'month' } = {}) {
   const { start, end } = periodRange({ from, to });
   const filter = {
     tenantId,
@@ -4021,9 +4021,10 @@ export async function buildInvoiceAnalysis(tenantId, { from, to, flow } = {}) {
     issueDate: { $gte: start, $lte: end },
   };
   if (flow === 'sell' || flow === 'purchase') filter.flow = flow;
+  const pivotMode = String(groupBy || 'month').toLowerCase();
 
   const invoices = await Invoice.find(filter)
-    .select('flow invoiceType invoiceNumber issueDate status paymentStatus grandTotal paidAmount taxableAmount totalTax customerId supplierId buyer.name seller.name lineItems.productId lineItems.productName lineItems.quantity lineItems.unitPrice')
+    .select('flow invoiceType invoiceNumber issueDate status paymentStatus grandTotal paidAmount taxableAmount totalTax customerId supplierId buyer.name seller.name salespersonId createdByName createdByNameAr lineItems.productId lineItems.productName lineItems.quantity lineItems.unitPrice')
     .lean();
 
   const byMonth = new Map();
@@ -4118,10 +4119,75 @@ export async function buildInvoiceAnalysis(tenantId, { from, to, flow } = {}) {
     }));
   const chartSeries = months.map((m) => ({ label: m.month, value: m.total, count: m.count }));
 
+  const pivotMap = new Map();
+  const ensurePivot = (key, label) => {
+    if (!pivotMap.has(key)) {
+      pivotMap.set(key, {
+        key,
+        label: label || key,
+        count: 0,
+        total: 0,
+        taxTotal: 0,
+        qty: 0,
+      });
+    }
+    return pivotMap.get(key);
+  };
+
+  if (pivotMode === 'product') {
+    for (const inv of invoices) {
+      for (const line of inv.lineItems || []) {
+        const key = String(line.productId || line.productName || 'manual');
+        const row = ensurePivot(key, line.productName || 'Manual line');
+        const qty = Number(line.quantity) || 0;
+        const amount = round2(qty * (Number(line.unitPrice) || 0));
+        row.count += 1;
+        row.qty = round2(row.qty + qty);
+        row.total = round2(row.total + amount);
+      }
+    }
+  } else {
+    for (const inv of invoices) {
+      const total = Number(inv.grandTotal) || 0;
+      const tax = Number(inv.totalTax) || 0;
+      let key = 'unknown';
+      let label = 'Unknown';
+      if (pivotMode === 'partner') {
+        if (inv.flow === 'purchase') {
+          key = String(inv.supplierId || inv.seller?.name || 'unknown');
+          label = inv.seller?.name || 'Unknown vendor';
+        } else {
+          key = String(inv.customerId || inv.buyer?.name || 'unknown');
+          label = inv.buyer?.name || 'Unknown customer';
+        }
+      } else if (pivotMode === 'payment') {
+        key = String(inv.paymentStatus || 'pending').toLowerCase();
+        label = key;
+      } else if (pivotMode === 'salesperson') {
+        key = String(inv.salespersonId || inv.createdByName || 'unknown');
+        label = inv.createdByName || inv.createdByNameAr || 'Unassigned';
+      } else if (pivotMode === 'flow') {
+        key = String(inv.flow || 'sell');
+        label = key === 'purchase' ? 'Purchases' : 'Sales';
+      } else {
+        key = inv.issueDate ? new Date(inv.issueDate).toISOString().slice(0, 7) : 'unknown';
+        label = key;
+      }
+      const row = ensurePivot(key, label);
+      row.count += 1;
+      row.total = round2(row.total + total);
+      row.taxTotal = round2(row.taxTotal + tax);
+    }
+  }
+
+  const pivotRows = [...pivotMap.values()].sort((a, b) => b.total - a.total || b.count - a.count);
+
   return {
     from: start,
     to: end,
     flow: flow || 'all',
+    groupBy: pivotMode,
+    pivotRows,
     summary: {
       invoiceCount: invoices.length,
       sellCount,
@@ -4641,6 +4707,14 @@ export async function buildAnalyticReport(tenantId, {
     .populate('accountId', 'code name nameAr type')
     .lean();
 
+  const moveIds = [...new Set(items.map((i) => String(i.moveId)).filter(Boolean))];
+  const moves = moveIds.length
+    ? await JournalEntry.find({ tenantId, _id: { $in: moveIds } })
+      .select('sourceModel sourceId sourceNumber reference')
+      .lean()
+    : [];
+  const moveById = Object.fromEntries(moves.map((m) => [String(m._id), m]));
+
   const byAnalytic = new Map(analytics.map((a) => [String(a._id), {
     analytic: a,
     totalDebit: 0,
@@ -4666,6 +4740,9 @@ export async function buildAnalyticReport(tenantId, {
       debit,
       credit,
       net: round2(debit - credit),
+      sourceModel: item.sourceModel || moveById[String(item.moveId)]?.sourceModel || '',
+      sourceId: item.sourceId || moveById[String(item.moveId)]?.sourceId || null,
+      sourceNumber: moveById[String(item.moveId)]?.sourceNumber || moveById[String(item.moveId)]?.reference || '',
     });
   }
 
@@ -5091,7 +5168,16 @@ export async function buildTaxReport(tenantId, { from, to, taxUnitCode = null } 
     taxIds: { $exists: true, $ne: [] },
   }).lean();
 
+  const moveIds = [...new Set(items.map((i) => String(i.moveId)).filter(Boolean))];
+  const moves = moveIds.length
+    ? await JournalEntry.find({ tenantId, _id: { $in: moveIds } })
+      .select('sourceModel sourceId sourceNumber reference')
+      .lean()
+    : [];
+  const moveById = Object.fromEntries(moves.map((m) => [String(m._id), m]));
+
   const byTax = {};
+  const linesByTax = {};
   let totalDebit = 0;
   let totalCredit = 0;
 
@@ -5102,6 +5188,7 @@ export async function buildTaxReport(tenantId, { from, to, taxUnitCode = null } 
     const credit = Number(item.credit || 0);
     totalDebit = round2(totalDebit + debit);
     totalCredit = round2(totalCredit + credit);
+    const move = moveById[String(item.moveId)] || {};
     for (const tid of ids) {
       const key = String(tid);
       const tax = taxById[key];
@@ -5122,12 +5209,26 @@ export async function buildTaxReport(tenantId, { from, to, taxUnitCode = null } 
       byTax[key].debit = round2(byTax[key].debit + debit / ids.length);
       byTax[key].credit = round2(byTax[key].credit + credit / ids.length);
       byTax[key].lineCount += 1;
+      if (!linesByTax[key]) linesByTax[key] = [];
+      linesByTax[key].push({
+        date: item.entryDate,
+        entryNumber: item.entryNumber,
+        moveId: item.moveId,
+        accountCode: item.accountCode || '',
+        description: item.description || '',
+        debit: round2(debit / ids.length),
+        credit: round2(credit / ids.length),
+        sourceModel: item.sourceModel || move.sourceModel || '',
+        sourceId: item.sourceId || move.sourceId || null,
+        sourceNumber: move.sourceNumber || move.reference || '',
+      });
     }
   }
 
   const rows = Object.values(byTax).map((r) => ({
     ...r,
     net: round2(r.credit - r.debit),
+    lines: linesByTax[String(r.taxId)] || [],
   })).sort((a, b) => String(a.code).localeCompare(String(b.code)));
 
   const filteredDebit = round2(rows.reduce((s, r) => s + r.debit, 0));
@@ -5140,6 +5241,7 @@ export async function buildTaxReport(tenantId, { from, to, taxUnitCode = null } 
     const rate = Number(row.rate) || 0;
     const baseAmount = rate > 0 ? round2(taxAmount / (rate / 100)) : round2(Math.max(row.debit, row.credit));
     const gridRow = {
+      taxId: row.taxId,
       code: row.code,
       name: row.name,
       nameAr: row.nameAr,
