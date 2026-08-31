@@ -50,6 +50,7 @@ import {
   HorizontalGroupsPanel,
   TaxUnitsPanel,
   AnalyticDistributionModelsPanel,
+  AutomaticTransfersPanel,
   SimpleStatusPanel,
   GeneralVoucherPanel,
   JournalBooksPanel,
@@ -1062,16 +1063,7 @@ export default function Accounting() {
 
           {tab === 'automatic-transfers' && (
             <motion.div key="automatic-transfers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              <SimpleStatusPanel
-                language={language}
-                titleEn="Automatic transfers"
-                titleAr="تحويلات تلقائية"
-                bodyEn="Period close posts automated P&L transfers. Use Period close for year-end / month-end closing entries."
-                bodyAr="إقفال الفترة ينشئ تحويلات تلقائية للأرباح والخسائر. استخدم إقفال الفترة لقيود نهاية الشهر/السنة."
-                href="/app/dashboard/accounting/period-close"
-                ctaEn="Open period close"
-                ctaAr="فتح إقفال الفترة"
-              />
+              <AutomaticTransfersPanel language={language} />
             </motion.div>
           )}
 
@@ -1370,8 +1362,9 @@ export default function Accounting() {
               </div>
               <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-4">
                 <div>
-                  <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{isAr ? 'التاريخ' : 'Date'}</label>
+                  <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{isAr ? 'التاريخ المحاسبي' : 'Accounting date'}</label>
                   <input type="date" value={journalForm.entryDate} onChange={(e) => setJournalForm((f) => ({ ...f, entryDate: e.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm dark:border-dark-600 dark:bg-dark-900" />
+                  <p className="mt-1 text-[10px] text-slate-400">{isAr ? 'يخضع لتواريخ الإقفال' : 'Subject to lock dates'}</p>
                 </div>
                 <div>
                   <label className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{isAr ? 'النوع' : 'Type'}</label>
@@ -1473,6 +1466,9 @@ export default function Accounting() {
                   + {isAr ? 'سطر' : 'Add line'}
                 </button>
                 <p className={`text-xs font-semibold ${journalTotals.balanced ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  {journalTotals.balanced
+                    ? (isAr ? 'متوازن · ' : 'Balanced · ')
+                    : (isAr ? 'غير متوازن — لا يمكن الترحيل · ' : 'Unbalanced — cannot post · ')}
                   Dr <Money value={journalTotals.debit} /> · Cr <Money value={journalTotals.credit} />
                 </p>
               </div>

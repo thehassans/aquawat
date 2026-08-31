@@ -493,6 +493,17 @@ const tenantSchema = new mongoose.Schema({
           percent: { type: Number, default: 100 },
         }],
       }],
+      /** Automatic period transfers (source → destination %) */
+      automaticTransfers: [{
+        name: { type: String, trim: true, default: '' },
+        nameAr: { type: String, trim: true, default: '' },
+        sourceAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+        destinationAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+        frequency: { type: String, enum: ['monthly', 'quarterly', 'yearly'], default: 'monthly' },
+        percent: { type: Number, default: 100 },
+        active: { type: Boolean, default: true },
+        sequence: { type: Number, default: 0 },
+      }],
     },
     hiddenUoms: [{ type: String }],
     couriers: {

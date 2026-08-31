@@ -64,6 +64,10 @@ import {
   getAnalyticDistributionModels,
   setAnalyticDistributionModels,
   buildFixedAssetRegister,
+  postMonthlyDepreciation,
+  getAutomaticTransfers,
+  setAutomaticTransfers,
+  runAutomaticTransfers,
   buildDeferredAccountsReport,
   buildCustomerAccountReport,
   buildCustomerSummaryReport,
@@ -525,6 +529,43 @@ router.get('/reports/deferred-accounts', checkPermission('finance', 'read'), asy
   }
 });
 
+router.post('/actions/post-depreciation', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await postMonthlyDepreciation(tenantIdOf(req), req.user._id, {
+      modelCode: req.body?.modelCode,
+      asOf: req.body?.asOf || new Date(),
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/automatic-transfers', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getAutomaticTransfers(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/automatic-transfers', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setAutomaticTransfers(tenantIdOf(req), req.body?.transfers || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/automatic-transfers/run', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await runAutomaticTransfers(tenantIdOf(req), req.user._id, {
+      asOf: req.body?.asOf || new Date(),
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // ─── Journal Entries ─────────────────────────────────────────────────────────
 router.get('/journals', checkPermission('finance', 'read'), async (req, res) => {
   try {
@@ -710,6 +751,9 @@ router.get('/journal-items', checkPermission('finance', 'read'), async (req, res
       partnerId: req.query.partnerId,
       moveId: req.query.moveId,
       analyticAccountId: req.query.analyticAccountId,
+      journalId: req.query.journalId,
+      accountType: req.query.accountType,
+      q: req.query.q,
       from: req.query.from,
       to: req.query.to,
       state: req.query.state || 'posted',

@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Search } from 'lucide-react'
+import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import Money from '../../components/ui/Money'
+import VirtualTableBody from '../../components/ui/VirtualTableBody'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 const yearStartIso = () => new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10)
@@ -661,14 +663,14 @@ export function AccountingLockDatesPanel({ language }) {
       </h3>
       <p className="mt-1 text-xs text-slate-500">
         {isAr
-          ? 'يمنع الترحيل على أو قبل تاريخ القفل. الإقفال الصلب يمنع الترحيل والعكس.'
-          : 'Soft lock blocks posting on/before the date. Hard lock also blocks reversals.'}
+          ? 'يمنع إنشاء أو ترحيل القيود بتاريخ محاسبي على أو قبل تاريخ القفل. الإقفال الصلب يمنع الجميع بما فيهم المدققون.'
+          : 'Blocks creating/posting moves with an accounting date on or before the lock. Hard lock freezes everyone including controllers.'}
       </p>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         {[
-          ['lockDate', isAr ? 'قفل الترحيل' : 'Posting lock'],
-          ['taxLockDate', isAr ? 'قفل الضريبة' : 'Tax lock'],
-          ['hardLockDate', isAr ? 'إقفال صلب' : 'Hard lock'],
+          ['lockDate', isAr ? 'قفل لغير المستشارين' : 'Lock date for non-advisers'],
+          ['taxLockDate', isAr ? 'قفل الضريبة' : 'Tax lock date'],
+          ['hardLockDate', isAr ? 'قفل لجميع المستخدمين' : 'Lock date for all users'],
         ].map(([key, label]) => (
           <label key={key} className="text-xs font-medium text-slate-500">
             {label}
@@ -2522,6 +2524,7 @@ export function CashFlowPanel({ language }) {
 export function JournalsBoardPanel({ language }) {
   const isAr = language === 'ar'
   const [journalId, setJournalId] = useState('')
+  const [view, setView] = useState('board')
   const { data: books = [] } = useQuery({
     queryKey: ['accounting-journal-books'],
     queryFn: () => api.get('/accounting/journal-books').then((r) => r.data || []),
@@ -2534,7 +2537,15 @@ export function JournalsBoardPanel({ language }) {
   })
   const post = useMutation({
     mutationFn: (id) => api.post(`/accounting/journals/${id}/post`).then((r) => r.data),
-    onSuccess: () => refetch(),
+    onSuccess: () => { toast.success(isAr ? 'تم الترحيل' : 'Posted'); refetch() },
+    onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
+  })
+  const reverse = useMutation({
+    mutationFn: (id) => api.post(`/accounting/journals/${id}/reverse`, {
+      reason: isAr ? 'عكس قيد' : 'Manual reversal',
+    }).then((r) => r.data),
+    onSuccess: () => { toast.success(isAr ? 'تم العكس' : 'Reversed'); refetch() },
+    onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
   })
 
   const columns = [
@@ -2544,9 +2555,19 @@ export function JournalsBoardPanel({ language }) {
     { key: 'void', en: 'Void', ar: 'ملغى', tone: 'border-rose-200 bg-rose-50/40 dark:border-rose-500/20 dark:bg-rose-950/10' },
   ]
 
+  const flatRows = useMemo(() => {
+    const out = []
+    for (const col of columns) {
+      for (const j of (data?.columns?.[col.key] || [])) {
+        out.push({ ...j, _col: col.key })
+      }
+    }
+    return out.sort((a, b) => new Date(b.entryDate || 0) - new Date(a.entryDate || 0))
+  }, [data])
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <label className="min-w-[220px] text-xs font-medium text-slate-500">
           {isAr ? 'دفتر القيود' : 'Journal book'}
           <select value={journalId} onChange={(e) => setJournalId(e.target.value)} className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900">
@@ -2556,46 +2577,101 @@ export function JournalsBoardPanel({ language }) {
             ))}
           </select>
         </label>
+        <div className="flex gap-1 rounded-xl border border-slate-200 p-1 dark:border-dark-600">
+          {[['board', isAr ? 'لوحة' : 'Board'], ['list', isAr ? 'قائمة' : 'List']].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setView(id)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${view === id ? 'bg-emerald-700 text-white' : 'text-slate-500'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         {isFetching ? <p className="pb-2 text-xs text-slate-400">…</p> : null}
       </div>
-      <div className="grid gap-3 lg:grid-cols-4">
-        {columns.map((col) => (
-          <div key={col.key} className={`rounded-2xl border p-3 ${col.tone}`}>
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                {isAr ? col.ar : col.en}
-              </p>
-              <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold dark:bg-dark-800">
-                {data?.counts?.[col.key] ?? 0}
-              </span>
-            </div>
-            <div className="space-y-2">
-              {(data?.columns?.[col.key] || []).map((j) => (
-                <div key={j._id} className="rounded-xl border border-white/70 bg-white/90 p-3 shadow-sm dark:border-white/5 dark:bg-dark-800">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">{j.entryNumber}</p>
-                  <p className="line-clamp-2 text-xs text-slate-500">{j.memo || '—'}</p>
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    {j.entryDate ? new Date(j.entryDate).toLocaleDateString() : '—'} · <Money value={j.totalDebit} />
-                  </p>
-                  {col.key === 'draft' ? (
-                    <button
-                      type="button"
-                      disabled={post.isPending}
-                      onClick={() => post.mutate(j._id)}
-                      className="mt-2 rounded-full bg-emerald-700 px-3 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
-                    >
-                      {isAr ? 'ترحيل' : 'Post'}
-                    </button>
-                  ) : null}
-                </div>
+
+      {view === 'list' ? (
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-400 dark:bg-dark-900">
+              <tr>
+                <th className="px-3 py-2 text-start">{isAr ? 'التاريخ' : 'Date'}</th>
+                <th className="px-3 py-2 text-start">{isAr ? 'الرقم' : 'Number'}</th>
+                <th className="px-3 py-2 text-start">{isAr ? 'المرجع' : 'Reference'}</th>
+                <th className="px-3 py-2 text-start">{isAr ? 'البيان' : 'Memo'}</th>
+                <th className="px-3 py-2 text-end">{isAr ? 'الإجمالي' : 'Total'}</th>
+                <th className="px-3 py-2 text-start">{isAr ? 'الحالة' : 'Status'}</th>
+                <th className="px-3 py-2 text-end">{isAr ? 'إجراء' : 'Action'}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {flatRows.map((j) => (
+                <tr key={j._id} className="hover:bg-slate-50/80 dark:hover:bg-white/[0.03]">
+                  <td className="px-3 py-2 whitespace-nowrap">{j.entryDate ? new Date(j.entryDate).toLocaleDateString() : '—'}</td>
+                  <td className="px-3 py-2 font-mono text-xs font-semibold">{j.entryNumber}</td>
+                  <td className="px-3 py-2 text-xs text-slate-500">{j.sourceNumber || '—'}</td>
+                  <td className="px-3 py-2 max-w-[220px] truncate">{j.memo || '—'}</td>
+                  <td className="px-3 py-2 text-end"><Money value={j.totalDebit} /></td>
+                  <td className="px-3 py-2 capitalize text-xs">{j._col}</td>
+                  <td className="px-3 py-2 text-end">
+                    {j._col === 'draft' ? (
+                      <button type="button" disabled={post.isPending} onClick={() => post.mutate(j._id)} className="rounded-full bg-emerald-700 px-3 py-1 text-[11px] font-semibold text-white disabled:opacity-50">{isAr ? 'ترحيل' : 'Post'}</button>
+                    ) : null}
+                    {j._col === 'posted' ? (
+                      <button type="button" disabled={reverse.isPending} onClick={() => reverse.mutate(j._id)} className="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold dark:border-dark-600">{isAr ? 'عكس' : 'Reverse'}</button>
+                    ) : null}
+                  </td>
+                </tr>
               ))}
-              {!(data?.columns?.[col.key] || []).length ? (
-                <p className="py-6 text-center text-xs text-slate-400">{isAr ? 'فارغ' : 'Empty'}</p>
+              {!flatRows.length ? (
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا قيود' : 'No entries'}</td></tr>
               ) : null}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-4">
+          {columns.map((col) => (
+            <div key={col.key} className={`rounded-2xl border p-3 ${col.tone}`}>
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  {isAr ? col.ar : col.en}
+                </p>
+                <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold dark:bg-dark-800">
+                  {data?.counts?.[col.key] ?? 0}
+                </span>
+              </div>
+              <div className="max-h-[28rem] space-y-2 overflow-y-auto">
+                {(data?.columns?.[col.key] || []).map((j) => (
+                  <div key={j._id} className="rounded-xl border border-white/70 bg-white/90 p-3 shadow-sm dark:border-white/5 dark:bg-dark-800">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{j.entryNumber}</p>
+                    <p className="line-clamp-2 text-xs text-slate-500">{j.memo || '—'}</p>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      {j.entryDate ? new Date(j.entryDate).toLocaleDateString() : '—'} · <Money value={j.totalDebit} />
+                    </p>
+                    {col.key === 'draft' ? (
+                      <button type="button" disabled={post.isPending} onClick={() => post.mutate(j._id)} className="mt-2 rounded-full bg-emerald-700 px-3 py-1 text-[11px] font-semibold text-white disabled:opacity-50">{isAr ? 'ترحيل' : 'Post'}</button>
+                    ) : null}
+                    {col.key === 'posted' ? (
+                      <button type="button" disabled={reverse.isPending} onClick={() => reverse.mutate(j._id)} className="mt-2 rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold dark:border-dark-600">{isAr ? 'عكس' : 'Reverse'}</button>
+                    ) : null}
+                  </div>
+                ))}
+                {!(data?.columns?.[col.key] || []).length ? (
+                  <p className="py-6 text-center text-xs text-slate-400">{isAr ? 'فارغ' : 'Empty'}</p>
+                ) : null}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
+      <p className="text-[11px] text-slate-400">
+        {isAr
+          ? 'القيود المرحّلة لا تُحذف — العكس فقط. المدين يجب أن يساوي الدائن قبل الترحيل.'
+          : 'Posted entries are immutable — reverse only. Debits must equal credits before post.'}
+      </p>
     </div>
   )
 }
@@ -2965,89 +3041,222 @@ export function OpeningBalancesPanel({ language, onNewOpening }) {
   )
 }
 
-/** Placeholder for Accounting menu items not yet built as full modules. */
+/** Atomic audit trail — account.move.line (list only, no single-line edit). */
 export function JournalItemsPanel({ language }) {
   const isAr = language === 'ar'
   const [from, setFrom] = useState(yearStartIso())
   const [to, setTo] = useState(todayIso())
   const [accountId, setAccountId] = useState('')
+  const [accountType, setAccountType] = useState('')
+  const [journalId, setJournalId] = useState('')
+  const [analyticAccountId, setAnalyticAccountId] = useState('')
+  const [state, setState] = useState('posted')
+  const [q, setQ] = useState('')
   const [partnerId, setPartnerId] = useState('')
+  const [groupBy, setGroupBy] = useState('none')
+  const [skip, setSkip] = useState(0)
+  const limit = 500
+
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounting-accounts'],
     queryFn: () => api.get('/accounting/accounts').then((r) => r.data || []),
   })
-  const { data, isFetching } = useQuery({
-    queryKey: ['accounting-journal-items', from, to, accountId, partnerId],
+  const { data: books = [] } = useQuery({
+    queryKey: ['accounting-journal-books'],
+    queryFn: () => api.get('/accounting/journal-books').then((r) => r.data || []),
+  })
+  const { data: analytics = [] } = useQuery({
+    queryKey: ['accounting-analytic-accounts'],
+    queryFn: () => api.get('/accounting/analytic-accounts').then((r) => r.data || []),
+  })
+  const { data, isFetching, refetch } = useQuery({
+    queryKey: ['accounting-journal-items', from, to, accountId, accountType, journalId, analyticAccountId, state, q, partnerId, skip],
     queryFn: () => api.get('/accounting/journal-items', {
       params: {
         from,
         to,
         accountId: accountId || undefined,
+        accountType: accountType || undefined,
+        journalId: journalId || undefined,
+        analyticAccountId: analyticAccountId || undefined,
         partnerId: partnerId || undefined,
-        limit: 200,
+        state: state || 'posted',
+        q: q || undefined,
+        limit,
+        skip,
       },
     }).then((r) => r.data),
   })
 
+  const items = data?.items || []
+  const grouped = useMemo(() => {
+    if (groupBy === 'none') return null
+    const map = new Map()
+    for (const row of items) {
+      const key = groupBy === 'account'
+        ? (row.accountCode || '—')
+        : groupBy === 'partner'
+          ? (row.partnerName || row.partnerId || '—')
+          : (row.analyticCode || '—')
+      if (!map.has(key)) map.set(key, { key, debit: 0, credit: 0, count: 0 })
+      const g = map.get(key)
+      g.debit += Number(row.debit) || 0
+      g.credit += Number(row.credit) || 0
+      g.count += 1
+    }
+    return [...map.values()].sort((a, b) => String(a.key).localeCompare(String(b.key)))
+  }, [items, groupBy])
+
+  const renderRow = (row, _index, key) => (
+    <tr key={key} className="hover:bg-slate-50/70 dark:hover:bg-white/[0.03]">
+      <td className="whitespace-nowrap px-2 py-1.5 text-[12px]">{row.entryDate ? new Date(row.entryDate).toLocaleDateString() : '—'}</td>
+      <td className="px-2 py-1.5 font-mono text-[11px] font-semibold text-emerald-800 dark:text-emerald-300">{row.entryNumber || '—'}</td>
+      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-500">{row.journalCode || '—'}</td>
+      <td className="px-2 py-1.5 font-mono text-[11px]">{row.accountCode || '—'}</td>
+      <td className="max-w-[140px] truncate px-2 py-1.5 text-[12px]" title={row.partnerName}>{row.partnerName || '—'}</td>
+      <td className="max-w-[180px] truncate px-2 py-1.5 text-[12px]" title={row.description}>{row.description || '—'}</td>
+      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-500">{row.analyticCode || '—'}</td>
+      <td className="px-2 py-1.5 text-end text-[12px] tabular-nums"><Money value={row.debit} /></td>
+      <td className="px-2 py-1.5 text-end text-[12px] tabular-nums"><Money value={row.credit} /></td>
+      <td className="px-2 py-1.5 text-[11px] capitalize text-slate-400">{row.state || '—'}</td>
+    </tr>
+  )
+
   return (
-    <div className="space-y-4">
-      <DateRangeBar
-        from={from}
-        to={to}
-        setFrom={setFrom}
-        setTo={setTo}
-        language={language}
-        extra={(
-          <>
-            <label className="min-w-[220px] flex-1 text-xs font-medium text-slate-500">
-              {isAr ? 'الحساب' : 'Account'}
-              <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900">
-                <option value="">{isAr ? 'الكل' : 'All'}</option>
-                {accounts.map((a) => (
-                  <option key={a._id} value={a._id}>{a.code} — {isAr ? (a.nameAr || a.name) : a.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="min-w-[180px] text-xs font-medium text-slate-500">
-              {isAr ? 'معرّف الشريك' : 'Partner id'}
-              <input value={partnerId} onChange={(e) => setPartnerId(e.target.value.trim())} placeholder={isAr ? 'اختياري' : 'Optional'} className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900" />
-            </label>
-          </>
-        )}
-      />
-      <p className="text-xs text-slate-400">
-        {isAr ? 'بنود القيود المرحّلة' : 'Posted journal item lines'}
-        {isFetching ? ' · …' : ` · ${data?.total ?? 0}`}
-      </p>
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-400 dark:bg-dark-900">
-            <tr>
-              <th className="px-4 py-2 text-start">{isAr ? 'التاريخ' : 'Date'}</th>
-              <th className="px-4 py-2 text-start">{isAr ? 'القيد' : 'Entry'}</th>
-              <th className="px-4 py-2 text-start">{isAr ? 'الحساب' : 'Account'}</th>
-              <th className="px-4 py-2 text-start">{isAr ? 'البيان' : 'Label'}</th>
-              <th className="px-4 py-2 text-end">{isAr ? 'مدين' : 'Debit'}</th>
-              <th className="px-4 py-2 text-end">{isAr ? 'دائن' : 'Credit'}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-            {(data?.items || []).map((row) => (
-              <tr key={row._id}>
-                <td className="px-4 py-2">{row.entryDate ? new Date(row.entryDate).toLocaleDateString() : '—'}</td>
-                <td className="px-4 py-2 font-mono text-xs">{row.entryNumber || '—'}</td>
-                <td className="px-4 py-2">{row.accountCode || '—'}</td>
-                <td className="px-4 py-2">{row.description || '—'}</td>
-                <td className="px-4 py-2 text-end"><Money value={row.debit} /></td>
-                <td className="px-4 py-2 text-end"><Money value={row.credit} /></td>
-              </tr>
-            ))}
-            {!(data?.items || []).length && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا بنود' : 'No journal items'}</td></tr>
-            )}
-          </tbody>
-        </table>
+    <div className="space-y-3">
+      <div className="rounded-[1.4rem] border border-white/80 bg-white/85 p-4 shadow-[0_14px_36px_-28px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-dark-800">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold">{isAr ? 'بنود القيود (مسار التدقيق)' : 'Journal items (audit trail)'}</p>
+            <p className="text-[11px] text-slate-500">{isAr ? 'عرض فقط — تعديل بند واحد يكسر التوازن' : 'List-only — editing a single line would unbalance the move'}</p>
+          </div>
+          <button type="button" onClick={() => refetch()} className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold dark:border-dark-600">{isAr ? 'تحديث' : 'Refresh'}</button>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+          <label className="text-[11px] font-medium text-slate-500">{isAr ? 'من' : 'From'}
+            <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setSkip(0) }} className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-dark-600 dark:bg-dark-900" />
+          </label>
+          <label className="text-[11px] font-medium text-slate-500">{isAr ? 'إلى' : 'To'}
+            <input type="date" value={to} onChange={(e) => { setTo(e.target.value); setSkip(0) }} className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-dark-600 dark:bg-dark-900" />
+          </label>
+          <label className="text-[11px] font-medium text-slate-500">{isAr ? 'نوع الحساب' : 'Account type'}
+            <select value={accountType} onChange={(e) => { setAccountType(e.target.value); setSkip(0) }} className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-dark-600 dark:bg-dark-900">
+              <option value="">{isAr ? 'الكل' : 'All'}</option>
+              {['asset', 'liability', 'equity', 'revenue', 'expense'].map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </label>
+          <label className="text-[11px] font-medium text-slate-500">{isAr ? 'الحساب' : 'Account'}
+            <select value={accountId} onChange={(e) => { setAccountId(e.target.value); setSkip(0) }} className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-dark-600 dark:bg-dark-900">
+              <option value="">{isAr ? 'الكل' : 'All'}</option>
+              {accounts.map((a) => <option key={a._id} value={a._id}>{a.code} — {isAr ? (a.nameAr || a.name) : a.name}</option>)}
+            </select>
+          </label>
+          <label className="text-[11px] font-medium text-slate-500">{isAr ? 'الدفتر' : 'Journal'}
+            <select value={journalId} onChange={(e) => { setJournalId(e.target.value); setSkip(0) }} className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-dark-600 dark:bg-dark-900">
+              <option value="">{isAr ? 'الكل' : 'All'}</option>
+              {(Array.isArray(books) ? books : []).map((b) => <option key={b._id} value={b._id}>{b.code}</option>)}
+            </select>
+          </label>
+          <label className="text-[11px] font-medium text-slate-500">{isAr ? 'تحليلي' : 'Analytic'}
+            <select value={analyticAccountId} onChange={(e) => { setAnalyticAccountId(e.target.value); setSkip(0) }} className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-dark-600 dark:bg-dark-900">
+              <option value="">{isAr ? 'الكل' : 'All'}</option>
+              {(Array.isArray(analytics) ? analytics : []).map((a) => <option key={a._id} value={a._id}>{a.code}</option>)}
+            </select>
+          </label>
+          <label className="text-[11px] font-medium text-slate-500">{isAr ? 'الحالة' : 'State'}
+            <select value={state} onChange={(e) => { setState(e.target.value); setSkip(0) }} className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-dark-600 dark:bg-dark-900">
+              <option value="posted">{isAr ? 'مرحّل' : 'Posted'}</option>
+              <option value="draft">{isAr ? 'مسودة' : 'Draft'}</option>
+              <option value="cancelled">{isAr ? 'ملغى' : 'Cancelled'}</option>
+              <option value="all">{isAr ? 'الكل' : 'All'}</option>
+            </select>
+          </label>
+          <label className="text-[11px] font-medium text-slate-500">{isAr ? 'بحث' : 'Search'}
+            <div className="relative mt-1">
+              <Search className="pointer-events-none absolute start-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <input value={q} onChange={(e) => { setQ(e.target.value); setSkip(0) }} placeholder={isAr ? 'رقم / حساب / بيان' : 'Number / account / label'} className="block w-full rounded-lg border border-slate-200 py-1.5 pe-2 ps-7 text-sm dark:border-dark-600 dark:bg-dark-900" />
+            </div>
+          </label>
+          <label className="text-[11px] font-medium text-slate-500">{isAr ? 'معرّف الشريك' : 'Partner id'}
+            <input value={partnerId} onChange={(e) => { setPartnerId(e.target.value.trim()); setSkip(0) }} className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-dark-600 dark:bg-dark-900" />
+          </label>
+          <label className="text-[11px] font-medium text-slate-500">{isAr ? 'تجميع' : 'Group by'}
+            <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)} className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-dark-600 dark:bg-dark-900">
+              <option value="none">{isAr ? 'بدون' : 'None'}</option>
+              <option value="account">{isAr ? 'الحساب' : 'Account'}</option>
+              <option value="partner">{isAr ? 'الشريك' : 'Partner'}</option>
+              <option value="analytic">{isAr ? 'تحليلي' : 'Analytic'}</option>
+            </select>
+          </label>
+        </div>
       </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+        <span>{isFetching ? '…' : `${items.length} / ${data?.total ?? 0}`} · Dr <Money value={data?.totalDebit} /> · Cr <Money value={data?.totalCredit} /></span>
+        <div className="flex gap-2">
+          <button type="button" disabled={skip <= 0} onClick={() => setSkip((s) => Math.max(0, s - limit))} className="rounded-lg border border-slate-200 px-2 py-1 disabled:opacity-40 dark:border-dark-600">{isAr ? 'السابق' : 'Prev'}</button>
+          <button type="button" disabled={skip + limit >= (data?.total || 0)} onClick={() => setSkip((s) => s + limit)} className="rounded-lg border border-slate-200 px-2 py-1 disabled:opacity-40 dark:border-dark-600">{isAr ? 'التالي' : 'Next'}</button>
+        </div>
+      </div>
+
+      {grouped ? (
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
+              <tr>
+                <th className="px-3 py-2 text-start">{isAr ? 'المجموعة' : 'Group'}</th>
+                <th className="px-3 py-2 text-end">{isAr ? 'بنود' : 'Lines'}</th>
+                <th className="px-3 py-2 text-end">{isAr ? 'مدين' : 'Debit'}</th>
+                <th className="px-3 py-2 text-end">{isAr ? 'دائن' : 'Credit'}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {grouped.map((g) => (
+                <tr key={g.key}>
+                  <td className="px-3 py-2 font-medium">{g.key}</td>
+                  <td className="px-3 py-2 text-end">{g.count}</td>
+                  <td className="px-3 py-2 text-end"><Money value={g.debit} /></td>
+                  <td className="px-3 py-2 text-end"><Money value={g.credit} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+          <div className="overflow-x-auto">
+            <table className="min-w-[960px] w-full table-fixed text-sm">
+              <thead className="sticky top-0 z-10 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-400 dark:bg-dark-900">
+                <tr>
+                  <th className="w-[88px] px-2 py-2 text-start">{isAr ? 'التاريخ' : 'Date'}</th>
+                  <th className="w-[100px] px-2 py-2 text-start">{isAr ? 'القيد' : 'Entry'}</th>
+                  <th className="w-[64px] px-2 py-2 text-start">{isAr ? 'دفتر' : 'Jnl'}</th>
+                  <th className="w-[80px] px-2 py-2 text-start">{isAr ? 'حساب' : 'Acct'}</th>
+                  <th className="w-[140px] px-2 py-2 text-start">{isAr ? 'شريك' : 'Partner'}</th>
+                  <th className="px-2 py-2 text-start">{isAr ? 'البيان' : 'Label'}</th>
+                  <th className="w-[72px] px-2 py-2 text-start">{isAr ? 'تحليلي' : 'Analytic'}</th>
+                  <th className="w-[96px] px-2 py-2 text-end">{isAr ? 'مدين' : 'Debit'}</th>
+                  <th className="w-[96px] px-2 py-2 text-end">{isAr ? 'دائن' : 'Credit'}</th>
+                  <th className="w-[72px] px-2 py-2 text-start">{isAr ? 'حالة' : 'State'}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                <VirtualTableBody
+                  rows={items}
+                  rowHeight={36}
+                  threshold={40}
+                  height={560}
+                  getRowKey={(row) => row._id}
+                  renderRow={renderRow}
+                />
+                {!items.length ? (
+                  <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400">{isAr ? 'لا بنود' : 'No journal items'}</td></tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -3686,17 +3895,45 @@ export function AnalyticItemsPanel({ language }) {
 export function FixedAssetsPanel({ language }) {
   const isAr = language === 'ar'
   const [modelCode, setModelCode] = useState('')
+  const [selectedAsset, setSelectedAsset] = useState(null)
   const { data: modelsData } = useQuery({
     queryKey: ['accounting-asset-models'],
     queryFn: () => api.get('/accounting/asset-models').then((r) => r.data),
   })
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, refetch } = useQuery({
     queryKey: ['accounting-fixed-assets', modelCode],
     queryFn: () => api.get('/accounting/reports/fixed-assets', { params: { modelCode: modelCode || undefined } }).then((r) => r.data),
   })
+
+  const postDepr = useMutation({
+    mutationFn: () => api.post('/accounting/actions/post-depreciation', { modelCode: modelCode || undefined }).then((r) => r.data),
+    onSuccess: (res) => {
+      toast.success(res.created
+        ? (isAr ? `تم ترحيل إهلاك ${res.periodKey}` : `Posted depreciation ${res.periodKey}`)
+        : (res.message || (isAr ? 'موجود مسبقاً' : 'Already posted')))
+      refetch()
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
+  })
+
+  const schedule = useMemo(() => {
+    if (!selectedAsset) return []
+    const months = Math.min(60, Number(selectedAsset.usefulLifeMonths) || 60)
+    const monthly = Number(selectedAsset.monthlyDepreciation) || 0
+    const start = new Date()
+    return Array.from({ length: months }, (_, i) => {
+      const d = new Date(start.getFullYear(), start.getMonth() + i, 1)
+      return {
+        period: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+        amount: monthly,
+        status: i === 0 ? (isAr ? 'الشهر الحالي' : 'Current month') : (isAr ? 'مسودة مجدولة' : 'Scheduled draft'),
+      }
+    })
+  }, [selectedAsset, isAr])
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <label className="text-xs font-medium text-slate-500">
           {isAr ? 'نموذج الإهلاك' : 'Depreciation model'}
           <select value={modelCode} onChange={(e) => setModelCode(e.target.value)} className="mt-1 block rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900">
@@ -3706,40 +3943,87 @@ export function FixedAssetsPanel({ language }) {
             ))}
           </select>
         </label>
-        {isFetching ? <p className="pb-2 text-xs text-slate-400">…</p> : null}
+        <button
+          type="button"
+          disabled={postDepr.isPending}
+          onClick={() => postDepr.mutate()}
+          className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {postDepr.isPending ? '…' : (isAr ? 'ترحيل إهلاك هذا الشهر' : 'Post this month’s depreciation')}
+        </button>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
           <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? 'تكلفة الأصول' : 'Asset cost'}</p>
           <p className="mt-1 text-lg font-semibold"><Money value={data?.totals?.cost} /></p>
         </div>
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
-          <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? 'إهلاك سنوي تقديري' : 'Est. annual depreciation'}</p>
+          <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? 'إهلاك شهري' : 'Monthly depreciation'}</p>
+          <p className="mt-1 text-lg font-semibold"><Money value={data?.totals?.monthlyDepreciation} /></p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+          <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? 'إهلاك سنوي' : 'Annual depreciation'}</p>
           <p className="mt-1 text-lg font-semibold"><Money value={data?.totals?.annualDepreciation} /></p>
         </div>
       </div>
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
-            <tr>
-              <th className="px-4 py-2 text-start">{isAr ? 'الحساب' : 'Account'}</th>
-              <th className="px-4 py-2 text-end">{isAr ? 'التكلفة' : 'Cost'}</th>
-              <th className="px-4 py-2 text-end">{isAr ? 'شهري' : 'Monthly'}</th>
-              <th className="px-4 py-2 text-end">{isAr ? 'سنوي' : 'Annual'}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-            {(data?.rows || []).map((row) => (
-              <tr key={row.accountId}>
-                <td className="px-4 py-2">{row.code} — {isAr ? (row.nameAr || row.name) : row.name}</td>
-                <td className="px-4 py-2 text-end"><Money value={row.cost} /></td>
-                <td className="px-4 py-2 text-end"><Money value={row.monthlyDepreciation} /></td>
-                <td className="px-4 py-2 text-end"><Money value={row.annualDepreciation} /></td>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+          <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold dark:border-white/10">{isAr ? 'سجل الأصول' : 'Asset register'}</div>
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
+              <tr>
+                <th className="px-4 py-2 text-start">{isAr ? 'الحساب' : 'Account'}</th>
+                <th className="px-4 py-2 text-end">{isAr ? 'التكلفة' : 'Cost'}</th>
+                <th className="px-4 py-2 text-end">{isAr ? 'شهري' : 'Monthly'}</th>
               </tr>
-            ))}
-            {!(data?.rows || []).length && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا أصول ثابتة في الدليل' : 'No fixed-asset accounts'}</td></tr>}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {(data?.rows || []).map((row) => (
+                <tr
+                  key={row.accountId}
+                  className={`cursor-pointer hover:bg-emerald-50/50 dark:hover:bg-white/[0.04] ${selectedAsset?.accountId === row.accountId ? 'bg-emerald-50/70 dark:bg-emerald-950/20' : ''}`}
+                  onClick={() => setSelectedAsset(row)}
+                >
+                  <td className="px-4 py-2">{row.code} — {isAr ? (row.nameAr || row.name) : row.name}</td>
+                  <td className="px-4 py-2 text-end"><Money value={row.cost} /></td>
+                  <td className="px-4 py-2 text-end"><Money value={row.monthlyDepreciation} /></td>
+                </tr>
+              ))}
+              {!(data?.rows || []).length && <tr><td colSpan={3} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا أصول ثابتة في الدليل' : 'No fixed-asset accounts'}</td></tr>}
+            </tbody>
+          </table>
+          {isFetching ? <p className="px-4 py-2 text-xs text-slate-400">…</p> : null}
+        </div>
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+          <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold dark:border-white/10">
+            {isAr ? 'لوحة الإهلاك' : 'Depreciation board'}
+            {selectedAsset ? ` · ${selectedAsset.code}` : ''}
+          </div>
+          {selectedAsset ? (
+            <div className="max-h-[28rem] overflow-y-auto">
+              <table className="min-w-full text-sm">
+                <thead className="sticky top-0 bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
+                  <tr>
+                    <th className="px-4 py-2 text-start">{isAr ? 'الفترة' : 'Period'}</th>
+                    <th className="px-4 py-2 text-end">{isAr ? 'المبلغ' : 'Amount'}</th>
+                    <th className="px-4 py-2 text-start">{isAr ? 'الحالة' : 'Status'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                  {schedule.map((row) => (
+                    <tr key={row.period}>
+                      <td className="px-4 py-2 font-mono text-xs">{row.period}</td>
+                      <td className="px-4 py-2 text-end"><Money value={row.amount} /></td>
+                      <td className="px-4 py-2 text-xs text-slate-500">{row.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="px-4 py-10 text-center text-sm text-slate-400">{isAr ? 'اختر أصلاً لعرض جدول الإهلاك' : 'Select an asset to view the depreciation board'}</p>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -4267,6 +4551,77 @@ export function AnalyticDistributionModelsPanel({ language }) {
             </button>
           </div>
         ))}
+      </div>
+    </div>
+  )
+}
+
+export function AutomaticTransfersPanel({ language }) {
+  const isAr = language === 'ar'
+  const { data: accounts = [] } = useQuery({
+    queryKey: ['accounting-accounts'],
+    queryFn: () => api.get('/accounting/accounts').then((r) => r.data || []),
+  })
+  const { data, refetch, isFetching } = useQuery({
+    queryKey: ['accounting-automatic-transfers'],
+    queryFn: () => api.get('/accounting/automatic-transfers').then((r) => r.data),
+  })
+  const [rows, setRows] = useState([])
+  useEffect(() => {
+    if (data?.transfers) setRows(data.transfers.map((r) => ({ ...r })))
+  }, [data?.transfers])
+
+  const save = useMutation({
+    mutationFn: () => api.put('/accounting/automatic-transfers', { transfers: rows }).then((r) => r.data),
+    onSuccess: () => { toast.success(isAr ? 'تم الحفظ' : 'Saved'); refetch() },
+    onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
+  })
+  const run = useMutation({
+    mutationFn: () => api.post('/accounting/automatic-transfers/run').then((r) => r.data),
+    onSuccess: (res) => toast.success(isAr ? `تم إنشاء ${res.count || 0} قيد` : `Created ${res.count || 0} entries`),
+    onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
+  })
+
+  const postable = (Array.isArray(accounts) ? accounts : []).filter((a) => a.isPostable !== false)
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">{isAr ? 'تحويلات تلقائية' : 'Automatic transfers'}</p>
+          <p className="text-xs text-slate-500">{isAr ? 'مسح / إعادة توزيع أرصدة الحسابات بنسبة ودورية.' : 'Sweep or reallocate account balances by percent on a schedule.'}</p>
+        </div>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setRows((p) => [...p, { name: '', nameAr: '', sourceAccountId: '', destinationAccountId: '', frequency: 'monthly', percent: 100, active: true }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
+          <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isAr ? 'حفظ' : 'Save'}</button>
+          <button type="button" disabled={run.isPending} onClick={() => run.mutate()} className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/30 dark:text-emerald-200">{isAr ? 'تشغيل الآن' : 'Run now'}</button>
+        </div>
+      </div>
+      <div className="space-y-3">
+        {rows.map((row, i) => (
+          <div key={i} className="grid gap-2 rounded-2xl border border-slate-200/80 bg-white p-4 sm:grid-cols-2 lg:grid-cols-6 dark:border-dark-600 dark:bg-dark-800">
+            <input value={row.name || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, name: e.target.value } : r)))} placeholder={isAr ? 'الاسم' : 'Name'} className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-dark-600 dark:bg-dark-900 lg:col-span-2" />
+            <select value={row.sourceAccountId || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, sourceAccountId: e.target.value } : r)))} className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-dark-600 dark:bg-dark-900">
+              <option value="">{isAr ? 'مصدر' : 'Source'}</option>
+              {postable.map((a) => <option key={a._id} value={a._id}>{a.code}</option>)}
+            </select>
+            <select value={row.destinationAccountId || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, destinationAccountId: e.target.value } : r)))} className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-dark-600 dark:bg-dark-900">
+              <option value="">{isAr ? 'وجهة' : 'Destination'}</option>
+              {postable.map((a) => <option key={a._id} value={a._id}>{a.code}</option>)}
+            </select>
+            <select value={row.frequency || 'monthly'} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, frequency: e.target.value } : r)))} className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-dark-600 dark:bg-dark-900">
+              <option value="monthly">{isAr ? 'شهري' : 'Monthly'}</option>
+              <option value="quarterly">{isAr ? 'ربعي' : 'Quarterly'}</option>
+              <option value="yearly">{isAr ? 'سنوي' : 'Yearly'}</option>
+            </select>
+            <div className="flex items-center gap-2">
+              <input type="number" min="0" max="100" value={row.percent ?? 100} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, percent: Number(e.target.value) } : r)))} className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-dark-600 dark:bg-dark-900" />
+              <span className="text-xs text-slate-400">%</span>
+              <label className="ms-auto flex items-center gap-1 text-xs"><input type="checkbox" checked={row.active !== false} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, active: e.target.checked } : r)))} />{isAr ? 'نشط' : 'Active'}</label>
+            </div>
+          </div>
+        ))}
+        {!rows.length ? <p className="text-sm text-slate-400">{isAr ? 'لا قواعد بعد — أضف قاعدة أو استخدم إقفال الفترة.' : 'No rules yet — add one, or use Period close for P&L sweeps.'}</p> : null}
       </div>
     </div>
   )

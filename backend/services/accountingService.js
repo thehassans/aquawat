@@ -597,6 +597,9 @@ export async function listJournalItems(tenantId, {
   partnerId,
   moveId,
   analyticAccountId,
+  journalId,
+  accountType,
+  q,
   from,
   to,
   state = 'posted',
@@ -608,7 +611,16 @@ export async function listJournalItems(tenantId, {
   if (partnerId) filter.partnerId = partnerId;
   if (moveId) filter.moveId = moveId;
   if (analyticAccountId) filter.analyticAccountId = analyticAccountId;
-  if (state) filter.state = state;
+  if (journalId) filter.journalId = journalId;
+  if (state && state !== 'all') filter.state = state;
+  if (accountType) {
+    const acctIds = await ChartOfAccount.find({
+      tenantId,
+      type: String(accountType),
+      isActive: true,
+    }).select('_id').lean();
+    filter.accountId = { $in: acctIds.map((a) => a._id) };
+  }
   if (from || to) {
     filter.entryDate = {};
     if (from) filter.entryDate.$gte = new Date(from);
@@ -618,15 +630,80 @@ export async function listJournalItems(tenantId, {
       filter.entryDate.$lte = end;
     }
   }
+  const query = String(q || '').trim();
+  if (query) {
+    const rx = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    filter.$or = [
+      { entryNumber: rx },
+      { accountCode: rx },
+      { accountName: rx },
+      { description: rx },
+    ];
+  }
+  const cap = Math.min(2000, Math.max(1, Number(limit) || 100));
   const [items, total] = await Promise.all([
     JournalItem.find(filter)
       .sort({ entryDate: -1, createdAt: -1 })
       .skip(Number(skip) || 0)
-      .limit(Math.min(500, Number(limit) || 100))
+      .limit(cap)
       .lean(),
     JournalItem.countDocuments(filter),
   ]);
-  return { items, total };
+
+  const partnerIds = [...new Set(items.map((i) => String(i.partnerId || '')).filter(Boolean))];
+  const analyticIds = [...new Set(items.map((i) => String(i.analyticAccountId || '')).filter(Boolean))];
+  const journalIds = [...new Set(items.map((i) => String(i.journalId || '')).filter(Boolean))];
+
+  let partnerMap = {};
+  let analyticMap = {};
+  let journalMap = {};
+  if (partnerIds.length) {
+    try {
+      const Partner = (await import('../models/Partner.js')).default;
+      const partners = await Partner.find({ _id: { $in: partnerIds }, tenantId })
+        .select('name nameAr nameEn displayName')
+        .lean();
+      partnerMap = Object.fromEntries(partners.map((p) => [String(p._id), p]));
+    } catch { /* optional */ }
+  }
+  if (analyticIds.length) {
+    try {
+      const AnalyticAccount = (await import('../models/AnalyticAccount.js')).default;
+      const rows = await AnalyticAccount.find({ _id: { $in: analyticIds }, tenantId })
+        .select('code name nameAr')
+        .lean();
+      analyticMap = Object.fromEntries(rows.map((a) => [String(a._id), a]));
+    } catch { /* optional */ }
+  }
+  if (journalIds.length) {
+    try {
+      const Journal = (await import('../models/Journal.js')).default;
+      const books = await Journal.find({ _id: { $in: journalIds }, tenantId })
+        .select('code name nameAr')
+        .lean();
+      journalMap = Object.fromEntries(books.map((j) => [String(j._id), j]));
+    } catch { /* optional */ }
+  }
+
+  const enriched = items.map((item) => {
+    const partner = item.partnerId ? partnerMap[String(item.partnerId)] : null;
+    const analytic = item.analyticAccountId ? analyticMap[String(item.analyticAccountId)] : null;
+    const book = item.journalId ? journalMap[String(item.journalId)] : null;
+    return {
+      ...item,
+      partnerName: partner?.displayName || partner?.nameEn || partner?.name || partner?.nameAr || '',
+      partnerNameAr: partner?.nameAr || partner?.name || '',
+      analyticCode: analytic?.code || '',
+      analyticName: analytic?.name || '',
+      journalCode: book?.code || '',
+      journalName: book?.name || '',
+    };
+  });
+
+  const totalDebit = round2(enriched.reduce((s, r) => s + (Number(r.debit) || 0), 0));
+  const totalCredit = round2(enriched.reduce((s, r) => s + (Number(r.credit) || 0), 0));
+
+  return { items: enriched, total, totalDebit, totalCredit, limit: cap, skip: Number(skip) || 0 };
 }
 
 export async function createJournalEntry({
@@ -680,7 +757,8 @@ export async function createJournalEntry({
 
   const number = entryNumber || await nextEntryNumber(tenantId, sequencePrefix);
 
-  if (status === 'posted' && !bypassLockCheck) {
+  // Soft/hard lock applies to draft creates too (controllership: no backdating into locked periods)
+  if (!bypassLockCheck) {
     await assertAccountingPeriodOpen(tenantId, entryDate, 'post');
     const hasTax = enriched.some((l) => Array.isArray(l.taxIds) && l.taxIds.length);
     if (hasTax) {
@@ -3231,9 +3309,141 @@ export async function buildFixedAssetRegister(tenantId, { modelCode } = {}) {
     rows,
     totals: {
       cost: round2(rows.reduce((s, r) => s + r.cost, 0)),
+      monthlyDepreciation: round2(rows.reduce((s, r) => s + r.monthlyDepreciation, 0)),
       annualDepreciation: round2(rows.reduce((s, r) => s + r.annualDepreciation, 0)),
     },
   };
+}
+
+/**
+ * Post one month of straight-line depreciation for fixed-asset CoA balances.
+ * Idempotent per calendar month via sourceNumber DEPR-YYYY-MM.
+ */
+export async function postMonthlyDepreciation(tenantId, userId, { modelCode, asOf = new Date() } = {}) {
+  const when = new Date(asOf);
+  const periodKey = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}`;
+  const sourceNumber = `DEPR-${periodKey}`;
+  const existing = await JournalEntry.findOne({
+    tenantId,
+    sourceModel: 'Depreciation',
+    sourceNumber,
+    status: { $in: ['draft', 'posted'] },
+  }).lean();
+  if (existing) {
+    return { entry: existing, created: false, message: `Depreciation for ${periodKey} already exists` };
+  }
+
+  const register = await buildFixedAssetRegister(tenantId, { modelCode });
+  const lines = [];
+  const expense = await resolveRoleAccount(tenantId, 'opex')
+    || await getAccountByCode(tenantId, ACCOUNT_CODE_MAP.opex);
+  if (!expense) throw new Error('Missing depreciation expense account');
+
+  for (const row of register.rows || []) {
+    const amt = round2(row.monthlyDepreciation);
+    if (amt <= 0 || !row.accountId) continue;
+    lines.push({
+      accountId: expense._id,
+      debit: amt,
+      credit: 0,
+      description: `Depreciation ${row.code} ${periodKey}`,
+    });
+    lines.push({
+      accountId: row.accountId,
+      debit: 0,
+      credit: amt,
+      description: `Accum. depreciation ${row.code} ${periodKey}`,
+    });
+  }
+  if (lines.length < 2) throw new Error('No depreciable fixed-asset balances to post');
+
+  const entry = await createJournalEntry({
+    tenantId,
+    userId,
+    entryDate: when,
+    type: 'manual',
+    memo: `Monthly depreciation ${periodKey}`,
+    memoAr: `إهلاك شهري ${periodKey}`,
+    reference: sourceNumber,
+    lines,
+    sourceModel: 'Depreciation',
+    sourceNumber,
+    status: 'posted',
+  });
+  return { entry, created: true, periodKey, lineCount: lines.length / 2 };
+}
+
+export async function getAutomaticTransfers(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.automaticTransfers').lean();
+  const rows = tenant?.settings?.accounting?.automaticTransfers;
+  return { transfers: Array.isArray(rows) ? rows.filter((r) => r?.name) : [] };
+}
+
+export async function setAutomaticTransfers(tenantId, transfers) {
+  if (!Array.isArray(transfers)) throw new Error('transfers array required');
+  const cleaned = transfers.slice(0, 40).map((row, idx) => ({
+    name: String(row.name || '').trim().slice(0, 120),
+    nameAr: String(row.nameAr || '').trim().slice(0, 120),
+    sourceAccountId: row.sourceAccountId || null,
+    destinationAccountId: row.destinationAccountId || null,
+    frequency: ['monthly', 'quarterly', 'yearly'].includes(row.frequency) ? row.frequency : 'monthly',
+    percent: Math.min(100, Math.max(0, Number(row.percent) || 100)),
+    active: row.active !== false,
+    sequence: Number(row.sequence) || (idx + 1),
+  })).filter((row) => row.name && row.sourceAccountId && row.destinationAccountId);
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.automaticTransfers': cleaned },
+  });
+  return { transfers: cleaned };
+}
+
+/** Run active automatic transfer rules for the current period (percent of source balance). */
+export async function runAutomaticTransfers(tenantId, userId, { asOf = new Date() } = {}) {
+  const { transfers } = await getAutomaticTransfers(tenantId);
+  const active = (transfers || []).filter((t) => t.active !== false);
+  if (!active.length) return { created: [], message: 'No active transfer rules' };
+
+  const when = new Date(asOf);
+  const periodKey = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}`;
+  const created = [];
+
+  for (const rule of active) {
+    const sourceNumber = `XFER-${periodKey}-${String(rule.name).slice(0, 24)}`;
+    const existing = await JournalEntry.findOne({
+      tenantId,
+      sourceModel: 'AutomaticTransfer',
+      sourceNumber,
+      status: { $in: ['draft', 'posted'] },
+    }).lean();
+    if (existing) continue;
+
+    const source = await ChartOfAccount.findOne({ _id: rule.sourceAccountId, tenantId, isActive: true });
+    const dest = await ChartOfAccount.findOne({ _id: rule.destinationAccountId, tenantId, isActive: true });
+    if (!source || !dest) continue;
+    const bal = Math.abs(Number(source.balance) || 0);
+    const amt = round2(bal * ((Number(rule.percent) || 100) / 100));
+    if (amt <= 0) continue;
+
+    const entry = await createJournalEntry({
+      tenantId,
+      userId,
+      entryDate: when,
+      type: 'manual',
+      memo: `Auto transfer: ${rule.name}`,
+      memoAr: rule.nameAr || rule.name,
+      reference: sourceNumber,
+      lines: [
+        { accountId: dest._id, debit: amt, credit: 0, description: rule.name },
+        { accountId: source._id, debit: 0, credit: amt, description: rule.name },
+      ],
+      sourceModel: 'AutomaticTransfer',
+      sourceNumber,
+      status: 'posted',
+    });
+    created.push(entry);
+  }
+
+  return { created, periodKey, count: created.length };
 }
 
 export async function buildDeferredAccountsReport(tenantId, kind = 'expense') {
@@ -4483,6 +4693,10 @@ export default {
   applyAnalyticDistributionToAmount,
   pickAnalyticDistributionModel,
   buildFixedAssetRegister,
+  postMonthlyDepreciation,
+  getAutomaticTransfers,
+  setAutomaticTransfers,
+  runAutomaticTransfers,
   buildDeferredAccountsReport,
   buildCustomerAccountReport,
   buildCustomerSummaryReport,
