@@ -53,6 +53,8 @@ import {
   setCurrenciesCatalog,
   getAssetModels,
   setAssetModels,
+  getDeferredModels,
+  setDeferredModels,
   getAnalyticPlans,
   setAnalyticPlans,
   getAccountTags,
@@ -65,6 +67,7 @@ import {
   setAnalyticDistributionModels,
   buildFixedAssetRegister,
   postMonthlyDepreciation,
+  postMonthlyAmortization,
   getAutomaticTransfers,
   setAutomaticTransfers,
   runAutomaticTransfers,
@@ -523,15 +526,47 @@ router.get('/reports/fixed-assets', checkPermission('finance', 'read'), async (r
 router.get('/reports/deferred-accounts', checkPermission('finance', 'read'), async (req, res) => {
   try {
     const kind = req.query.kind === 'revenue' ? 'revenue' : 'expense';
-    res.json(await buildDeferredAccountsReport(tenantIdOf(req), kind));
+    res.json(await buildDeferredAccountsReport(tenantIdOf(req), kind, {
+      modelCode: req.query.modelCode,
+    }));
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/deferred-models', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const kind = req.query.kind === 'revenue' ? 'revenue' : 'expense';
+    res.json(await getDeferredModels(tenantIdOf(req), kind));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/deferred-models', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    const kind = req.body?.kind === 'revenue' ? 'revenue' : 'expense';
+    res.json(await setDeferredModels(tenantIdOf(req), kind, req.body?.models || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
 });
 
 router.post('/actions/post-depreciation', checkPermission('finance', 'approve'), async (req, res) => {
   try {
     res.json(await postMonthlyDepreciation(tenantIdOf(req), req.user._id, {
+      modelCode: req.body?.modelCode,
+      asOf: req.body?.asOf || new Date(),
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/actions/post-amortization', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await postMonthlyAmortization(tenantIdOf(req), req.user._id, {
+      kind: req.body?.kind === 'revenue' ? 'revenue' : 'expense',
       modelCode: req.body?.modelCode,
       asOf: req.body?.asOf || new Date(),
     }));
@@ -1091,6 +1126,18 @@ router.get('/bank-recon/summary', checkPermission('finance', 'read'), async (req
     const { getReconciliationSummary } = await import('../services/bankReconciliationService.js');
     if (!req.query.accountId) return res.status(400).json({ error: 'accountId required' });
     res.json(await getReconciliationSummary(tenantIdOf(req), req.query.accountId));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/bank-recon/suggest', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { suggestBankMatches } = await import('../services/bankReconciliationService.js');
+    if (!req.query.statementLineId) return res.status(400).json({ error: 'statementLineId required' });
+    res.json(await suggestBankMatches(tenantIdOf(req), req.query.statementLineId, {
+      limit: req.query.limit,
+    }));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

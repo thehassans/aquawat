@@ -1476,6 +1476,52 @@ export function BankReconPanel({ language }) {
     enabled: Boolean(accountId),
   })
 
+  const { data: suggestData } = useQuery({
+    queryKey: ['bank-recon-suggest', selectedLineId],
+    queryFn: () => api.get('/accounting/bank-recon/suggest', {
+      params: { statementLineId: selectedLineId },
+    }).then((r) => r.data),
+    enabled: Boolean(selectedLineId),
+  })
+
+  const selectedLine = useMemo(
+    () => (Array.isArray(unmatchedLines) ? unmatchedLines : []).find((l) => l._id === selectedLineId),
+    [unmatchedLines, selectedLineId],
+  )
+
+  const residual = useMemo(() => {
+    if (!selectedLine) return null
+    const stmt = Number(selectedLine.amount) || 0
+    let matched = 0
+    for (const item of unmatchedItems) {
+      if (!selectedItemIds.includes(item._id)) continue
+      matched += (Number(item.debit) || 0) - (Number(item.credit) || 0)
+    }
+    for (const item of outstandingItems) {
+      if (!selectedOutstandingIds.includes(item._id)) continue
+      matched -= Number(item.credit) || 0
+    }
+    for (const item of outstandingReceiptItems) {
+      if (!selectedOutstandingReceiptIds.includes(item._id)) continue
+      matched += Number(item.debit) || 0
+    }
+    return Math.round((stmt - matched) * 100) / 100
+  }, [
+    selectedLine,
+    selectedItemIds,
+    selectedOutstandingIds,
+    selectedOutstandingReceiptIds,
+    unmatchedItems,
+    outstandingItems,
+    outstandingReceiptItems,
+  ])
+
+  const suggestionScoreById = useMemo(() => {
+    const map = new Map()
+    for (const s of suggestData?.suggestions || []) map.set(String(s.id), s)
+    return map
+  }, [suggestData])
+
   const createStmt = useMutation({
     mutationFn: () => {
       const lines = String(newStmt.linesText || '')
@@ -1518,11 +1564,13 @@ export function BankReconPanel({ language }) {
       setSelectedItemIds([])
       setSelectedOutstandingIds([])
       setSelectedOutstandingReceiptIds([])
+      toast.success(isAr ? 'تمت المطابقة' : 'Validated')
       refetchItems()
       refetchOutstanding()
       refetchOutstandingReceipts()
       refetchLines()
     },
+    onError: (e) => toast.error(e.response?.data?.error || e.message || 'Failed'),
   })
 
   const unmatch = useMutation({
@@ -1546,6 +1594,23 @@ export function BankReconPanel({ language }) {
   const toggleOutstandingReceipt = (id) => {
     setSelectedOutstandingReceiptIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }
+
+  const applyBestSuggestion = () => {
+    const best = suggestData?.best
+    if (!best) return
+    setSelectedItemIds([])
+    setSelectedOutstandingIds([])
+    setSelectedOutstandingReceiptIds([])
+    if (best.bucket === 'journal') setSelectedItemIds([best.id])
+    else if (best.bucket === 'outstanding_payment') setSelectedOutstandingIds([best.id])
+    else if (best.bucket === 'outstanding_receipt') setSelectedOutstandingReceiptIds([best.id])
+  }
+
+  const sortedJournalItems = useMemo(() => {
+    const rows = Array.isArray(unmatchedItems) ? [...unmatchedItems] : []
+    rows.sort((a, b) => (suggestionScoreById.get(String(b._id))?.score || 0) - (suggestionScoreById.get(String(a._id))?.score || 0))
+    return rows
+  }, [unmatchedItems, suggestionScoreById])
 
   return (
     <div className="space-y-4">
@@ -1639,7 +1704,12 @@ export function BankReconPanel({ language }) {
                 <button
                   key={line._id}
                   type="button"
-                  onClick={() => setSelectedLineId(line._id)}
+                  onClick={() => {
+                    setSelectedLineId(line._id)
+                    setSelectedItemIds([])
+                    setSelectedOutstandingIds([])
+                    setSelectedOutstandingReceiptIds([])
+                  }}
                   className={`flex w-full items-center justify-between px-4 py-3 text-start text-sm ${selectedLineId === line._id ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}`}
                 >
                   <div>
@@ -1658,19 +1728,32 @@ export function BankReconPanel({ language }) {
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-            <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold dark:border-white/10">
-              {isAr ? 'قيود دفتر غير مطابقة' : 'Unmatched journal items'}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 dark:border-white/10">
+              <p className="text-sm font-semibold">{isAr ? 'مقترحات المطابقة / قيود مفتوحة' : 'Suggested matches / open items'}</p>
+              {suggestData?.best ? (
+                <button
+                  type="button"
+                  onClick={applyBestSuggestion}
+                  className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+                >
+                  {isAr ? `تطبيق الأفضل (${suggestData.best.score})` : `Apply best (${suggestData.best.score})`}
+                </button>
+              ) : null}
             </div>
             <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-white/5">
-              {(Array.isArray(unmatchedItems) ? unmatchedItems : []).map((item) => {
+              {sortedJournalItems.map((item) => {
                 const net = Number(item.debit || 0) - Number(item.credit || 0)
                 const checked = selectedItemIds.includes(item._id)
+                const sug = suggestionScoreById.get(String(item._id))
                 return (
-                  <label key={item._id} className={`flex cursor-pointer items-center gap-3 px-4 py-3 text-sm ${checked ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}`}>
+                  <label key={item._id} className={`flex cursor-pointer items-center gap-3 px-4 py-3 text-sm ${checked ? 'bg-emerald-50 dark:bg-emerald-900/20' : sug ? 'bg-sky-50/60 dark:bg-sky-950/20' : ''}`}>
                     <input type="checkbox" checked={checked} onChange={() => toggleItem(item._id)} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{item.entryNumber} · {item.description || '—'}</p>
-                      <p className="text-xs text-slate-400">{item.entryDate ? new Date(item.entryDate).toLocaleDateString() : '—'}</p>
+                      <p className="text-xs text-slate-400">
+                        {item.entryDate ? new Date(item.entryDate).toLocaleDateString() : '—'}
+                        {sug ? ` · ${isAr ? 'درجة' : 'score'} ${sug.score}` : ''}
+                      </p>
                     </div>
                     <span className={`font-semibold tabular-nums ${net >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
                       <Money value={net} />
@@ -1691,12 +1774,16 @@ export function BankReconPanel({ language }) {
                   {outstandingItems.map((item) => {
                     const credit = Number(item.credit || 0)
                     const checked = selectedOutstandingIds.includes(item._id)
+                    const sug = suggestionScoreById.get(String(item._id))
                     return (
-                      <label key={item._id} className={`flex cursor-pointer items-center gap-3 px-4 py-3 text-sm ${checked ? 'bg-amber-50 dark:bg-amber-900/20' : ''}`}>
+                      <label key={item._id} className={`flex cursor-pointer items-center gap-3 px-4 py-3 text-sm ${checked ? 'bg-amber-50 dark:bg-amber-900/20' : sug ? 'bg-sky-50/60 dark:bg-sky-950/20' : ''}`}>
                         <input type="checkbox" checked={checked} onChange={() => toggleOutstanding(item._id)} />
                         <div className="min-w-0 flex-1">
                           <p className="truncate font-medium">{item.entryNumber} · {item.description || '—'}</p>
-                          <p className="text-xs text-slate-400">{item.entryDate ? new Date(item.entryDate).toLocaleDateString() : '—'}</p>
+                          <p className="text-xs text-slate-400">
+                            {item.entryDate ? new Date(item.entryDate).toLocaleDateString() : '—'}
+                            {sug ? ` · ${isAr ? 'درجة' : 'score'} ${sug.score}` : ''}
+                          </p>
                         </div>
                         <span className="font-semibold tabular-nums text-amber-700">
                           <Money value={credit} />
@@ -1716,12 +1803,16 @@ export function BankReconPanel({ language }) {
                   {outstandingReceiptItems.map((item) => {
                     const debit = Number(item.debit || 0)
                     const checked = selectedOutstandingReceiptIds.includes(item._id)
+                    const sug = suggestionScoreById.get(String(item._id))
                     return (
-                      <label key={item._id} className={`flex cursor-pointer items-center gap-3 px-4 py-3 text-sm ${checked ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}`}>
+                      <label key={item._id} className={`flex cursor-pointer items-center gap-3 px-4 py-3 text-sm ${checked ? 'bg-emerald-50 dark:bg-emerald-900/20' : sug ? 'bg-sky-50/60 dark:bg-sky-950/20' : ''}`}>
                         <input type="checkbox" checked={checked} onChange={() => toggleOutstandingReceipt(item._id)} />
                         <div className="min-w-0 flex-1">
                           <p className="truncate font-medium">{item.entryNumber} · {item.description || '—'}</p>
-                          <p className="text-xs text-slate-400">{item.entryDate ? new Date(item.entryDate).toLocaleDateString() : '—'}</p>
+                          <p className="text-xs text-slate-400">
+                            {item.entryDate ? new Date(item.entryDate).toLocaleDateString() : '—'}
+                            {sug ? ` · ${isAr ? 'درجة' : 'score'} ${sug.score}` : ''}
+                          </p>
                         </div>
                         <span className="font-semibold tabular-nums text-emerald-700">
                           <Money value={debit} />
@@ -1738,15 +1829,25 @@ export function BankReconPanel({ language }) {
         <p className="py-12 text-center text-sm text-slate-400">{isAr ? 'اختر حساب بنك للبدء' : 'Select a bank account to start'}</p>
       )}
 
+      {accountId && selectedLine ? (
+        <div className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm ${Math.abs(residual || 0) < 0.02 ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-800 dark:bg-emerald-950/30' : 'border-amber-200 bg-amber-50/70 dark:border-amber-800 dark:bg-amber-950/20'}`}>
+          <div>
+            <p className="font-semibold">{isAr ? 'الرصيد المتبقي للمطابقة' : 'Match residual'}</p>
+            <p className="text-xs text-slate-500">{selectedLine.label || selectedLine.reference || '—'}</p>
+          </div>
+          <p className="text-lg font-semibold tabular-nums"><Money value={residual} /></p>
+        </div>
+      ) : null}
+
       {accountId ? (
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            disabled={!selectedLineId || (selectedItemIds.length === 0 && selectedOutstandingIds.length === 0 && selectedOutstandingReceiptIds.length === 0) || match.isPending}
+            disabled={!selectedLineId || (selectedItemIds.length === 0 && selectedOutstandingIds.length === 0 && selectedOutstandingReceiptIds.length === 0) || Math.abs(residual || 0) >= 0.02 || match.isPending}
             onClick={() => match.mutate()}
             className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
           >
-            {match.isPending ? '…' : (isAr ? 'مطابقة' : 'Match')}
+            {match.isPending ? '…' : (isAr ? 'تحقق / ترحيل' : 'Validate')}
           </button>
           {selectedLineId ? (
             <button
@@ -1757,12 +1858,6 @@ export function BankReconPanel({ language }) {
             >
               {isAr ? 'إلغاء مطابقة السطر' : 'Unmatch selected line'}
             </button>
-          ) : null}
-          {match.isError ? (
-            <span className="self-center text-xs text-rose-600">{match.error?.response?.data?.error || match.error?.message}</span>
-          ) : null}
-          {match.isSuccess ? (
-            <span className="self-center text-xs text-emerald-600">{isAr ? 'تمت المطابقة' : 'Matched'}</span>
           ) : null}
         </div>
       ) : null}
@@ -3958,6 +4053,13 @@ export function FixedAssetsPanel({ language }) {
           <p className="mt-1 text-lg font-semibold"><Money value={data?.totals?.cost} /></p>
         </div>
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+          <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? 'صافي القيمة الدفترية' : 'Net book value'}</p>
+          <p className="mt-1 text-lg font-semibold"><Money value={data?.totals?.netBookValue} /></p>
+          <p className="mt-1 text-[11px] text-slate-400">
+            {isAr ? 'مجمع الإهلاك' : 'Accum. depr.'} {data?.accumDepreciation?.code || '1650'}: <Money value={data?.accumDepreciation?.balance} />
+          </p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
           <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? 'إهلاك شهري' : 'Monthly depreciation'}</p>
           <p className="mt-1 text-lg font-semibold"><Money value={data?.totals?.monthlyDepreciation} /></p>
         </div>
@@ -4035,39 +4137,188 @@ export function DepreciationSchedulePanel({ language }) {
 
 export function DeferredAccountsPanel({ language, kind = 'expense' }) {
   const isAr = language === 'ar'
-  const { data, isFetching } = useQuery({
-    queryKey: ['accounting-deferred', kind],
-    queryFn: () => api.get('/accounting/reports/deferred-accounts', { params: { kind } }).then((r) => r.data),
+  const [modelCode, setModelCode] = useState('')
+  const [selectedRow, setSelectedRow] = useState(null)
+  const { data: modelsData } = useQuery({
+    queryKey: ['accounting-deferred-models', kind],
+    queryFn: () => api.get('/accounting/deferred-models', { params: { kind } }).then((r) => r.data),
+  })
+  const { data, isFetching, refetch } = useQuery({
+    queryKey: ['accounting-deferred', kind, modelCode],
+    queryFn: () => api.get('/accounting/reports/deferred-accounts', {
+      params: { kind, modelCode: modelCode || undefined },
+    }).then((r) => r.data),
+  })
+
+  const postAmort = useMutation({
+    mutationFn: () => api.post('/accounting/actions/post-amortization', {
+      kind,
+      modelCode: modelCode || undefined,
+    }).then((r) => r.data),
+    onSuccess: (res) => {
+      toast.success(res.created
+        ? (isAr ? `تم ترحيل الإطفاء ${res.periodKey}` : `Posted amortization ${res.periodKey}`)
+        : (res.message || (isAr ? 'موجود مسبقاً' : 'Already posted')))
+      refetch()
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
+  })
+
+  const schedule = useMemo(() => {
+    if (!selectedRow) return []
+    const months = Math.min(36, Number(selectedRow.months) || 12)
+    const monthly = Number(selectedRow.monthlyAmortization) || 0
+    const start = new Date()
+    return Array.from({ length: months }, (_, i) => {
+      const d = new Date(start.getFullYear(), start.getMonth() + i, 1)
+      return {
+        period: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+        amount: monthly,
+        status: i === 0 ? (isAr ? 'الشهر الحالي' : 'Current month') : (isAr ? 'مسودة مجدولة' : 'Scheduled draft'),
+      }
+    })
+  }, [selectedRow, isAr])
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <label className="text-xs font-medium text-slate-500">
+          {isAr ? 'نموذج الإطفاء' : 'Amortization model'}
+          <select value={modelCode} onChange={(e) => setModelCode(e.target.value)} className="mt-1 block rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900">
+            <option value="">{isAr ? 'الافتراضي' : 'Default'}</option>
+            {(modelsData?.models || []).map((m) => (
+              <option key={m.code} value={m.code}>{m.code} — {isAr ? (m.nameAr || m.name) : m.name} ({m.months}m)</option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          disabled={postAmort.isPending}
+          onClick={() => postAmort.mutate()}
+          className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {postAmort.isPending ? '…' : (isAr ? 'ترحيل إطفاء هذا الشهر' : 'Post this month’s amortization')}
+        </button>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+          <p className="text-sm font-semibold">
+            {kind === 'revenue'
+              ? (isAr ? 'إيرادات مؤجلة' : 'Deferred revenues')
+              : (isAr ? 'مصروفات مؤجلة / مدفوعة مقدماً' : 'Deferred / prepaid expenses')}
+          </p>
+          <p className="mt-1 text-lg font-semibold"><Money value={data?.total} /></p>
+          {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
+        </div>
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+          <p className="text-sm font-semibold">{isAr ? 'إطفاء شهري تقديري' : 'Est. monthly amortization'}</p>
+          <p className="mt-1 text-lg font-semibold"><Money value={data?.monthlyTotal} /></p>
+        </div>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
+              <tr>
+                <th className="px-4 py-2 text-start">{isAr ? 'الحساب' : 'Account'}</th>
+                <th className="px-4 py-2 text-end">{isAr ? 'الرصيد' : 'Balance'}</th>
+                <th className="px-4 py-2 text-end">{isAr ? 'شهري' : 'Monthly'}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {(data?.rows || []).map((row) => (
+                <tr
+                  key={row.accountId}
+                  className={`cursor-pointer hover:bg-emerald-50/50 dark:hover:bg-white/[0.04] ${selectedRow?.accountId === row.accountId ? 'bg-emerald-50/70 dark:bg-emerald-950/20' : ''}`}
+                  onClick={() => setSelectedRow(row)}
+                >
+                  <td className="px-4 py-2">{row.code} — {isAr ? (row.nameAr || row.name) : row.name}</td>
+                  <td className="px-4 py-2 text-end"><Money value={row.balance} /></td>
+                  <td className="px-4 py-2 text-end"><Money value={row.monthlyAmortization} /></td>
+                </tr>
+              ))}
+              {!(data?.rows || []).length && <tr><td colSpan={3} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا حسابات' : 'No accounts'}</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+          <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold dark:border-white/10">
+            {isAr ? 'لوحة الإطفاء' : 'Amortization board'}
+            {selectedRow ? ` · ${selectedRow.code}` : ''}
+          </div>
+          {selectedRow ? (
+            <div className="max-h-[28rem] overflow-y-auto">
+              <table className="min-w-full text-sm">
+                <thead className="sticky top-0 bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
+                  <tr>
+                    <th className="px-4 py-2 text-start">{isAr ? 'الفترة' : 'Period'}</th>
+                    <th className="px-4 py-2 text-end">{isAr ? 'المبلغ' : 'Amount'}</th>
+                    <th className="px-4 py-2 text-start">{isAr ? 'الحالة' : 'Status'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                  {schedule.map((row) => (
+                    <tr key={row.period}>
+                      <td className="px-4 py-2 font-mono text-xs">{row.period}</td>
+                      <td className="px-4 py-2 text-end"><Money value={row.amount} /></td>
+                      <td className="px-4 py-2 text-xs text-slate-500">{row.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="px-4 py-10 text-center text-sm text-slate-400">{isAr ? 'اختر حساباً لعرض جدول الإطفاء' : 'Select an account to view the amortization board'}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function DeferredModelsPanel({ language, kind = 'expense' }) {
+  const isAr = language === 'ar'
+  const { data, refetch, isFetching } = useQuery({
+    queryKey: ['accounting-deferred-models', kind],
+    queryFn: () => api.get('/accounting/deferred-models', { params: { kind } }).then((r) => r.data),
+  })
+  const [rows, setRows] = useState([])
+  useEffect(() => { if (data?.models) setRows(data.models.map((r) => ({ ...r }))) }, [data?.models])
+  const save = useMutation({
+    mutationFn: () => api.put('/accounting/deferred-models', { kind, models: rows }).then((r) => r.data),
+    onSuccess: () => { toast.success(isAr ? 'تم الحفظ' : 'Saved'); refetch() },
+    onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
   })
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm font-semibold">
           {kind === 'revenue'
-            ? (isAr ? 'إيرادات مؤجلة' : 'Deferred revenues')
-            : (isAr ? 'مصروفات مؤجلة / مدفوعة مقدماً' : 'Deferred / prepaid expenses')}
+            ? (isAr ? 'نماذج الإيرادات المؤجلة' : 'Deferred revenue models')
+            : (isAr ? 'نماذج المصروفات المؤجلة' : 'Deferred expense models')}
         </p>
-        <p className="mt-1 text-lg font-semibold"><Money value={data?.total} /></p>
-        {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setRows((p) => [...p, { code: '', name: '', nameAr: '', months: 12, kind }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
+          <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isAr ? 'حفظ' : 'Save'}</button>
+        </div>
       </div>
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
             <tr>
-              <th className="px-4 py-2 text-start">{isAr ? 'الحساب' : 'Account'}</th>
-              <th className="px-4 py-2 text-start">{isAr ? 'النوع' : 'Type'}</th>
-              <th className="px-4 py-2 text-end">{isAr ? 'الرصيد' : 'Balance'}</th>
+              <th className="px-3 py-2 text-start">{isAr ? 'الرمز' : 'Code'}</th>
+              <th className="px-3 py-2 text-start">{isAr ? 'الاسم' : 'Name'}</th>
+              <th className="px-3 py-2 text-end">{isAr ? 'الأشهر' : 'Months'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-            {(data?.rows || []).map((row) => (
-              <tr key={row.accountId}>
-                <td className="px-4 py-2">{row.code} — {isAr ? (row.nameAr || row.name) : row.name}</td>
-                <td className="px-4 py-2 text-slate-500">{row.subtype || row.type}</td>
-                <td className="px-4 py-2 text-end"><Money value={row.balance} /></td>
+            {rows.map((row, i) => (
+              <tr key={i}>
+                <td className="px-3 py-2"><input value={row.code || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, code: e.target.value } : r)))} className="w-28 rounded-lg border border-slate-200 px-2 py-1 dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-3 py-2"><input value={row.name || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, name: e.target.value } : r)))} className="w-full rounded-lg border border-slate-200 px-2 py-1 dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-3 py-2 text-end"><input type="number" value={row.months ?? 12} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, months: Number(e.target.value) } : r)))} className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-end dark:border-dark-600 dark:bg-dark-900" /></td>
               </tr>
             ))}
-            {!(data?.rows || []).length && <tr><td colSpan={3} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا حسابات' : 'No accounts'}</td></tr>}
           </tbody>
         </table>
       </div>
@@ -4092,7 +4343,7 @@ export function AssetModelsPanel({ language }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm font-semibold">{isAr ? 'نماذج الأصول' : 'Asset models'}</p>
         <div className="flex gap-2">
-          <button type="button" onClick={() => setRows((p) => [...p, { code: '', name: '', nameAr: '', usefulLifeMonths: 60, salvagePct: 0 }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
+          <button type="button" onClick={() => setRows((p) => [...p, { code: '', name: '', nameAr: '', usefulLifeMonths: 60, salvagePct: 0, method: 'straight_line' }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
           <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isAr ? 'حفظ' : 'Save'}</button>
         </div>
       </div>
@@ -4102,6 +4353,7 @@ export function AssetModelsPanel({ language }) {
             <tr>
               <th className="px-3 py-2 text-start">{isAr ? 'الرمز' : 'Code'}</th>
               <th className="px-3 py-2 text-start">{isAr ? 'الاسم' : 'Name'}</th>
+              <th className="px-3 py-2 text-start">{isAr ? 'الطريقة' : 'Method'}</th>
               <th className="px-3 py-2 text-end">{isAr ? 'العمر (شهر)' : 'Life (mo)'}</th>
               <th className="px-3 py-2 text-end">{isAr ? 'خردة %' : 'Salvage %'}</th>
             </tr>
@@ -4111,6 +4363,12 @@ export function AssetModelsPanel({ language }) {
               <tr key={i}>
                 <td className="px-3 py-2"><input value={row.code || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, code: e.target.value } : r)))} className="w-24 rounded-lg border border-slate-200 px-2 py-1 dark:border-dark-600 dark:bg-dark-900" /></td>
                 <td className="px-3 py-2"><input value={row.name || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, name: e.target.value } : r)))} className="w-full rounded-lg border border-slate-200 px-2 py-1 dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-3 py-2">
+                  <select value={row.method || 'straight_line'} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, method: e.target.value } : r)))} className="rounded-lg border border-slate-200 px-2 py-1 dark:border-dark-600 dark:bg-dark-900">
+                    <option value="straight_line">{isAr ? 'قسط ثابت' : 'Straight line'}</option>
+                    <option value="declining_balance">{isAr ? 'قسط متناقص' : 'Declining balance'}</option>
+                  </select>
+                </td>
                 <td className="px-3 py-2 text-end"><input type="number" value={row.usefulLifeMonths ?? 60} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, usefulLifeMonths: Number(e.target.value) } : r)))} className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-end dark:border-dark-600 dark:bg-dark-900" /></td>
                 <td className="px-3 py-2 text-end"><input type="number" value={row.salvagePct ?? 0} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, salvagePct: Number(e.target.value) } : r)))} className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-end dark:border-dark-600 dark:bg-dark-900" /></td>
               </tr>

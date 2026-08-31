@@ -22,7 +22,9 @@ export const DEFAULT_CHART_OF_ACCOUNTS = [
   { code: '1400', name: 'VAT Input (Recoverable)', nameAr: 'ضريبة المدخلات', type: 'asset', subtype: 'other_asset' },
   { code: '1500', name: 'Prepaid Expenses', nameAr: 'مصروفات مدفوعة مقدماً', type: 'asset', subtype: 'other_asset' },
   { code: '1600', name: 'Fixed Assets', nameAr: 'الأصول الثابتة', type: 'asset', subtype: 'fixed_asset' },
+  { code: '1650', name: 'Accumulated Depreciation', nameAr: 'مجمع الإهلاك', type: 'asset', subtype: 'accum_depreciation' },
   { code: '1900', name: 'Suspense / Clearing', nameAr: 'حساب وسيط / مقاصة', type: 'asset', subtype: 'other_asset' },
+  { code: '2400', name: 'Deferred Revenue', nameAr: 'إيرادات مؤجلة', type: 'liability', subtype: 'other_liability' },
   { code: '2000', name: 'Accounts Payable', nameAr: 'الذمم الدائنة', type: 'liability', subtype: 'payable' },
   { code: '2050', name: 'Outstanding Payments', nameAr: 'مدفوعات معلقة', type: 'liability', subtype: 'other_liability' },
   { code: '2100', name: 'VAT Output (Payable)', nameAr: 'ضريبة المخرجات', type: 'liability', subtype: 'tax' },
@@ -65,6 +67,10 @@ const ACCOUNT_CODE_MAP = {
   rent: '5300',
   utilities: '5400',
   bankCharges: '5500',
+  depreciation: '5600',
+  accumDepreciation: '1650',
+  prepaid: '1500',
+  deferredRevenue: '2400',
 };
 
 /** Tenant settings.accounting.defaultAccounts keys ↔ posting roles */
@@ -2966,6 +2972,7 @@ export async function getAssetModels(tenantId) {
     models: [
       { code: 'SL-5Y', name: 'Straight line 5 years', nameAr: 'قسط ثابت 5 سنوات', method: 'straight_line', usefulLifeMonths: 60, salvagePct: 0 },
       { code: 'SL-3Y', name: 'Straight line 3 years', nameAr: 'قسط ثابت 3 سنوات', method: 'straight_line', usefulLifeMonths: 36, salvagePct: 0 },
+      { code: 'DB-5Y', name: 'Declining balance 5 years', nameAr: 'قسط متناقص 5 سنوات', method: 'declining_balance', usefulLifeMonths: 60, salvagePct: 0 },
       { code: 'SL-10Y', name: 'Straight line 10 years', nameAr: 'قسط ثابت 10 سنوات', method: 'straight_line', usefulLifeMonths: 120, salvagePct: 5 },
     ],
   };
@@ -2977,7 +2984,7 @@ export async function setAssetModels(tenantId, models) {
     code: String(row.code || '').trim().slice(0, 32),
     name: String(row.name || '').trim().slice(0, 120),
     nameAr: String(row.nameAr || '').trim().slice(0, 120),
-    method: 'straight_line',
+    method: row.method === 'declining_balance' ? 'declining_balance' : 'straight_line',
     usefulLifeMonths: Math.max(1, Number(row.usefulLifeMonths) || 60),
     salvagePct: Math.min(100, Math.max(0, Number(row.salvagePct) || 0)),
   })).filter((row) => row.code && row.name);
@@ -2986,6 +2993,49 @@ export async function setAssetModels(tenantId, models) {
     $set: { 'settings.accounting.assetModels': cleaned },
   });
   return { models: cleaned };
+}
+
+export async function getDeferredModels(tenantId, kind = 'expense') {
+  const k = kind === 'revenue' ? 'revenue' : 'expense';
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.deferredModels').lean();
+  const rows = Array.isArray(tenant?.settings?.accounting?.deferredModels)
+    ? tenant.settings.accounting.deferredModels.filter((r) => (r.kind || 'expense') === k)
+    : [];
+  if (rows.length) return { kind: k, models: rows };
+  return {
+    kind: k,
+    models: k === 'revenue'
+      ? [
+        { code: 'REV-12M', name: 'Recognize over 12 months', nameAr: 'اعتراف على 12 شهراً', kind: 'revenue', months: 12 },
+        { code: 'REV-6M', name: 'Recognize over 6 months', nameAr: 'اعتراف على 6 أشهر', kind: 'revenue', months: 6 },
+      ]
+      : [
+        { code: 'EXP-12M', name: 'Amortize prepaid over 12 months', nameAr: 'إطفاء مدفوع مقدماً 12 شهراً', kind: 'expense', months: 12 },
+        { code: 'EXP-3M', name: 'Amortize prepaid over 3 months', nameAr: 'إطفاء مدفوع مقدماً 3 أشهر', kind: 'expense', months: 3 },
+      ],
+  };
+}
+
+export async function setDeferredModels(tenantId, kind, models) {
+  const k = kind === 'revenue' ? 'revenue' : 'expense';
+  if (!Array.isArray(models)) throw new Error('models array required');
+  const cleaned = models.slice(0, 30).map((row) => ({
+    code: String(row.code || '').trim().slice(0, 32),
+    name: String(row.name || '').trim().slice(0, 120),
+    nameAr: String(row.nameAr || '').trim().slice(0, 120),
+    kind: k,
+    months: Math.max(1, Math.min(120, Number(row.months) || 12)),
+  })).filter((row) => row.code && row.name);
+
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.deferredModels').lean();
+  const existing = Array.isArray(tenant?.settings?.accounting?.deferredModels)
+    ? tenant.settings.accounting.deferredModels.filter((r) => (r.kind || 'expense') !== k)
+    : [];
+  const next = [...existing, ...cleaned];
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.deferredModels': next },
+  });
+  return { kind: k, models: cleaned };
 }
 
 export async function getAnalyticPlans(tenantId) {
@@ -3282,41 +3332,63 @@ export async function buildFixedAssetRegister(tenantId, { modelCode } = {}) {
     code: '',
   };
 
-  const rows = accounts.map((a) => {
-    const cost = Math.abs(Number(a.balance) || 0);
-    const salvage = round2(cost * ((Number(model.salvagePct) || 0) / 100));
-    const depreciable = Math.max(0, cost - salvage);
-    const months = Math.max(1, Number(model.usefulLifeMonths) || 60);
-    const monthly = round2(depreciable / months);
-    const annual = round2(monthly * 12);
-    return {
-      accountId: a._id,
-      code: a.code,
-      name: a.name,
-      nameAr: a.nameAr,
-      cost,
-      salvage,
-      depreciable,
-      monthlyDepreciation: monthly,
-      annualDepreciation: annual,
-      usefulLifeMonths: months,
-      modelCode: model.code || '',
-    };
-  });
+  const accum = await getAccountByCode(tenantId, ACCOUNT_CODE_MAP.accumDepreciation);
+  const accumBalance = Math.abs(Number(accum?.balance) || 0);
+
+  const rows = accounts
+    .filter((a) => a.subtype !== 'accum_depreciation' && String(a.code) !== ACCOUNT_CODE_MAP.accumDepreciation)
+    .filter((a) => !/accum|مجمع/i.test(String(a.name || '') + String(a.nameAr || '')))
+    .map((a) => {
+      const cost = Math.abs(Number(a.balance) || 0);
+      const salvage = round2(cost * ((Number(model.salvagePct) || 0) / 100));
+      const depreciable = Math.max(0, cost - salvage);
+      const months = Math.max(1, Number(model.usefulLifeMonths) || 60);
+      let monthly;
+      if (model.method === 'declining_balance') {
+        // Double-declining monthly rate on gross cost (register preview for current month)
+        monthly = round2(Math.max(0, cost - salvage) * (2 / months));
+      } else {
+        monthly = round2(depreciable / months);
+      }
+      const annual = round2(monthly * 12);
+      return {
+        accountId: a._id,
+        code: a.code,
+        name: a.name,
+        nameAr: a.nameAr,
+        cost,
+        salvage,
+        depreciable,
+        monthlyDepreciation: monthly,
+        annualDepreciation: annual,
+        usefulLifeMonths: months,
+        method: model.method || 'straight_line',
+        modelCode: model.code || '',
+        accumDepreciationAccountId: accum?._id || null,
+        accumDepreciationAccountCode: ACCOUNT_CODE_MAP.accumDepreciation,
+      };
+    });
 
   return {
     model,
     rows,
+    accumDepreciation: {
+      accountId: accum?._id || null,
+      code: ACCOUNT_CODE_MAP.accumDepreciation,
+      balance: accumBalance,
+    },
     totals: {
       cost: round2(rows.reduce((s, r) => s + r.cost, 0)),
       monthlyDepreciation: round2(rows.reduce((s, r) => s + r.monthlyDepreciation, 0)),
       annualDepreciation: round2(rows.reduce((s, r) => s + r.annualDepreciation, 0)),
+      netBookValue: round2(rows.reduce((s, r) => s + r.cost, 0) - accumBalance),
     },
   };
 }
 
 /**
- * Post one month of straight-line depreciation for fixed-asset CoA balances.
+ * Post one month of depreciation for fixed-asset CoA balances.
+ * Credits Accumulated Depreciation (contra), not the cost account.
  * Idempotent per calendar month via sourceNumber DEPR-YYYY-MM.
  */
 export async function postMonthlyDepreciation(tenantId, userId, { modelCode, asOf = new Date() } = {}) {
@@ -3335,13 +3407,16 @@ export async function postMonthlyDepreciation(tenantId, userId, { modelCode, asO
 
   const register = await buildFixedAssetRegister(tenantId, { modelCode });
   const lines = [];
-  const expense = await resolveRoleAccount(tenantId, 'opex')
+  const expense = await getAccountByCode(tenantId, ACCOUNT_CODE_MAP.depreciation)
+    || await resolveRoleAccount(tenantId, 'opex')
     || await getAccountByCode(tenantId, ACCOUNT_CODE_MAP.opex);
-  if (!expense) throw new Error('Missing depreciation expense account');
+  const accum = await getAccountByCode(tenantId, ACCOUNT_CODE_MAP.accumDepreciation);
+  if (!expense) throw new Error('Missing depreciation expense account (5600)');
+  if (!accum) throw new Error('Missing accumulated depreciation account (1650)');
 
   for (const row of register.rows || []) {
     const amt = round2(row.monthlyDepreciation);
-    if (amt <= 0 || !row.accountId) continue;
+    if (amt <= 0) continue;
     lines.push({
       accountId: expense._id,
       debit: amt,
@@ -3349,7 +3424,7 @@ export async function postMonthlyDepreciation(tenantId, userId, { modelCode, asO
       description: `Depreciation ${row.code} ${periodKey}`,
     });
     lines.push({
-      accountId: row.accountId,
+      accountId: accum._id,
       debit: 0,
       credit: amt,
       description: `Accum. depreciation ${row.code} ${periodKey}`,
@@ -3446,34 +3521,151 @@ export async function runAutomaticTransfers(tenantId, userId, { asOf = new Date(
   return { created, periodKey, count: created.length };
 }
 
-export async function buildDeferredAccountsReport(tenantId, kind = 'expense') {
+export async function buildDeferredAccountsReport(tenantId, kind = 'expense', { modelCode } = {}) {
   await ensureDefaultChartOfAccounts(tenantId);
-  const nameRx = kind === 'revenue' ? /deferred.?rev/i : /prepaid|deferred.?exp/i;
+  const k = kind === 'revenue' ? 'revenue' : 'expense';
+  const nameRx = k === 'revenue' ? /deferred.?rev/i : /prepaid|deferred.?exp/i;
   const accounts = await ChartOfAccount.find({
     tenantId,
     isActive: true,
     $or: [
-      { subtype: kind === 'revenue' ? 'other_liability' : 'other_asset' },
-      { code: kind === 'revenue' ? /^2[45]/ : /^15/ },
+      { subtype: k === 'revenue' ? 'other_liability' : 'other_asset' },
+      { code: k === 'revenue' ? /^2[45]/ : /^15/ },
       { name: nameRx },
       { nameAr: nameRx },
     ],
   }).sort({ code: 1 }).lean();
 
-  const rows = accounts.map((a) => ({
-    accountId: a._id,
-    code: a.code,
-    name: a.name,
-    nameAr: a.nameAr,
-    type: a.type,
-    subtype: a.subtype,
-    balance: Number(a.balance) || 0,
-  }));
+  const { models } = await getDeferredModels(tenantId, k);
+  const model = models.find((m) => m.code === modelCode) || models[0] || { months: 12, code: '' };
+  const months = Math.max(1, Number(model.months) || 12);
+
+  const rows = accounts
+    .filter((a) => {
+      if (k === 'revenue') {
+        return /deferred|مؤجل/i.test(`${a.name || ''} ${a.nameAr || ''}`)
+          || String(a.code).startsWith('24')
+          || String(a.code).startsWith('25');
+      }
+      return /prepaid|deferred|مقدم|مؤجل/i.test(`${a.name || ''} ${a.nameAr || ''}`)
+        || String(a.code).startsWith('15');
+    })
+    .map((a) => {
+      const balance = Math.abs(Number(a.balance) || 0);
+      const monthly = round2(balance / months);
+      return {
+        accountId: a._id,
+        code: a.code,
+        name: a.name,
+        nameAr: a.nameAr,
+        type: a.type,
+        subtype: a.subtype,
+        balance: Number(a.balance) || 0,
+        absoluteBalance: balance,
+        monthlyAmortization: monthly,
+        months,
+        modelCode: model.code || '',
+      };
+    });
+
   return {
-    kind,
+    kind: k,
+    model,
     rows,
-    total: round2(rows.reduce((s, r) => s + Math.abs(r.balance), 0)),
+    total: round2(rows.reduce((s, r) => s + r.absoluteBalance, 0)),
+    monthlyTotal: round2(rows.reduce((s, r) => s + r.monthlyAmortization, 0)),
   };
+}
+
+/**
+ * Post one month of deferred revenue recognition or prepaid expense amortization.
+ * Idempotent via sourceNumber AMORT-{REV|EXP}-YYYY-MM.
+ */
+export async function postMonthlyAmortization(tenantId, userId, {
+  kind = 'expense',
+  modelCode,
+  asOf = new Date(),
+} = {}) {
+  const k = kind === 'revenue' ? 'revenue' : 'expense';
+  const when = new Date(asOf);
+  const periodKey = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}`;
+  const sourceNumber = `AMORT-${k === 'revenue' ? 'REV' : 'EXP'}-${periodKey}`;
+  const existing = await JournalEntry.findOne({
+    tenantId,
+    sourceModel: 'Amortization',
+    sourceNumber,
+    status: { $in: ['draft', 'posted'] },
+  }).lean();
+  if (existing) {
+    return { entry: existing, created: false, message: `Amortization for ${periodKey} already exists`, kind: k };
+  }
+
+  const report = await buildDeferredAccountsReport(tenantId, k, { modelCode });
+  const lines = [];
+
+  if (k === 'expense') {
+    const expense = await resolveRoleAccount(tenantId, 'opex')
+      || await getAccountByCode(tenantId, ACCOUNT_CODE_MAP.opex);
+    if (!expense) throw new Error('Missing expense account for amortization');
+    for (const row of report.rows || []) {
+      const amt = round2(row.monthlyAmortization);
+      if (amt <= 0 || !row.accountId) continue;
+      lines.push({
+        accountId: expense._id,
+        debit: amt,
+        credit: 0,
+        description: `Amortize prepaid ${row.code} ${periodKey}`,
+      });
+      lines.push({
+        accountId: row.accountId,
+        debit: 0,
+        credit: amt,
+        description: `Release prepaid ${row.code} ${periodKey}`,
+      });
+    }
+  } else {
+    const income = await resolveRoleAccount(tenantId, 'sales')
+      || await getAccountByCode(tenantId, ACCOUNT_CODE_MAP.sales)
+      || await getAccountByCode(tenantId, ACCOUNT_CODE_MAP.services);
+    if (!income) throw new Error('Missing income account for deferred revenue recognition');
+    for (const row of report.rows || []) {
+      const amt = round2(row.monthlyAmortization);
+      if (amt <= 0 || !row.accountId) continue;
+      lines.push({
+        accountId: row.accountId,
+        debit: amt,
+        credit: 0,
+        description: `Recognize deferred ${row.code} ${periodKey}`,
+      });
+      lines.push({
+        accountId: income._id,
+        debit: 0,
+        credit: amt,
+        description: `Deferred revenue ${row.code} ${periodKey}`,
+      });
+    }
+  }
+
+  if (lines.length < 2) throw new Error('No deferred balances to amortize');
+
+  const entry = await createJournalEntry({
+    tenantId,
+    userId,
+    entryDate: when,
+    type: 'manual',
+    memo: k === 'revenue'
+      ? `Deferred revenue recognition ${periodKey}`
+      : `Prepaid expense amortization ${periodKey}`,
+    memoAr: k === 'revenue'
+      ? `اعتراف بإيراد مؤجل ${periodKey}`
+      : `إطفاء مصروف مقدم ${periodKey}`,
+    reference: sourceNumber,
+    lines,
+    sourceModel: 'Amortization',
+    sourceNumber,
+    status: 'posted',
+  });
+  return { entry, created: true, periodKey, kind: k, lineCount: lines.length / 2 };
 }
 
 export async function buildInvoiceAnalysis(tenantId, { from, to, flow } = {}) {
@@ -4697,7 +4889,10 @@ export default {
   getAutomaticTransfers,
   setAutomaticTransfers,
   runAutomaticTransfers,
+  getDeferredModels,
+  setDeferredModels,
   buildDeferredAccountsReport,
+  postMonthlyAmortization,
   buildCustomerAccountReport,
   buildCustomerSummaryReport,
   buildSupplierSummaryReport,

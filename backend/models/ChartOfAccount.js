@@ -14,7 +14,7 @@ const chartOfAccountSchema = new mongoose.Schema({
   subtype: {
     type: String,
     enum: [
-      'cash', 'bank', 'receivable', 'inventory', 'fixed_asset', 'other_asset',
+      'cash', 'bank', 'receivable', 'inventory', 'fixed_asset', 'accum_depreciation', 'other_asset',
       'payable', 'tax', 'other_liability',
       'capital', 'retained_earnings', 'other_equity',
       'sales', 'other_income',

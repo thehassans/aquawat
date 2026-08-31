@@ -40,6 +40,7 @@ import {
   FixedAssetsPanel,
   DepreciationSchedulePanel,
   DeferredAccountsPanel,
+  DeferredModelsPanel,
   AssetModelsPanel,
   AnalyticPlansPanel,
   AccountTagsPanel,
@@ -1069,13 +1070,13 @@ export default function Accounting() {
 
           {tab === 'deferred-revenue-models' && (
             <motion.div key="deferred-revenue-models" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              <DeferredAccountsPanel language={language} kind="revenue" />
+              <DeferredModelsPanel language={language} kind="revenue" />
             </motion.div>
           )}
 
           {tab === 'deferred-expense-models' && (
             <motion.div key="deferred-expense-models" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              <DeferredAccountsPanel language={language} kind="expense" />
+              <DeferredModelsPanel language={language} kind="expense" />
             </motion.div>
           )}
 

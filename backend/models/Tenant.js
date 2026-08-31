@@ -442,14 +442,22 @@ const tenantSchema = new mongoose.Schema({
         nameAr: { type: String, trim: true, default: '' },
         channel: { type: String, enum: ['whatsapp', 'email', 'sms', 'call'], default: 'whatsapp' },
       }],
-      /** Asset depreciation models (straight-line stubs) */
+      /** Asset depreciation models */
       assetModels: [{
         code: { type: String, trim: true },
         name: { type: String, trim: true, default: '' },
         nameAr: { type: String, trim: true, default: '' },
-        method: { type: String, enum: ['straight_line'], default: 'straight_line' },
+        method: { type: String, enum: ['straight_line', 'declining_balance'], default: 'straight_line' },
         usefulLifeMonths: { type: Number, default: 60 },
         salvagePct: { type: Number, default: 0 },
+      }],
+      /** Deferred revenue / expense amortization models */
+      deferredModels: [{
+        code: { type: String, trim: true },
+        name: { type: String, trim: true, default: '' },
+        nameAr: { type: String, trim: true, default: '' },
+        kind: { type: String, enum: ['revenue', 'expense'], default: 'expense' },
+        months: { type: Number, default: 12 },
       }],
       /** Analytic plans (grouping of analytic accounts) */
       analyticPlans: [{
