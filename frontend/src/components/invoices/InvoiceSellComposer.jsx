@@ -621,14 +621,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   }, [defaultBusinessContext, initialInvoice, isEdit, reset, tenant, tenantBusinessTypes])
 
   useEffect(() => {
-    if (isEdit || !fiscalPositions.length) return
-    const current = watch('fiscalPosition')
-    if (String(current || '').trim()) return
-    const def = fiscalPositions.find((p) => p.isDefault) || fiscalPositions[0]
-    if (def?.code) setValue('fiscalPosition', def.code, { shouldDirty: false })
-  }, [fiscalPositions, isEdit, setValue, watch])
-
-  useEffect(() => {
     if (!isEdit || fields.length > 0 || recoveredLinesRef.current) return
     recoveredLinesRef.current = true
     replace(mapSellLineItems(initialInvoice))
@@ -708,6 +700,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     staleTime: 120_000,
   })
   const fiscalPositions = fiscalPositionsData?.positions || []
+
+  useEffect(() => {
+    if (isEdit || !fiscalPositions.length) return
+    const current = watch('fiscalPosition')
+    if (String(current || '').trim()) return
+    const def = fiscalPositions.find((p) => p.isDefault) || fiscalPositions[0]
+    if (def?.code) setValue('fiscalPosition', def.code, { shouldDirty: false })
+  }, [fiscalPositions, isEdit, setValue, watch])
 
   const { data: paymentTermsCatalog } = useQuery({
     queryKey: ['accounting-payment-terms'],
