@@ -3,6 +3,15 @@ import { roundMoney } from './money.js';
 
 export function applyPaidAmountStatus(invoiceData, now = new Date()) {
   const grandTotal = Number(invoiceData.grandTotal) || 0;
+  const disc = invoiceData.earlyPaymentDiscount;
+
+  // Early-discount settlement clears the invoice even when cash received was discounted.
+  if (disc?.applied && grandTotal > 0) {
+    invoiceData.paidAmount = roundMoney(grandTotal);
+    invoiceData.paymentStatus = 'paid';
+    return invoiceData;
+  }
+
   const paid = Math.min(Math.max(0, Number(invoiceData.paidAmount) || 0), grandTotal);
   invoiceData.paidAmount = roundMoney(paid);
   if (grandTotal > 0 && invoiceData.paidAmount >= grandTotal - 0.005) {

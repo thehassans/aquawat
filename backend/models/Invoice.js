@@ -277,6 +277,8 @@ const invoiceSchema = new mongoose.Schema({
     discountedAmount: { type: Number, default: 0 },
     standardDueDate: { type: Date, default: null },
     standardAmount: { type: Number, default: 0 },
+    applied: { type: Boolean, default: false },
+    appliedAt: { type: Date, default: null },
   },
   paymentStatus: { type: String, enum: ['pending', 'partial', 'paid', 'overdue', 'cancelled'], default: 'pending' },
   paidAmount: { type: Number, default: 0 },

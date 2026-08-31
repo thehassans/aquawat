@@ -5907,6 +5907,7 @@ export function OnlineSyncPanel({ language }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [bankAccountId, setBankAccountId] = useState('')
+  const [syncProvider, setSyncProvider] = useState('sandbox')
   const { data, refetch, isFetching } = useQuery({
     queryKey: ['accounting-bank-sync'],
     queryFn: () => api.get('/accounting/bank-sync/status').then((r) => r.data),
@@ -5918,15 +5919,35 @@ export function OnlineSyncPanel({ language }) {
   const connect = useMutation({
     mutationFn: (payload) => api.post('/accounting/bank-sync/connect', payload).then((r) => r.data),
     onSuccess: (payload) => {
-      toast.success(payload?.message || (isAr ? 'تم الربط' : 'Connected'))
+      if (payload?.authorizeUrl) {
+        window.open(payload.authorizeUrl, '_blank', 'noopener,noreferrer')
+        toast.success(payload?.message || (isAr ? 'أكمل الربط ثم أكّد' : 'Finish OAuth, then confirm'))
+      } else {
+        toast.success(payload?.message || (isAr ? 'تم الربط' : 'Connected'))
+      }
       refetch()
       queryClient.invalidateQueries({ queryKey: ['accounting-bank-sync'] })
     },
     onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
   })
+  const confirmOAuth = useMutation({
+    mutationFn: (provider) => {
+      const conn = connections.find((c) => c.provider === provider)
+      return api.post('/accounting/bank-sync/oauth/callback', {
+        provider,
+        state: conn?.metadata?.oauthState || undefined,
+        bankAccountId: bankAccountId || undefined,
+      }).then((r) => r.data)
+    },
+    onSuccess: (payload) => {
+      toast.success(payload?.message || (isAr ? 'تم تأكيد الربط' : 'Connected'))
+      refetch()
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
+  })
   const syncFeed = useMutation({
-    mutationFn: () => api.post('/accounting/bank-sync/sync', {
-      provider: 'sandbox',
+    mutationFn: (provider) => api.post('/accounting/bank-sync/sync', {
+      provider: provider || syncProvider || 'sandbox',
       bankAccountId: bankAccountId || undefined,
     }).then((r) => r.data),
     onSuccess: (payload) => {
@@ -5944,27 +5965,29 @@ export function OnlineSyncPanel({ language }) {
   const providers = data?.providers || []
   const connections = data?.connections || []
   const connectedSet = new Set(connections.filter((c) => c.status === 'connected').map((c) => c.provider))
+  const pendingSet = new Set(connections.filter((c) => c.status === 'pending').map((c) => c.provider))
   const bankRows = bankCatalog?.rows || []
+  const anyConnected = connectedSet.size > 0
 
   return (
     <ConfigPanelShell
       language={language}
       titleEn="Online bank synchronization"
       titleAr="مزامنة بنكية عبر الإنترنت"
-      purposeEn="OAuth connections to bank aggregators for automatic statement feeds (sandbox stub today)."
-      purposeAr="ربط OAuth مع مجمعات البنوك لسحب كشوف الحساب (تجريبي حالياً)."
+      purposeEn="OAuth connections to bank aggregators. Sandbox always works; Plaid/Salt Edge unlock when env credentials are set."
+      purposeAr="ربط OAuth مع مجمعات البنوك. التجريبي متاح دائماً؛ Plaid/Salt Edge عند ضبط المفاتيح."
       impactEn="Sync pulls statement lines into Bank reconciliation; auto-match can reconcile mirrored GL items."
-      impactAr="المزامنة تستورد أسطر الكشف إلى التسوية؛ المطابقة التلقائية ت reconciles بنود GL."
+      impactAr="المزامنة تستورد أسطر الكشف إلى التسوية البنكية؛ المطابقة التلقائية تربط بنود الأستاذ."
       actions={(
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => navigate('/app/dashboard/accounting/bank-recon')} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">
             {isAr ? 'التسوية البنكية' : 'Bank reconciliation'}
           </button>
-          {connectedSet.has('sandbox') ? (
+          {anyConnected ? (
             <button
               type="button"
               disabled={syncFeed.isPending}
-              onClick={() => syncFeed.mutate()}
+              onClick={() => syncFeed.mutate(syncProvider)}
               className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
             >
               {syncFeed.isPending ? '…' : (isAr ? 'مزامنة الآن' : 'Sync now')}
@@ -5974,39 +5997,74 @@ export function OnlineSyncPanel({ language }) {
       )}
     >
       {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
-      {connectedSet.has('sandbox') && bankRows.length ? (
-        <label className="mb-4 block max-w-md text-xs font-medium text-slate-500">
-          {isAr ? 'حساب البنك للمزامنة' : 'Bank account for sync'}
-          <select
-            value={bankAccountId}
-            onChange={(e) => setBankAccountId(e.target.value)}
-            className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
-          >
-            <option value="">{isAr ? 'الافتراضي' : 'Default'}</option>
-            {bankRows.map((row) => (
-              <option key={row.accountId} value={row.accountId}>{row.code} — {isAr ? (row.nameAr || row.name) : row.name}</option>
-            ))}
-          </select>
-        </label>
+      {anyConnected ? (
+        <div className="mb-4 grid gap-3 sm:grid-cols-2">
+          <label className="block text-xs font-medium text-slate-500">
+            {isAr ? 'المزود للمزامنة' : 'Provider to sync'}
+            <select
+              value={syncProvider}
+              onChange={(e) => setSyncProvider(e.target.value)}
+              className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+            >
+              {[...connectedSet].map((id) => (
+                <option key={id} value={id}>{id}</option>
+              ))}
+            </select>
+          </label>
+          {bankRows.length ? (
+            <label className="block text-xs font-medium text-slate-500">
+              {isAr ? 'حساب البنك للمزامنة' : 'Bank account for sync'}
+              <select
+                value={bankAccountId}
+                onChange={(e) => setBankAccountId(e.target.value)}
+                className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+              >
+                <option value="">{isAr ? 'الافتراضي' : 'Default'}</option>
+                {bankRows.map((row) => (
+                  <option key={row.accountId} value={row.accountId}>{row.code} — {isAr ? (row.nameAr || row.name) : row.name}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+        </div>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {providers.map((provider) => {
           const connected = connectedSet.has(provider.id)
+          const pending = pendingSet.has(provider.id)
           const comingSoon = provider.status === 'coming_soon'
           return (
             <div key={provider.id} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
               <p className="font-semibold">{isAr ? (provider.nameAr || provider.name) : provider.name}</p>
-              <p className="mt-1 text-xs text-slate-500">{comingSoon ? (isAr ? 'قريباً' : 'Coming soon') : (connected ? (isAr ? 'متصل' : 'Connected') : (isAr ? 'غير متصل' : 'Not connected'))}</p>
-              <div className="mt-3 flex gap-2">
-                {!comingSoon && !connected ? (
+              <p className="mt-1 text-xs text-slate-500">
+                {comingSoon
+                  ? (provider.credentialHint || (isAr ? 'قريباً' : 'Coming soon'))
+                  : connected
+                    ? (isAr ? 'متصل' : 'Connected')
+                    : pending
+                      ? (isAr ? 'بانتظار OAuth' : 'Pending OAuth')
+                      : (isAr ? 'غير متصل' : 'Not connected')}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {!comingSoon && !connected && !pending ? (
                   <button type="button" disabled={connect.isPending} onClick={() => connect.mutate({ provider: provider.id, bankAccountId: bankAccountId || null })} className="rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
                     {isAr ? 'ربط' : 'Connect'}
                   </button>
                 ) : null}
-                {connected ? (
-                  <button type="button" disabled={disconnect.isPending} onClick={() => disconnect.mutate(provider.id)} className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold dark:border-dark-600">
-                    {isAr ? 'قطع' : 'Disconnect'}
+                {pending ? (
+                  <button type="button" disabled={confirmOAuth.isPending} onClick={() => confirmOAuth.mutate(provider.id)} className="rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
+                    {isAr ? 'تأكيد الربط' : 'Confirm'}
                   </button>
+                ) : null}
+                {connected ? (
+                  <>
+                    <button type="button" disabled={syncFeed.isPending} onClick={() => { setSyncProvider(provider.id); syncFeed.mutate(provider.id) }} className="rounded-xl border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:border-emerald-900">
+                      {isAr ? 'مزامنة' : 'Sync'}
+                    </button>
+                    <button type="button" disabled={disconnect.isPending} onClick={() => disconnect.mutate(provider.id)} className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold dark:border-dark-600">
+                      {isAr ? 'قطع' : 'Disconnect'}
+                    </button>
+                  </>
                 ) : null}
               </div>
             </div>

@@ -53,7 +53,9 @@ export function verifyPaymentWebhookSignature(provider, {
   if (!secret) return { ok: true, mode: 'none' };
 
   const slug = String(provider || '').trim().toLowerCase();
-  const payload = rawBody != null ? String(rawBody) : JSON.stringify(body);
+  const payload = rawBody != null
+    ? (Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : String(rawBody))
+    : JSON.stringify(body);
   const normalizedHeaders = Object.fromEntries(
     Object.entries(headers || {}).map(([key, value]) => [String(key).toLowerCase(), value]),
   );

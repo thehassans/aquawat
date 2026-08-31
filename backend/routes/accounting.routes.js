@@ -81,6 +81,7 @@ import {
   startBankSyncOAuth,
   disconnectBankSync,
   syncBankFeed,
+  completeBankSyncOAuth,
   getProductCategoriesAccountingBridge,
   getTaxUnits,
   setTaxUnits,
@@ -119,7 +120,9 @@ router.post('/webhooks/payment/:provider', async (req, res) => {
     const result = await handleAccountingPaymentProviderWebhook(req.params.provider, req.body, {
       webhookSecret: secret,
       headers: req.headers,
-      rawBody: req.rawBody || null,
+      rawBody: Buffer.isBuffer(req.rawBody)
+        ? req.rawBody.toString('utf8')
+        : (req.rawBody || null),
     });
     res.json(result);
   } catch (error) {
@@ -671,6 +674,14 @@ router.post('/bank-sync/sync', checkPermission('finance', 'update'), async (req,
     res.json(await syncBankFeed(tenantIdOf(req), req.user._id, req.body || {}));
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/bank-sync/oauth/callback', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await completeBankSyncOAuth(tenantIdOf(req), req.body || {}));
+  } catch (error) {
+    res.status(error.statusCode || 400).json({ error: error.message });
   }
 });
 

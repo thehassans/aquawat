@@ -1257,6 +1257,13 @@ router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req,
         ? differenceAccountId
         : undefined,
     }];
+    if (settlement.applyEarlyDiscount) {
+      invoice.earlyPaymentDiscount = {
+        ...(invoice.earlyPaymentDiscount?.toObject?.() || invoice.earlyPaymentDiscount || {}),
+        applied: true,
+        appliedAt: paymentDate,
+      };
+    }
     applyPaidAmountStatus(invoice);
     await invoice.save();
 
