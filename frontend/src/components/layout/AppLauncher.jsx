@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Search, Bell, Moon, Sun, Globe, LogOut, Mail, Building2, Settings as SettingsIcon, PanelLeft, LayoutGrid, Loader2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory, Pill, Clock3 } from 'lucide-react'
+import { X, Search, Bell, Moon, Sun, Globe, LogOut, Mail, Building2, Settings as SettingsIcon, PanelLeft, LayoutGrid, Loader2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory, Pill } from 'lucide-react'
 import { Fragment } from 'react'
 import { Transition, Popover, Menu } from '@headlessui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -19,7 +19,7 @@ import { tenantHasEmailAddon } from '../../lib/emailAddon'
 import { isAppAccessValid } from '../../lib/appStoreTrial'
 import { getGovChildren } from '../../lib/saudiTenant'
 import { HighlightText } from '../ui/highlight-text'
-import { getRecentApps, pushRecentApp, labelForAppPath } from '../../lib/recentApps'
+import { pushRecentApp } from '../../lib/recentApps'
 
 /** Core trading apps pinned first in the launcher grid. */
 const CORE_LAUNCHER_PATHS = [
@@ -436,11 +436,6 @@ export default function AppLauncher() {
   }, [allApps, allModules, searchQuery])
 
   const isSearching = Boolean(searchQuery.trim())
-
-  const recentApps = useMemo(
-    () => (appLauncherOpen ? getRecentApps(tenant?._id, { language, limit: 8 }) : []),
-    [appLauncherOpen, tenant?._id, language, location.pathname],
-  )
 
   // Prevent background scrolling when open and support ESC key
   useEffect(() => {
@@ -885,46 +880,6 @@ export default function AppLauncher() {
                     : 'Pick an app to get started — everything in one place.'}
               </p>
             </div>
-
-            {!isSearching && recentApps.length > 0 ? (
-              <div className="mx-auto mb-10 max-w-7xl">
-                <div className="mb-4 flex items-center gap-2">
-                  <Clock3 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
-                  <h3 className="text-sm font-bold tracking-tight text-slate-800 dark:text-slate-100">
-                    {language === 'ar' ? 'التطبيقات الأخيرة' : 'Recent apps'}
-                  </h3>
-                  <span className="rounded-full border border-slate-200/80 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                    {recentApps.filter((a) => !a.isSeed).length || recentApps.length}
-                  </span>
-                </div>
-                <div className="grid grid-cols-4 gap-x-3 gap-y-6 sm:grid-cols-6 md:grid-cols-8">
-                  {recentApps.map((app, index) => {
-                    const title = language === 'ar'
-                      ? (app.labelAr || app.labelEn || labelForAppPath(app.path, language))
-                      : (app.labelEn || app.labelAr || labelForAppPath(app.path, language))
-                    return (
-                      <motion.button
-                        key={`recent-${app.path}-${index}`}
-                        type="button"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: Math.min(index * 0.02, 0.2), duration: 0.28 }}
-                        onClick={() => handleAppClick(app.path)}
-                        className="group flex w-full flex-col items-center outline-none"
-                      >
-                        <div className="relative flex h-[64px] w-[64px] items-center justify-center rounded-[22%] bg-gradient-to-b from-white to-[#f3f5f8] shadow-[0_1px_2px_rgba(15,23,42,0.05),0_10px_28px_-16px_rgba(15,23,42,0.28),inset_0_1px_0_rgba(255,255,255,0.95)] ring-1 ring-black/[0.04] transition-all duration-300 group-hover:-translate-y-1 group-hover:scale-[1.05] group-hover:ring-emerald-400/30 dark:from-[#1a2030] dark:to-[#121722] dark:ring-white/[0.08] sm:h-[72px] sm:w-[72px]">
-                          <App3DIcon path={app.path} label={title} className="relative h-10 w-10 drop-shadow-sm sm:h-11 sm:w-11" />
-                        </div>
-                        <span className="mt-2 max-w-[88px] text-center text-[11px] font-semibold leading-snug text-slate-600 line-clamp-2 group-hover:text-slate-950 dark:text-slate-300 dark:group-hover:text-white">
-                          {title}
-                        </span>
-                      </motion.button>
-                    )
-                  })}
-                </div>
-                <div className="mt-8 h-px w-full bg-gradient-to-r from-transparent via-slate-200 to-transparent dark:via-white/10" />
-              </div>
-            ) : null}
 
             <div className="mx-auto grid max-w-7xl grid-cols-3 gap-x-3 gap-y-9 sm:grid-cols-4 sm:gap-x-5 sm:gap-y-11 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
               {filteredApps.map((app, index) => {
