@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Search, Bell, Moon, Sun, Globe, LogOut, Mail, Building2, Settings as SettingsIcon, PanelLeft, LayoutGrid, Loader2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory, Pill } from 'lucide-react'
+import { Search, Bell, Moon, Sun, Globe, LogOut, Mail, Building2, Settings as SettingsIcon, PanelLeft, LayoutGrid, Loader2, Store, HardHat, Plane, UtensilsCrossed, Car, Shirt, Scissors, ShoppingBag, Factory, Pill } from 'lucide-react'
 import { Fragment } from 'react'
 import { Transition, Popover, Menu } from '@headlessui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -20,6 +20,7 @@ import { isAppAccessValid } from '../../lib/appStoreTrial'
 import { getGovChildren } from '../../lib/saudiTenant'
 import { HighlightText } from '../ui/highlight-text'
 import { pushRecentApp } from '../../lib/recentApps'
+import RecentAppsMenu from './RecentAppsMenu'
 
 /** Core trading apps pinned first in the launcher grid. */
 const CORE_LAUNCHER_PATHS = [
@@ -494,14 +495,7 @@ export default function AppLauncher() {
           <header className="relative z-[120] isolate shrink-0 border-b border-slate-200/70 bg-white/75 backdrop-blur-2xl dark:border-white/[0.06] dark:bg-[#12161d]/80">
             <div className="mx-auto flex h-[4.5rem] max-w-[90rem] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
               <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-                <button
-                  type="button"
-                  onClick={() => dispatch(setAppLauncherOpen(false))}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200/80 bg-white text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
-                  title={language === 'ar' ? 'إغلاق' : 'Close'}
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                <RecentAppsMenu variant="launcher" />
 
                 <div className="relative hidden min-w-0 flex-1 max-w-xl sm:block">
                   <Search className={`pointer-events-none absolute top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400 ${language === 'ar' ? 'right-4' : 'left-4'}`} />
