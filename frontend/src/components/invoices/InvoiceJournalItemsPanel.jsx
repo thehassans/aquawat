@@ -22,6 +22,10 @@ export default function InvoiceJournalItemsPanel({
   suggestedAccounts = null,
   lineItemsRaw = [],
   readOnly = false,
+  paymentTerms = '',
+  paymentSchedule = null,
+  issueDate = '',
+  dueDate = '',
 }) {
   const isAr = language === 'ar'
   const [localLines, setLocalLines] = useState([])
@@ -32,6 +36,10 @@ export default function InvoiceJournalItemsPanel({
     grandTotal: Number(totals.grandTotal || 0),
     totalTax: Number(totals.totalTax || 0),
     taxableAmount: Number(totals.taxableAmount || 0),
+    paymentTerms: paymentTerms || '',
+    paymentSchedule: paymentSchedule || null,
+    issueDate: issueDate || '',
+    dueDate: dueDate || '',
     lines: (lineItems || []).map((l, i) => ({
       productId: l.productId || '',
       productType: l.productType || 'goods',
@@ -43,7 +51,7 @@ export default function InvoiceJournalItemsPanel({
     })),
     sourcePurchaseOrderId: sourcePurchaseOrderId || '',
     sourceGrnIds: sourceGrnIds || [],
-  }), [flow, totals, lineItems, sourcePurchaseOrderId, sourceGrnIds, lineItemsRaw])
+  }), [flow, totals, lineItems, sourcePurchaseOrderId, sourceGrnIds, lineItemsRaw, paymentTerms, paymentSchedule, issueDate, dueDate])
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounting-accounts-active'],
@@ -60,6 +68,10 @@ export default function InvoiceJournalItemsPanel({
         grandTotal: body.grandTotal,
         totalTax: body.totalTax,
         taxableAmount: body.taxableAmount,
+        paymentTerms: body.paymentTerms || undefined,
+        paymentSchedule: body.paymentSchedule || undefined,
+        issueDate: body.issueDate || undefined,
+        dueDate: body.dueDate || undefined,
         lineItems: body.lines.map((l, i) => ({
           ...l,
           productId: lineItems[i]?.productId || undefined,
@@ -242,11 +254,13 @@ export default function InvoiceJournalItemsPanel({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-sm">
+        <table className="w-full min-w-[760px] text-sm">
           <thead>
             <tr className="border-b border-slate-100 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5">
               <th className="px-4 py-2 text-start">{isAr ? 'الحساب' : 'Account'}</th>
-              <th className="px-3 py-2 text-start">{isAr ? 'البيان' : 'Label'}</th>
+              <th className="min-w-[140px] px-3 py-2 text-start">{isAr ? 'البيان' : 'Label'}</th>
+              <th className="whitespace-nowrap px-3 py-2 text-start">{isAr ? 'الاستحقاق' : 'Due'}</th>
+              <th className="whitespace-nowrap px-2 py-2 text-center">{isAr ? 'قسط' : 'Tr.'}</th>
               <th className="px-3 py-2 text-end">{isAr ? 'مدين' : 'Debit'}</th>
               <th className="px-3 py-2 text-end">{isAr ? 'دائن' : 'Credit'}</th>
             </tr>
@@ -277,6 +291,12 @@ export default function InvoiceJournalItemsPanel({
                 <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-300">
                   {line.description || line.role || '—'}
                 </td>
+                <td className="whitespace-nowrap px-3 py-2 text-xs tabular-nums text-slate-500">
+                  {line.dueDate ? new Date(line.dueDate).toLocaleDateString() : '—'}
+                </td>
+                <td className="whitespace-nowrap px-2 py-2 text-center text-xs tabular-nums text-slate-500">
+                  {line.trancheSequence != null ? line.trancheSequence : '—'}
+                </td>
                 <td className="px-3 py-2 text-end tabular-nums font-medium">
                   {Number(line.debit || 0) > 0 ? <Money value={line.debit} /> : '—'}
                 </td>
@@ -288,7 +308,7 @@ export default function InvoiceJournalItemsPanel({
           </tbody>
           <tfoot>
             <tr className="border-t border-slate-200 bg-slate-50/80 text-xs font-semibold dark:border-dark-600 dark:bg-dark-900/40">
-              <td className="px-4 py-2" colSpan={2}>{isAr ? 'الإجمالي' : 'Total'}</td>
+              <td className="px-4 py-2" colSpan={4}>{isAr ? 'الإجمالي' : 'Total'}</td>
               <td className="px-3 py-2 text-end tabular-nums"><Money value={debit} /></td>
               <td className="px-3 py-2 text-end tabular-nums"><Money value={credit} /></td>
             </tr>

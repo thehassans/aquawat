@@ -136,6 +136,10 @@ export function normaliseLines(lines = []) {
       partnerId: line.partnerId || null,
       taxIds: Array.isArray(line.taxIds) ? line.taxIds.filter(Boolean) : [],
       analyticAccountId: line.analyticAccountId || null,
+      dueDate: line.dueDate ? new Date(line.dueDate) : null,
+      trancheSequence: line.trancheSequence != null && line.trancheSequence !== ''
+        ? Number(line.trancheSequence)
+        : null,
     }))
     .filter((line) => line.accountId && (line.debit > 0 || line.credit > 0));
 }
@@ -568,6 +572,10 @@ async function syncJournalItemsFromMove(entry, { state = 'posted' } = {}) {
     sourceModel: entry.sourceModel || '',
     sourceId: entry.sourceId || undefined,
     lineIndex,
+    dueDate: line.dueDate ? new Date(line.dueDate) : null,
+    trancheSequence: line.trancheSequence != null && line.trancheSequence !== ''
+      ? Number(line.trancheSequence)
+      : null,
   }));
   await JournalItem.insertMany(docs);
 }
@@ -592,8 +600,21 @@ export async function backfillJournalItems(tenantId, { limit = 500 } = {}) {
 
   let synced = 0;
   for (const entry of posted) {
-    const existing = await JournalItem.countDocuments({ tenantId, moveId: entry._id, state: 'posted' });
-    if (existing === (entry.lines || []).length && existing > 0) continue;
+    const lines = Array.isArray(entry.lines) ? entry.lines : [];
+    const existingItems = await JournalItem.find({ tenantId, moveId: entry._id, state: 'posted' })
+      .select('dueDate trancheSequence')
+      .lean();
+    const countOk = existingItems.length === lines.length && existingItems.length > 0;
+    const metaOk = !lines.some((line, idx) => {
+      const item = existingItems[idx];
+      if (!item) return true;
+      const lineDue = line.dueDate ? new Date(line.dueDate).getTime() : null;
+      const itemDue = item.dueDate ? new Date(item.dueDate).getTime() : null;
+      const lineTranche = line.trancheSequence != null ? Number(line.trancheSequence) : null;
+      const itemTranche = item.trancheSequence != null ? Number(item.trancheSequence) : null;
+      return lineDue !== itemDue || lineTranche !== itemTranche;
+    });
+    if (countOk && metaOk) continue;
     await syncJournalItemsFromMove(entry, { state: 'posted' });
     synced += 1;
   }
@@ -748,6 +769,8 @@ export async function createJournalEntry({
       partnerId: line.partnerId || null,
       taxIds: line.taxIds || [],
       analyticAccountId: line.analyticAccountId || null,
+      dueDate: line.dueDate || null,
+      trancheSequence: line.trancheSequence != null ? Number(line.trancheSequence) : null,
     });
   }
 
@@ -1311,6 +1334,10 @@ function normalizeAccountingOverrideLines(rawLines = []) {
       description: String(line?.description || '').trim(),
       role: String(line?.role || '').trim(),
       partnerId: line?.partnerId || null,
+      dueDate: line?.dueDate ? new Date(line.dueDate) : null,
+      trancheSequence: line?.trancheSequence != null && line?.trancheSequence !== ''
+        ? Number(line.trancheSequence)
+        : null,
     }))
     .filter((line) => line.accountId && (line.debit > 0 || line.credit > 0));
   const debit = round2(lines.reduce((s, l) => s + l.debit, 0));
@@ -1387,7 +1414,7 @@ export async function previewSalesInvoiceJournal({ tenantId, invoice = {} }) {
     revenueCredits,
     description: `Invoice ${invoice.invoiceNumber || 'DRAFT'}`,
     partnerId: invoice.customerId || null,
-    paymentSchedule: invoice.paymentSchedule,
+    paymentSchedule: resolveInvoicePaymentScheduleForPosting(invoice, gross),
   });
 
   const accountIds = [...new Set(built.map((l) => String(l.accountId)))];
@@ -1411,6 +1438,8 @@ export async function previewSalesInvoiceJournal({ tenantId, invoice = {} }) {
       credit: l.credit,
       description: l.description || '',
       role,
+      dueDate: l.dueDate || null,
+      trancheSequence: l.trancheSequence != null ? l.trancheSequence : null,
     };
   });
   const debit = round2(lines.reduce((s, l) => s + l.debit, 0));
@@ -1539,7 +1568,6 @@ export async function previewPurchaseInvoiceJournal({ tenantId, invoice = {} }) 
     if (firstExpense) firstExpense.debit = round2(firstExpense.debit + tax);
   }
 
-  const { computePaymentSchedule } = await import('../utils/invoicePaymentTerms.js');
   const paymentSchedule = resolveInvoicePaymentScheduleForPosting(invoice, apGross);
 
   for (const apLine of buildPayableCreditLines({
@@ -1653,6 +1681,8 @@ export async function postSalesInvoiceJournal({
     credit: l.credit,
     description: l.description || `Invoice ${invoice.invoiceNumber || ''}`,
     partnerId: l.partnerId || partnerId,
+    dueDate: l.dueDate || null,
+    trancheSequence: l.trancheSequence != null ? l.trancheSequence : null,
   })), partnerId) : null;
 
   if (!lines) {

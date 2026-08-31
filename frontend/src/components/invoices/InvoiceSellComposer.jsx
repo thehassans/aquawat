@@ -2291,6 +2291,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             totals={totals}
             lineItems={totals.lines || []}
             sourcePurchaseOrderId={watch('sourcePurchaseOrderId')}
+            paymentTerms={watch('paymentTerms')}
+            issueDate={watch('issueDate')}
+            dueDate={watch('dueDate')}
             value={accountingLines}
             onChange={setAccountingLines}
             readOnly={isInvoicePosted}

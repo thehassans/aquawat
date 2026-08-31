@@ -26,6 +26,10 @@ const journalItemSchema = new mongoose.Schema({
   debit: { type: Number, default: 0, min: 0 },
   credit: { type: Number, default: 0, min: 0 },
   currency: { type: String, default: 'SAR' },
+  /** Payment-term tranche due date (AR/AP lines) */
+  dueDate: { type: Date, default: null, index: true },
+  /** Payment schedule sequence when line is a tranche split */
+  trancheSequence: { type: Number, default: null },
   /** draft | posted | cancelled (when parent move voided/reversed) */
   state: {
     type: String,
@@ -42,6 +46,7 @@ journalItemSchema.index({ tenantId: 1, moveId: 1, lineIndex: 1 });
 journalItemSchema.index({ tenantId: 1, accountId: 1, entryDate: -1 });
 journalItemSchema.index({ tenantId: 1, partnerId: 1, entryDate: -1 });
 journalItemSchema.index({ tenantId: 1, state: 1, entryDate: -1 });
+journalItemSchema.index({ tenantId: 1, dueDate: 1, state: 1 });
 
 const JournalItem = mongoose.models.JournalItem
   || mongoose.model('JournalItem', journalItemSchema);

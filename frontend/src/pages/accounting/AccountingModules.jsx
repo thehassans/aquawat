@@ -3790,16 +3790,22 @@ export function JournalItemsPanel({ language }) {
 
   const renderRow = (row, _index, key) => (
     <tr key={key} className="hover:bg-slate-50/70 dark:hover:bg-white/[0.03]">
-      <td className="whitespace-nowrap px-2 py-1.5 text-[12px]">{row.entryDate ? new Date(row.entryDate).toLocaleDateString() : '—'}</td>
-      <td className="px-2 py-1.5 font-mono text-[11px] font-semibold text-emerald-800 dark:text-emerald-300">{row.entryNumber || '—'}</td>
-      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-500">{row.journalCode || '—'}</td>
-      <td className="px-2 py-1.5 font-mono text-[11px]">{row.accountCode || '—'}</td>
-      <td className="max-w-[140px] truncate px-2 py-1.5 text-[12px]" title={row.partnerName}>{row.partnerName || '—'}</td>
-      <td className="max-w-[180px] truncate px-2 py-1.5 text-[12px]" title={row.description}>{row.description || '—'}</td>
-      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-500">{row.analyticCode || '—'}</td>
-      <td className="px-2 py-1.5 text-end text-[12px] tabular-nums"><Money value={row.debit} /></td>
-      <td className="px-2 py-1.5 text-end text-[12px] tabular-nums"><Money value={row.credit} /></td>
-      <td className="px-2 py-1.5 text-[11px] capitalize text-slate-400">{row.state || '—'}</td>
+      <td className="whitespace-nowrap px-2.5 py-1.5 text-[12px]">{row.entryDate ? new Date(row.entryDate).toLocaleDateString() : '—'}</td>
+      <td className="whitespace-nowrap px-2.5 py-1.5 font-mono text-[11px] font-semibold text-emerald-800 dark:text-emerald-300">{row.entryNumber || '—'}</td>
+      <td className="whitespace-nowrap px-2.5 py-1.5 font-mono text-[11px] text-slate-500">{row.journalCode || '—'}</td>
+      <td className="whitespace-nowrap px-2.5 py-1.5 font-mono text-[11px]">{row.accountCode || '—'}</td>
+      <td className="max-w-[160px] truncate px-2.5 py-1.5 text-[12px]" title={row.partnerName}>{row.partnerName || '—'}</td>
+      <td className="min-w-[180px] max-w-[280px] truncate px-2.5 py-1.5 text-[12px]" title={row.description}>{row.description || '—'}</td>
+      <td className="whitespace-nowrap px-2.5 py-1.5 font-mono text-[11px] text-slate-500">{row.analyticCode || '—'}</td>
+      <td className="whitespace-nowrap px-2.5 py-1.5 text-[12px] tabular-nums text-slate-600">
+        {row.dueDate ? new Date(row.dueDate).toLocaleDateString() : '—'}
+      </td>
+      <td className="whitespace-nowrap px-2.5 py-1.5 text-center text-[11px] tabular-nums text-slate-500">
+        {row.trancheSequence != null ? row.trancheSequence : '—'}
+      </td>
+      <td className="whitespace-nowrap px-2.5 py-1.5 text-end text-[12px] tabular-nums"><Money value={row.debit} /></td>
+      <td className="whitespace-nowrap px-2.5 py-1.5 text-end text-[12px] tabular-nums"><Money value={row.credit} /></td>
+      <td className="whitespace-nowrap px-2.5 py-1.5 text-[11px] capitalize text-slate-400">{row.state || '—'}</td>
     </tr>
   )
 
@@ -3809,11 +3815,11 @@ export function JournalItemsPanel({ language }) {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-sm font-semibold">{isAr ? 'بنود القيود (مسار التدقيق)' : 'Journal items (audit trail)'}</p>
-            <p className="text-[11px] text-slate-500">{isAr ? 'عرض فقط — تعديل بند واحد يكسر التوازن' : 'List-only — editing a single line would unbalance the move'}</p>
+            <p className="text-[11px] text-slate-500">{isAr ? 'يشمل تواريخ استحقاق الأقساط عند وجود جدول سداد' : 'Includes payment-term due dates when a schedule is posted'}</p>
           </div>
           <button type="button" onClick={() => refetch()} className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold dark:border-dark-600">{isAr ? 'تحديث' : 'Refresh'}</button>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <label className="text-[11px] font-medium text-slate-500">{isAr ? 'من' : 'From'}
             <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setSkip(0) }} className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-dark-600 dark:bg-dark-900" />
           </label>
@@ -3906,19 +3912,21 @@ export function JournalItemsPanel({ language }) {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
           <div className="overflow-x-auto">
-            <table className="min-w-[960px] w-full table-fixed text-sm">
+            <table className="min-w-[1180px] w-full text-sm">
               <thead className="sticky top-0 z-10 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-400 dark:bg-dark-900">
                 <tr>
-                  <th className="w-[88px] px-2 py-2 text-start">{isAr ? 'التاريخ' : 'Date'}</th>
-                  <th className="w-[100px] px-2 py-2 text-start">{isAr ? 'القيد' : 'Entry'}</th>
-                  <th className="w-[64px] px-2 py-2 text-start">{isAr ? 'دفتر' : 'Jnl'}</th>
-                  <th className="w-[80px] px-2 py-2 text-start">{isAr ? 'حساب' : 'Acct'}</th>
-                  <th className="w-[140px] px-2 py-2 text-start">{isAr ? 'شريك' : 'Partner'}</th>
-                  <th className="px-2 py-2 text-start">{isAr ? 'البيان' : 'Label'}</th>
-                  <th className="w-[72px] px-2 py-2 text-start">{isAr ? 'تحليلي' : 'Analytic'}</th>
-                  <th className="w-[96px] px-2 py-2 text-end">{isAr ? 'مدين' : 'Debit'}</th>
-                  <th className="w-[96px] px-2 py-2 text-end">{isAr ? 'دائن' : 'Credit'}</th>
-                  <th className="w-[72px] px-2 py-2 text-start">{isAr ? 'حالة' : 'State'}</th>
+                  <th className="whitespace-nowrap px-2.5 py-2.5 text-start">{isAr ? 'التاريخ' : 'Date'}</th>
+                  <th className="whitespace-nowrap px-2.5 py-2.5 text-start">{isAr ? 'القيد' : 'Entry'}</th>
+                  <th className="whitespace-nowrap px-2.5 py-2.5 text-start">{isAr ? 'دفتر' : 'Jnl'}</th>
+                  <th className="whitespace-nowrap px-2.5 py-2.5 text-start">{isAr ? 'حساب' : 'Acct'}</th>
+                  <th className="whitespace-nowrap px-2.5 py-2.5 text-start">{isAr ? 'شريك' : 'Partner'}</th>
+                  <th className="min-w-[180px] whitespace-nowrap px-2.5 py-2.5 text-start">{isAr ? 'البيان' : 'Label'}</th>
+                  <th className="whitespace-nowrap px-2.5 py-2.5 text-start">{isAr ? 'تحليلي' : 'Analytic'}</th>
+                  <th className="whitespace-nowrap px-2.5 py-2.5 text-start">{isAr ? 'الاستحقاق' : 'Due'}</th>
+                  <th className="whitespace-nowrap px-2.5 py-2.5 text-center">{isAr ? 'قسط' : 'Tr.'}</th>
+                  <th className="whitespace-nowrap px-2.5 py-2.5 text-end">{isAr ? 'مدين' : 'Debit'}</th>
+                  <th className="whitespace-nowrap px-2.5 py-2.5 text-end">{isAr ? 'دائن' : 'Credit'}</th>
+                  <th className="whitespace-nowrap px-2.5 py-2.5 text-start">{isAr ? 'حالة' : 'State'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -3931,7 +3939,7 @@ export function JournalItemsPanel({ language }) {
                   renderRow={renderRow}
                 />
                 {!items.length ? (
-                  <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400">{isAr ? 'لا بنود' : 'No journal items'}</td></tr>
+                  <tr><td colSpan={12} className="px-4 py-10 text-center text-slate-400">{isAr ? 'لا بنود' : 'No journal items'}</td></tr>
                 ) : null}
               </tbody>
             </table>

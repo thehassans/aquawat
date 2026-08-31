@@ -2061,6 +2061,13 @@ router.post('/preview-journal', checkPermission('invoicing', 'read'), async (req
       taxableAmount: Number(req.body?.taxableAmount || 0),
       sourcePurchaseOrderId: cleanObjectId(req.body?.sourcePurchaseOrderId),
       sourceGrnIds: Array.isArray(req.body?.sourceGrnIds) ? req.body.sourceGrnIds : [],
+      paymentTerms: req.body?.paymentTerms || null,
+      paymentSchedule: Array.isArray(req.body?.paymentSchedule) ? req.body.paymentSchedule : null,
+      issueDate: req.body?.issueDate || null,
+      dueDate: req.body?.dueDate || null,
+      earlyPaymentDiscount: req.body?.earlyPaymentDiscount || null,
+      customerId: cleanObjectId(req.body?.customerId),
+      supplierId: cleanObjectId(req.body?.supplierId),
     };
     const {
       previewSalesInvoiceJournal,
