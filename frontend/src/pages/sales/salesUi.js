@@ -60,7 +60,11 @@ export const metaValueClass =
   'font-semibold text-slate-900 dark:text-white text-end'
 
 export const filterBarClass =
-  'rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_8px_30px_-24px_rgba(15,23,42,0.28)] space-y-3 dark:border-dark-600 dark:bg-dark-800'
+  'flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/90 bg-white p-3 shadow-[0_8px_30px_-24px_rgba(15,23,42,0.28)] dark:border-dark-600 dark:bg-dark-800'
+
+/** Compact selects inside a single-row filter bar (avoid full-width stacking). */
+export const filterControlClass =
+  'w-auto min-w-[8.5rem] max-w-[14rem] shrink-0 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-900/10 dark:border-dark-500 dark:bg-dark-800 dark:text-white'
 
 export const listShellClass =
   'overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_30px_-24px_rgba(15,23,42,0.28)] dark:border-dark-600 dark:bg-dark-800'

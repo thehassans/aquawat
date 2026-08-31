@@ -53,13 +53,22 @@ export function resolvePaymentRibbonStep(payment = {}) {
   return 'posted'
 }
 
-export function paymentStatusLabel(status, language = 'en') {
+export function isDraftDocument(invoice = {}) {
+  const status = String(invoice?.status || '').toLowerCase()
+  return status === 'draft' || status === 'pending'
+}
+
+export function paymentStatusLabel(status, language = 'en', invoice = null) {
+  if (invoice && isDraftDocument(invoice)) {
+    return language === 'ar' ? 'غير مرحّلة' : 'Unposted'
+  }
   const key = String(status || 'pending').toLowerCase()
   const map = {
     paid: { en: 'Paid', ar: 'مدفوعة' },
     partial: { en: 'Partially Paid', ar: 'مدفوعة جزئياً' },
     partially_paid: { en: 'Partially Paid', ar: 'مدفوعة جزئياً' },
     pending: { en: 'Unpaid', ar: 'غير مدفوعة' },
+    unposted: { en: 'Unposted', ar: 'غير مرحّلة' },
     overdue: { en: 'Overdue', ar: 'متأخرة' },
     cancelled: { en: 'Cancelled', ar: 'ملغاة' },
     reversed: { en: 'Reversed', ar: 'معكوس' },
@@ -86,6 +95,7 @@ export function documentStatusLabel(status, language = 'en') {
 }
 
 export function invoiceRemainingBalance(invoice = {}) {
+  if (isDraftDocument(invoice)) return 0
   return Math.max(0, Number(invoice?.grandTotal || 0) - Number(invoice?.paidAmount || 0))
 }
 

@@ -38,7 +38,9 @@ import {
   backBtnClass,
   fieldControlClass,
   fieldLabelClass,
+  ghostActionClass,
   pageTitleClass,
+  primaryActionClass,
   sectionCardClass,
   sectionEyebrowClass,
   sectionTitleClass,
@@ -48,7 +50,13 @@ import { canViewSalesMargin } from '../../lib/salesPermissions'
 import { useSalesSettings } from '../../context/SalesSettingsContext'
 import InvoiceJournalItemsPanel, { InvoiceDocumentReferencesBar } from './InvoiceJournalItemsPanel'
 import AccountingDocumentShell from '../accounting/AccountingDocumentShell'
-import { CREDIT_NOTE_STATUS_STEPS, INVOICE_STATUS_STEPS, resolveInvoiceRibbonStep } from '../../lib/accountingDocumentStatus'
+import {
+  CREDIT_NOTE_STATUS_STEPS,
+  INVOICE_STATUS_STEPS,
+  canRegisterPaymentOnInvoice,
+  invoiceRemainingBalance,
+  resolveInvoiceRibbonStep,
+} from '../../lib/accountingDocumentStatus'
 import { INCOTERMS } from '../../pages/sales/salesConfig.menu'
 
 const getEmptyLine = (tenant) => {
@@ -1532,8 +1540,68 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           ]}
           activeTab={formTab}
           onTabChange={setFormTab}
+          actionBar={(
+            <>
+              {!isInvoicePosted ? (
+                <button
+                  type="button"
+                  className={primaryActionClass}
+                  onClick={() => {
+                    const form = document.getElementById('invoice-sell-form')
+                    form?.requestSubmit()
+                  }}
+                  disabled={saveMutation.isPending}
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  {language === 'ar' ? 'تأكيد / ترحيل' : 'Confirm / Post'}
+                </button>
+              ) : null}
+              {isInvoicePosted && canRegisterPaymentOnInvoice(initialInvoice) ? (
+                <button
+                  type="button"
+                  className={ghostActionClass}
+                  onClick={() => navigate(`/app/dashboard/accounting/invoices/${invoiceId}?pay=1`)}
+                >
+                  {language === 'ar' ? 'تسجيل دفعة' : 'Register payment'}
+                </button>
+              ) : null}
+              {isInvoicePosted && !isCreditNoteDoc ? (
+                <button
+                  type="button"
+                  className={ghostActionClass}
+                  onClick={() => navigate(`/app/dashboard/accounting/invoices/new/sell?invoiceType=381&originalInvoiceId=${invoiceId}`)}
+                >
+                  {language === 'ar' ? 'إضافة إشعار دائن' : 'Add credit note'}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className={ghostActionClass}
+                onClick={() => window.print()}
+              >
+                {invoiceType === 'B2C'
+                  ? (language === 'ar' ? 'طباعة / QR' : 'Print / Generate QR')
+                  : (language === 'ar' ? 'إرسال وطباعة' : 'Send & print')}
+              </button>
+              {isInvoicePosted ? (
+                <button
+                  type="button"
+                  className={ghostActionClass}
+                  onClick={() => toast(language === 'ar' ? 'أعد فتح المسودة من قائمة الفاتورة' : 'Use invoice actions to reset or cancel')}
+                >
+                  {language === 'ar' ? 'إعادة لمسودة / إلغاء' : 'Reset / Cancel'}
+                </button>
+              ) : null}
+              {isInvoicePosted && invoiceRemainingBalance(initialInvoice) > 0 ? (
+                <span className="ms-auto text-xs font-medium text-slate-500">
+                  {language === 'ar' ? 'المتبقي' : 'Due'}: <Money value={invoiceRemainingBalance(initialInvoice)} />
+                </span>
+              ) : null}
+            </>
+          )}
         />
         <form
+          id="invoice-sell-form"
           onSubmit={(e) => {
             e.preventDefault()
             if (isInvoicePosted) {
@@ -1840,42 +1908,39 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 </button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="w-full overflow-x-auto rounded-lg border border-slate-100 dark:border-white/5">
                 <div
-                  className={`hidden gap-1 border-y border-slate-100 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5 lg:grid ${
-                    isTravelContext ? 'lg:grid-cols-12' : 'lg:grid-cols-[repeat(14,minmax(0,1fr))]'
+                  className={`hidden min-w-[980px] gap-2 border-b border-slate-100 px-4 py-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5 lg:grid ${
+                    isTravelContext
+                      ? 'lg:grid-cols-12'
+                      : 'lg:grid-cols-[minmax(260px,2fr)_minmax(180px,1fr)_minmax(140px,0.8fr)_5rem_5rem_7rem_6rem_7rem_auto]'
                   }`}
                   dir="ltr"
                 >
-                  <div className={showArabicFields ? (isTravelContext ? 'lg:col-span-4' : 'col-span-2') : (isTravelContext ? 'lg:col-span-5' : 'col-span-2')}>
-                    {language === 'ar' ? 'المنتج' : 'Product'}
-                  </div>
-                  {showArabicFields ? <div className={isTravelContext ? 'lg:col-span-2' : 'col-span-2'}>عربي</div> : null}
+                  <div>{language === 'ar' ? 'المنتج / الوصف' : 'Product / description'}</div>
                   {!isTravelContext ? (
                     <>
-                      <div className="col-span-2">{language === 'ar' ? 'الحساب' : 'Account'}</div>
-                      <div className="col-span-2">{language === 'ar' ? 'تحليلي' : 'Analytic'}</div>
+                      <div>{language === 'ar' ? 'الحساب' : 'Account'}</div>
+                      <div>{language === 'ar' ? 'تحليلي' : 'Analytic'}</div>
+                      <div className="text-center">{language === 'ar' ? 'وحدة' : 'UoM'}</div>
+                      <div className="text-end">{t('quantity')}</div>
+                      <div className="text-end">{t('unitPrice')}</div>
+                      <div className="text-center">{t('tax')} %</div>
                     </>
-                  ) : null}
-                  {!isTravelContext ? <div className="col-span-1">{language === 'ar' ? 'وحدة' : 'UOM'}</div> : null}
-                  {!isTravelContext ? <div className="col-span-1">{t('quantity')}</div> : null}
-                  <div className={isTravelContext ? 'lg:col-span-2' : 'col-span-1'}>
-                    {isTravelContext ? (language === 'ar' ? 'سعر التذكرة' : 'Price') : t('unitPrice')}
-                  </div>
-                  {isTravelContext ? (
+                  ) : (
                     <>
+                      <div className="lg:col-span-2">{isTravelContext ? (language === 'ar' ? 'سعر التذكرة' : 'Price') : t('unitPrice')}</div>
                       <div className="lg:col-span-1">{language === 'ar' ? 'وكالة' : 'Agency'}</div>
                       <div className="lg:col-span-1">{language === 'ar' ? 'عميل' : 'Customer'}</div>
                     </>
-                  ) : (
-                    <div className="col-span-1">{t('tax')} %</div>
                   )}
-                  <div className="text-end col-span-2">{t('total')}</div>
+                  <div className="text-end font-semibold">{t('total')}</div>
+                  {!isTravelContext ? <div className="text-center">{language === 'ar' ? 'إجراءات' : 'Actions'}</div> : null}
                 </div>
 
-                <div className="divide-y divide-slate-100 dark:divide-white/5">
+                <div className="min-w-[980px] divide-y divide-slate-100 dark:divide-white/5">
                   {fields.map((field, index) => (
-                <div key={field.fieldId || field.id || `line-${index}`} className="group px-3 py-2 transition hover:bg-slate-50/70 dark:hover:bg-white/[0.02] sm:px-4">
+                <div key={field.fieldId || field.id || `line-${index}`} className="group px-3 py-2.5 transition hover:bg-slate-50/70 dark:hover:bg-white/[0.02] sm:px-4">
                   <LineItemTranslator
                     index={index}
                     control={control}
@@ -1888,158 +1953,142 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <input type="hidden" {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} />
                   <input type="hidden" {...register(`lineItems.${index}.isTravelMargin`)} />
                   <input type="hidden" {...register(`lineItems.${index}.productType`)} />
-                  <div className={`grid grid-cols-2 items-center gap-1.5 ${isTravelContext ? 'lg:grid-cols-12' : 'lg:grid-cols-[repeat(14,minmax(0,1fr))]'}`} dir="ltr">
-                    <div className={`col-span-2 ${showArabicFields ? (isTravelContext ? 'lg:col-span-4' : 'lg:col-span-2') : (isTravelContext ? 'lg:col-span-5' : 'lg:col-span-2')}`}>
+                  <div
+                    className={`grid grid-cols-2 items-start gap-2 ${
+                      isTravelContext
+                        ? 'lg:grid-cols-12'
+                        : 'lg:grid-cols-[minmax(260px,2fr)_minmax(180px,1fr)_minmax(140px,0.8fr)_5rem_5rem_7rem_6rem_7rem_auto]'
+                    }`}
+                    dir="ltr"
+                  >
+                    <div className="col-span-2 min-w-[260px] lg:col-span-1">
                       {isTradingContext ? (
-                        <div className="flex min-h-[36px] items-center gap-1 rounded-lg bg-slate-50/80 pe-0.5 ps-1 dark:bg-white/[0.03]">
-                          <ProductTypeToggle
-                            value={watch(`lineItems.${index}.productType`)}
-                            onChange={(next) => {
-                              const opts = { shouldDirty: true, shouldTouch: true }
-                              setValue(`lineItems.${index}.productType`, next, opts)
+                        <div className="space-y-1">
+                          <CreatableSelect
+                            inputId={`product-select-${index}`}
+                            name={`react-select-product-${index}`}
+                            options={productList.map((p) => ({
+                              value: p._id,
+                              label: productPickerLabel(p, language, { includeType: true }),
+                            }))}
+                            value={(() => {
                               const pid = watch(`lineItems.${index}.productId`)
-                              if (!pid) return
-                              const selected = productList.find((p) => p._id === pid)
-                              if (selected && normalizeProductType(selected.productType) !== next) {
-                                setValue(`lineItems.${index}.productId`, '', opts)
-                                setValue(`lineItems.${index}.variantId`, '', opts)
-                                setValue(`lineItems.${index}.productName`, '', opts)
-                                setValue(`lineItems.${index}.productNameAr`, '', opts)
-                                setValue(`lineItems.${index}.unitPrice`, 0, opts)
+                              const product = productList.find((p) => p._id === pid)
+                              if (product) {
+                                return {
+                                  value: product._id,
+                                  label: productDisplayName(product, language),
+                                }
+                              }
+                              const typed = watch(`lineItems.${index}.productName`)
+                              if (typed && !pid) {
+                                return { value: typed, label: typed, __isNew__: true }
+                              }
+                              return null
+                            })()}
+                            onChange={(selected) => {
+                              if (selected) {
+                                if (selected.__isNew__) {
+                                  setValue(`lineItems.${index}.productId`, '', { shouldDirty: true })
+                                  setValue(`lineItems.${index}.productName`, selected.value, { shouldDirty: true })
+                                  setValue(`lineItems.${index}.productNameAr`, '', { shouldDirty: true })
+                                } else {
+                                  onSelectProduct(index, selected.value)
+                                }
+                              } else {
+                                setValue(`lineItems.${index}.productId`, '', { shouldDirty: true })
+                                setValue(`lineItems.${index}.productName`, '', { shouldDirty: true })
+                                setValue(`lineItems.${index}.productNameAr`, '', { shouldDirty: true })
+                                setValue(`lineItems.${index}.variantId`, '', { shouldDirty: true })
+                                setValue(`lineItems.${index}.unitPrice`, 0, { shouldDirty: true })
                               }
                             }}
-                            language={language}
-                            bare
+                            formatCreateLabel={(inputValue) => language === 'ar' ? `إضافة "${inputValue}"` : `Add "${inputValue}"`}
+                            placeholder={language === 'ar' ? 'منتج أو خدمة…' : 'Product or service…'}
+                            isClearable
+                            isSearchable
+                            menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                            menuPosition="fixed"
+                            menuShouldScrollIntoView={false}
+                            styles={{
+                              ...lineSelectStyles,
+                              container: (base) => ({ ...base, width: '100%', minWidth: 0 }),
+                              control: (base, state) => ({
+                                ...lineSelectStyles.control(base, state),
+                                minHeight: 36,
+                                minWidth: 0,
+                              }),
+                              menu: (base) => ({
+                                ...lineSelectStyles.menu(base),
+                                minWidth: 320,
+                                maxWidth: 'min(92vw, 480px)',
+                              }),
+                            }}
                           />
-                          <div className="h-4 w-px shrink-0 bg-slate-200/80 dark:bg-white/10" aria-hidden />
-                          <div className="min-w-0 flex-1 overflow-hidden">
-                            <CreatableSelect
-                              inputId={`product-select-${index}`}
-                              name={`react-select-product-${index}`}
-                              options={productList
-                                .filter((p) => normalizeProductType(p.productType) === normalizeProductType(watch(`lineItems.${index}.productType`)))
-                                .map((p) => ({
-                                  value: p._id,
-                                  label: productPickerLabel(p, language, { includeType: false }),
-                                }))}
-                              value={(() => {
-                                const pid = watch(`lineItems.${index}.productId`)
-                                const product = productList.find((p) => p._id === pid)
-                                if (product) {
-                                  return {
-                                    value: product._id,
-                                    label: productDisplayName(product, language),
-                                  }
-                                }
-                                const typed = watch(`lineItems.${index}.productName`)
-                                if (typed && !pid) {
-                                  return { value: typed, label: typed, __isNew__: true }
-                                }
-                                return null
-                              })()}
-                              onChange={(selected) => {
-                                if (selected) {
-                                  if (selected.__isNew__) {
-                                    setValue(`lineItems.${index}.productId`, '', { shouldDirty: true })
-                                    setValue(`lineItems.${index}.productName`, selected.value, { shouldDirty: true })
-                                    setValue(`lineItems.${index}.productNameAr`, '', { shouldDirty: true })
-                                  } else {
-                                    onSelectProduct(index, selected.value)
-                                  }
-                                } else {
-                                  setValue(`lineItems.${index}.productId`, '', { shouldDirty: true })
-                                  setValue(`lineItems.${index}.productName`, '', { shouldDirty: true })
-                                  setValue(`lineItems.${index}.productNameAr`, '', { shouldDirty: true })
-                                  setValue(`lineItems.${index}.variantId`, '', { shouldDirty: true })
-                                  setValue(`lineItems.${index}.unitPrice`, 0, { shouldDirty: true })
-                                }
-                              }}
-                              formatCreateLabel={(inputValue) => language === 'ar' ? `إضافة "${inputValue}"` : `Add "${inputValue}"`}
-                              placeholder={
-                                normalizeProductType(watch(`lineItems.${index}.productType`)) === 'service'
-                                  ? (language === 'ar' ? 'خدمة…' : 'Service…')
-                                  : (language === 'ar' ? 'منتج…' : 'Product…')
-                              }
-                              isClearable
-                              isSearchable
-                              menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
-                              menuPosition="fixed"
-                              menuShouldScrollIntoView={false}
-                              styles={{
-                                ...lineSelectStyles,
-                                container: (base) => ({ ...base, width: '100%', minWidth: 0 }),
-                                control: (base, state) => ({
-                                  ...lineSelectStyles.control(base, state),
-                                  minHeight: 32,
-                                  minWidth: 0,
-                                }),
-                                menu: (base) => ({
-                                  ...lineSelectStyles.menu(base),
-                                  minWidth: 320,
-                                  maxWidth: 'min(92vw, 480px)',
-                                }),
-                                option: (base, state) => ({
-                                  ...base,
-                                  fontSize: '0.8125rem',
-                                  backgroundColor: state.isFocused ? '#f1f5f9' : '#fff',
-                                  color: '#0f172a',
-                                  cursor: 'pointer',
-                                }),
-                              }}
-                            />
-                          </div>
                           <input type="hidden" {...register(`lineItems.${index}.productName`)} />
                           <input type="hidden" {...register(`lineItems.${index}.productId`)} />
                           <input type="hidden" {...register(`lineItems.${index}.variantId`)} />
+                          {(() => {
+                            const pid = watch(`lineItems.${index}.productId`)
+                            const product = productList.find((p) => p._id === pid)
+                            const sku = product?.sku || product?.productId || ''
+                            const nameAr = watch(`lineItems.${index}.productNameAr`) || product?.nameAr || ''
+                            if (!sku && !nameAr) return null
+                            return (
+                              <div className="px-0.5">
+                                {sku ? <p className="text-[11px] font-medium text-slate-500">[{sku}]</p> : null}
+                                {nameAr ? <p className="text-xs text-slate-400" dir="auto">{nameAr}</p> : null}
+                              </div>
+                            )
+                          })()}
+                          {showArabicFields ? (
+                            <input
+                              {...register(`lineItems.${index}.productNameAr`)}
+                              className={`${lineGhostInputClass} text-xs`}
+                              dir="auto"
+                              placeholder="الاسم بالعربي"
+                              aria-label="Arabic name"
+                            />
+                          ) : (
+                            <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
+                          )}
+                          {watch(`lineItems.${index}.productId`) ? (
+                            <VariantLineSelect
+                              productId={watch(`lineItems.${index}.productId`)}
+                              value={watch(`lineItems.${index}.variantId`)}
+                              language={language}
+                              required
+                              onChange={(variantId, variant) => {
+                                setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })
+                                if (variant?.name) {
+                                  setValue(`lineItems.${index}.productName`, variant.name, { shouldDirty: true })
+                                }
+                                if (variant?.price != null && Number(variant.price) > 0) {
+                                  setValue(`lineItems.${index}.unitPrice`, Number(variant.price), { shouldDirty: true })
+                                }
+                              }}
+                            />
+                          ) : null}
                         </div>
                       ) : (
-                        <div className="flex min-h-[36px] items-center gap-1 rounded-lg bg-slate-50/80 pe-0.5 ps-1 dark:bg-white/[0.03]">
-                          <ProductTypeToggle
-                            value={watch(`lineItems.${index}.productType`)}
-                            onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
-                            language={language}
-                            bare
-                          />
-                          <div className="h-4 w-px shrink-0 bg-slate-200/80 dark:bg-white/10" aria-hidden />
-                          <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`)} className={`${lineGhostInputClass} flex-1`} placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
+                        <div className="space-y-1">
+                          <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`)} className={lineGhostInputClass} placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
+                          {showArabicFields ? (
+                            <input
+                              {...register(`lineItems.${index}.productNameAr`)}
+                              className={`${lineGhostInputClass} text-xs`}
+                              dir="auto"
+                              placeholder="اسم البند"
+                            />
+                          ) : (
+                            <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
+                          )}
                         </div>
                       )}
-                      {isTradingContext && watch(`lineItems.${index}.productId`) ? (
-                        <div className="mt-1 ps-1">
-                          <VariantLineSelect
-                            productId={watch(`lineItems.${index}.productId`)}
-                            value={watch(`lineItems.${index}.variantId`)}
-                            language={language}
-                            required
-                            onChange={(variantId, variant) => {
-                              setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })
-                              if (variant?.name) {
-                                setValue(`lineItems.${index}.productName`, variant.name, { shouldDirty: true })
-                              }
-                              if (variant?.price != null && Number(variant.price) > 0) {
-                                setValue(`lineItems.${index}.unitPrice`, Number(variant.price), { shouldDirty: true })
-                              }
-                            }}
-                          />
-                        </div>
-                      ) : null}
                     </div>
-                    {showArabicFields ? (
-                      <div className="col-span-2 lg:col-span-2">
-                        <input
-                          {...register(`lineItems.${index}.productNameAr`)}
-                          className={lineGhostInputClass}
-                          dir="auto"
-                          placeholder="اسم البند"
-                          aria-label="Arabic name"
-                        />
-                      </div>
-                    ) : (
-                      <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
-                    )}
                     {!isTravelContext ? (
                       <>
-                        <div className="col-span-2 lg:col-span-2">
+                        <div className="col-span-2 min-w-[180px] lg:col-auto">
                           <select
                             {...register(`lineItems.${index}.incomeAccountId`)}
                             disabled={isInvoicePosted}
@@ -2053,7 +2102,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                             ))}
                           </select>
                         </div>
-                        <div className="col-span-2 lg:col-span-2">
+                        <div className="col-span-2 min-w-[140px] lg:col-auto">
                           <select
                             {...register(`lineItems.${index}.analyticAccountId`)}
                             disabled={isInvoicePosted}

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   BookOpen, Plus, RefreshCw, Scale, TrendingUp, Landmark,
@@ -82,7 +82,37 @@ import CustomerPaymentsPanel from './documents/CustomerPaymentsPanel'
 import VendorBillsPanel from './documents/VendorBillsPanel'
 import VendorRefundsPanel from './documents/VendorRefundsPanel'
 import VendorPaymentsPanel from './documents/VendorPaymentsPanel'
+import AccountingCustomersPanel from './documents/AccountingCustomersPanel'
+import AccountingProductsPanel from './documents/AccountingProductsPanel'
 import { ACCOUNTING_COMING_SOON_SECTIONS } from './accounting.menu'
+
+/** Tabs that own their own primary CTA — never show "+ New journal" here. */
+const HIDE_JOURNAL_CTA_TABS = new Set([
+  'credit-notes',
+  'customer-payments',
+  'follow-up-reports',
+  'aged-ar',
+  'aged-ap',
+  'vendor-bills',
+  'vendor-refunds',
+  'vendor-payments',
+  'customers',
+  'products',
+  'customer-summary',
+  'customer-account',
+  'supplier-summary',
+  'supplier-account',
+])
+
+const JOURNAL_ENTRY_TABS = new Set([
+  'overview',
+  'journals-board',
+  'journal-items',
+  'journal-books',
+  'daily-restriction',
+  'general-voucher',
+  'ledger-search',
+])
 
 const TABS = [
   { id: 'overview', labelEn: 'Overview', labelAr: 'نظرة عامة', icon: Landmark },
@@ -109,6 +139,8 @@ const TABS = [
   { id: 'aged-ar', labelEn: 'Aged receivables', labelAr: 'أعمار المدينين', icon: Users },
   { id: 'credit-notes', labelEn: 'Credit Notes', labelAr: 'إشعارات الدائن', icon: FileText },
   { id: 'customer-payments', labelEn: 'Customer Payments', labelAr: 'مدفوعات العملاء', icon: Wallet },
+  { id: 'customers', labelEn: 'Customers', labelAr: 'العملاء', icon: Users },
+  { id: 'products', labelEn: 'Products', labelAr: 'المنتجات', icon: FileText },
   { id: 'vendor-bills', labelEn: 'Vendor Bills', labelAr: 'فواتير الموردين', icon: FileText },
   { id: 'vendor-refunds', labelEn: 'Vendor Refunds', labelAr: 'مرتجعات الموردين', icon: FileText },
   { id: 'vendor-payments', labelEn: 'Vendor Payments', labelAr: 'مدفوعات الموردين', icon: Wallet },
@@ -202,6 +234,7 @@ const fontDisplay = { fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif" }
 export default function Accounting() {
   const { language } = useSelector((s) => s.ui)
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const { section } = useParams()
   const tab = TABS.some((item) => item.id === section) ? section : 'overview'
   const activeTab = TABS.find((item) => item.id === tab) || TABS[0]
@@ -214,6 +247,7 @@ export default function Accounting() {
     lines: [emptyLine(), emptyLine()],
   })
   const isAr = language === 'ar'
+  const showJournalCta = JOURNAL_ENTRY_TABS.has(tab) && !HIDE_JOURNAL_CTA_TABS.has(tab)
 
   const { data: dashboard, isLoading: dashLoading, refetch: refetchDash } = useQuery({
     queryKey: ['accounting-dashboard'],
@@ -472,14 +506,38 @@ export default function Accounting() {
               title={isAr ? activeTab.labelAr : activeTab.labelEn}
             />
           ) : null}
-          <button
-            type="button"
-            onClick={() => setShowJournalForm(true)}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-700"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {isAr ? 'قيد جديد' : 'New journal'}
-          </button>
+          {tab === 'credit-notes' ? (
+            <button
+              type="button"
+              onClick={() => navigate('/app/dashboard/accounting/invoices/new/sell?invoiceType=381')}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-700"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {isAr ? 'إشعار دائن جديد' : 'New credit note'}
+            </button>
+          ) : null}
+          {tab === 'follow-up-reports' ? (
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById('follow-up-remind-actions')
+                el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800"
+            >
+              {isAr ? 'إرسال تذكيرات المتأخرين' : 'Send overdue reminders'}
+            </button>
+          ) : null}
+          {showJournalCta ? (
+            <button
+              type="button"
+              onClick={() => setShowJournalForm(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-700"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {isAr ? 'قيد جديد' : 'New journal'}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -830,6 +888,18 @@ export default function Accounting() {
           {tab === 'customer-payments' && (
             <motion.div key="customer-payments" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
               <CustomerPaymentsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'customers' && (
+            <motion.div key="customers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <AccountingCustomersPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'products' && (
+            <motion.div key="products" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <AccountingProductsPanel language={language} />
             </motion.div>
           )}
 

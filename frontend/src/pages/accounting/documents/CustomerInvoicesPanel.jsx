@@ -16,6 +16,7 @@ import {
   canRegisterPaymentOnDocument,
   documentStatusLabel,
   invoiceRemainingBalance,
+  isDraftDocument,
   paymentStatusLabel,
 } from '../../../lib/accountingDocumentStatus'
 import {
@@ -23,6 +24,7 @@ import {
   emptyStateClass,
   fieldControlClass,
   filterBarClass,
+  filterControlClass,
   listShellClass,
   rowActionBtnClass,
   rowActionsWrapClass,
@@ -41,8 +43,11 @@ const trimName = (party) => {
 }
 
 const computeNextActivity = (row, isAr) => {
+  if (isDraftDocument(row)) {
+    return { label: isAr ? 'بانتظار الترحيل' : 'Awaiting post', tone: 'muted' }
+  }
   if (String(row.paymentStatus || '').toLowerCase() === 'paid') {
-    return { label: isAr ? 'مدفوعة' : 'Paid', tone: 'muted' }
+    return { label: isAr ? 'لا نشاط' : 'No follow-up', tone: 'muted' }
   }
   const due = row.dueDate ? new Date(row.dueDate) : null
   if (!due || Number.isNaN(due.getTime())) {
@@ -55,13 +60,13 @@ const computeNextActivity = (row, isAr) => {
   if (diffDays < 0) {
     const overdue = Math.abs(diffDays)
     return {
-      label: isAr ? `متأخر ${overdue} يوم` : `${overdue}d overdue`,
+      label: isAr ? `متابعة — متأخر ${overdue} يوم` : `Follow-up — ${overdue}d overdue`,
       tone: 'danger',
     }
   }
-  if (diffDays === 0) return { label: isAr ? 'مستحق اليوم' : 'Due today', tone: 'warn' }
-  if (diffDays <= 7) return { label: isAr ? `خلال ${diffDays} يوم` : `In ${diffDays}d`, tone: 'warn' }
-  return { label: isAr ? `خلال ${diffDays} يوم` : `In ${diffDays}d`, tone: 'muted' }
+  if (diffDays === 0) return { label: isAr ? 'متابعة — مستحق اليوم' : 'Follow-up — due today', tone: 'warn' }
+  if (diffDays <= 7) return { label: isAr ? `تذكير خلال ${diffDays} يوم` : `Remind in ${diffDays}d`, tone: 'warn' }
+  return { label: isAr ? `جدولة خلال ${diffDays} يوم` : `Schedule in ${diffDays}d`, tone: 'muted' }
 }
 
 const nextActivityClass = (tone) => {
@@ -81,6 +86,7 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [paymentFilter, setPaymentFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
   const customerIdFilter = String(searchParams.get('customerId') || '').trim()
   const productIdFilter = String(searchParams.get('productId') || '').trim()
   const [selectedIds, setSelectedIds] = useState(() => new Set())
@@ -89,7 +95,7 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
   const [multiPayOpen, setMultiPayOpen] = useState(false)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['customer-invoices', search, statusFilter, paymentFilter, customerIdFilter, productIdFilter],
+    queryKey: ['customer-invoices', search, statusFilter, paymentFilter, typeFilter, customerIdFilter, productIdFilter],
     queryFn: () => api.get('/invoices', {
       params: {
         limit: 100,
@@ -98,6 +104,7 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
         search: search || undefined,
         status: statusFilter || undefined,
         paymentStatus: paymentFilter || undefined,
+        transactionType: typeFilter || undefined,
         customerId: customerIdFilter || undefined,
         productId: productIdFilter || undefined,
       },
@@ -218,34 +225,31 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
             getRows={() => Promise.resolve(selectedRows.length ? selectedRows : rows)}
             label={isAr ? 'تصدير' : 'Export'}
           />
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={() => navigate('/app/dashboard/accounting/invoices/new/sell')}
-          >
-            <Plus className="h-4 w-4" />
-            {isAr ? 'فاتورة جديدة' : 'New invoice'}
-          </button>
         </div>
       </div>
 
       <div className={filterBarClass}>
-        <div className="relative min-w-[200px] flex-1">
+        <div className="relative min-w-[180px] flex-1">
           <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={isAr ? 'بحث…' : 'Search…'}
-            className={`${fieldControlClass} ps-10`}
+            className={`${fieldControlClass} !py-2 ps-10`}
           />
         </div>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={fieldControlClass}>
+        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={filterControlClass}>
+          <option value="">{isAr ? 'كل الأنواع' : 'All types'}</option>
+          <option value="B2B">B2B</option>
+          <option value="B2C">B2C</option>
+        </select>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={filterControlClass}>
           <option value="">{isAr ? 'كل الحالات' : 'All statuses'}</option>
           <option value="draft">{isAr ? 'مسودة' : 'Draft'}</option>
           <option value="issued">{isAr ? 'مرحّلة' : 'Posted'}</option>
           <option value="cancelled">{isAr ? 'ملغاة' : 'Cancelled'}</option>
         </select>
-        <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} className={fieldControlClass}>
+        <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} className={filterControlClass}>
           <option value="">{isAr ? 'كل المدفوعات' : 'All payments'}</option>
           <option value="pending">{isAr ? 'غير مدفوعة' : 'Unpaid'}</option>
           <option value="partial">{isAr ? 'جزئي' : 'Partial'}</option>
@@ -265,6 +269,14 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
             {isAr ? 'مسح الفلتر' : 'Clear filter'}
           </button>
         ) : null}
+        <button
+          type="button"
+          className="btn btn-primary btn-sm ms-auto"
+          onClick={() => navigate('/app/dashboard/accounting/invoices/new/sell')}
+        >
+          <Plus className="h-4 w-4" />
+          {isAr ? 'فاتورة جديدة' : 'New invoice'}
+        </button>
       </div>
 
       <AccountingDocumentBatchBar
@@ -290,7 +302,7 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
                 <p className="text-sm text-slate-500">{trimName(row.buyer)}</p>
                 <div className="flex items-center justify-between text-sm">
                   <Money value={row.grandTotal} />
-                  <span className={softChipClass}>{paymentStatusLabel(row.paymentStatus, language)}</span>
+                  <span className={softChipClass}>{paymentStatusLabel(row.paymentStatus, language, row)}</span>
                 </div>
               </div>
             )}
@@ -355,10 +367,14 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
                       <Money value={row.grandTotal} />
                     </td>
                     <td className={salesTdClass}>
-                      <Money value={invoiceRemainingBalance(row)} />
+                      {isDraftDocument(row) ? (
+                        <span className="text-slate-400">—</span>
+                      ) : (
+                        <Money value={invoiceRemainingBalance(row)} />
+                      )}
                     </td>
                     <td className={salesTdClass}>
-                      <span className={softChipClass}>{paymentStatusLabel(row.paymentStatus, language)}</span>
+                      <span className={softChipClass}>{paymentStatusLabel(row.paymentStatus, language, row)}</span>
                     </td>
                     <td className={salesTdClass}>
                       {(() => {

@@ -94,9 +94,19 @@ export function assertB2bInvoiceReady(partnerOrBuyer = {}) {
   );
   if (!isCompany) return { ok: true, isCompany: false };
 
+  const name = String(partnerOrBuyer.name || partnerOrBuyer.nameEn || partnerOrBuyer.displayName || '').trim();
+  const addr = partnerOrBuyer.address || {};
+  const addressLine = typeof partnerOrBuyer.address === 'string'
+    ? partnerOrBuyer.address.trim()
+    : [
+      addr.street, addr.street2, addr.buildingNumber, addr.district,
+      addr.city, addr.state, addr.postalCode, addr.country,
+    ].filter(Boolean).join(' ').trim();
   const vat = String(partnerOrBuyer.vatNumber || '').trim();
   const cr = String(partnerOrBuyer.crNumber || partnerOrBuyer.commercialRegistration?.crNumber || '').trim();
   const missing = [];
+  if (!name) missing.push('Customer name');
+  if (!addressLine) missing.push('Address');
   if (!vat) missing.push('VAT number');
   if (!cr) missing.push('CR number');
   if (missing.length) {
@@ -104,7 +114,7 @@ export function assertB2bInvoiceReady(partnerOrBuyer = {}) {
       ok: false,
       isCompany: true,
       code: 'B2B_IDENTITY_REQUIRED',
-      error: `B2B customer requires ${missing.join(' and ')} before invoicing`,
+      error: `B2B tax invoice requires ${missing.join(', ')} before ZATCA clearance`,
       missing,
     };
   }

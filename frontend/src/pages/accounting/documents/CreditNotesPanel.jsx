@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { Plus, Search, Eye } from 'lucide-react'
@@ -11,6 +11,7 @@ import {
   emptyStateClass,
   fieldControlClass,
   filterBarClass,
+  filterControlClass,
   listShellClass,
   rowActionBtnClass,
   rowActionsWrapClass,
@@ -63,10 +64,10 @@ export default function CreditNotesPanel({ language = 'en' }) {
         <button
           type="button"
           className="btn btn-primary btn-sm"
-          onClick={() => navigate('/app/dashboard/accounting/invoices/new/sell')}
+          onClick={() => navigate('/app/dashboard/accounting/invoices/new/sell?invoiceType=381')}
         >
           <Plus className="h-4 w-4" />
-          {isAr ? 'إشعار جديد' : 'New credit note'}
+          {isAr ? 'إشعار دائن جديد' : 'New credit note'}
         </button>
       </div>
 
@@ -77,13 +78,13 @@ export default function CreditNotesPanel({ language = 'en' }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={isAr ? 'بحث…' : 'Search…'}
-            className={`${fieldControlClass} ps-10`}
+            className={`${fieldControlClass} !py-2 ps-10`}
           />
         </div>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className={fieldControlClass}
+          className={filterControlClass}
         >
           <option value="">{isAr ? 'كل الحالات' : 'All statuses'}</option>
           <option value="draft">{isAr ? 'مسودة' : 'Draft'}</option>
@@ -112,57 +113,68 @@ export default function CreditNotesPanel({ language = 'en' }) {
               </div>
             )}
           >
-            <table className={salesTableClass}>
-              <thead>
-                <tr>
-                  <th className={salesThClass}>{isAr ? 'رقم الإشعار' : 'Number'}</th>
-                  <th className={salesThClass}>{isAr ? 'العميل' : 'Customer'}</th>
-                  <th className={salesThClass}>{isAr ? 'التاريخ' : 'Date'}</th>
-                  <th className={salesThClass}>{isAr ? 'الفاتورة الأصلية' : 'Reversed document'}</th>
-                  <th className={salesThClass}>{isAr ? 'الإجمالي' : 'Total'}</th>
-                  <th className={salesThClass}>{isAr ? 'الحالة' : 'Status'}</th>
-                  <th className={salesThClass} />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row._id} className={salesTrClass}>
-                    <td className={salesTdClass}>
-                      <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={docLinkClass}>
-                        {row.invoiceNumber}
-                      </Link>
-                    </td>
-                    <td className={salesTdClass}>{trimName(row.buyer)}</td>
-                    <td className={salesTdClass}>
-                      {row.issueDate ? new Date(row.issueDate).toLocaleDateString(isAr ? 'ar-SA' : 'en-GB') : '—'}
-                    </td>
-                    <td className={salesTdClass}>
-                      {row.originalInvoiceId ? (
-                        <Link
-                          to={`/app/dashboard/accounting/invoices/${row.originalInvoiceId?._id || row.originalInvoiceId}`}
-                          className={docLinkClass}
-                        >
-                          {isAr ? 'عرض الفاتورة' : 'View invoice'}
-                        </Link>
-                      ) : '—'}
-                    </td>
-                    <td className={`${salesTdClass} tabular-nums`}>
-                      <Money value={Math.abs(Number(row.grandTotal || 0))} />
-                    </td>
-                    <td className={salesTdClass}>
-                      <span className={softChipClass}>{documentStatusLabel(row.status, language)}</span>
-                    </td>
-                    <td className={salesTdClass}>
-                      <div className={rowActionsWrapClass}>
-                        <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={rowActionBtnClass}>
-                          <Eye className="h-4 w-4" />
-                        </Link>
-                      </div>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className={`${salesTableClass} min-w-[980px]`}>
+                <thead>
+                  <tr>
+                    <th className={salesThClass}>{isAr ? 'الرقم' : 'Number'}</th>
+                    <th className={salesThClass}>{isAr ? 'العميل' : 'Customer'}</th>
+                    <th className={salesThClass}>{isAr ? 'الفاتورة الأصلية' : 'Original invoice'}</th>
+                    <th className={salesThClass}>{isAr ? 'تاريخ الإشعار' : 'Credit note date'}</th>
+                    <th className={salesThClass}>{isAr ? 'بدون ضريبة' : 'Tax excl.'}</th>
+                    <th className={salesThClass}>{isAr ? 'الإجمالي' : 'Total'}</th>
+                    <th className={salesThClass}>{isAr ? 'الحالة' : 'Status'}</th>
+                    <th className={salesThClass} />
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rows.map((row) => {
+                    const original = row.originalInvoiceId
+                    const originalId = original?._id || original
+                    const originalNumber = original?.invoiceNumber || row.originalInvoiceNumber || null
+                    return (
+                      <tr key={row._id} className={salesTrClass}>
+                        <td className={salesTdClass}>
+                          <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={docLinkClass}>
+                            {row.invoiceNumber}
+                          </Link>
+                        </td>
+                        <td className={salesTdClass}>{trimName(row.buyer)}</td>
+                        <td className={salesTdClass}>
+                          {originalId ? (
+                            <Link
+                              to={`/app/dashboard/accounting/invoices/${originalId}`}
+                              className={docLinkClass}
+                            >
+                              {originalNumber || (isAr ? 'عرض الفاتورة' : 'View invoice')}
+                            </Link>
+                          ) : '—'}
+                        </td>
+                        <td className={salesTdClass}>
+                          {row.issueDate ? new Date(row.issueDate).toLocaleDateString(isAr ? 'ar-SA' : 'en-GB') : '—'}
+                        </td>
+                        <td className={`${salesTdClass} tabular-nums`}>
+                          <Money value={Math.abs(Number(row.taxableAmount ?? row.subtotal ?? 0))} />
+                        </td>
+                        <td className={`${salesTdClass} tabular-nums`}>
+                          <Money value={Math.abs(Number(row.grandTotal || 0))} />
+                        </td>
+                        <td className={salesTdClass}>
+                          <span className={softChipClass}>{documentStatusLabel(row.status, language)}</span>
+                        </td>
+                        <td className={salesTdClass}>
+                          <div className={rowActionsWrapClass}>
+                            <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={rowActionBtnClass}>
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </ResponsiveDataList>
         )}
       </div>

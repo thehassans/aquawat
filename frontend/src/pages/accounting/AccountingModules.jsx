@@ -2717,13 +2717,13 @@ export function FollowUpReportsPanel({ language }) {
       />
       {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div id="follow-up-remind-actions" className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
           <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? 'فواتير متأخرة' : 'Overdue invoices'}</p>
           <p className="mt-1 text-lg font-semibold">{overdueRows.length}</p>
         </div>
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
-          <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? 'عملاء' : 'Customers'}</p>
+          <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? 'عملاء متأخرون' : 'Delinquent customers'}</p>
           <p className="mt-1 text-lg font-semibold">{partnerSummary.length}</p>
         </div>
         <div className="rounded-2xl border border-rose-200/80 bg-rose-50/50 p-4 dark:border-rose-500/20 dark:bg-rose-950/20">

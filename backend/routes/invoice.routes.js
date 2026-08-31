@@ -1555,6 +1555,8 @@ router.post('/', invoiceWriteLimiter, checkTrialLimits('invoices'), checkPermiss
         ...buyer,
         isCompany: true,
         entityType: 'business',
+        name: buyer.name || buyer.nameEn || customer?.name || customer?.nameEn,
+        address: buyer.address || customer?.address,
         vatNumber: buyer.vatNumber || customer?.vatNumber,
         crNumber: buyer.crNumber || customer?.crNumber,
       });

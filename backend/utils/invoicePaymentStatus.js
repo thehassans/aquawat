@@ -1,9 +1,21 @@
 import { isPastDueInRiyadh } from './riyadhTime.js';
 import { roundMoney } from './money.js';
 
+function isUnpostedDocument(invoiceData = {}) {
+  const status = String(invoiceData.status || '').toLowerCase();
+  return status === 'draft' || status === 'pending';
+}
+
 export function applyPaidAmountStatus(invoiceData, now = new Date()) {
   const grandTotal = Number(invoiceData.grandTotal) || 0;
   const disc = invoiceData.earlyPaymentDiscount;
+
+  // Draft / unposted documents have no ledger — never treat them as paid.
+  if (isUnpostedDocument(invoiceData)) {
+    invoiceData.paidAmount = 0;
+    invoiceData.paymentStatus = 'unposted';
+    return invoiceData;
+  }
 
   // Early-discount settlement clears the invoice even when cash received was discounted.
   if (disc?.applied && grandTotal > 0) {
@@ -32,13 +44,19 @@ export function resolvePaymentStatus(invoiceData, now = new Date()) {
   const grandTotal = Number(invoiceData.grandTotal) || 0;
   const explicit = String(invoiceData.paymentStatus || '').toLowerCase().trim();
 
+  if (isUnpostedDocument(invoiceData)) {
+    invoiceData.paidAmount = 0;
+    invoiceData.paymentStatus = 'unposted';
+    return invoiceData;
+  }
+
   if (explicit === 'paid') {
     invoiceData.paidAmount = grandTotal;
     invoiceData.paymentStatus = 'paid';
     return invoiceData;
   }
 
-  if (explicit === 'pending' || explicit === 'unpaid') {
+  if (explicit === 'pending' || explicit === 'unpaid' || explicit === 'unposted') {
     const paid = Number(invoiceData.paidAmount) || 0;
     if (grandTotal > 0 && paid >= grandTotal - 0.005) {
       invoiceData.paidAmount = 0;

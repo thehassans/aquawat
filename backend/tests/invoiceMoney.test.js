@@ -33,6 +33,15 @@ test('line VAT then sum matches invoice totals for two 10.01 lines at 15%', () =
   assert.equal(grand, 23.02);
 });
 
+test('draft invoices stay unposted regardless of payment method', () => {
+  for (const paymentMethod of ['cash', 'card', 'credit']) {
+    const invoice = { status: 'draft', paymentMethod, grandTotal: 100, paidAmount: 50 };
+    resolvePaymentStatus(invoice);
+    assert.equal(invoice.paymentStatus, 'unposted', paymentMethod);
+    assert.equal(invoice.paidAmount, 0, paymentMethod);
+  }
+});
+
 test('resolvePaymentStatus: cash / card / bank_transfer mark paid in full', () => {
   for (const paymentMethod of ['cash', 'card', 'bank_transfer']) {
     const invoice = { paymentMethod, grandTotal: 115.5, paidAmount: 0 };
