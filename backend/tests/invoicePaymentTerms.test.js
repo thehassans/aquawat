@@ -4,8 +4,9 @@ import {
   computeDueDateFromPaymentTerms,
   computePaymentSchedule,
   ensureInvoiceDueDate,
+  computePaymentSettlement,
 } from '../utils/invoicePaymentTerms.js';
-import { buildReceivableDebitLines, buildPayableCreditLines } from '../services/accountingService.js';
+import { buildReceivableDebitLines, buildPayableCreditLines, allocatePaymentToTranches } from '../services/accountingService.js';
 
 test('installment term uses latest tranche due date', () => {
   const issue = new Date('2026-01-01');
@@ -66,4 +67,34 @@ test('buildPayableCreditLines splits AP credits by schedule', () => {
   assert.equal(lines[0].credit, 300);
   assert.equal(lines[1].credit, 700);
   assert.ok(lines[1].dueDate);
+});
+
+test('computePaymentSettlement applies early discount on full pay before deadline', () => {
+  const issue = new Date('2026-01-01');
+  const schedule = computePaymentSchedule(issue, '2pct_10_net30', 1000);
+  const invoice = {
+    grandTotal: 1000,
+    paidAmount: 0,
+    paymentSchedule: schedule.tranches,
+    earlyPaymentDiscount: schedule.earlyDiscount,
+  };
+  const settlement = computePaymentSettlement(invoice, {
+    amount: 1000,
+    paymentDate: new Date('2026-01-05'),
+    differenceMode: 'keep_open',
+  });
+  assert.equal(settlement.cashAmount, 980);
+  assert.equal(settlement.discountAmount, 20);
+  assert.equal(settlement.targetPaidAmount, 1000);
+});
+
+test('allocatePaymentToTranches applies FIFO across installments', () => {
+  const issue = new Date('2026-01-01');
+  const schedule = computePaymentSchedule(issue, '30_now_60_balance', 1000).tranches;
+  const invoice = { grandTotal: 1000, paidAmount: 0, paymentSchedule: schedule };
+  const rows = allocatePaymentToTranches(invoice, 400);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].amount, 300);
+  assert.equal(rows[1].amount, 100);
+  assert.equal(rows[0].trancheSequence, 1);
 });

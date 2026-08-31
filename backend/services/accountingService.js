@@ -1128,6 +1128,95 @@ export function buildPayableCreditLines({
 }
 
 /**
+ * Allocate payment against open tranches (FIFO). Early-discount schedules use one active path.
+ */
+export function allocatePaymentToTranches(invoice, payAmount) {
+  const amount = round2(Number(payAmount) || 0);
+  if (amount <= 0) return [];
+
+  const schedule = (Array.isArray(invoice?.paymentSchedule) ? invoice.paymentSchedule : [])
+    .filter((row) => round2(Number(row.amount || 0)) > 0)
+    .sort((a, b) => (Number(a.sequence) || 0) - (Number(b.sequence) || 0));
+
+  if (!schedule.length) {
+    return [{
+      trancheSequence: null,
+      amount,
+      dueDate: invoice?.dueDate || null,
+    }];
+  }
+
+  if (invoice?.earlyPaymentDiscount?.deadline && schedule.length === 2) {
+    const paid = round2(Number(invoice.paidAmount || 0));
+    const gross = round2(Number(invoice.grandTotal || 0));
+    const discounted = round2(Number(invoice.earlyPaymentDiscount.discountedAmount || 0));
+    const onDiscountPath = paid < discounted - 0.005 && round2(gross - paid) > 0.005;
+    const active = onDiscountPath ? schedule[0] : schedule[1];
+    const activeResidual = onDiscountPath
+      ? round2(Math.max(0, discounted - paid))
+      : round2(Math.max(0, gross - paid));
+    const applied = round2(Math.min(amount, activeResidual));
+    if (applied <= 0) return [];
+    return [{
+      trancheSequence: active.sequence,
+      amount: applied,
+      dueDate: active.dueDate || null,
+    }];
+  }
+
+  if (schedule.length === 1) {
+    return [{
+      trancheSequence: schedule[0].sequence,
+      amount,
+      dueDate: schedule[0].dueDate || invoice?.dueDate || null,
+    }];
+  }
+
+  let remainingPaid = round2(Number(invoice.paidAmount || 0));
+  let remainingPay = amount;
+  const allocations = [];
+
+  for (const tranche of schedule) {
+    const trancheAmount = round2(Number(tranche.amount || 0));
+    const paidOnTranche = Math.min(remainingPaid, trancheAmount);
+    remainingPaid = round2(remainingPaid - paidOnTranche);
+    const trancheResidual = round2(trancheAmount - paidOnTranche);
+    if (trancheResidual < 0.01) continue;
+    if (remainingPay <= 0) break;
+
+    const applied = round2(Math.min(remainingPay, trancheResidual));
+    allocations.push({
+      trancheSequence: tranche.sequence,
+      amount: applied,
+      dueDate: tranche.dueDate || null,
+    });
+    remainingPay = round2(remainingPay - applied);
+  }
+
+  if (remainingPay > 0.005) {
+    if (allocations.length) {
+      allocations[allocations.length - 1].amount = round2(allocations[allocations.length - 1].amount + remainingPay);
+    } else {
+      allocations.push({
+        trancheSequence: schedule[schedule.length - 1]?.sequence || null,
+        amount: remainingPay,
+        dueDate: schedule[schedule.length - 1]?.dueDate || invoice?.dueDate || null,
+      });
+    }
+  }
+
+  return allocations.length
+    ? allocations
+    : [{ trancheSequence: null, amount, dueDate: invoice?.dueDate || null }];
+}
+
+function resolveInvoicePaymentScheduleForPosting(invoice, gross) {
+  if (invoice?.earlyPaymentDiscount?.deadline) return null;
+  if (invoice?.paymentSchedule?.length) return invoice.paymentSchedule;
+  return computePaymentSchedule(invoice?.issueDate, invoice?.paymentTerms, gross).tranches;
+}
+
+/**
  * Sales invoice journal lines: AR Dr, revenue Cr (optionally split), VAT Cr.
  * @param {{ account: {_id, code}, amount: number }[]} [revenueCredits]
  */
@@ -1451,9 +1540,7 @@ export async function previewPurchaseInvoiceJournal({ tenantId, invoice = {} }) 
   }
 
   const { computePaymentSchedule } = await import('../utils/invoicePaymentTerms.js');
-  const paymentSchedule = invoice.paymentSchedule?.length
-    ? invoice.paymentSchedule
-    : computePaymentSchedule(invoice.issueDate, invoice.paymentTerms, apGross).tranches;
+  const paymentSchedule = resolveInvoicePaymentScheduleForPosting(invoice, apGross);
 
   for (const apLine of buildPayableCreditLines({
     ap,
@@ -1634,9 +1721,7 @@ export async function postSalesInvoiceJournal({
     description: `Invoice ${invoice.invoiceNumber || ''}`,
     partnerId,
     taxIds: salesTaxId ? [salesTaxId] : [],
-    paymentSchedule: invoice.paymentSchedule?.length
-      ? invoice.paymentSchedule
-      : computePaymentSchedule(invoice.issueDate, invoice.paymentTerms, gross).tranches,
+    paymentSchedule: resolveInvoicePaymentScheduleForPosting(invoice, gross),
   });
   }
   if (!lines || lines.length < 2) return null;
@@ -1739,6 +1824,20 @@ export async function postInvoicePaymentJournal({
   });
   if (dup) return dup;
 
+  const allocations = allocatePaymentToTranches(invoice, payAmt);
+  const arCredits = (allocations.length ? allocations : [{ trancheSequence: null, amount: payAmt, dueDate: null }])
+    .map((row) => ({
+      accountId: ar._id,
+      accountCode: ar.code,
+      debit: 0,
+      credit: row.amount,
+      description: row.trancheSequence
+        ? `Settle AR ${invoice.invoiceNumber} — tranche ${row.trancheSequence}`
+        : `Settle AR ${invoice.invoiceNumber}`,
+      trancheSequence: row.trancheSequence,
+      dueDate: row.dueDate,
+    }));
+
   return createJournalEntry({
     tenantId,
     userId,
@@ -1749,13 +1848,46 @@ export async function postInvoicePaymentJournal({
     currency,
     lines: stampPartnerId([
       { accountId: debitAccount._id, accountCode: debitAccount.code, debit: payAmt, credit: 0, description: debitDescription },
-      { accountId: ar._id, accountCode: ar.code, debit: 0, credit: payAmt, description: `Settle AR ${invoice.invoiceNumber}` },
+      ...arCredits,
     ], partnerId),
     sourceModel: 'InvoicePayment',
     sourceId: invoice._id,
     sourceNumber: invoice.invoiceNumber,
     status: 'posted',
     journalId,
+  });
+}
+
+/** Early-payment discount: Dr discount / Dr difference, Cr AR (clears gross AR when customer pays discounted amount). */
+export async function postEarlyPaymentDiscountJournal({
+  tenantId,
+  userId,
+  invoice,
+  amount,
+  paymentDate = new Date(),
+  reference = '',
+  currency = 'SAR',
+}) {
+  const diffAmt = round2(amount);
+  if (!invoice?._id || diffAmt <= 0) return null;
+
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+  const ctx = { byCode, byId, defaultIds };
+  const discountAcct = byCode['4900']
+    || await getAccountByCode(tenantId, '4900')
+    || await resolveRoleAccount(tenantId, 'opex', ctx);
+  if (!discountAcct?._id) return null;
+
+  return postInvoicePaymentDifferenceJournal({
+    tenantId,
+    userId,
+    invoice,
+    amount: diffAmt,
+    differenceAccountId: discountAcct._id,
+    paymentDate,
+    reference: reference || `EarlyDiscount:${invoice._id}:${diffAmt}`,
+    currency,
   });
 }
 
@@ -1876,6 +2008,20 @@ export async function postVendorBillPaymentJournal({
     liqRole === 'cash' ? 'ensureDefaultCashJournal' : 'ensureDefaultBankJournal',
   );
 
+  const allocations = allocatePaymentToTranches(invoice, payAmt);
+  const apDebits = (allocations.length ? allocations : [{ trancheSequence: null, amount: payAmt, dueDate: null }])
+    .map((row) => ({
+      accountId: ap._id,
+      accountCode: ap.code,
+      debit: row.amount,
+      credit: 0,
+      description: row.trancheSequence
+        ? `Settle AP ${invoice.invoiceNumber} — tranche ${row.trancheSequence}`
+        : `Settle AP ${invoice.invoiceNumber}`,
+      trancheSequence: row.trancheSequence,
+      dueDate: row.dueDate,
+    }));
+
   return createJournalEntry({
     tenantId,
     userId,
@@ -1886,7 +2032,7 @@ export async function postVendorBillPaymentJournal({
     reference: key,
     currency,
     lines: stampPartnerId([
-      { accountId: ap._id, accountCode: ap.code, debit: payAmt, credit: 0, description: `Settle AP ${invoice.invoiceNumber}` },
+      ...apDebits,
       { accountId: creditAccount._id, accountCode: creditAccount.code, debit: 0, credit: payAmt, description: creditDescription },
     ], partnerId),
     sourceModel: 'VendorBillPayment',
@@ -3534,14 +3680,22 @@ export async function handleAccountingPaymentProviderWebhook(providerSlug, body 
   if (dup) return { received: true, duplicate: true, journalEntryId: dup._id };
 
   const remaining = round2(Math.max(0, Number(invoice.grandTotal || 0) - Number(invoice.paidAmount || 0)));
-  if (payAmt > remaining + 0.005) {
+  const { computePaymentSettlement } = await import('../utils/invoicePaymentTerms.js');
+  const settlement = computePaymentSettlement(invoice, {
+    amount: payAmt,
+    paymentDate: body.paymentDate ? new Date(body.paymentDate) : new Date(),
+    differenceMode: 'keep_open',
+  });
+  const cashToApply = settlement.cashAmount;
+  if (cashToApply > remaining + 0.005) {
     throw Object.assign(new Error('Amount exceeds remaining balance'), { statusCode: 400 });
   }
 
-  invoice.paidAmount = round2(Number(invoice.paidAmount || 0) + payAmt);
+  invoice.paidAmount = settlement.targetPaidAmount;
   invoice.payments = [...(invoice.payments || []), {
     method: 'card',
-    amount: payAmt,
+    amount: cashToApply,
+    discountAmount: settlement.discountAmount > 0 ? settlement.discountAmount : undefined,
     externalId: externalId || undefined,
     provider: slug,
   }];
@@ -3552,7 +3706,7 @@ export async function handleAccountingPaymentProviderWebhook(providerSlug, body 
     tenantId: tenant._id,
     userId: null,
     invoice,
-    amount: payAmt,
+    amount: cashToApply,
     paymentMethod: 'card',
     paymentDate: body.paymentDate ? new Date(body.paymentDate) : new Date(),
     reference,
@@ -3560,12 +3714,27 @@ export async function handleAccountingPaymentProviderWebhook(providerSlug, body 
     bankJournalCode: cfg.journalCode || null,
   });
 
+  let discountEntry = null;
+  if (settlement.discountAmount > 0.005) {
+    discountEntry = await postEarlyPaymentDiscountJournal({
+      tenantId: tenant._id,
+      userId: null,
+      invoice,
+      amount: settlement.discountAmount,
+      paymentDate: body.paymentDate ? new Date(body.paymentDate) : new Date(),
+      reference: `${reference}:discount`,
+      currency: invoice.currency || 'SAR',
+    });
+  }
+
   return {
     received: true,
     invoiceId: invoice._id,
     paidAmount: invoice.paidAmount,
     paymentStatus: invoice.paymentStatus,
     journalEntryId: entry?._id || null,
+    discountJournalEntryId: discountEntry?._id || null,
+    earlyDiscountApplied: settlement.discountAmount,
   };
 }
 
@@ -3909,6 +4078,10 @@ export const DEFAULT_REPORT_DEFINITIONS = [
   { report: 'pnl', code: 'REV_TOTAL', label: 'Total Revenue', labelAr: 'إجمالي الإيرادات', formula: 'sum(prefix:4)', sequence: 1 },
   { report: 'pnl', code: 'EXP_TOTAL', label: 'Total Expenses', labelAr: 'إجمالي المصروفات', formula: 'sum(prefix:5)', sequence: 2 },
   { report: 'pnl', code: 'NET_INCOME', label: 'Net Income', labelAr: 'صافي الدخل', formula: 'line:REV_TOTAL - line:EXP_TOTAL', sequence: 3 },
+  { report: 'cashflow', code: 'CF_OPERATING', label: 'Operating cash', labelAr: 'التشغيلي', formula: 'line:OPERATING', sequence: 1 },
+  { report: 'cashflow', code: 'CF_INVESTING', label: 'Investing cash', labelAr: 'الاستثماري', formula: 'line:INVESTING', sequence: 2 },
+  { report: 'cashflow', code: 'CF_FINANCING', label: 'Financing cash', labelAr: 'التمويلي', formula: 'line:FINANCING', sequence: 3 },
+  { report: 'cashflow', code: 'CF_NET', label: 'Net cash change', labelAr: 'صافي التغير', formula: 'line:NET_CHANGE', sequence: 4 },
 ];
 
 export function evaluateReportFormula(formula, { accountTotals = new Map(), lineTotals = new Map() } = {}) {
@@ -6053,6 +6226,26 @@ export async function buildTaxReport(tenantId, { from, to, taxUnitCode = null } 
   const outputTax = round2(outputGrid.reduce((s, r) => s + r.taxAmount, 0));
   const inputTax = round2(inputGrid.reduce((s, r) => s + r.taxAmount, 0));
 
+  const { groups: taxGroupsConfig } = await getTaxGroups(tenantId);
+  const taxGroupsRollup = (taxGroupsConfig || []).map((group) => {
+    const codes = new Set((group.taxCodes || []).map((c) => String(c).toUpperCase()));
+    const matched = codes.size
+      ? rows.filter((row) => codes.has(String(row.code || '').toUpperCase()))
+      : [];
+    const debit = round2(matched.reduce((s, r) => s + r.debit, 0));
+    const credit = round2(matched.reduce((s, r) => s + r.credit, 0));
+    return {
+      code: group.code,
+      name: group.name,
+      nameAr: group.nameAr,
+      debit,
+      credit,
+      net: round2(credit - debit),
+      taxCount: matched.length,
+      taxes: matched.map((r) => ({ code: r.code, name: r.name, net: r.net })),
+    };
+  }).filter((g) => g.taxCount > 0 || (taxGroupsConfig || []).length <= 3);
+
   return {
     from: start,
     to: end,
@@ -6062,6 +6255,7 @@ export async function buildTaxReport(tenantId, { from, to, taxUnitCode = null } 
     outputTax,
     inputTax,
     netVatDue: round2(outputTax - inputTax),
+    taxGroupsRollup,
     totalDebit: allowedCodes ? filteredDebit : totalDebit,
     totalCredit: allowedCodes ? filteredCredit : totalCredit,
     net: round2((allowedCodes ? filteredCredit : totalCredit) - (allowedCodes ? filteredDebit : totalDebit)),
@@ -6127,6 +6321,7 @@ export default {
   backfillJournalItems,
   postSalesInvoiceJournal,
   postInvoicePaymentJournal,
+  postEarlyPaymentDiscountJournal,
   postInvoicePaymentDifferenceJournal,
   postVendorBillPaymentJournal,
   postOutstandingPaymentClearance,
@@ -6187,6 +6382,7 @@ export default {
   getProductCategoriesAccountingBridge,
   buildReceivableDebitLines,
   buildPayableCreditLines,
+  allocatePaymentToTranches,
   handleAccountingPaymentProviderWebhook,
   getTaxUnits,
   setTaxUnits,

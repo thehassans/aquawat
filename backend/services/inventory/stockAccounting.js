@@ -1129,13 +1129,15 @@ export async function postPurchaseInvoiceJournal({
     priceDiffLines: priceDiffLines.length ? priceDiffLines : null,
     description: `Vendor bill ${invoice.invoiceNumber || ''}`,
     partnerId: invoice.supplierId || null,
-    paymentSchedule: invoice.paymentSchedule?.length
-      ? invoice.paymentSchedule
-      : (await import('../../utils/invoicePaymentTerms.js')).computePaymentSchedule(
-        invoice.issueDate,
-        invoice.paymentTerms,
-        gross,
-      ).tranches,
+    paymentSchedule: invoice.earlyPaymentDiscount?.deadline ? null : (
+      invoice.paymentSchedule?.length
+        ? invoice.paymentSchedule
+        : (await import('../../utils/invoicePaymentTerms.js')).computePaymentSchedule(
+          invoice.issueDate,
+          invoice.paymentTerms,
+          gross,
+        ).tranches
+    ),
   });
   if (lines.length < 2) return null;
 

@@ -233,3 +233,55 @@ export function ensureInvoiceDueDate(invoiceData) {
 
   return invoiceData;
 }
+
+/**
+ * Resolve cash received vs early-payment discount when settling an invoice.
+ */
+export function computePaymentSettlement(invoice, {
+  amount,
+  paymentDate = new Date(),
+  differenceMode = 'keep_open',
+} = {}) {
+  const payAmt = round2(Number(amount) || 0);
+  const gross = round2(Number(invoice?.grandTotal || 0));
+  const paid = round2(Number(invoice?.paidAmount || 0));
+  const remaining = round2(Math.max(0, gross - paid));
+
+  let cashAmount = payAmt;
+  let discountAmount = 0;
+  let targetPaidAmount = round2(paid + payAmt);
+  let applyEarlyDiscount = false;
+
+  const disc = invoice?.earlyPaymentDiscount;
+  if (disc?.deadline && disc.discountedAmount != null) {
+    const deadline = new Date(disc.deadline);
+    deadline.setHours(23, 59, 59, 999);
+    const payDate = new Date(paymentDate);
+    const discountedTotal = round2(Number(disc.discountedAmount || 0));
+    const isFullSettlement = differenceMode === 'mark_paid' || payAmt >= remaining - 0.005;
+
+    if (payDate <= deadline && isFullSettlement && remaining > 0.005) {
+      const cashDue = round2(Math.max(0, discountedTotal - paid));
+      discountAmount = round2(Math.max(0, remaining - cashDue));
+      cashAmount = round2(Math.min(payAmt, cashDue));
+      applyEarlyDiscount = discountAmount > 0.005;
+      if (applyEarlyDiscount && (differenceMode === 'mark_paid' || cashAmount >= cashDue - 0.005)) {
+        targetPaidAmount = gross;
+      } else if (applyEarlyDiscount) {
+        targetPaidAmount = round2(paid + cashAmount);
+      }
+    }
+  }
+
+  if (differenceMode === 'mark_paid' && !applyEarlyDiscount) {
+    targetPaidAmount = gross;
+  }
+
+  return {
+    cashAmount,
+    discountAmount,
+    targetPaidAmount,
+    remaining,
+    applyEarlyDiscount,
+  };
+}

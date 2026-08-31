@@ -35,7 +35,7 @@ import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 import { isFbrCurrency } from '../utils/fbrCurrency.js';
 import { applyFbrToInvoice } from '../utils/fbr/FbrService.js';
 import { applyCountryComplianceToInvoice } from '../utils/compliance/CountryComplianceService.js';
-import { ensureInvoiceDueDate } from '../utils/invoicePaymentTerms.js';
+import { ensureInvoiceDueDate, computePaymentSettlement } from '../utils/invoicePaymentTerms.js';
 import { cacheAside } from '../lib/redis.js';
 import { applyInvoiceListSearch } from '../utils/invoiceSearch.js';
 import { statsRead } from '../utils/mongoReadPreference.js';
@@ -1210,14 +1210,33 @@ router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req,
 
     const differenceMode = req.body?.differenceMode === 'mark_paid' ? 'mark_paid' : 'keep_open';
     const differenceAccountId = cleanObjectId(req.body?.differenceAccountId);
+    const paymentDate = req.body?.paymentDate ? new Date(req.body.paymentDate) : new Date();
     const remaining = Math.round(((Number(invoice.grandTotal) || 0) - (Number(invoice.paidAmount) || 0)) * 100) / 100;
-    const paymentDiff = Math.round((remaining - amount) * 100) / 100;
 
-    if (paymentExceedsRemaining(amount, invoice.grandTotal, invoice.paidAmount)) {
+    const settlement = invoice.flow === 'sell'
+      ? computePaymentSettlement(invoice.toObject ? invoice.toObject() : invoice, {
+        amount,
+        paymentDate,
+        differenceMode,
+      })
+      : {
+        cashAmount: amount,
+        discountAmount: 0,
+        targetPaidAmount: differenceMode === 'mark_paid'
+          ? Math.round(Number(invoice.grandTotal || 0) * 100) / 100
+          : Math.round(((Number(invoice.paidAmount) || 0) + amount) * 100) / 100,
+        remaining,
+        applyEarlyDiscount: false,
+      };
+
+    const cashAmount = Math.round(settlement.cashAmount * 100) / 100;
+    const paymentDiff = Math.round((remaining - cashAmount - (settlement.discountAmount || 0)) * 100) / 100;
+
+    if (cashAmount > remaining + 0.005) {
       return res.status(400).json({ error: 'Amount exceeds remaining balance' });
     }
 
-    if (differenceMode === 'mark_paid' && paymentDiff > 0.005) {
+    if (differenceMode === 'mark_paid' && paymentDiff > 0.005 && !settlement.applyEarlyDiscount) {
       if (!differenceAccountId) {
         return res.status(400).json({ error: 'Difference account is required to mark as fully paid' });
       }
@@ -1228,16 +1247,15 @@ router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req,
       : 'bank_transfer';
 
     const previousPaymentStatus = invoice.paymentStatus;
-    if (differenceMode === 'mark_paid' && paymentDiff > 0.005) {
-      invoice.paidAmount = Math.round(Number(invoice.grandTotal || 0) * 100) / 100;
-    } else {
-      invoice.paidAmount = Math.round(((Number(invoice.paidAmount) || 0) + amount) * 100) / 100;
-    }
+    invoice.paidAmount = Math.round(settlement.targetPaidAmount * 100) / 100;
     invoice.payments = [...(invoice.payments || []), {
       method,
-      amount,
-      differenceMode: paymentDiff > 0.005 ? differenceMode : undefined,
-      differenceAccountId: paymentDiff > 0.005 && differenceMode === 'mark_paid' ? differenceAccountId : undefined,
+      amount: cashAmount,
+      discountAmount: settlement.discountAmount > 0 ? settlement.discountAmount : undefined,
+      differenceMode: paymentDiff > 0.005 && !settlement.applyEarlyDiscount ? differenceMode : undefined,
+      differenceAccountId: paymentDiff > 0.005 && differenceMode === 'mark_paid' && !settlement.applyEarlyDiscount
+        ? differenceAccountId
+        : undefined,
     }];
     applyPaidAmountStatus(invoice);
     await invoice.save();
@@ -1249,9 +1267,9 @@ router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req,
           tenantId: invoice.tenantId,
           userId: req.user._id,
           invoice,
-          amount,
+          amount: cashAmount,
           paymentMethod: method,
-          paymentDate: req.body?.paymentDate ? new Date(req.body.paymentDate) : new Date(),
+          paymentDate,
           reference: `pay-${invoice.invoiceNumber}-${Date.now()}`,
           currency: invoice.currency || req.tenant?.settings?.currency || 'SAR',
           memo: req.body?.memo || '',
@@ -1261,20 +1279,30 @@ router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req,
           tenantId: invoice.tenantId,
           userId: req.user._id,
           invoice,
-          amount,
+          amount: cashAmount,
           paymentMethod: method,
-          paymentDate: req.body?.paymentDate ? new Date(req.body.paymentDate) : new Date(),
+          paymentDate,
           reference: `pay-${invoice.invoiceNumber}-${Date.now()}`,
           currency: invoice.currency || req.tenant?.settings?.currency || 'SAR',
         });
-        if (differenceMode === 'mark_paid' && paymentDiff > 0.005 && differenceAccountId) {
+        if (settlement.discountAmount > 0.005) {
+          await accounting.postEarlyPaymentDiscountJournal({
+            tenantId: invoice.tenantId,
+            userId: req.user._id,
+            invoice,
+            amount: settlement.discountAmount,
+            paymentDate,
+            reference: `pay-disc-${invoice.invoiceNumber}-${Date.now()}`,
+            currency: invoice.currency || req.tenant?.settings?.currency || 'SAR',
+          });
+        } else if (differenceMode === 'mark_paid' && paymentDiff > 0.005 && differenceAccountId) {
           await accounting.postInvoicePaymentDifferenceJournal({
             tenantId: invoice.tenantId,
             userId: req.user._id,
             invoice,
             amount: paymentDiff,
             differenceAccountId,
-            paymentDate: req.body?.paymentDate ? new Date(req.body.paymentDate) : new Date(),
+            paymentDate,
             reference: `pay-diff-${invoice.invoiceNumber}-${Date.now()}`,
             currency: invoice.currency || req.tenant?.settings?.currency || 'SAR',
           });

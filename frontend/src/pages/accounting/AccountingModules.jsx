@@ -2615,14 +2615,22 @@ export function FollowUpReportsPanel({ language }) {
     },
   })
 
-  const toggle = (id) => {
+  const toggle = (rowKey) => {
     setSelected((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(rowKey)) next.delete(rowKey)
+      else next.add(rowKey)
       return next
     })
   }
+
+  const selectedInvoiceIds = useMemo(() => {
+    const ids = new Set()
+    for (const row of overdueRows) {
+      if (selected.has(agedRowKey(row))) ids.add(row.invoiceId)
+    }
+    return [...ids]
+  }, [overdueRows, selected])
 
   const nextActivityLabel = (row) => {
     const age = Number(row.ageDays || 0)
@@ -2649,13 +2657,13 @@ export function FollowUpReportsPanel({ language }) {
             </label>
             <button
               type="button"
-              disabled={!selected.size || remind.isPending}
-              onClick={() => remind.mutate([...selected])}
+              disabled={!selectedInvoiceIds.length || remind.isPending}
+              onClick={() => remind.mutate(selectedInvoiceIds)}
               className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
             >
               {remind.isPending
                 ? '…'
-                : (isAr ? `تذكير واتساب (${selected.size})` : `WhatsApp remind (${selected.size})`)}
+                : (isAr ? `تذكير واتساب (${selectedInvoiceIds.length})` : `WhatsApp remind (${selectedInvoiceIds.length})`)}
             </button>
           </>
         )}
@@ -2663,12 +2671,14 @@ export function FollowUpReportsPanel({ language }) {
           getRows: async () => overdueRows.map((row) => ({
             partnerName: row.partnerName,
             invoiceNumber: row.invoiceNumber,
+            trancheSequence: row.trancheSequence,
             ageDays: row.ageDays,
             residual: row.residual,
           })),
           columns: [
             { key: 'partnerName', label: isAr ? 'العميل' : 'Customer' },
             { key: 'invoiceNumber', label: isAr ? 'الفاتورة' : 'Invoice' },
+            { key: 'trancheSequence', label: isAr ? 'الدفعة' : 'Tranche', value: (r) => (r.trancheSequence ? `#${r.trancheSequence}` : '—') },
             { key: 'ageDays', label: isAr ? 'التأخير' : 'Age (days)' },
             { key: 'residual', label: isAr ? 'المتبقي' : 'Due', value: (r) => Number(r.residual || 0).toFixed(2) },
           ],
@@ -2731,6 +2741,7 @@ export function FollowUpReportsPanel({ language }) {
               <th className="px-3 py-2 text-start" />
               <th className="px-4 py-2 text-start">{isAr ? 'العميل' : 'Customer'}</th>
               <th className="px-4 py-2 text-start">{isAr ? 'الفاتورة' : 'Invoice'}</th>
+              <th className="px-4 py-2 text-start">{isAr ? 'الدفعة' : 'Tranche'}</th>
               <th className="px-4 py-2 text-start">{isAr ? 'النشاط التالي' : 'Next activity'}</th>
               <th className="px-4 py-2 text-start">{isAr ? 'المستوى' : 'Level'}</th>
               <th className="px-4 py-2 text-end">{isAr ? 'المتبقي' : 'Due'}</th>
@@ -2738,10 +2749,12 @@ export function FollowUpReportsPanel({ language }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-            {overdueRows.map((row) => (
-              <tr key={row.invoiceId}>
+            {overdueRows.map((row) => {
+              const rowKey = agedRowKey(row)
+              return (
+              <tr key={rowKey}>
                 <td className="px-3 py-2">
-                  <input type="checkbox" checked={selected.has(row.invoiceId)} onChange={() => toggle(row.invoiceId)} />
+                  <input type="checkbox" checked={selected.has(rowKey)} onChange={() => toggle(rowKey)} />
                 </td>
                 <td className="px-4 py-2">
                   <button type="button" className="text-start hover:text-emerald-700" onClick={() => row.partnerId && navigate(`/app/dashboard/accounting/partner-ledger?customerId=${row.partnerId}`)}>
@@ -2752,6 +2765,9 @@ export function FollowUpReportsPanel({ language }) {
                   <button type="button" className="font-mono text-xs text-emerald-800 hover:underline" onClick={() => navigate(`/app/dashboard/accounting/invoices/${row.invoiceId}`)}>
                     {row.invoiceNumber}
                   </button>
+                </td>
+                <td className="px-4 py-2 text-xs text-slate-500">
+                  {row.trancheSequence ? `#${row.trancheSequence}` : '—'}
                 </td>
                 <td className="px-4 py-2">
                   <span className="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
@@ -2778,9 +2794,10 @@ export function FollowUpReportsPanel({ language }) {
                   </button>
                 </td>
               </tr>
-            ))}
+              )
+            })}
             {!overdueRows.length && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا فواتير متأخرة' : 'No overdue invoices'}</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا فواتير متأخرة' : 'No overdue invoices'}</td></tr>
             )}
           </tbody>
         </table>
@@ -3519,6 +3536,38 @@ export function VatTaxReportPanel({ language }) {
             : (isAr ? 'إقرار ضريبة القيمة المضافة متاح لمستأجري الريال السعودي.' : 'Statutory VAT return applies to SAR tenants.')}
         </p>
       )}
+
+      {(glTax?.taxGroupsRollup || []).length ? (
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+          <div className="border-b border-slate-100 px-4 py-3 dark:border-white/10">
+            <p className="text-sm font-semibold">{isAr ? 'مجموعات الضريبة (إعدادات)' : 'Tax groups (configuration)'}</p>
+          </div>
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-400 dark:bg-dark-900">
+              <tr>
+                <th className="px-4 py-2 text-start">{isAr ? 'المجموعة' : 'Group'}</th>
+                <th className="px-4 py-2 text-end">{isAr ? 'مدين' : 'Debit'}</th>
+                <th className="px-4 py-2 text-end">{isAr ? 'دائن' : 'Credit'}</th>
+                <th className="px-4 py-2 text-end">{isAr ? 'صافي' : 'Net'}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {glTax.taxGroupsRollup.map((group) => (
+                <tr key={group.code}>
+                  <td className="px-4 py-2">
+                    <span className="font-mono text-[10px] text-slate-400">{group.code}</span>
+                    {' · '}
+                    {isAr ? (group.nameAr || group.name) : group.name}
+                  </td>
+                  <td className="px-4 py-2 text-end"><Money value={group.debit} /></td>
+                  <td className="px-4 py-2 text-end"><Money value={group.credit} /></td>
+                  <td className="px-4 py-2 text-end font-semibold"><Money value={group.net} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
         {renderTaxGrid(isAr ? 'شبكة المخرجات (ZATCA)' : 'Output grid (ZATCA)', glTax?.outputGrid, priorTax?.outputGrid)}
