@@ -1910,18 +1910,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             ) : (
               <div className="w-full overflow-x-auto rounded-lg border border-slate-100 dark:border-white/5">
                 <div
-                  className={`hidden min-w-[980px] gap-2 border-b border-slate-100 px-4 py-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5 lg:grid ${
+                  className={`hidden min-w-[860px] gap-2 border-b border-slate-100 px-4 py-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5 lg:grid ${
                     isTravelContext
                       ? 'lg:grid-cols-12'
-                      : 'lg:grid-cols-[minmax(260px,2fr)_minmax(180px,1fr)_minmax(140px,0.8fr)_5rem_5rem_7rem_6rem_7rem_auto]'
+                      : 'lg:grid-cols-[minmax(280px,2.2fr)_5rem_5rem_7rem_6rem_7rem_auto]'
                   }`}
                   dir="ltr"
                 >
                   <div>{language === 'ar' ? 'المنتج / الوصف' : 'Product / description'}</div>
                   {!isTravelContext ? (
                     <>
-                      <div>{language === 'ar' ? 'الحساب' : 'Account'}</div>
-                      <div>{language === 'ar' ? 'تحليلي' : 'Analytic'}</div>
                       <div className="text-center">{language === 'ar' ? 'وحدة' : 'UoM'}</div>
                       <div className="text-end">{t('quantity')}</div>
                       <div className="text-end">{t('unitPrice')}</div>
@@ -1938,7 +1936,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   {!isTravelContext ? <div className="text-center">{language === 'ar' ? 'إجراءات' : 'Actions'}</div> : null}
                 </div>
 
-                <div className="min-w-[980px] divide-y divide-slate-100 dark:divide-white/5">
+                <div className="min-w-[860px] divide-y divide-slate-100 dark:divide-white/5">
                   {fields.map((field, index) => (
                 <div key={field.fieldId || field.id || `line-${index}`} className="group px-3 py-2.5 transition hover:bg-slate-50/70 dark:hover:bg-white/[0.02] sm:px-4">
                   <LineItemTranslator
@@ -1953,11 +1951,13 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <input type="hidden" {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} />
                   <input type="hidden" {...register(`lineItems.${index}.isTravelMargin`)} />
                   <input type="hidden" {...register(`lineItems.${index}.productType`)} />
+                  <input type="hidden" {...register(`lineItems.${index}.incomeAccountId`)} />
+                  <input type="hidden" {...register(`lineItems.${index}.analyticAccountId`)} />
                   <div
                     className={`grid grid-cols-2 items-start gap-2 ${
                       isTravelContext
                         ? 'lg:grid-cols-12'
-                        : 'lg:grid-cols-[minmax(260px,2fr)_minmax(180px,1fr)_minmax(140px,0.8fr)_5rem_5rem_7rem_6rem_7rem_auto]'
+                        : 'lg:grid-cols-[minmax(280px,2.2fr)_5rem_5rem_7rem_6rem_7rem_auto]'
                     }`}
                     dir="ltr"
                   >
@@ -2086,38 +2086,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         </div>
                       )}
                     </div>
-                    {!isTravelContext ? (
-                      <>
-                        <div className="col-span-2 min-w-[180px] lg:col-auto">
-                          <select
-                            {...register(`lineItems.${index}.incomeAccountId`)}
-                            disabled={isInvoicePosted}
-                            className={`${lineGhostInputClass} cursor-pointer disabled:opacity-60`}
-                          >
-                            <option value="">{language === 'ar' ? 'حساب…' : 'Account…'}</option>
-                            {incomeAccounts.map((a) => (
-                              <option key={a._id} value={a._id}>
-                                {a.code} — {language === 'ar' ? (a.nameAr || a.name) : a.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="col-span-2 min-w-[140px] lg:col-auto">
-                          <select
-                            {...register(`lineItems.${index}.analyticAccountId`)}
-                            disabled={isInvoicePosted}
-                            className={`${lineGhostInputClass} cursor-pointer disabled:opacity-60`}
-                          >
-                            <option value="">{language === 'ar' ? 'تحليلي…' : 'Analytic…'}</option>
-                            {analyticAccounts.map((a) => (
-                              <option key={a._id} value={a._id}>
-                                {a.code ? `${a.code} — ` : ''}{language === 'ar' ? (a.nameAr || a.name) : a.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </>
-                    ) : null}
                     {!isTravelContext ? (
                       <div className="col-span-1 min-w-[4.5rem] lg:col-span-1">
                         <select
@@ -2329,77 +2297,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             })}
           />
 
-          </fieldset>
-          </>
-          )}
-
-          {formTab === 'journal' && (
-          <InvoiceJournalItemsPanel
-            flow="sell"
-            language={language}
-            totals={totals}
-            lineItems={totals.lines || []}
-            sourcePurchaseOrderId={watch('sourcePurchaseOrderId')}
-            paymentTerms={watch('paymentTerms')}
-            issueDate={watch('issueDate')}
-            dueDate={watch('dueDate')}
-            value={accountingLines}
-            onChange={setAccountingLines}
-            readOnly={isInvoicePosted}
-          />
-          )}
-
-          {formTab === 'other' && (
-          <>
-          <div className={`${sectionCardClass} space-y-4`}>
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
-              {language === 'ar' ? 'معلومات المحاسبة' : 'Accounting metadata'}
-            </h4>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <label className={fieldLabelClass}>{language === 'ar' ? 'مندوب المبيعات' : 'Salesperson'}</label>
-                <select {...register('salespersonId')} disabled={isInvoicePosted} className={`mt-1.5 ${fieldControlClass} disabled:opacity-60`}>
-                  <option value="">{language === 'ar' ? '—' : '—'}</option>
-                  {salesUsers.map((u) => (
-                    <option key={u._id} value={u._id}>
-                      {[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className={fieldLabelClass}>{language === 'ar' ? 'شروط التجارة (Incoterm)' : 'Incoterm'}</label>
-                <select {...register('incoterm')} disabled={isInvoicePosted} className={`mt-1.5 ${fieldControlClass} disabled:opacity-60`}>
-                  <option value="">—</option>
-                  {incotermsList.map((code) => (
-                    <option key={code} value={code}>{code}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className={fieldLabelClass}>{language === 'ar' ? 'مرجع العميل' : 'Customer reference'}</label>
-                <input {...register('customerReference')} disabled={isInvoicePosted} className={`mt-1.5 ${fieldControlClass} disabled:opacity-60`} placeholder={language === 'ar' ? 'PO / مرجع العميل' : 'Customer PO / reference'} />
-              </div>
-              <div>
-                <label className={fieldLabelClass}>{language === 'ar' ? 'المركز الضريبي' : 'Fiscal position'}</label>
-                <select {...register('fiscalPosition')} disabled={isInvoicePosted} className={`mt-1.5 ${fieldControlClass} disabled:opacity-60`}>
-                  <option value="">{language === 'ar' ? '—' : '—'}</option>
-                  {values?.fiscalPosition && !fiscalPositions.some((pos) => pos.code === values.fiscalPosition) ? (
-                    <option value={values.fiscalPosition}>{values.fiscalPosition}</option>
-                  ) : null}
-                  {fiscalPositions.map((pos) => (
-                    <option key={pos.code} value={pos.code}>
-                      {language === 'ar' ? (pos.nameAr || pos.name || pos.code) : (pos.name || pos.code)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="md:col-span-2">
-                <label className={fieldLabelClass}>{language === 'ar' ? 'ملاحظات داخلية' : 'Internal notes'}</label>
-                <textarea {...register('internalNotes')} disabled={isInvoicePosted} rows={2} className={`mt-1.5 ${fieldControlClass} min-h-[4rem] disabled:opacity-60`} />
-              </div>
-            </div>
-          </div>
           <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
             <div className="flex items-center gap-1 border-b border-slate-100 px-2 py-1.5 dark:border-white/5">
               <span className="px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
@@ -2794,6 +2691,139 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               </div>
             </div>
           </div>
+          </fieldset>
+          </>
+          )}
+
+          {formTab === 'journal' && (
+          <InvoiceJournalItemsPanel
+            flow="sell"
+            language={language}
+            totals={totals}
+            lineItems={totals.lines || []}
+            sourcePurchaseOrderId={watch('sourcePurchaseOrderId')}
+            paymentTerms={watch('paymentTerms')}
+            issueDate={watch('issueDate')}
+            dueDate={watch('dueDate')}
+            value={accountingLines}
+            onChange={setAccountingLines}
+            readOnly={isInvoicePosted}
+          />
+          )}
+
+          {formTab === 'other' && (
+          <>
+          <div className={`${sectionCardClass} space-y-4`}>
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+              {language === 'ar' ? 'معلومات المحاسبة' : 'Accounting metadata'}
+            </h4>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className={fieldLabelClass}>{language === 'ar' ? 'مندوب المبيعات' : 'Salesperson'}</label>
+                <select {...register('salespersonId')} disabled={isInvoicePosted} className={`mt-1.5 ${fieldControlClass} disabled:opacity-60`}>
+                  <option value="">{language === 'ar' ? '—' : '—'}</option>
+                  {salesUsers.map((u) => (
+                    <option key={u._id} value={u._id}>
+                      {[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={fieldLabelClass}>{language === 'ar' ? 'شروط التجارة (Incoterm)' : 'Incoterm'}</label>
+                <select {...register('incoterm')} disabled={isInvoicePosted} className={`mt-1.5 ${fieldControlClass} disabled:opacity-60`}>
+                  <option value="">—</option>
+                  {incotermsList.map((code) => (
+                    <option key={code} value={code}>{code}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={fieldLabelClass}>{language === 'ar' ? 'مرجع العميل' : 'Customer reference'}</label>
+                <input {...register('customerReference')} disabled={isInvoicePosted} className={`mt-1.5 ${fieldControlClass} disabled:opacity-60`} placeholder={language === 'ar' ? 'PO / مرجع العميل' : 'Customer PO / reference'} />
+              </div>
+              <div>
+                <label className={fieldLabelClass}>{language === 'ar' ? 'المركز الضريبي' : 'Fiscal position'}</label>
+                <select {...register('fiscalPosition')} disabled={isInvoicePosted} className={`mt-1.5 ${fieldControlClass} disabled:opacity-60`}>
+                  <option value="">{language === 'ar' ? '—' : '—'}</option>
+                  {values?.fiscalPosition && !fiscalPositions.some((pos) => pos.code === values.fiscalPosition) ? (
+                    <option value={values.fiscalPosition}>{values.fiscalPosition}</option>
+                  ) : null}
+                  {fiscalPositions.map((pos) => (
+                    <option key={pos.code} value={pos.code}>
+                      {language === 'ar' ? (pos.nameAr || pos.name || pos.code) : (pos.name || pos.code)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className={fieldLabelClass}>{language === 'ar' ? 'ملاحظات داخلية' : 'Internal notes'}</label>
+                <textarea {...register('internalNotes')} disabled={isInvoicePosted} rows={2} className={`mt-1.5 ${fieldControlClass} min-h-[4rem] disabled:opacity-60`} />
+              </div>
+            </div>
+          </div>
+          <div className={`${sectionCardClass} space-y-3`}>
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+              {language === 'ar' ? 'حسابات البنود' : 'Line accounts'}
+            </h4>
+            <p className="text-xs text-slate-500">
+              {language === 'ar'
+                ? 'الحساب الإيرادي والتحليلي لكل بند — يُعدّان هنا وليس في شبكة البنود.'
+                : 'Income and analytic accounts per line — edited here, not on the lines grid.'}
+            </p>
+            <div className="w-full overflow-x-auto rounded-xl border border-slate-100 dark:border-white/5">
+              <table className="min-w-[720px] w-full text-sm">
+                <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-400 dark:bg-dark-900">
+                  <tr>
+                    <th className="px-3 py-2 text-start">{language === 'ar' ? 'البند' : 'Line'}</th>
+                    <th className="min-w-[200px] px-3 py-2 text-start">{language === 'ar' ? 'الحساب' : 'Account'}</th>
+                    <th className="min-w-[180px] px-3 py-2 text-start">{language === 'ar' ? 'تحليلي' : 'Analytic'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                  {fields.map((field, index) => {
+                    const label = watch(`lineItems.${index}.productName`) || watch(`lineItems.${index}.productNameAr`) || `#${index + 1}`
+                    if (!sellLineHasContent(watch(`lineItems.${index}`))) return null
+                    return (
+                      <tr key={field.fieldId || field.id || `acct-${index}`}>
+                        <td className="max-w-[220px] truncate px-3 py-2 text-slate-700 dark:text-slate-200" title={label}>{label}</td>
+                        <td className="px-3 py-2">
+                          <select
+                            {...register(`lineItems.${index}.incomeAccountId`)}
+                            disabled={isInvoicePosted}
+                            className={`${fieldControlClass} disabled:opacity-60`}
+                          >
+                            <option value="">{language === 'ar' ? 'حساب…' : 'Account…'}</option>
+                            {incomeAccounts.map((a) => (
+                              <option key={a._id} value={a._id}>
+                                {a.code} — {language === 'ar' ? (a.nameAr || a.name) : a.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            {...register(`lineItems.${index}.analyticAccountId`)}
+                            disabled={isInvoicePosted}
+                            className={`${fieldControlClass} disabled:opacity-60`}
+                          >
+                            <option value="">{language === 'ar' ? 'تحليلي…' : 'Analytic…'}</option>
+                            {analyticAccounts.map((a) => (
+                              <option key={a._id} value={a._id}>
+                                {a.code ? `${a.code} — ` : ''}{language === 'ar' ? (a.nameAr || a.name) : a.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          
           </>
           )}
         </form>
