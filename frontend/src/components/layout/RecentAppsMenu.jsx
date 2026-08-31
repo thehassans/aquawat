@@ -3,13 +3,16 @@ import { createPortal } from 'react-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { LayoutGrid, ArrowUpRight } from 'lucide-react'
+import { LayoutGrid, ChevronDown } from 'lucide-react'
 import App3DIcon from '../ui/App3DIcon'
 import { setAppLauncherOpen, setHideSidebar, setMobileMenuOpen, setNavigationStyle } from '../../store/slices/uiSlice'
 import { getRecentApps, pushRecentApp, labelForAppPath } from '../../lib/recentApps'
 
+const RECENT_LIMIT = 3
+
 /**
- * Top-left recent-apps dropdown — ultra-minimal, with one-click open to full app navbar.
+ * Header recent-apps control — ultra-premium vertical dropdown of the last 3 apps.
+ * Trigger previews live app icons instead of a generic grid / close glyph.
  */
 export default function RecentAppsMenu() {
   const dispatch = useDispatch()
@@ -25,7 +28,7 @@ export default function RecentAppsMenu() {
   const [tick, setTick] = useState(0)
 
   const recent = useMemo(
-    () => getRecentApps(tenantId, { language, limit: 6 }),
+    () => getRecentApps(tenantId, { language, limit: RECENT_LIMIT }),
     [tenantId, language, tick, location.pathname],
   )
 
@@ -67,16 +70,23 @@ export default function RecentAppsMenu() {
     navigate(path)
   }
 
+  const appLabel = (app) =>
+    isAr
+      ? (app.labelAr || app.labelEn)
+      : (app.labelEn || app.labelAr || labelForAppPath(app.path, language))
+
   const panelPosition = (() => {
     const rect = buttonRef.current?.getBoundingClientRect()
     if (!rect) return { top: 64, left: 16 }
     const rtl = document.documentElement.dir === 'rtl'
-    const top = Math.min(rect.bottom + 8, window.innerHeight - 24)
+    const top = Math.min(rect.bottom + 10, window.innerHeight - 24)
     if (rtl) {
       return { top, right: Math.max(12, window.innerWidth - rect.right) }
     }
     return { top, left: Math.max(12, rect.left) }
   })()
+
+  const preview = recent.slice(0, RECENT_LIMIT)
 
   const panel = createPortal(
     <AnimatePresence>
@@ -86,67 +96,72 @@ export default function RecentAppsMenu() {
           ref={panelRef}
           role="menu"
           aria-label={isAr ? 'التطبيقات الأخيرة' : 'Recent apps'}
-          initial={{ opacity: 0, y: 6, scale: 0.98 }}
+          initial={{ opacity: 0, y: 8, scale: 0.985 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 4, scale: 0.99 }}
-          transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed z-[80] w-[min(17.5rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-slate-200/70 bg-white/95 shadow-[0_20px_50px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#12161d]/95 dark:shadow-[0_24px_60px_-24px_rgba(0,0,0,0.8)]"
+          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          className="fixed z-[80] w-[min(15.5rem,calc(100vw-1.5rem))] overflow-hidden rounded-[1.35rem] border border-white/70 bg-white/90 shadow-[0_28px_64px_-36px_rgba(15,23,42,0.55),0_1px_0_rgba(255,255,255,0.65)_inset] backdrop-blur-2xl dark:border-white/[0.07] dark:bg-[#0f1319]/92 dark:shadow-[0_32px_72px_-28px_rgba(0,0,0,0.85)]"
           style={panelPosition}
         >
-          <div className="flex items-baseline justify-between gap-3 px-3.5 pb-1 pt-3.5">
-            <p className="text-[11px] font-medium tracking-wide text-slate-400 dark:text-slate-500">
+          <div className="px-3.5 pb-1 pt-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400/90 dark:text-slate-500">
               {isAr ? 'الأخيرة' : 'Recent'}
             </p>
-            <span className="text-[10px] tabular-nums text-slate-300 dark:text-slate-600">
-              {recent.filter((a) => !a.isSeed).length || recent.length}
-            </span>
           </div>
 
-          <div className="grid grid-cols-3 gap-0.5 px-2 pb-2 pt-1">
-            {recent.map((app, index) => {
-              const label = isAr
-                ? (app.labelAr || app.labelEn)
-                : (app.labelEn || app.labelAr || labelForAppPath(app.path, language))
+          <div className="flex flex-col gap-0.5 px-1.5 pb-1.5">
+            {preview.map((app, index) => {
+              const label = appLabel(app)
               return (
-                <button
+                <motion.button
                   key={`${app.path}-${index}`}
                   type="button"
                   role="menuitem"
+                  initial={{ opacity: 0, x: isAr ? 6 : -6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.03 * index, duration: 0.18 }}
                   onClick={() => openApp(app)}
-                  className="group flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-2.5 text-center transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 dark:hover:bg-white/[0.04]"
+                  className="group flex w-full items-center gap-2.5 rounded-2xl px-2 py-2 text-start transition-colors hover:bg-slate-900/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/25 dark:hover:bg-white/[0.05]"
                 >
-                  <App3DIcon
-                    path={app.path}
-                    label={label}
-                    className="h-9 w-9 transition duration-200 group-hover:-translate-y-0.5"
-                  />
-                  <span className="line-clamp-1 max-w-[4.4rem] text-[10px] font-medium leading-tight text-slate-500 group-hover:text-slate-800 dark:text-slate-400 dark:group-hover:text-slate-100">
-                    {label}
+                  <span className="relative shrink-0">
+                    <span className="absolute inset-0 rounded-xl bg-slate-900/[0.04] blur-[6px] dark:bg-white/[0.06]" aria-hidden />
+                    <App3DIcon
+                      path={app.path}
+                      label={label}
+                      className="relative h-9 w-9 transition duration-200 group-hover:-translate-y-0.5 group-hover:scale-[1.03]"
+                    />
                   </span>
-                </button>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-semibold tracking-tight text-slate-800 dark:text-slate-100">
+                      {label}
+                    </span>
+                    <span className="mt-0.5 block text-[10px] font-medium tabular-nums text-slate-400 dark:text-slate-500">
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                  </span>
+                </motion.button>
               )
             })}
           </div>
 
-          <div className="border-t border-slate-100 px-2 py-2 dark:border-white/[0.06]">
+          <div className="border-t border-slate-100/90 px-1.5 py-1.5 dark:border-white/[0.06]">
             <button
               type="button"
               role="menuitem"
               onClick={openFullNavbar}
-              className="group flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-start transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 dark:hover:bg-white/[0.04]"
+              className="group flex w-full items-center gap-2.5 rounded-2xl px-2 py-2 text-start transition-colors hover:bg-slate-900/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/25 dark:hover:bg-white/[0.05]"
             >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900">
-                <LayoutGrid className="h-3.5 w-3.5" />
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-white shadow-[0_8px_18px_-10px_rgba(15,23,42,0.7)] dark:bg-white dark:text-slate-950">
+                <LayoutGrid className="h-3.5 w-3.5" strokeWidth={1.75} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[12px] font-semibold tracking-tight text-slate-900 dark:text-white">
+                <span className="block text-[13px] font-semibold tracking-tight text-slate-800 dark:text-slate-100">
                   {isAr ? 'كل التطبيقات' : 'All apps'}
                 </span>
-                <span className="block text-[10px] text-slate-400 dark:text-slate-500">
-                  {isAr ? 'فتح قائمة التطبيقات' : 'Open app navbar'}
+                <span className="mt-0.5 block text-[10px] text-slate-400 dark:text-slate-500">
+                  {isAr ? 'فتح القائمة' : 'Open launcher'}
                 </span>
               </span>
-              <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-slate-500 dark:text-slate-600 dark:group-hover:text-slate-400" />
             </button>
           </div>
         </motion.div>
@@ -163,14 +178,33 @@ export default function RecentAppsMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={`relative rounded-xl p-2 transition-colors ${
+        className={`group relative inline-flex h-10 items-center gap-1.5 rounded-2xl border px-1.5 pe-2 transition-all duration-200 ${
           open
-            ? 'bg-slate-100 text-slate-900 ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-white dark:ring-white/10'
-            : 'hover:bg-gray-100 dark:hover:bg-dark-700'
+            ? 'border-slate-200/90 bg-white shadow-[0_10px_28px_-18px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-white/[0.08]'
+            : 'border-transparent hover:border-slate-200/80 hover:bg-white/80 dark:hover:border-white/10 dark:hover:bg-white/[0.05]'
         }`}
         title={isAr ? 'التطبيقات الأخيرة' : 'Recent apps'}
       >
-        <LayoutGrid className={`h-5 w-5 ${open ? '' : 'text-gray-600 dark:text-gray-400'}`} />
+        <span className="flex flex-col items-center gap-[3px] py-1" aria-hidden>
+          {preview.length ? (
+            preview.map((app, index) => (
+              <App3DIcon
+                key={`preview-${app.path}-${index}`}
+                path={app.path}
+                label={appLabel(app)}
+                className={`h-[11px] w-[11px] rounded-[3px] shadow-sm ring-1 ring-white/70 dark:ring-white/10 ${
+                  index === 0 ? 'opacity-100' : index === 1 ? 'opacity-80' : 'opacity-60'
+                }`}
+              />
+            ))
+          ) : (
+            <LayoutGrid className="h-4 w-4 text-slate-500" strokeWidth={1.75} />
+          )}
+        </span>
+        <ChevronDown
+          className={`h-3 w-3 text-slate-400 transition duration-200 ${open ? 'rotate-180 text-slate-600 dark:text-slate-300' : 'group-hover:text-slate-500'}`}
+          strokeWidth={2}
+        />
       </button>
       {panel}
     </Fragment>
