@@ -4249,6 +4249,12 @@ import {
   parseOAuthState,
   buildAuthorizeUrl,
 } from '../utils/bankSyncOAuth.js';
+import {
+  sealBankSyncMetadata,
+  unsealBankSyncMetadata,
+  redactBankSyncConnections,
+  decryptSecret,
+} from '../utils/bankSyncSecrets.js';
 
 export const BANK_SYNC_PROVIDERS = resolveBankSyncProviders();
 
@@ -4257,7 +4263,10 @@ export async function getBankSyncStatus(tenantId) {
   const connections = Array.isArray(tenant?.settings?.accounting?.bankSyncConnections)
     ? tenant.settings.accounting.bankSyncConnections
     : [];
-  return { providers: resolveBankSyncProviders(), connections };
+  return {
+    providers: resolveBankSyncProviders(),
+    connections: redactBankSyncConnections(connections),
+  };
 }
 
 export async function startBankSyncOAuth(tenantId, { provider, bankAccountId = null, journalId = null } = {}) {
@@ -4298,7 +4307,7 @@ export async function startBankSyncOAuth(tenantId, { provider, bankAccountId = n
       status: 'connected',
       authorizeUrl: null,
       message: 'Sandbox provider connected — use Sync now or Bank reconciliation CSV import.',
-      connections,
+      connections: redactBankSyncConnections(connections),
     };
   }
 
@@ -4357,12 +4366,12 @@ export async function startBankSyncOAuth(tenantId, { provider, bankAccountId = n
     journalId: journalId || null,
     connectedAt: null,
     lastSyncAt: null,
-    metadata: {
+    metadata: sealBankSyncMetadata({
       mode,
       oauthState: state,
       linkToken: linkToken || null,
       startedAt: new Date(),
-    },
+    }),
   };
   if (existingIdx >= 0) connections[existingIdx] = { ...connections[existingIdx], ...next };
   else connections.push(next);
@@ -4377,7 +4386,7 @@ export async function startBankSyncOAuth(tenantId, { provider, bankAccountId = n
     linkToken,
     state,
     message,
-    connections,
+    connections: redactBankSyncConnections(connections),
   };
 }
 
@@ -4392,13 +4401,6 @@ export async function completeBankSyncOAuth(tenantId, {
   const meta = getBankSyncProviderMeta(id);
   if (!meta || meta.status === 'coming_soon') throw new Error('Provider not available');
 
-  if (state) {
-    const parsed = parseOAuthState(state);
-    if (!parsed || String(parsed.tenantId) !== String(tenantId) || parsed.provider !== id) {
-      throw Object.assign(new Error('Invalid or expired OAuth state'), { statusCode: 400 });
-    }
-  }
-
   const tenant = await Tenant.findById(tenantId).select('settings.accounting.bankSyncConnections').lean();
   const connections = Array.isArray(tenant?.settings?.accounting?.bankSyncConnections)
     ? [...tenant.settings.accounting.bankSyncConnections]
@@ -4406,7 +4408,44 @@ export async function completeBankSyncOAuth(tenantId, {
   const existingIdx = connections.findIndex((row) => row.provider === id);
   const prev = existingIdx >= 0 ? connections[existingIdx] : {};
 
-  let accessToken = prev.metadata?.accessToken || null;
+  if (state) {
+    let parsed = parseOAuthState(state);
+    if (!parsed) {
+      try {
+        parsed = parseOAuthState(decryptSecret(state));
+      } catch {
+        parsed = null;
+      }
+    }
+    if (!parsed && prev?.metadata?.oauthState) {
+      try {
+        parsed = parseOAuthState(decryptSecret(prev.metadata.oauthState));
+      } catch {
+        parsed = null;
+      }
+    }
+    if (!parsed || String(parsed.tenantId) !== String(tenantId) || parsed.provider !== id) {
+      throw Object.assign(new Error('Invalid or expired OAuth state'), { statusCode: 400 });
+    }
+  } else if (prev?.metadata?.oauthState) {
+    // Prefer verifying stored sealed state when client omits state
+    try {
+      const parsed = parseOAuthState(decryptSecret(prev.metadata.oauthState));
+      if (!parsed || String(parsed.tenantId) !== String(tenantId) || parsed.provider !== id) {
+        throw Object.assign(new Error('Invalid or expired OAuth state'), { statusCode: 400 });
+      }
+    } catch (error) {
+      if (error.statusCode) throw error;
+      // Stale sealed state — allow confirm with public token only
+    }
+  }
+
+  let accessToken = null;
+  try {
+    accessToken = prev.metadata?.accessToken ? decryptSecret(prev.metadata.accessToken) : null;
+  } catch {
+    accessToken = null;
+  }
   let itemId = prev.metadata?.itemId || null;
   let resolvedConnectionId = connectionId || prev.metadata?.connectionId || null;
 
@@ -4417,7 +4456,6 @@ export async function completeBankSyncOAuth(tenantId, {
       accessToken = exchanged.accessToken;
       itemId = exchanged.itemId;
     } catch (error) {
-      // Keep connection without live token when exchange fails (demo / misconfig)
       accessToken = accessToken || `pending:${publicToken}`;
     }
   }
@@ -4429,15 +4467,16 @@ export async function completeBankSyncOAuth(tenantId, {
     bankAccountId: bankAccountId || prev.bankAccountId || null,
     connectedAt: new Date(),
     lastSyncAt: null,
-    metadata: {
-      ...(prev.metadata || {}),
+    metadata: sealBankSyncMetadata({
+      ...(unsealBankSyncMetadata(prev.metadata || {})),
       mode: accessToken && !String(accessToken).startsWith('pending:') ? `${id}_live` : `${id}_oauth`,
-      publicToken: publicToken || prev.metadata?.publicToken || null,
+      publicToken: publicToken || null,
       accessToken,
       itemId,
       connectionId: resolvedConnectionId,
       completedAt: new Date(),
-    },
+      linkToken: null,
+    }),
   };
   if (existingIdx >= 0) connections[existingIdx] = next;
   else connections.push(next);
@@ -4450,7 +4489,7 @@ export async function completeBankSyncOAuth(tenantId, {
     provider: id,
     status: 'connected',
     message: `${meta.name} connected — Sync now pulls statement lines into bank reconciliation.`,
-    connections,
+    connections: redactBankSyncConnections(connections),
   };
 }
 
@@ -4462,7 +4501,7 @@ export async function disconnectBankSync(tenantId, provider) {
   await Tenant.findByIdAndUpdate(tenantId, {
     $set: { 'settings.accounting.bankSyncConnections': connections },
   });
-  return { connections };
+  return { connections: redactBankSyncConnections(connections) };
 }
 
 /**
@@ -4478,7 +4517,10 @@ export async function syncBankFeed(tenantId, userId, {
   if (!meta) throw new Error('Unknown bank sync provider');
   if (meta.status === 'coming_soon') throw new Error(`${meta.name} is not available yet`);
 
-  const { connections } = await getBankSyncStatus(tenantId);
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.bankSyncConnections').lean();
+  const connections = Array.isArray(tenant?.settings?.accounting?.bankSyncConnections)
+    ? [...tenant.settings.accounting.bankSyncConnections]
+    : [];
   const conn = connections.find((row) => row.provider === id && row.status === 'connected');
   if (!conn) throw new Error('Provider not connected — connect in Online sync first');
 
@@ -4491,13 +4533,14 @@ export async function syncBankFeed(tenantId, userId, {
 
   const { listUnmatchedJournalItems, createBankStatement } = await import('./bankReconciliationService.js');
   const { fetchProviderStatementLines, demoTransactions } = await import('./bankSyncProviderClient.js');
+  const liveMeta = unsealBankSyncMetadata(conn.metadata || {});
 
   let syncLines = [];
   let feedSource = 'gl_mirror';
   let feedError = null;
 
   if (id === 'plaid' || id === 'saltedge') {
-    const feed = await fetchProviderStatementLines(id, conn.metadata || {});
+    const feed = await fetchProviderStatementLines(id, liveMeta);
     syncLines = feed.lines || [];
     feedSource = feed.source;
     feedError = feed.error || null;
@@ -4533,13 +4576,13 @@ export async function syncBankFeed(tenantId, userId, {
       ...nextConnections[idx],
       bankAccountId: accountId,
       lastSyncAt: new Date(),
-      metadata: {
-        ...(nextConnections[idx].metadata || {}),
+      metadata: sealBankSyncMetadata({
+        ...unsealBankSyncMetadata(nextConnections[idx].metadata || {}),
         lastStatementId: statement._id,
         lastLineCount: syncLines.length,
         lastFeedSource: feedSource,
         lastFeedError: feedError,
-      },
+      }),
     };
     await Tenant.findByIdAndUpdate(tenantId, {
       $set: { 'settings.accounting.bankSyncConnections': nextConnections },
@@ -4554,7 +4597,7 @@ export async function syncBankFeed(tenantId, userId, {
     feedSource,
     feedError,
     lastSyncAt: new Date(),
-    connections: nextConnections,
+    connections: redactBankSyncConnections(nextConnections),
   };
 }
 

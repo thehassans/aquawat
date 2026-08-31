@@ -9,6 +9,7 @@ import VirtualTableBody from '../../components/ui/VirtualTableBody'
 import { ReportFilterRibbon, compareRange, variance } from './ReportFilterRibbon'
 import { ConfigPanelShell } from './ConfigPanelShell'
 import { CustomReportLinesSection } from './AccountingReportPanels'
+import { openPlaidLink } from './plaidLink'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 const yearStartIso = () => new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10)
@@ -5918,16 +5919,34 @@ export function OnlineSyncPanel({ language }) {
   })
   const [oauthToken, setOauthToken] = useState('')
   const [linkTokenHint, setLinkTokenHint] = useState('')
+  const [plaidBusy, setPlaidBusy] = useState(false)
+
+  const launchPlaid = async (linkToken) => {
+    if (!linkToken) return
+    setPlaidBusy(true)
+    setLinkTokenHint(linkToken)
+    try {
+      const { publicToken } = await openPlaidLink(linkToken)
+      setOauthToken(publicToken)
+      toast.success(isAr ? 'تم الحصول على public_token — اضغط تأكيد' : 'Got public_token — click Confirm')
+    } catch (error) {
+      if (!String(error?.message || '').includes('closed')) {
+        toast.error(error?.message || 'Plaid Link failed')
+      }
+    } finally {
+      setPlaidBusy(false)
+    }
+  }
+
   const connect = useMutation({
     mutationFn: (payload) => api.post('/accounting/bank-sync/connect', payload).then((r) => r.data),
-    onSuccess: (payload) => {
+    onSuccess: async (payload) => {
       if (payload?.authorizeUrl) {
         window.open(payload.authorizeUrl, '_blank', 'noopener,noreferrer')
       }
       if (payload?.linkToken) {
-        setLinkTokenHint(payload.linkToken)
-        setOauthToken('')
-        toast.success(isAr ? 'تم إنشاء رابط Plaid — الصق public_token ثم أكّد' : 'Plaid link token ready — paste public_token then confirm')
+        toast.success(isAr ? 'فتح Plaid Link…' : 'Opening Plaid Link…')
+        await launchPlaid(payload.linkToken)
       } else {
         setLinkTokenHint('')
         toast.success(payload?.message || (isAr ? 'تم الربط' : 'Connected'))
@@ -5942,7 +5961,6 @@ export function OnlineSyncPanel({ language }) {
       const conn = connections.find((c) => c.provider === provider)
       return api.post('/accounting/bank-sync/oauth/callback', {
         provider,
-        state: conn?.metadata?.oauthState || undefined,
         bankAccountId: bankAccountId || undefined,
         publicToken: provider === 'plaid' ? (oauthToken || undefined) : undefined,
         connectionId: provider === 'saltedge' ? (oauthToken || undefined) : undefined,
@@ -6011,10 +6029,41 @@ export function OnlineSyncPanel({ language }) {
       {pendingSet.size ? (
         <div className="mb-4 space-y-2 max-w-xl">
           {linkTokenHint ? (
-            <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 font-mono text-[11px] text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
-              link_token: {linkTokenHint}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={plaidBusy}
+                onClick={() => launchPlaid(linkTokenHint)}
+                className="rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                {plaidBusy ? '…' : (isAr ? 'فتح Plaid Link' : 'Open Plaid Link')}
+              </button>
+              <span className="font-mono text-[10px] text-slate-400 truncate max-w-[240px]">{linkTokenHint}</span>
+            </div>
+          ) : null}
+          {[...pendingSet].includes('plaid') && !linkTokenHint ? (
+            <p className="text-xs text-slate-500">
+              {isAr ? 'أعد الربط للحصول على link_token أو الصق public_token يدوياً.' : 'Reconnect to get a link_token, or paste a public_token manually.'}
             </p>
           ) : null}
+          {[...pendingSet].map((providerId) => {
+            const pendingConn = connections.find((c) => c.provider === providerId)
+            const storedLink = pendingConn?.metadata?.linkToken
+            if (providerId === 'plaid' && storedLink && storedLink !== linkTokenHint) {
+              return (
+                <button
+                  key={`link-${providerId}`}
+                  type="button"
+                  disabled={plaidBusy}
+                  onClick={() => launchPlaid(storedLink)}
+                  className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold dark:border-dark-600"
+                >
+                  {isAr ? 'فتح Plaid Link (محفوظ)' : 'Open saved Plaid Link'}
+                </button>
+              )
+            }
+            return null
+          })}
           <label className="block text-xs font-medium text-slate-500">
             {isAr ? 'Plaid public_token أو Salt Edge connection id' : 'Plaid public_token or Salt Edge connection id'}
             <input
