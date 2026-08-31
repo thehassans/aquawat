@@ -113,7 +113,44 @@ export default function RecentAppsMenu({ variant = 'header' }) {
           className="fixed z-[130] w-[min(15.5rem,calc(100vw-1.5rem))] overflow-hidden rounded-[1.35rem] border border-slate-200/60 bg-white/95 shadow-[0_28px_70px_-36px_rgba(15,23,42,0.55)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-[#0f1319]/96 dark:shadow-[0_28px_70px_-28px_rgba(0,0,0,0.85)]"
           style={panelPosition}
         >
-          <div className="px-4 pb-1 pt-3.5">
+          <div className="border-b border-slate-100/90 px-2 pb-2 pt-2 dark:border-white/[0.06]">
+            {inLauncher ? (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={closeLauncher}
+                className="group flex w-full items-center gap-3 rounded-2xl px-2.5 py-2.5 text-start transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/25 dark:hover:bg-white/[0.045]"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400">
+                  <X className="h-3.5 w-3.5" strokeWidth={2} />
+                </span>
+                <span className="text-[13px] font-semibold tracking-tight text-slate-600 dark:text-slate-300">
+                  {isAr ? 'إغلاق القائمة' : 'Close launcher'}
+                </span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={openFullNavbar}
+                className="group flex w-full items-center gap-3 rounded-2xl px-2.5 py-2.5 text-start transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/25 dark:hover:bg-white/[0.045]"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900">
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-semibold tracking-tight text-slate-900 dark:text-white">
+                    {isAr ? 'كل التطبيقات' : 'All apps'}
+                  </span>
+                  <span className="block text-[10px] text-slate-400 dark:text-slate-500">
+                    {isAr ? 'فتح قائمة التطبيقات' : 'Open app navbar'}
+                  </span>
+                </span>
+              </button>
+            )}
+          </div>
+
+          <div className="px-4 pb-1 pt-3">
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
               {isAr ? 'الأخيرة' : 'Recent'}
             </p>
@@ -153,43 +190,6 @@ export default function RecentAppsMenu({ variant = 'header' }) {
               <p className="px-3 py-6 text-center text-xs text-slate-400">
                 {isAr ? 'لا تطبيقات حديثة' : 'No recent apps yet'}
               </p>
-            )}
-          </div>
-
-          <div className="border-t border-slate-100/90 px-2 py-2 dark:border-white/[0.06]">
-            {inLauncher ? (
-              <button
-                type="button"
-                role="menuitem"
-                onClick={closeLauncher}
-                className="group flex w-full items-center gap-3 rounded-2xl px-2.5 py-2.5 text-start transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/25 dark:hover:bg-white/[0.045]"
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400">
-                  <X className="h-3.5 w-3.5" strokeWidth={2} />
-                </span>
-                <span className="text-[13px] font-semibold tracking-tight text-slate-600 dark:text-slate-300">
-                  {isAr ? 'إغلاق القائمة' : 'Close launcher'}
-                </span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                role="menuitem"
-                onClick={openFullNavbar}
-                className="group flex w-full items-center gap-3 rounded-2xl px-2.5 py-2.5 text-start transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/25 dark:hover:bg-white/[0.045]"
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900">
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-semibold tracking-tight text-slate-900 dark:text-white">
-                    {isAr ? 'كل التطبيقات' : 'All apps'}
-                  </span>
-                  <span className="block text-[10px] text-slate-400 dark:text-slate-500">
-                    {isAr ? 'فتح قائمة التطبيقات' : 'Open app navbar'}
-                  </span>
-                </span>
-              </button>
             )}
           </div>
         </motion.div>
