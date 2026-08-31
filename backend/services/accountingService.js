@@ -2,6 +2,7 @@ import ChartOfAccount from '../models/ChartOfAccount.js';
 import JournalEntry from '../models/JournalEntry.js';
 import JournalItem from '../models/JournalItem.js';
 import Tenant from '../models/Tenant.js';
+import { BUILTIN_PAYMENT_TERMS, describePaymentTerm } from '../utils/invoicePaymentTerms.js';
 import Invoice from '../models/Invoice.js';
 import Customer from '../models/Customer.js';
 import Supplier from '../models/Supplier.js';
@@ -3071,23 +3072,6 @@ export async function setFiscalPositions(tenantId, positions) {
   return { positions: cleaned };
 }
 
-export const BUILTIN_PAYMENT_TERMS = [
-  { id: 'immediate', labelEn: 'Immediate Payment', labelAr: 'دفع فوري', kind: 'days', days: 0 },
-  { id: 'cod', labelEn: 'Cash on Delivery', labelAr: 'الدفع عند الاستلام', kind: 'days', days: 0 },
-  { id: 'net7', labelEn: '7 Days', labelAr: '7 أيام', kind: 'days', days: 7 },
-  { id: 'net10', labelEn: '10 Days', labelAr: '10 أيام', kind: 'days', days: 10 },
-  { id: 'net15', labelEn: '15 Days', labelAr: '15 يوم', kind: 'days', days: 15 },
-  { id: 'net21', labelEn: '21 Days', labelAr: '21 يوم', kind: 'days', days: 21 },
-  { id: 'net30', labelEn: '30 Days', labelAr: '30 يوم', kind: 'days', days: 30 },
-  { id: 'net45', labelEn: '45 Days', labelAr: '45 يوم', kind: 'days', days: 45 },
-  { id: 'net60', labelEn: '60 Days', labelAr: '60 يوم', kind: 'days', days: 60 },
-  { id: 'net90', labelEn: '90 Days', labelAr: '90 يوم', kind: 'days', days: 90 },
-  { id: 'end_of_month', labelEn: 'End of Current Month', labelAr: 'نهاية الشهر الحالي', kind: 'eom_current' },
-  { id: 'eom_following', labelEn: 'End of Following Month', labelAr: 'نهاية الشهر التالي', kind: 'eom_following' },
-  { id: 'eom_next_plus_10', labelEn: '10 Days after End of Next Month', labelAr: '10 أيام بعد نهاية الشهر التالي', kind: 'eom_next_plus_10' },
-  { id: '30_now_60_balance', labelEn: '30% Now, Balance 60 Days', labelAr: '٣٠٪ الآن والباقي خلال ٦٠ يوم', kind: 'days', days: 60 },
-];
-
 export async function getPaymentTermsCatalog(tenantId) {
   const tenant = await Tenant.findById(tenantId).select('settings.accounting.paymentTermIds settings.accounting.defaultPaymentTermId').lean();
   const enabledIds = Array.isArray(tenant?.settings?.accounting?.paymentTermIds)
@@ -3098,6 +3082,8 @@ export async function getPaymentTermsCatalog(tenantId) {
     ...term,
     enabled: enabledIds.length ? enabledIds.includes(term.id) : true,
     isDefault: term.id === defaultId,
+    scheduleSummaryEn: describePaymentTerm(term, 'en'),
+    scheduleSummaryAr: describePaymentTerm(term, 'ar'),
   }));
   return { terms, defaultPaymentTermId: defaultId, enabledIds };
 }

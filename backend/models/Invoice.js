@@ -259,6 +259,25 @@ const invoiceSchema = new mongoose.Schema({
     amount: { type: Number }
   }],
   paymentTerms: { type: String },
+  /** Staggered receivable tranches computed from paymentTerms (installments / early discount). */
+  paymentSchedule: [{
+    sequence: { type: Number, default: 1 },
+    percent: { type: Number, default: 100 },
+    days: { type: Number, default: 0 },
+    dueDate: { type: Date },
+    amount: { type: Number, default: 0 },
+    labelEn: { type: String, default: '' },
+    labelAr: { type: String, default: '' },
+    noteEn: { type: String, default: '' },
+    noteAr: { type: String, default: '' },
+  }],
+  earlyPaymentDiscount: {
+    percent: { type: Number, default: 0 },
+    deadline: { type: Date, default: null },
+    discountedAmount: { type: Number, default: 0 },
+    standardDueDate: { type: Date, default: null },
+    standardAmount: { type: Number, default: 0 },
+  },
   paymentStatus: { type: String, enum: ['pending', 'partial', 'paid', 'overdue', 'cancelled'], default: 'pending' },
   paidAmount: { type: Number, default: 0 },
   

@@ -52,6 +52,7 @@ import {
   TaxUnitsPanel,
   AnalyticDistributionModelsPanel,
   AutomaticTransfersPanel,
+  ChartOfAccountsPanel,
   PaymentProvidersPanel,
   ReconciliationModelsPanel,
   JournalGroupsPanel,
@@ -204,7 +205,6 @@ export default function Accounting() {
   const tab = TABS.some((item) => item.id === section) ? section : 'overview'
   const activeTab = TABS.find((item) => item.id === tab) || TABS[0]
   const [showJournalForm, setShowJournalForm] = useState(false)
-  const [accountSearch, setAccountSearch] = useState('')
   const [journalForm, setJournalForm] = useState({
     memo: '',
     entryDate: new Date().toISOString().slice(0, 10),
@@ -1082,44 +1082,8 @@ export default function Accounting() {
           )}
 
           {tab === 'chart-of-accounts' && (
-            <motion.div key="accounts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-              <div className="border-b border-slate-100 px-5 py-3 dark:border-white/10">
-                <input
-                  value={accountSearch}
-                  onChange={(e) => setAccountSearch(e.target.value)}
-                  placeholder={isAr ? 'بحث بالرمز أو الاسم…' : 'Search code or name…'}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-dark-900"
-                />
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-slate-50/80 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:bg-dark-900">
-                    <tr>
-                      <th className="px-5 py-3.5">{isAr ? 'الرمز' : 'Code'}</th>
-                      <th className="px-5 py-3.5">{isAr ? 'الاسم' : 'Name'}</th>
-                      <th className="px-5 py-3.5">{isAr ? 'النوع' : 'Type'}</th>
-                      <th className="px-5 py-3.5 text-end">{isAr ? 'الرصيد' : 'Balance'}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                    {accounts.filter((a) => {
-                      const q = accountSearch.trim().toLowerCase()
-                      if (!q) return true
-                      return [a.code, a.name, a.nameAr].some((v) => String(v || '').toLowerCase().includes(q))
-                    }).map((a) => (
-                      <tr key={a._id} className="hover:bg-emerald-50/40 dark:hover:bg-white/[0.03]">
-                        <td className="px-5 py-3.5 font-mono text-xs font-semibold text-emerald-800 dark:text-emerald-300">{a.code}</td>
-                        <td className="px-5 py-3.5">
-                          <p className="font-medium text-slate-900 dark:text-white">{isAr ? (a.nameAr || a.name) : a.name}</p>
-                          {a.nameAr && !isAr ? <p className="text-xs text-slate-400" dir="rtl">{a.nameAr}</p> : null}
-                        </td>
-                        <td className="px-5 py-3.5 capitalize text-slate-500">{a.type}</td>
-                        <td className="px-5 py-3.5 text-end font-semibold"><Money value={a.balance || 0} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <motion.div key="accounts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <ChartOfAccountsPanel language={language} />
             </motion.div>
           )}
 

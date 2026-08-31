@@ -4299,23 +4299,27 @@ export function PaymentTermsPanel({ language }) {
   })
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold">{isAr ? 'شروط الدفع' : 'Payment terms'}</p>
-          <p className="text-xs text-slate-500">{isAr ? 'فعّل الشروط الظاهرة في فواتير البيع والشراء.' : 'Enable terms shown on sales and purchase invoices.'}</p>
-        </div>
+    <ConfigPanelShell
+      language={language}
+      titleEn="Payment terms"
+      titleAr="شروط الدفع"
+      purposeEn="Commercial due-date rules applied when an invoice is dated — including staggered tranches and early-payment discounts."
+      purposeAr="قواعد استحقاق الفواتير عند التاريخ — تشمل الدفعات المتعددة وخصومات الدفع المبكر."
+      impactEn="Backend computes dueDate, paymentSchedule tranches, and earlyPaymentDiscount on save; receivables aging uses the final due date."
+      impactAr="يحسب النظام تاريخ الاستحقاق وجدول الدفعات وخصم الدفع المبكر عند الحفظ؛ أعمار المدينين تستخدم آخر تاريخ."
+      actions={(
         <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
           {save.isPending ? '…' : (isAr ? 'حفظ' : 'Save')}
         </button>
-      </div>
+      )}
+    >
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
             <tr>
               <th className="px-4 py-2 text-start">{isAr ? 'مفعّل' : 'On'}</th>
               <th className="px-4 py-2 text-start">{isAr ? 'الاسم' : 'Name'}</th>
-              <th className="px-4 py-2 text-start">{isAr ? 'التفاصيل' : 'Details'}</th>
+              <th className="px-4 py-2 text-start">{isAr ? 'المحرك' : 'Engine'}</th>
               <th className="px-4 py-2 text-center">{isAr ? 'افتراضي' : 'Default'}</th>
             </tr>
           </thead>
@@ -4330,8 +4334,8 @@ export function PaymentTermsPanel({ language }) {
                   />
                 </td>
                 <td className="px-4 py-2">{isAr ? term.labelAr : term.labelEn}</td>
-                <td className="px-4 py-2 text-xs text-slate-500">
-                  {term.kind === 'days' ? `${term.days}d` : term.kind}
+                <td className="px-4 py-2 font-mono text-[11px] text-slate-500">
+                  {isAr ? (term.scheduleSummaryAr || term.kind) : (term.scheduleSummaryEn || term.kind)}
                 </td>
                 <td className="px-4 py-2 text-center">
                   <input type="radio" name="payment-term-default" checked={defaultId === term.id} onChange={() => setDefaultId(term.id)} />
@@ -4341,7 +4345,7 @@ export function PaymentTermsPanel({ language }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </ConfigPanelShell>
   )
 }
 
@@ -4369,16 +4373,20 @@ export function IncotermsPanel({ language }) {
   })
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold">{isAr ? 'شروط التجارة الدولية' : 'Incoterms'}</p>
-          <p className="text-xs text-slate-500">{isAr ? 'اختر الرموز المتاحة في Other info.' : 'Choose codes available on invoice Other info.'}</p>
-        </div>
+    <ConfigPanelShell
+      language={language}
+      titleEn="Incoterms"
+      titleAr="شروط التجارة الدولية"
+      purposeEn="International commercial terms (EXW, FOB, CIF…) printed on invoices to define freight and risk transfer."
+      purposeAr="شروط التجارة الدولية المطبوعة على الفواتير لتحديد مسؤولية الشحن والنقل."
+      impactEn="Selected incoterm is stored on customer/vendor documents and appears on PDF invoices."
+      impactAr="يُخزَّن المصطلح المختار على مستندات البيع/الشراء ويظهر في PDF الفاتورة."
+      actions={(
         <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
           {save.isPending ? '…' : (isAr ? 'حفظ' : 'Save')}
         </button>
-      </div>
+      )}
+    >
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {terms.map((term, index) => (
           <label key={term.code} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white px-4 py-3 text-sm dark:border-dark-600 dark:bg-dark-800">
@@ -4394,7 +4402,7 @@ export function IncotermsPanel({ language }) {
           </label>
         ))}
       </div>
-    </div>
+    </ConfigPanelShell>
   )
 }
 
@@ -4525,19 +4533,24 @@ export function CurrenciesPanel({ language }) {
     onSuccess: () => refetch(),
   })
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold">{isAr ? 'العملات' : 'Currencies'}</p>
-          <p className="text-xs text-slate-500">
-            {isAr ? `عملة الشركة: ${data?.companyCurrency || '—'}` : `Company currency: ${data?.companyCurrency || '—'}`}
-          </p>
-        </div>
-        <div className="flex gap-2">
+    <ConfigPanelShell
+      language={language}
+      titleEn="Currencies"
+      titleAr="العملات"
+      purposeEn="Multi-currency rates used when foreign invoices are paid or revalued."
+      purposeAr="أسعار الصرف للعملات الأجنبية عند الدفع أو إعادة التقييم."
+      impactEn="Exchange rates drive unrealized/realized gain-loss entries on foreign currency settlement."
+      impactAr="أسعار الصرف تولّد قيود أرباح/خسائر فروقات العملة عند التسوية."
+      actions={(
+        <>
           <button type="button" onClick={() => setRows((p) => [...p, { code: '', name: '', nameAr: '', rate: 1, active: true }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
           <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{save.isPending ? '…' : (isAr ? 'حفظ' : 'Save')}</button>
-        </div>
-      </div>
+        </>
+      )}
+    >
+      <p className="text-xs text-slate-500">
+        {isAr ? `عملة الشركة: ${data?.companyCurrency || '—'}` : `Company currency: ${data?.companyCurrency || '—'}`}
+      </p>
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
@@ -4562,7 +4575,219 @@ export function CurrenciesPanel({ language }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </ConfigPanelShell>
+  )
+}
+
+const COA_TYPES = [
+  { id: 'asset', labelEn: 'Asset', labelAr: 'أصل' },
+  { id: 'liability', labelEn: 'Liability', labelAr: 'التزام' },
+  { id: 'equity', labelEn: 'Equity', labelAr: 'حقوق ملكية' },
+  { id: 'revenue', labelEn: 'Revenue', labelAr: 'إيراد' },
+  { id: 'expense', labelEn: 'Expense', labelAr: 'مصروف' },
+]
+
+const COA_SUBTYPES = [
+  'cash', 'bank', 'receivable', 'inventory', 'fixed_asset', 'accum_depreciation', 'other_asset',
+  'payable', 'tax', 'other_liability',
+  'capital', 'retained_earnings', 'other_equity',
+  'sales', 'other_income',
+  'cogs', 'operating', 'payroll', 'other_expense',
+]
+
+const emptyCoaForm = () => ({
+  code: '',
+  name: '',
+  nameAr: '',
+  type: 'expense',
+  subtype: 'operating',
+  parentCode: '',
+  description: '',
+  isPostable: true,
+  isActive: true,
+})
+
+export function ChartOfAccountsPanel({ language }) {
+  const isAr = language === 'ar'
+  const queryClient = useQueryClient()
+  const [search, setSearch] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const [editId, setEditId] = useState(null)
+  const [form, setForm] = useState(emptyCoaForm())
+
+  const { data: accounts = [], isFetching, refetch } = useQuery({
+    queryKey: ['accounting-accounts'],
+    queryFn: () => api.get('/accounting/accounts').then((r) => r.data),
+  })
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return accounts
+    return accounts.filter((a) => [a.code, a.name, a.nameAr, a.type].some((v) => String(v || '').toLowerCase().includes(q)))
+  }, [accounts, search])
+
+  const saveCreate = useMutation({
+    mutationFn: () => api.post('/accounting/accounts', form).then((r) => r.data),
+    onSuccess: () => {
+      toast.success(isAr ? 'تم إنشاء الحساب' : 'Account created')
+      setShowForm(false)
+      setForm(emptyCoaForm())
+      refetch()
+      queryClient.invalidateQueries({ queryKey: ['accounting-accounts'] })
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
+  })
+
+  const saveEdit = useMutation({
+    mutationFn: () => api.put(`/accounting/accounts/${editId}`, form).then((r) => r.data),
+    onSuccess: () => {
+      toast.success(isAr ? 'تم التحديث' : 'Account updated')
+      setEditId(null)
+      setForm(emptyCoaForm())
+      refetch()
+      queryClient.invalidateQueries({ queryKey: ['accounting-accounts'] })
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
+  })
+
+  const startEdit = (row) => {
+    setEditId(row._id)
+    setShowForm(true)
+    setForm({
+      code: row.code || '',
+      name: row.name || '',
+      nameAr: row.nameAr || '',
+      type: row.type || 'expense',
+      subtype: row.subtype || 'other_expense',
+      parentCode: row.parentCode || '',
+      description: row.description || '',
+      isPostable: row.isPostable !== false,
+      isActive: row.isActive !== false,
+    })
+  }
+
+  return (
+    <ConfigPanelShell
+      language={language}
+      titleEn="Chart of accounts"
+      titleAr="دليل الحسابات"
+      purposeEn="Hierarchical ledger structure — every journal line posts to an account here."
+      purposeAr="هيكل الدفاتر المالية — كل بند قيد يرتبط بحساب في هذا الدليل."
+      impactEn="Product categories, taxes, bank setup, and automated entries all resolve account codes from this chart."
+      impactAr="فئات المنتجات والضرائب وإعداد البنوك والقيود الآلية تعتمد على رموز هذا الدليل."
+      actions={(
+        <button
+          type="button"
+          onClick={() => {
+            if (showForm && !editId) {
+              setShowForm(false)
+              setForm(emptyCoaForm())
+            } else {
+              setEditId(null)
+              setForm(emptyCoaForm())
+              setShowForm(true)
+            }
+          }}
+          className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white"
+        >
+          {showForm && !editId ? (isAr ? 'إلغاء' : 'Cancel') : (isAr ? 'حساب جديد' : 'New account')}
+        </button>
+      )}
+    >
+      {showForm ? (
+        <div className="grid gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 sm:grid-cols-2 lg:grid-cols-3 dark:border-dark-600 dark:bg-dark-800">
+          {[
+            ['code', isAr ? 'الرمز' : 'Code', form.code, (v) => setForm((p) => ({ ...p, code: v })), !editId || !accounts.find((a) => a._id === editId)?.isSystem],
+            ['name', isAr ? 'الاسم' : 'Name', form.name, (v) => setForm((p) => ({ ...p, name: v })), true],
+            ['nameAr', isAr ? 'الاسم (عربي)' : 'Name (Arabic)', form.nameAr, (v) => setForm((p) => ({ ...p, nameAr: v })), true],
+            ['parentCode', isAr ? 'الرمز الأب' : 'Parent code', form.parentCode, (v) => setForm((p) => ({ ...p, parentCode: v })), true],
+            ['description', isAr ? 'الوصف' : 'Description', form.description, (v) => setForm((p) => ({ ...p, description: v })), true],
+          ].map(([key, label, value, onChange, editable]) => (
+            editable ? (
+              <label key={key} className="text-xs font-medium text-slate-500">
+                {label}
+                <input value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900" />
+              </label>
+            ) : (
+              <label key={key} className="text-xs font-medium text-slate-500">
+                {label}
+                <input value={value} disabled className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm opacity-70 dark:border-dark-600 dark:bg-dark-900" />
+              </label>
+            )
+          ))}
+          <label className="text-xs font-medium text-slate-500">
+            {isAr ? 'النوع' : 'Type'}
+            <select value={form.type} onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))} disabled={Boolean(editId && accounts.find((a) => a._id === editId)?.isSystem)} className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900">
+              {COA_TYPES.map((t) => <option key={t.id} value={t.id}>{isAr ? t.labelAr : t.labelEn}</option>)}
+            </select>
+          </label>
+          <label className="text-xs font-medium text-slate-500">
+            {isAr ? 'النوع الفرعي' : 'Subtype'}
+            <select value={form.subtype} onChange={(e) => setForm((p) => ({ ...p, subtype: e.target.value }))} className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900">
+              {COA_SUBTYPES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+          <div className="flex flex-wrap items-center gap-4 sm:col-span-2 lg:col-span-3">
+            <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={form.isPostable} onChange={(e) => setForm((p) => ({ ...p, isPostable: e.target.checked }))} />{isAr ? 'قابل للترحيل' : 'Postable'}</label>
+            <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm((p) => ({ ...p, isActive: e.target.checked }))} />{isAr ? 'نشط' : 'Active'}</label>
+            <button
+              type="button"
+              disabled={!form.code || !form.name || saveCreate.isPending || saveEdit.isPending}
+              onClick={() => (editId ? saveEdit.mutate() : saveCreate.mutate())}
+              className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {editId ? (isAr ? 'تحديث' : 'Update') : (isAr ? 'إنشاء' : 'Create')}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+        <div className="border-b border-slate-100 px-5 py-3 dark:border-white/10">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={isAr ? 'بحث بالرمز أو الاسم…' : 'Search code or name…'}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-dark-900"
+          />
+        </div>
+        {isFetching ? <p className="px-5 py-3 text-xs text-slate-400">…</p> : null}
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50/80 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:bg-dark-900">
+              <tr>
+                <th className="px-5 py-3.5">{isAr ? 'الرمز' : 'Code'}</th>
+                <th className="px-5 py-3.5">{isAr ? 'الاسم' : 'Name'}</th>
+                <th className="px-5 py-3.5">{isAr ? 'النوع' : 'Type'}</th>
+                <th className="px-5 py-3.5 text-end">{isAr ? 'الرصيد' : 'Balance'}</th>
+                <th className="px-5 py-3.5" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {filtered.map((a) => (
+                <tr key={a._id} className="hover:bg-emerald-50/40 dark:hover:bg-white/[0.03]">
+                  <td className="px-5 py-3.5 font-mono text-xs font-semibold text-emerald-800 dark:text-emerald-300">{a.code}</td>
+                  <td className="px-5 py-3.5">
+                    <p className="font-medium text-slate-900 dark:text-white">{isAr ? (a.nameAr || a.name) : a.name}</p>
+                    {a.isSystem ? <span className="text-[10px] uppercase text-slate-400">{isAr ? 'نظام' : 'System'}</span> : null}
+                  </td>
+                  <td className="px-5 py-3.5 capitalize text-slate-500">{a.type}{a.subtype ? ` · ${a.subtype}` : ''}</td>
+                  <td className="px-5 py-3.5 text-end font-semibold"><Money value={a.balance || 0} /></td>
+                  <td className="px-5 py-3.5 text-end">
+                    <button type="button" onClick={() => startEdit(a)} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold dark:border-dark-600">
+                      {isAr ? 'تعديل' : 'Edit'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {!filtered.length && (
+                <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">{isAr ? 'لا حسابات' : 'No accounts'}</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </ConfigPanelShell>
   )
 }
 

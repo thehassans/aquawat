@@ -1,0 +1,36 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  computeDueDateFromPaymentTerms,
+  computePaymentSchedule,
+  ensureInvoiceDueDate,
+} from '../utils/invoicePaymentTerms.js';
+
+test('installment term uses latest tranche due date', () => {
+  const issue = new Date('2026-01-01');
+  const due = computeDueDateFromPaymentTerms(issue, '30_now_60_balance');
+  assert.equal(due.toISOString().slice(0, 10), '2026-03-02');
+  const schedule = computePaymentSchedule(issue, '30_now_60_balance', 1000);
+  assert.equal(schedule.tranches.length, 2);
+  assert.equal(schedule.tranches[0].amount, 300);
+  assert.equal(schedule.tranches[1].amount, 700);
+});
+
+test('early discount term sets standard due and discount metadata', () => {
+  const issue = new Date('2026-01-01');
+  const schedule = computePaymentSchedule(issue, '2pct_10_net30', 1000);
+  assert.equal(schedule.tranches.length, 2);
+  assert.equal(schedule.earlyDiscount.discountedAmount, 980);
+  assert.equal(schedule.dueDate.toISOString().slice(0, 10), '2026-01-31');
+});
+
+test('ensureInvoiceDueDate attaches payment schedule', () => {
+  const data = ensureInvoiceDueDate({
+    issueDate: new Date('2026-01-01'),
+    paymentTerms: '30_now_60_balance',
+    grandTotal: 500,
+  });
+  assert.ok(data.dueDate);
+  assert.equal(data.paymentSchedule.length, 2);
+  assert.equal(data.paymentSchedule[0].amount, 150);
+});
