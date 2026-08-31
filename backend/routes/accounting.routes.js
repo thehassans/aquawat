@@ -836,7 +836,11 @@ router.put('/lock-dates', checkPermission('finance', 'approve'), async (req, res
 // ─── Reports ─────────────────────────────────────────────────────────────────
 router.get('/reports/trial-balance', checkPermission('finance', 'read'), async (req, res) => {
   try {
-    const data = await buildTrialBalance(tenantIdOf(req), { asOf: req.query.asOf || null });
+    const data = await buildTrialBalance(tenantIdOf(req), {
+      asOf: req.query.asOf || null,
+      from: req.query.from || null,
+      to: req.query.to || null,
+    });
     res.json(data);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -845,7 +849,12 @@ router.get('/reports/trial-balance', checkPermission('finance', 'read'), async (
 
 router.get('/reports/profit-and-loss', checkPermission('finance', 'read'), async (req, res) => {
   try {
-    const data = await buildProfitAndLoss(tenantIdOf(req), { from: req.query.from, to: req.query.to });
+    const data = await buildProfitAndLoss(tenantIdOf(req), {
+      from: req.query.from,
+      to: req.query.to,
+      analyticAccountId: req.query.analyticAccountId || null,
+      basis: req.query.basis === 'cash' ? 'cash' : 'accrual',
+    });
     res.json(data);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -870,6 +879,19 @@ router.get('/reports/general-ledger/:accountId', checkPermission('finance', 'rea
     res.json(data);
   } catch (error) {
     res.status(404).json({ error: error.message });
+  }
+});
+
+router.get('/reports/journal-report', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { buildJournalReport } = await import('../services/accountingService.js');
+    res.json(await buildJournalReport(tenantIdOf(req), {
+      from: req.query.from,
+      to: req.query.to,
+      journalId: req.query.journalId || null,
+    }));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

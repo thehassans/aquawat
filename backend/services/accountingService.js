@@ -2557,42 +2557,103 @@ export async function buildPartnerLedger(tenantId, partnerId, { from, to, accoun
   };
 }
 
-export async function buildTrialBalance(tenantId, { asOf = null } = {}) {
+export async function buildTrialBalance(tenantId, { asOf = null, from = null, to = null } = {}) {
   await ensureDefaultChartOfAccounts(tenantId);
   const accounts = await ChartOfAccount.find({ tenantId, isActive: true }).sort({ code: 1 }).lean();
+
+  // Period trial: opening + period movement + ending
+  if (from && to) {
+    const start = new Date(from);
+    const end = new Date(to);
+    end.setHours(23, 59, 59, 999);
+    const openingEnd = new Date(start.getTime() - 1);
+
+    const [openingTb, periodEntries] = await Promise.all([
+      buildTrialBalance(tenantId, { asOf: openingEnd }),
+      JournalEntry.find({
+        tenantId,
+        status: 'posted',
+        entryDate: { $gte: start, $lte: end },
+      }).lean(),
+    ]);
+
+    const map = {};
+    for (const a of accounts) {
+      map[String(a._id)] = {
+        accountId: a._id,
+        code: a.code,
+        name: a.name,
+        nameAr: a.nameAr,
+        type: a.type,
+        initialBalance: 0,
+        debit: 0,
+        credit: 0,
+        endingBalance: 0,
+      };
+    }
+    for (const row of openingTb.rows || []) {
+      const key = String(row.accountId);
+      if (!map[key]) continue;
+      map[key].initialBalance = round2(row.balance);
+    }
+    for (const entry of periodEntries) {
+      for (const line of entry.lines || []) {
+        const key = String(line.accountId);
+        if (!map[key]) continue;
+        map[key].debit = round2(map[key].debit + Number(line.debit || 0));
+        map[key].credit = round2(map[key].credit + Number(line.credit || 0));
+      }
+    }
+    const rows = Object.values(map).map((row) => {
+      const isDebitNature = ['asset', 'expense'].includes(row.type);
+      const ending = isDebitNature
+        ? round2(row.initialBalance + row.debit - row.credit)
+        : round2(row.initialBalance + row.credit - row.debit);
+      return { ...row, endingBalance: ending, balance: ending };
+    }).filter((r) => r.initialBalance || r.debit || r.credit || r.endingBalance);
+
+    const totalDebit = round2(rows.reduce((s, r) => s + r.debit, 0));
+    const totalCredit = round2(rows.reduce((s, r) => s + r.credit, 0));
+    return {
+      from: start,
+      to: end,
+      asOf: end,
+      rows,
+      totalDebit,
+      totalCredit,
+      balanced: Math.abs(totalDebit - totalCredit) < 0.02,
+      mode: 'period',
+    };
+  }
 
   if (!asOf) {
     const rows = accounts.map((a) => {
       const bal = round2(a.balance || 0);
       const isDebitNature = ['asset', 'expense'].includes(a.type);
+      let debit = 0;
+      let credit = 0;
+      if (bal >= 0) {
+        if (isDebitNature) debit = bal;
+        else credit = bal;
+      } else if (isDebitNature) credit = Math.abs(bal);
+      else debit = Math.abs(bal);
       return {
         accountId: a._id,
         code: a.code,
         name: a.name,
         nameAr: a.nameAr,
         type: a.type,
-        debit: bal > 0 && isDebitNature ? bal : (bal < 0 && !isDebitNature ? Math.abs(bal) : (bal > 0 && !isDebitNature ? 0 : (bal < 0 && isDebitNature ? 0 : 0))),
-        credit: bal > 0 && !isDebitNature ? bal : (bal < 0 && isDebitNature ? Math.abs(bal) : 0),
+        debit: round2(debit),
+        credit: round2(credit),
         balance: bal,
+        initialBalance: bal,
+        endingBalance: bal,
       };
-    }).map((row) => {
-      // Cleaner: show natural side
-      const isDebitNature = ['asset', 'expense'].includes(row.type);
-      let debit = 0;
-      let credit = 0;
-      if (row.balance >= 0) {
-        if (isDebitNature) debit = row.balance;
-        else credit = row.balance;
-      } else {
-        if (isDebitNature) credit = Math.abs(row.balance);
-        else debit = Math.abs(row.balance);
-      }
-      return { ...row, debit: round2(debit), credit: round2(credit) };
-    }).filter((r) => r.debit !== 0 || r.credit !== 0 || true);
+    });
 
     const totalDebit = round2(rows.reduce((s, r) => s + r.debit, 0));
     const totalCredit = round2(rows.reduce((s, r) => s + r.credit, 0));
-    return { asOf: asOf || new Date(), rows, totalDebit, totalCredit, balanced: Math.abs(totalDebit - totalCredit) < 0.02 };
+    return { asOf: asOf || new Date(), rows, totalDebit, totalCredit, balanced: Math.abs(totalDebit - totalCredit) < 0.02, mode: 'snapshot' };
   }
 
   // Rebuild from posted journals up to asOf
@@ -2626,14 +2687,37 @@ export async function buildTrialBalance(tenantId, { asOf = null } = {}) {
   const rows = Object.values(map).map((row) => {
     const isDebitNature = ['asset', 'expense'].includes(row.type);
     const raw = isDebitNature ? row.debit - row.credit : row.credit - row.debit;
-    return { ...row, balance: round2(raw) };
+    return {
+      ...row,
+      balance: round2(raw),
+      initialBalance: 0,
+      endingBalance: round2(raw),
+    };
   });
   const totalDebit = round2(rows.reduce((s, r) => s + r.debit, 0));
   const totalCredit = round2(rows.reduce((s, r) => s + r.credit, 0));
-  return { asOf: new Date(asOf), rows, totalDebit, totalCredit, balanced: Math.abs(totalDebit - totalCredit) < 0.02 };
+  return { asOf: new Date(asOf), rows, totalDebit, totalCredit, balanced: Math.abs(totalDebit - totalCredit) < 0.02, mode: 'asOf' };
 }
 
-export async function buildProfitAndLoss(tenantId, { from, to } = {}) {
+async function cashAccountIdSet(tenantId) {
+  const rows = await ChartOfAccount.find({
+    tenantId,
+    isActive: true,
+    $or: [{ subtype: { $in: ['cash', 'bank'] } }, { code: { $in: ['1000', '1100'] } }],
+  }).select('_id').lean();
+  return new Set(rows.map((r) => String(r._id)));
+}
+
+function entryTouchesCash(entry, cashIds) {
+  return (entry.lines || []).some((l) => cashIds.has(String(l.accountId)));
+}
+
+export async function buildProfitAndLoss(tenantId, {
+  from,
+  to,
+  analyticAccountId = null,
+  basis = 'accrual',
+} = {}) {
   const start = from ? new Date(from) : new Date(new Date().getFullYear(), 0, 1);
   const end = to ? new Date(to) : new Date();
   end.setHours(23, 59, 59, 999);
@@ -2644,11 +2728,20 @@ export async function buildProfitAndLoss(tenantId, { from, to } = {}) {
     type: { $in: ['revenue', 'expense'] },
   }).sort({ code: 1 }).lean();
 
-  const entries = await JournalEntry.find({
+  let entries = await JournalEntry.find({
     tenantId,
     status: 'posted',
     entryDate: { $gte: start, $lte: end },
   }).lean();
+
+  if (basis === 'cash') {
+    const cashIds = await cashAccountIdSet(tenantId);
+    entries = entries.filter((e) => (
+      ['payment', 'expense', 'voucher'].includes(e.type)
+      || /payment|receipt|voucher/i.test(String(e.sourceModel || ''))
+      || entryTouchesCash(e, cashIds)
+    ));
+  }
 
   const totals = {};
   for (const a of accounts) {
@@ -2657,6 +2750,7 @@ export async function buildProfitAndLoss(tenantId, { from, to } = {}) {
 
   for (const entry of entries) {
     for (const line of entry.lines || []) {
+      if (analyticAccountId && String(line.analyticAccountId || '') !== String(analyticAccountId)) continue;
       const key = String(line.accountId);
       if (!totals[key]) continue;
       const a = totals[key];
@@ -2670,18 +2764,30 @@ export async function buildProfitAndLoss(tenantId, { from, to } = {}) {
 
   const revenue = Object.values(totals).filter((a) => a.type === 'revenue');
   const expenses = Object.values(totals).filter((a) => a.type === 'expense');
+  const cogs = expenses.filter((a) => a.subtype === 'cogs' || String(a.code).startsWith('50'));
+  const opex = expenses.filter((a) => !(a.subtype === 'cogs' || String(a.code).startsWith('50')));
   const totalRevenue = round2(revenue.reduce((s, a) => s + a.amount, 0));
+  const totalCogs = round2(cogs.reduce((s, a) => s + a.amount, 0));
+  const totalOpex = round2(opex.reduce((s, a) => s + a.amount, 0));
   const totalExpenses = round2(expenses.reduce((s, a) => s + a.amount, 0));
+  const grossProfit = round2(totalRevenue - totalCogs);
   const netIncome = round2(totalRevenue - totalExpenses);
   const horizontalGroups = await attachHorizontalGroups(tenantId, [...revenue, ...expenses], 'amount');
 
   return {
     from: start,
     to: end,
+    basis: basis === 'cash' ? 'cash' : 'accrual',
+    analyticAccountId: analyticAccountId || null,
     revenue,
     expenses,
+    cogs,
+    opex,
     totalRevenue,
+    totalCogs,
+    totalOpex,
     totalExpenses,
+    grossProfit,
     netIncome,
     horizontalGroups,
   };
@@ -2693,12 +2799,34 @@ export async function buildBalanceSheet(tenantId, { asOf = null } = {}) {
   const liabilities = [];
   const equity = [];
 
+  const groupKey = (row) => {
+    const code = String(row.code || '');
+    if (row.type === 'asset') {
+      if (['cash', 'bank'].includes(row.subtype) || /^1[01]/.test(code)) return 'bank_cash';
+      if (row.subtype === 'receivable' || code.startsWith('12')) return 'receivable';
+      if (row.subtype === 'fixed_asset' || row.subtype === 'accum_depreciation' || code.startsWith('16')) return 'fixed';
+      return 'current_assets';
+    }
+    if (row.type === 'liability') {
+      if (row.subtype === 'payable' || code.startsWith('20')) return 'payable';
+      return 'current_liabilities';
+    }
+    if (row.type === 'equity') {
+      if (row.subtype === 'retained_earnings' || code.startsWith('31')) return 'retained';
+      return 'equity';
+    }
+    return 'other';
+  };
+
   for (const row of tb.rows) {
     const item = {
+      accountId: row.accountId,
       code: row.code,
       name: row.name,
       nameAr: row.nameAr,
       balance: row.balance,
+      type: row.type,
+      group: groupKey(row),
     };
     if (row.type === 'asset') assets.push(item);
     else if (row.type === 'liability') liabilities.push(item);
@@ -2706,16 +2834,20 @@ export async function buildBalanceSheet(tenantId, { asOf = null } = {}) {
   }
 
   // Current period net income into equity
+  const asOfDate = asOf ? new Date(asOf) : new Date();
   const pnl = await buildProfitAndLoss(tenantId, {
-    from: new Date(new Date().getFullYear(), 0, 1),
-    to: asOf || new Date(),
+    from: new Date(asOfDate.getFullYear(), 0, 1),
+    to: asOfDate,
   });
   if (Math.abs(pnl.netIncome) > 0.009) {
     equity.push({
+      accountId: null,
       code: 'NI',
       name: 'Net Income (Current Period)',
       nameAr: 'صافي الدخل (الفترة الحالية)',
       balance: pnl.netIncome,
+      type: 'equity',
+      group: 'retained',
     });
   }
 
@@ -2750,6 +2882,24 @@ export async function buildGeneralLedger(tenantId, accountId, { from, to } = {})
   const end = to ? new Date(to) : new Date();
   end.setHours(23, 59, 59, 999);
 
+  // Opening balance before period
+  const prior = await JournalEntry.find({
+    tenantId,
+    status: 'posted',
+    entryDate: { $lt: start },
+    'lines.accountId': account._id,
+  }).lean();
+  let opening = 0;
+  for (const entry of prior) {
+    for (const line of entry.lines || []) {
+      if (String(line.accountId) !== String(account._id)) continue;
+      const debit = Number(line.debit || 0);
+      const credit = Number(line.credit || 0);
+      if (['asset', 'expense'].includes(account.type)) opening = round2(opening + debit - credit);
+      else opening = round2(opening + credit - debit);
+    }
+  }
+
   const entries = await JournalEntry.find({
     tenantId,
     status: 'posted',
@@ -2757,7 +2907,7 @@ export async function buildGeneralLedger(tenantId, accountId, { from, to } = {})
     'lines.accountId': account._id,
   }).sort({ entryDate: 1, entryNumber: 1 }).lean();
 
-  let running = 0;
+  let running = opening;
   const lines = [];
   for (const entry of entries) {
     for (const line of entry.lines || []) {
@@ -2773,8 +2923,13 @@ export async function buildGeneralLedger(tenantId, accountId, { from, to } = {})
         entryId: entry._id,
         entryNumber: entry.entryNumber,
         entryDate: entry.entryDate,
-        memo: entry.memo,
+        memo: entry.memo || line.description,
         reference: entry.reference || entry.sourceNumber,
+        partnerId: line.partnerId || null,
+        journalId: entry.journalId || null,
+        sourceModel: entry.sourceModel || '',
+        sourceId: entry.sourceId || null,
+        sourceNumber: entry.sourceNumber || '',
         debit,
         credit,
         balance: running,
@@ -2782,7 +2937,96 @@ export async function buildGeneralLedger(tenantId, accountId, { from, to } = {})
     }
   }
 
-  return { account, from: start, to: end, lines };
+  return {
+    account,
+    from: start,
+    to: end,
+    openingBalance: opening,
+    endingBalance: running,
+    lines,
+  };
+}
+
+/** Sequential journal audit report filtered by journal book. */
+export async function buildJournalReport(tenantId, {
+  from,
+  to,
+  journalId = null,
+} = {}) {
+  const start = from ? new Date(from) : new Date(new Date().getFullYear(), 0, 1);
+  const end = to ? new Date(to) : new Date();
+  end.setHours(23, 59, 59, 999);
+
+  const filter = {
+    tenantId,
+    status: { $in: ['posted', 'draft', 'reversed', 'void'] },
+    entryDate: { $gte: start, $lte: end },
+  };
+  if (journalId) filter.journalId = journalId;
+
+  const entries = await JournalEntry.find(filter)
+    .sort({ entryDate: 1, entryNumber: 1 })
+    .populate('journalId', 'code name nameAr type')
+    .lean();
+
+  const rows = entries.map((e) => ({
+    entryId: e._id,
+    entryNumber: e.entryNumber,
+    entryDate: e.entryDate,
+    status: e.status,
+    journalCode: e.journalId?.code || '',
+    journalName: e.journalId?.name || '',
+    memo: e.memo,
+    reference: e.reference || e.sourceNumber,
+    sourceModel: e.sourceModel,
+    sourceId: e.sourceId,
+    sourceNumber: e.sourceNumber,
+    totalDebit: round2(e.totalDebit || (e.lines || []).reduce((s, l) => s + Number(l.debit || 0), 0)),
+    totalCredit: round2(e.totalCredit || (e.lines || []).reduce((s, c) => s + Number(c.credit || 0), 0)),
+    lines: (e.lines || []).map((l) => ({
+      accountCode: l.accountCode,
+      accountName: l.accountName,
+      debit: Number(l.debit || 0),
+      credit: Number(l.credit || 0),
+      description: l.description,
+      taxIds: l.taxIds || [],
+    })),
+  }));
+
+  // Sequence gap detection (numeric suffix)
+  const gaps = [];
+  const byPrefix = new Map();
+  for (const row of rows) {
+    const m = String(row.entryNumber || '').match(/^(.*?)(\d+)$/);
+    if (!m) continue;
+    const prefix = m[1];
+    const num = Number(m[2]);
+    if (!byPrefix.has(prefix)) byPrefix.set(prefix, []);
+    byPrefix.get(prefix).push(num);
+  }
+  for (const [prefix, nums] of byPrefix) {
+    const sorted = [...new Set(nums)].sort((a, b) => a - b);
+    for (let i = 1; i < sorted.length; i += 1) {
+      if (sorted[i] !== sorted[i - 1] + 1) {
+        gaps.push({
+          prefix,
+          from: sorted[i - 1] + 1,
+          to: sorted[i] - 1,
+          message: `Gap in ${prefix}: missing ${sorted[i - 1] + 1}–${sorted[i] - 1}`,
+        });
+      }
+    }
+  }
+
+  return {
+    from: start,
+    to: end,
+    journalId,
+    rows,
+    gaps,
+    totalDebit: round2(rows.reduce((s, r) => s + r.totalDebit, 0)),
+    totalCredit: round2(rows.reduce((s, r) => s + r.totalCredit, 0)),
+  };
 }
 
 export const DEFAULT_FISCAL_POSITIONS = [
@@ -4858,6 +5102,7 @@ export default {
   buildProfitAndLoss,
   buildBalanceSheet,
   buildGeneralLedger,
+  buildJournalReport,
   getAccountingDashboard,
   getFiscalPositions,
   setFiscalPositions,

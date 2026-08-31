@@ -66,6 +66,12 @@ import {
   TaxesPanel,
   VatTaxReportPanel,
 } from './AccountingModules'
+import {
+  BalanceSheetPanel,
+  ProfitAndLossPanel,
+  TrialBalancePanel,
+  JournalAuditReportPanel,
+} from './AccountingReportPanels'
 import CreditNotesPanel from './documents/CreditNotesPanel'
 import CustomerPaymentsPanel from './documents/CustomerPaymentsPanel'
 import VendorBillsPanel from './documents/VendorBillsPanel'
@@ -238,24 +244,6 @@ export default function Accounting() {
     enabled: tab === 'daily-restriction' || tab === 'general-voucher' || tab === 'overview',
   })
 
-  const { data: trial } = useQuery({
-    queryKey: ['accounting-trial'],
-    queryFn: () => api.get('/accounting/reports/trial-balance').then((r) => r.data),
-    enabled: tab === 'trial',
-  })
-
-  const { data: pnl } = useQuery({
-    queryKey: ['accounting-pnl'],
-    queryFn: () => api.get('/accounting/reports/profit-and-loss').then((r) => r.data),
-    enabled: tab === 'pnl',
-  })
-
-  const { data: balance } = useQuery({
-    queryKey: ['accounting-balance'],
-    queryFn: () => api.get('/accounting/reports/balance-sheet').then((r) => r.data),
-    enabled: tab === 'balance-sheet',
-  })
-
   const createJournalMutation = useMutation({
     mutationFn: (payload) => api.post('/accounting/journals', payload),
     onSuccess: () => {
@@ -371,11 +359,11 @@ export default function Accounting() {
       return api.get('/accounting/accounts').then((r) => r.data || [])
     }
     if (tab === 'trial') {
-      const data = trial || await api.get('/accounting/reports/trial-balance').then((r) => r.data)
+      const data = await api.get('/accounting/reports/trial-balance').then((r) => r.data)
       return data?.rows || []
     }
     if (tab === 'pnl') {
-      const data = pnl || await api.get('/accounting/reports/profit-and-loss').then((r) => r.data)
+      const data = await api.get('/accounting/reports/profit-and-loss').then((r) => r.data)
       return [
         ...(data?.revenue || []).map((row) => ({ section: isAr ? 'إيرادات' : 'Revenue', name: isAr ? (row.nameAr || row.name) : row.name, amount: row.amount })),
         ...(data?.expenses || []).map((row) => ({ section: isAr ? 'مصروفات' : 'Expenses', name: isAr ? (row.nameAr || row.name) : row.name, amount: row.amount })),
@@ -383,7 +371,7 @@ export default function Accounting() {
       ]
     }
     if (tab === 'balance-sheet') {
-      const data = balance || await api.get('/accounting/reports/balance-sheet').then((r) => r.data)
+      const data = await api.get('/accounting/reports/balance-sheet').then((r) => r.data)
       const pack = (section, rows) => (rows || []).map((row) => ({ section, name: isAr ? (row.nameAr || row.name) : row.name, amount: row.balance }))
       return [
         ...pack(isAr ? 'الأصول' : 'Assets', data?.assets),
@@ -905,7 +893,7 @@ export default function Accounting() {
 
           {tab === 'journal-report' && (
             <motion.div key="journal-report" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              <JournalsBoardPanel language={language} />
+              <JournalAuditReportPanel language={language} />
             </motion.div>
           )}
 
@@ -1208,134 +1196,21 @@ export default function Accounting() {
             </motion.div>
           )}
 
-          {tab === 'trial' && trial && (
-            <motion.div key="trial" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
-                <h3 className="font-semibold" style={fontDisplay}>{isAr ? 'ميزان المراجعة' : 'Trial Balance'}</h3>
-                <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${trial.balanced ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-                  {trial.balanced ? (isAr ? 'متوازن' : 'Balanced') : (isAr ? 'غير متوازن' : 'Out of balance')}
-                </span>
-              </div>
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50/80 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:bg-dark-900">
-                  <tr>
-                    <th className="px-5 py-3 text-start">Code</th>
-                    <th className="px-5 py-3 text-start">Account</th>
-                    <th className="px-5 py-3 text-end">Debit</th>
-                    <th className="px-5 py-3 text-end">Credit</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                  {trial.rows.map((r) => (
-                    <tr key={r.code}>
-                      <td className="px-5 py-2.5 font-mono text-xs text-emerald-800">{r.code}</td>
-                      <td className="px-5 py-2.5">{isAr ? (r.nameAr || r.name) : r.name}</td>
-                      <td className="px-5 py-2.5 text-end"><Money value={r.debit} /></td>
-                      <td className="px-5 py-2.5 text-end"><Money value={r.credit} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="border-t border-slate-200 font-semibold dark:border-white/10">
-                  <tr>
-                    <td className="px-5 py-3" colSpan={2}>{isAr ? 'الإجمالي' : 'Total'}</td>
-                    <td className="px-5 py-3 text-end"><Money value={trial.totalDebit} /></td>
-                    <td className="px-5 py-3 text-end"><Money value={trial.totalCredit} /></td>
-                  </tr>
-                </tfoot>
-              </table>
+          {tab === 'trial' && (
+            <motion.div key="trial" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <TrialBalancePanel language={language} />
             </motion.div>
           )}
 
-          {tab === 'pnl' && pnl && (
-            <motion.div key="pnl" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
-                <h3 className="font-semibold text-emerald-800" style={fontDisplay}>{isAr ? 'الإيرادات' : 'Revenue'}</h3>
-                <div className="mt-4 space-y-2">
-                  {pnl.revenue.map((a) => (
-                    <div key={a._id} className="flex justify-between text-sm">
-                      <span>{isAr ? (a.nameAr || a.name) : a.name}</span>
-                      <span className="font-semibold"><Money value={a.amount} /></span>
-                    </div>
-                  ))}
-                  <div className="flex justify-between border-t border-slate-100 pt-3 font-semibold dark:border-white/10">
-                    <span>{isAr ? 'إجمالي الإيرادات' : 'Total revenue'}</span>
-                    <Money value={pnl.totalRevenue} />
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
-                <h3 className="font-semibold text-rose-700" style={fontDisplay}>{isAr ? 'المصروفات' : 'Expenses'}</h3>
-                <div className="mt-4 space-y-2">
-                  {pnl.expenses.map((a) => (
-                    <div key={a._id} className="flex justify-between text-sm">
-                      <span>{isAr ? (a.nameAr || a.name) : a.name}</span>
-                      <span className="font-semibold"><Money value={a.amount} /></span>
-                    </div>
-                  ))}
-                  <div className="flex justify-between border-t border-slate-100 pt-3 font-semibold dark:border-white/10">
-                    <span>{isAr ? 'إجمالي المصروفات' : 'Total expenses'}</span>
-                    <Money value={pnl.totalExpenses} />
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-slate-200/80 bg-primary-500/5 p-5 lg:col-span-2 dark:border-primary-500/20 dark:bg-primary-500/10">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-800/70 dark:text-emerald-300">
-                    {isAr ? 'صافي الدخل' : 'Net income'}
-                  </span>
-                  <span className="text-2xl font-semibold text-emerald-950 dark:text-white" style={fontDisplay}><Money value={pnl.netIncome} /></span>
-                </div>
-              </div>
-              {Array.isArray(pnl.horizontalGroups) && pnl.horizontalGroups.length > 0 ? (
-                <div className="grid gap-3 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-3">
-                  {pnl.horizontalGroups.map((g) => (
-                    <div key={g.code} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
-                      <p className="text-[11px] uppercase tracking-widest text-slate-400">{g.code}</p>
-                      <p className="mt-1 text-sm font-semibold">{isAr ? (g.nameAr || g.name) : g.name}</p>
-                      <p className="mt-1 text-lg font-semibold"><Money value={g.amount} /></p>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
+          {tab === 'pnl' && (
+            <motion.div key="pnl" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <ProfitAndLossPanel language={language} />
             </motion.div>
           )}
 
-          {tab === 'balance-sheet' && balance && (
-            <motion.div key="balance" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              {[
-                { titleEn: 'Assets', titleAr: 'الأصول', rows: balance.assets, total: balance.totalAssets, tone: 'text-emerald-800' },
-                { titleEn: 'Liabilities', titleAr: 'الالتزامات', rows: balance.liabilities, total: balance.totalLiabilities, tone: 'text-amber-800' },
-                { titleEn: 'Equity', titleAr: 'حقوق الملكية', rows: balance.equity, total: balance.totalEquity, tone: 'text-sky-800' },
-              ].map((col) => (
-                <div key={col.titleEn} className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
-                  <h3 className={`font-semibold ${col.tone} dark:text-white`} style={fontDisplay}>{isAr ? col.titleAr : col.titleEn}</h3>
-                  <div className="mt-4 space-y-2.5 text-sm">
-                    {col.rows.map((r) => (
-                      <div key={r.code} className="flex justify-between gap-3">
-                        <span className="text-slate-600 dark:text-slate-300">{isAr ? (r.nameAr || r.name) : r.name}</span>
-                        <span className="font-semibold"><Money value={r.balance} /></span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between border-t border-slate-100 pt-3 font-semibold dark:border-white/10">
-                      <span>{isAr ? 'الإجمالي' : 'Total'}</span>
-                      <Money value={col.total} />
-                    </div>
-                  </div>
-                </div>
-              ))}
-              </div>
-              {Array.isArray(balance.horizontalGroups) && balance.horizontalGroups.length > 0 ? (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {balance.horizontalGroups.map((g) => (
-                    <div key={g.code} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
-                      <p className="text-[11px] uppercase tracking-widest text-slate-400">{g.code}</p>
-                      <p className="mt-1 text-sm font-semibold">{isAr ? (g.nameAr || g.name) : g.name}</p>
-                      <p className="mt-1 text-lg font-semibold"><Money value={g.amount} /></p>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
+          {tab === 'balance-sheet' && (
+            <motion.div key="balance" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <BalanceSheetPanel language={language} />
             </motion.div>
           )}
         </AnimatePresence>

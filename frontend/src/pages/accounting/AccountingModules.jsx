@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import Money from '../../components/ui/Money'
 import VirtualTableBody from '../../components/ui/VirtualTableBody'
+import { ReportFilterRibbon, compareRange, variance } from './ReportFilterRibbon'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 const yearStartIso = () => new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10)
@@ -177,9 +178,21 @@ export function GeneralVoucherPanel({ language, onNew, onPost, posting, onRevers
 }
 
 export function AccountReportPanel({ language }) {
-  const [accountId, setAccountId] = useState('')
-  const [from, setFrom] = useState(yearStartIso())
-  const [to, setTo] = useState(todayIso())
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const [accountId, setAccountId] = useState(searchParams.get('accountId') || '')
+  const [from, setFrom] = useState(searchParams.get('from') || yearStartIso())
+  const [to, setTo] = useState(searchParams.get('to') || todayIso())
+  const [comparison, setComparison] = useState('none')
+  const [basis, setBasis] = useState('accrual')
+
+  useEffect(() => {
+    const id = searchParams.get('accountId')
+    if (id) setAccountId(id)
+    if (searchParams.get('from')) setFrom(searchParams.get('from'))
+    if (searchParams.get('to')) setTo(searchParams.get('to'))
+  }, [searchParams])
+
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounting-accounts'],
     queryFn: () => api.get('/accounting/accounts').then((r) => r.data),
@@ -190,14 +203,29 @@ export function AccountReportPanel({ language }) {
     enabled: Boolean(accountId),
   })
 
+  const openSource = (line) => {
+    const model = String(line?.sourceModel || '').toLowerCase()
+    const id = line?.sourceId
+    if (!id) return
+    if (model.includes('invoice')) navigate(`/app/dashboard/accounting/invoices/${id}`)
+  }
+
   return (
     <div className="space-y-4">
-      <DateRangeBar
+      <ReportFilterRibbon
+        language={language}
+        mode="range"
         from={from}
         to={to}
         setFrom={setFrom}
         setTo={setTo}
-        language={language}
+        comparison={comparison}
+        setComparison={setComparison}
+        basis={basis}
+        setBasis={setBasis}
+        showComparison={false}
+        showBasis={false}
+        title={language === 'ar' ? 'دفتر الأستاذ العام' : 'General ledger'}
         extra={(
           <label className="min-w-[220px] flex-1 text-xs font-medium text-slate-500">
             {language === 'ar' ? 'الحساب' : 'Account'}
@@ -209,38 +237,81 @@ export function AccountReportPanel({ language }) {
             </select>
           </label>
         )}
+        exportProps={{
+          getRows: async () => (data?.lines || []).map((line) => ({
+            date: line.entryDate ? new Date(line.entryDate).toISOString().slice(0, 10) : '',
+            entry: line.entryNumber,
+            memo: line.memo || line.reference,
+            debit: line.debit,
+            credit: line.credit,
+            balance: line.balance,
+            source: line.sourceNumber || line.sourceModel,
+          })),
+          columns: [
+            { key: 'date', label: language === 'ar' ? 'التاريخ' : 'Date' },
+            { key: 'entry', label: language === 'ar' ? 'القيد' : 'Entry' },
+            { key: 'memo', label: language === 'ar' ? 'البيان' : 'Memo' },
+            { key: 'debit', label: language === 'ar' ? 'مدين' : 'Debit', value: (r) => Number(r.debit || 0).toFixed(2) },
+            { key: 'credit', label: language === 'ar' ? 'دائن' : 'Credit', value: (r) => Number(r.credit || 0).toFixed(2) },
+            { key: 'balance', label: language === 'ar' ? 'الرصيد' : 'Balance', value: (r) => Number(r.balance || 0).toFixed(2) },
+            { key: 'source', label: language === 'ar' ? 'المصدر' : 'Source' },
+          ],
+          fileBaseName: 'maqder-general-ledger',
+          title: language === 'ar' ? 'دفتر الأستاذ' : 'General ledger',
+        }}
       />
       {!accountId && <p className="py-12 text-center text-sm text-slate-400">{language === 'ar' ? 'اختر حساباً لعرض كشف الحركة' : 'Select an account to view its ledger'}</p>}
       {accountId && (
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-          <div className="border-b border-slate-100 px-5 py-4 dark:border-dark-600">
-            <h3 className="font-semibold">{data?.account?.code} · {language === 'ar' ? (data?.account?.nameAr || data?.account?.name) : data?.account?.name}</h3>
-            {isFetching && <p className="text-xs text-slate-400">{language === 'ar' ? 'جاري التحميل…' : 'Loading…'}</p>}
+          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-dark-600">
+            <div>
+              <h3 className="font-semibold">{data?.account?.code} · {language === 'ar' ? (data?.account?.nameAr || data?.account?.name) : data?.account?.name}</h3>
+              {isFetching && <p className="text-xs text-slate-400">{language === 'ar' ? 'جاري التحميل…' : 'Loading…'}</p>}
+            </div>
+            <div className="flex gap-4 text-sm">
+              <div>
+                <p className="text-[11px] uppercase text-slate-400">{language === 'ar' ? 'افتتاحي' : 'Opening'}</p>
+                <p className="font-semibold"><Money value={data?.openingBalance} /></p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase text-slate-400">{language === 'ar' ? 'ختامي' : 'Ending'}</p>
+                <p className="font-semibold"><Money value={data?.endingBalance} /></p>
+              </div>
+            </div>
           </div>
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-400 dark:bg-dark-900">
+            <thead className="sticky top-[7.5rem] bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-400 dark:bg-dark-900">
               <tr>
                 <th className="px-4 py-3 text-start">{language === 'ar' ? 'التاريخ' : 'Date'}</th>
                 <th className="px-4 py-3 text-start">{language === 'ar' ? 'القيد' : 'Entry'}</th>
                 <th className="px-4 py-3 text-start">{language === 'ar' ? 'البيان' : 'Memo'}</th>
+                <th className="px-4 py-3 text-start">{language === 'ar' ? 'المصدر' : 'Source'}</th>
                 <th className="px-4 py-3 text-end">{language === 'ar' ? 'مدين' : 'Debit'}</th>
                 <th className="px-4 py-3 text-end">{language === 'ar' ? 'دائن' : 'Credit'}</th>
                 <th className="px-4 py-3 text-end">{language === 'ar' ? 'الرصيد' : 'Balance'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-600">
-              {(data?.lines || []).map((line) => (
-                <tr key={`${line.entryId}-${line.entryNumber}-${line.balance}`}>
-                  <td className="px-4 py-2.5">{line.entryDate ? new Date(line.entryDate).toLocaleDateString() : '—'}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs">{line.entryNumber}</td>
-                  <td className="px-4 py-2.5">{line.memo || line.reference || '—'}</td>
-                  <td className="px-4 py-2.5 text-end"><Money value={line.debit} /></td>
-                  <td className="px-4 py-2.5 text-end"><Money value={line.credit} /></td>
-                  <td className="px-4 py-2.5 text-end font-semibold"><Money value={line.balance} /></td>
-                </tr>
-              ))}
+              {(data?.lines || []).map((line) => {
+                const clickable = Boolean(line.sourceId && String(line.sourceModel || '').toLowerCase().includes('invoice'))
+                return (
+                  <tr
+                    key={`${line.entryId}-${line.entryNumber}-${line.balance}`}
+                    className={clickable ? 'cursor-pointer hover:bg-emerald-50/50 dark:hover:bg-white/[0.04]' : ''}
+                    onClick={() => clickable && openSource(line)}
+                  >
+                    <td className="px-4 py-2.5">{line.entryDate ? new Date(line.entryDate).toLocaleDateString() : '—'}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs">{line.entryNumber}</td>
+                    <td className="px-4 py-2.5">{line.memo || line.reference || '—'}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-500">{line.sourceNumber || line.sourceModel || '—'}</td>
+                    <td className="px-4 py-2.5 text-end"><Money value={line.debit} /></td>
+                    <td className="px-4 py-2.5 text-end"><Money value={line.credit} /></td>
+                    <td className="px-4 py-2.5 text-end font-semibold"><Money value={line.balance} /></td>
+                  </tr>
+                )
+              })}
               {(!data?.lines || data.lines.length === 0) && (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">{language === 'ar' ? 'لا توجد حركات' : 'No movements in this period'}</td></tr>
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">{language === 'ar' ? 'لا توجد حركات' : 'No movements in this period'}</td></tr>
               )}
             </tbody>
           </table>
@@ -2161,6 +2232,7 @@ const AGING_LABELS = {
 
 function AgedReportPanel({ language, kind }) {
   const isAr = language === 'ar'
+  const navigate = useNavigate()
   const [asOf, setAsOf] = useState(todayIso())
   const [selected, setSelected] = useState(() => new Set())
   const endpoint = kind === 'ap' ? '/accounting/reports/aged-ap' : '/accounting/reports/aged-ar'
@@ -2267,10 +2339,26 @@ function AgedReportPanel({ language, kind }) {
                   </td>
                 ) : null}
                 <td className="px-4 py-2">
-                  <p>{row.partnerName}</p>
-                  {row.partnerPhone ? <p className="font-mono text-[11px] text-slate-400">{row.partnerPhone}</p> : null}
+                  <button
+                    type="button"
+                    className="text-start hover:text-emerald-700"
+                    onClick={() => (kind === 'ar'
+                      ? navigate('/app/dashboard/accounting/follow-up-reports')
+                      : navigate(`/app/dashboard/accounting/invoices/${row.invoiceId}`))}
+                  >
+                    <p>{row.partnerName}</p>
+                    {row.partnerPhone ? <p className="font-mono text-[11px] text-slate-400">{row.partnerPhone}</p> : null}
+                  </button>
                 </td>
-                <td className="px-4 py-2 font-mono text-xs">{row.invoiceNumber}</td>
+                <td className="px-4 py-2">
+                  <button
+                    type="button"
+                    className="font-mono text-xs text-emerald-800 hover:underline"
+                    onClick={() => navigate(`/app/dashboard/accounting/invoices/${row.invoiceId}`)}
+                  >
+                    {row.invoiceNumber}
+                  </button>
+                </td>
                 <td className="px-4 py-2">{row.dueDate ? new Date(row.dueDate).toLocaleDateString() : (row.issueDate ? new Date(row.issueDate).toLocaleDateString() : '—')}</td>
                 <td className="px-4 py-2 text-end"><Money value={row.residual} /></td>
                 <td className="px-4 py-2 text-end tabular-nums">{row.ageDays}</td>
@@ -2534,27 +2622,53 @@ export function CashFlowPanel({ language }) {
   const isAr = language === 'ar'
   const [from, setFrom] = useState(yearStartIso())
   const [to, setTo] = useState(todayIso())
+  const [comparison, setComparison] = useState('none')
+  const compare = useMemo(() => compareRange(from, to, comparison), [from, to, comparison])
+
   const { data, isFetching } = useQuery({
     queryKey: ['accounting-cash-flow', from, to],
     queryFn: () => api.get('/accounting/reports/cash-flow', { params: { from, to } }).then((r) => r.data),
   })
+  const { data: prior } = useQuery({
+    queryKey: ['accounting-cash-flow-prior', compare?.from, compare?.to],
+    queryFn: () => api.get('/accounting/reports/cash-flow', { params: { from: compare.from, to: compare.to } }).then((r) => r.data),
+    enabled: Boolean(compare),
+  })
+  const showVar = comparison !== 'none' && Boolean(prior)
 
-  const Section = ({ title, section }) => (
+  const Section = ({ title, section, priorSection }) => (
     <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-white/10">
         <p className="text-sm font-semibold">{title}</p>
-        <p className="text-sm font-semibold tabular-nums"><Money value={section?.net} /></p>
+        <div className="flex items-center gap-3 text-sm font-semibold tabular-nums">
+          <Money value={section?.net} />
+          {showVar ? (
+            <span className="text-xs font-medium text-slate-500">
+              ({variance(section?.net, priorSection?.net).pct}%)
+            </span>
+          ) : null}
+        </div>
       </div>
       <table className="min-w-full text-sm">
         <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-          {(section?.rows || []).map((row) => (
-            <tr key={row.label}>
-              <td className="px-4 py-2">{row.label}</td>
-              <td className="px-4 py-2 text-end"><Money value={row.amount} /></td>
-            </tr>
-          ))}
+          {(section?.rows || []).map((row) => {
+            const priorRow = (priorSection?.rows || []).find((r) => r.label === row.label)
+            const v = variance(row.amount, priorRow?.amount)
+            return (
+              <tr key={row.label}>
+                <td className="px-4 py-2">{row.label}</td>
+                <td className="px-4 py-2 text-end"><Money value={row.amount} /></td>
+                {showVar ? (
+                  <>
+                    <td className="px-3 py-2 text-end text-slate-500"><Money value={priorRow?.amount} /></td>
+                    <td className={`px-3 py-2 text-end text-xs ${v.amount >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{v.pct}%</td>
+                  </>
+                ) : null}
+              </tr>
+            )
+          })}
           {!(section?.rows || []).length && (
-            <tr><td className="px-4 py-6 text-center text-slate-400" colSpan={2}>{isAr ? 'لا حركات' : 'No activity'}</td></tr>
+            <tr><td className="px-4 py-6 text-center text-slate-400" colSpan={showVar ? 4 : 2}>{isAr ? 'لا حركات' : 'No activity'}</td></tr>
           )}
         </tbody>
       </table>
@@ -2563,7 +2677,40 @@ export function CashFlowPanel({ language }) {
 
   return (
     <div className="space-y-4">
-      <DateRangeBar from={from} to={to} setFrom={setFrom} setTo={setTo} language={language} />
+      <ReportFilterRibbon
+        language={language}
+        mode="range"
+        from={from}
+        to={to}
+        setFrom={setFrom}
+        setTo={setTo}
+        comparison={comparison}
+        setComparison={setComparison}
+        showBasis={false}
+        title={isAr ? 'قائمة التدفقات النقدية' : 'Cash flow statement'}
+        exportProps={{
+          getRows: async () => {
+            const rows = []
+            for (const [key, label] of [
+              ['operating', 'Operating'],
+              ['investing', 'Investing'],
+              ['financing', 'Financing'],
+            ]) {
+              for (const r of data?.[key]?.rows || []) {
+                rows.push({ section: label, label: r.label, amount: r.amount })
+              }
+            }
+            return rows
+          },
+          columns: [
+            { key: 'section', label: isAr ? 'القسم' : 'Section' },
+            { key: 'label', label: isAr ? 'البند' : 'Line' },
+            { key: 'amount', label: isAr ? 'المبلغ' : 'Amount', value: (r) => Number(r.amount || 0).toFixed(2) },
+          ],
+          fileBaseName: 'maqder-cash-flow',
+          title: isAr ? 'التدفقات النقدية' : 'Cash flow',
+        }}
+      />
       {isFetching ? <p className="text-xs text-slate-400">{isAr ? 'جاري التحميل…' : 'Loading…'}</p> : null}
       <div className="grid gap-3 sm:grid-cols-4">
         {[
@@ -2578,9 +2725,9 @@ export function CashFlowPanel({ language }) {
           </div>
         ))}
       </div>
-      <Section title={isAr ? 'تشغيلي' : 'Operating'} section={data?.operating} />
-      <Section title={isAr ? 'استثماري' : 'Investing'} section={data?.investing} />
-      <Section title={isAr ? 'تمويلي' : 'Financing'} section={data?.financing} />
+      <Section title={isAr ? 'تشغيلي' : 'Operating'} section={data?.operating} priorSection={prior?.operating} />
+      <Section title={isAr ? 'استثماري' : 'Investing'} section={data?.investing} priorSection={prior?.investing} />
+      <Section title={isAr ? 'تمويلي' : 'Financing'} section={data?.financing} priorSection={prior?.financing} />
       {data?.indirect ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-4 dark:border-dark-600 dark:bg-dark-900/40">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -3358,6 +3505,7 @@ export function JournalItemsPanel({ language }) {
 
 export function ExecutiveSummaryPanel({ language }) {
   const isAr = language === 'ar'
+  const navigate = useNavigate()
   const [from, setFrom] = useState(yearStartIso())
   const [to, setTo] = useState(todayIso())
   const { data: dash, isFetching: dashLoading } = useQuery({
@@ -3369,23 +3517,72 @@ export function ExecutiveSummaryPanel({ language }) {
     queryFn: () => api.get('/accounting/reports/profit-and-loss', { params: { from, to } }).then((r) => r.data),
   })
   const { data: bs } = useQuery({
-    queryKey: ['accounting-bs-exec'],
-    queryFn: () => api.get('/accounting/reports/balance-sheet').then((r) => r.data),
+    queryKey: ['accounting-bs-exec', to],
+    queryFn: () => api.get('/accounting/reports/balance-sheet', { params: { asOf: to } }).then((r) => r.data),
   })
 
+  const revenue = Number(pnl?.totalRevenue) || 0
+  const expenses = Number(pnl?.totalExpenses) || 0
+  const net = Number(pnl?.netIncome) || 0
+  const gross = Number(pnl?.grossProfit) || (revenue - (Number(pnl?.totalCogs) || 0))
+  const cash = Number(dash?.cashBalance) || 0
+  const ar = Number(dash?.arBalance) || 0
+  const ap = Number(dash?.apBalance) || 0
+  const currentAssets = Number(bs?.totalAssets) || 0
+  const currentLiab = Number(bs?.totalLiabilities) || 0
+  const days = Math.max(1, (new Date(to) - new Date(from)) / 86400000)
+  const dso = revenue > 0 ? Math.round((ar / revenue) * days) : 0
+  const kpis = [
+    [isAr ? 'عائد النقد' : 'Cash return', revenue > 0 ? `${((cash / revenue) * 100).toFixed(1)}%` : '—'],
+    [isAr ? 'هامش مجمل الربح' : 'Gross profit margin', revenue > 0 ? `${((gross / revenue) * 100).toFixed(1)}%` : '—'],
+    [isAr ? 'هامش صافي الربح' : 'Net profit margin', revenue > 0 ? `${((net / revenue) * 100).toFixed(1)}%` : '—'],
+    [isAr ? 'نسبة التداول' : 'Current ratio', currentLiab > 0 ? (currentAssets / currentLiab).toFixed(2) : '—'],
+    [isAr ? 'أيام التحصيل (DSO)' : 'Days sales outstanding', String(dso)],
+  ]
+
   const cards = [
-    [isAr ? 'صافي الدخل (YTD)' : 'Net income (YTD)', dash?.netIncome],
-    [isAr ? 'الإيرادات (YTD)' : 'Revenue (YTD)', dash?.totalRevenue],
-    [isAr ? 'المصروفات (YTD)' : 'Expenses (YTD)', dash?.totalExpenses],
-    [isAr ? 'نقد + بنك' : 'Cash + bank', dash?.cashBalance],
-    [isAr ? 'المدينون' : 'Receivables', dash?.arBalance],
-    [isAr ? 'الدائنون' : 'Payables', dash?.apBalance],
+    [isAr ? 'صافي الدخل' : 'Net income', net],
+    [isAr ? 'الإيرادات' : 'Revenue', revenue],
+    [isAr ? 'المصروفات' : 'Expenses', expenses],
+    [isAr ? 'نقد + بنك' : 'Cash + bank', cash],
+    [isAr ? 'المدينون' : 'Receivables', ar],
+    [isAr ? 'الدائنون' : 'Payables', ap],
   ]
 
   return (
     <div className="space-y-4">
-      <DateRangeBar from={from} to={to} setFrom={setFrom} setTo={setTo} language={language} />
+      <ReportFilterRibbon
+        language={language}
+        mode="range"
+        from={from}
+        to={to}
+        setFrom={setFrom}
+        setTo={setTo}
+        showComparison={false}
+        showBasis={false}
+        title={isAr ? 'الملخص التنفيذي' : 'Executive summary'}
+        exportProps={{
+          getRows: async () => [
+            ...cards.map(([label, value]) => ({ metric: label, value: Number(value || 0).toFixed(2) })),
+            ...kpis.map(([label, value]) => ({ metric: label, value: String(value) })),
+          ],
+          columns: [
+            { key: 'metric', label: isAr ? 'المؤشر' : 'Metric' },
+            { key: 'value', label: isAr ? 'القيمة' : 'Value' },
+          ],
+          fileBaseName: 'maqder-executive-summary',
+          title: isAr ? 'الملخص التنفيذي' : 'Executive summary',
+        }}
+      />
       {dashLoading ? <p className="text-xs text-slate-400">{isAr ? 'جاري التحميل…' : 'Loading…'}</p> : null}
+      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {kpis.map(([label, value]) => (
+          <div key={label} className="rounded-2xl border border-emerald-200/60 bg-emerald-50/40 p-4 dark:border-emerald-800 dark:bg-emerald-950/20">
+            <p className="text-[11px] uppercase tracking-widest text-emerald-700/70">{label}</p>
+            <p className="mt-1 text-lg font-semibold">{value}</p>
+          </div>
+        ))}
+      </div>
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {cards.map(([label, value]) => (
           <div key={label} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
@@ -3395,34 +3592,50 @@ export function ExecutiveSummaryPanel({ language }) {
         ))}
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+        <button
+          type="button"
+          onClick={() => navigate('/app/dashboard/accounting/pnl')}
+          className="rounded-2xl border border-slate-200/80 bg-white p-4 text-start dark:border-dark-600 dark:bg-dark-800"
+        >
           <p className="text-sm font-semibold">{isAr ? 'الأرباح والخسائر (الفترة)' : 'P&L (period)'}</p>
           <div className="mt-3 space-y-2 text-sm">
             <div className="flex justify-between"><span>{isAr ? 'الإيرادات' : 'Revenue'}</span><Money value={pnl?.totalRevenue} /></div>
             <div className="flex justify-between"><span>{isAr ? 'المصروفات' : 'Expenses'}</span><Money value={pnl?.totalExpenses} /></div>
             <div className="flex justify-between border-t border-slate-100 pt-2 font-semibold dark:border-white/10"><span>{isAr ? 'صافي' : 'Net'}</span><Money value={pnl?.netIncome} /></div>
           </div>
-        </div>
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/app/dashboard/accounting/balance-sheet')}
+          className="rounded-2xl border border-slate-200/80 bg-white p-4 text-start dark:border-dark-600 dark:bg-dark-800"
+        >
           <p className="text-sm font-semibold">{isAr ? 'الميزانية (ملخص)' : 'Balance sheet (summary)'}</p>
           <div className="mt-3 space-y-2 text-sm">
             <div className="flex justify-between"><span>{isAr ? 'الأصول' : 'Assets'}</span><Money value={bs?.totalAssets} /></div>
             <div className="flex justify-between"><span>{isAr ? 'الخصوم' : 'Liabilities'}</span><Money value={bs?.totalLiabilities} /></div>
             <div className="flex justify-between"><span>{isAr ? 'حقوق الملكية' : 'Equity'}</span><Money value={bs?.totalEquity} /></div>
           </div>
-        </div>
+        </button>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+        <button
+          type="button"
+          onClick={() => navigate('/app/dashboard/accounting/aged-ar')}
+          className="rounded-2xl border border-slate-200/80 bg-white p-4 text-start dark:border-dark-600 dark:bg-dark-800"
+        >
           <p className="text-sm font-semibold">{isAr ? 'أعمار المدينين' : 'Aged receivables'}</p>
           <p className="mt-1 text-xs text-slate-500">{isAr ? 'فواتير مفتوحة' : 'Open invoices'}: {dash?.agedAr?.openCount ?? 0}</p>
           <p className="mt-2 text-lg font-semibold"><Money value={dash?.agedAr?.buckets?.total} /></p>
-        </div>
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/app/dashboard/accounting/aged-ap')}
+          className="rounded-2xl border border-slate-200/80 bg-white p-4 text-start dark:border-dark-600 dark:bg-dark-800"
+        >
           <p className="text-sm font-semibold">{isAr ? 'أعمار الدائنين' : 'Aged payables'}</p>
           <p className="mt-1 text-xs text-slate-500">{isAr ? 'فواتير مفتوحة' : 'Open bills'}: {dash?.agedAp?.openCount ?? 0}</p>
           <p className="mt-2 text-lg font-semibold"><Money value={dash?.agedAp?.buckets?.total} /></p>
-        </div>
+        </button>
       </div>
     </div>
   )
