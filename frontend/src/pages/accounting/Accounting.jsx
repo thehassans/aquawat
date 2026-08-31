@@ -40,6 +40,9 @@ import {
 } from './AccountingModules'
 import CreditNotesPanel from './documents/CreditNotesPanel'
 import CustomerPaymentsPanel from './documents/CustomerPaymentsPanel'
+import VendorBillsPanel from './documents/VendorBillsPanel'
+import VendorRefundsPanel from './documents/VendorRefundsPanel'
+import VendorPaymentsPanel from './documents/VendorPaymentsPanel'
 import { ACCOUNTING_COMING_SOON_SECTIONS } from './accounting.menu'
 
 const TABS = [
@@ -67,6 +70,9 @@ const TABS = [
   { id: 'aged-ar', labelEn: 'Aged receivables', labelAr: 'أعمار المدينين', icon: Users },
   { id: 'credit-notes', labelEn: 'Credit Notes', labelAr: 'إشعارات الدائن', icon: FileText },
   { id: 'customer-payments', labelEn: 'Customer Payments', labelAr: 'مدفوعات العملاء', icon: Wallet },
+  { id: 'vendor-bills', labelEn: 'Vendor Bills', labelAr: 'فواتير الموردين', icon: FileText },
+  { id: 'vendor-refunds', labelEn: 'Vendor Refunds', labelAr: 'مرتجعات الموردين', icon: FileText },
+  { id: 'vendor-payments', labelEn: 'Vendor Payments', labelAr: 'مدفوعات الموردين', icon: Wallet },
   { id: 'aged-ap', labelEn: 'Aged payables', labelAr: 'أعمار الدائنين', icon: Truck },
   { id: 'customer-account', labelEn: 'Customer Account', labelAr: 'كشف حساب العميل', icon: Users },
   { id: 'customer-summary', labelEn: 'Customer Summary', labelAr: 'ملخص العملاء', icon: Users },
@@ -747,6 +753,24 @@ export default function Accounting() {
           {tab === 'customer-payments' && (
             <motion.div key="customer-payments" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
               <CustomerPaymentsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'vendor-bills' && (
+            <motion.div key="vendor-bills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <VendorBillsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'vendor-refunds' && (
+            <motion.div key="vendor-refunds" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <VendorRefundsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'vendor-payments' && (
+            <motion.div key="vendor-payments" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <VendorPaymentsPanel language={language} />
             </motion.div>
           )}
 

@@ -393,6 +393,22 @@ const tenantSchema = new mongoose.Schema({
         taxOutputAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
         suspenseAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
         inventoryAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+        outstandingPaymentsAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+      },
+      /** When true (default), bank/cheque vendor payments credit Outstanding Payments until bank recon */
+      useOutstandingPayments: { type: Boolean, default: true },
+      /** SEPA pain.001 debtor (company bank) details for vendor payment export */
+      sepa: {
+        debtorIban: { type: String, default: '' },
+        debtorBic: { type: String, default: '' },
+        debtorName: { type: String, default: '' },
+      },
+      /** Vendor check printing sequence */
+      checkPrint: {
+        prefix: { type: String, default: 'CHK' },
+        nextNumber: { type: Number, default: 1001 },
+        micrRouting: { type: String, default: '' },
+        micrAccount: { type: String, default: '' },
       },
     },
     hiddenUoms: [{ type: String }],

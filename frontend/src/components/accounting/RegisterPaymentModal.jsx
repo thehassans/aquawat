@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { X } from 'lucide-react'
+import { X, Printer } from 'lucide-react'
 import api from '../../lib/api'
 import Money from '../ui/Money'
 import { invoiceRemainingBalance } from '../../lib/accountingDocumentStatus'
+import { printVendorCheck } from '../../lib/vendorApTools'
 
 const METHODS = [
   { id: 'bank_transfer', en: 'Bank transfer', ar: 'تحويل بنكي' },
+  { id: 'cheque', en: 'Check', ar: 'شيك' },
   { id: 'cash', en: 'Cash', ar: 'نقداً' },
   { id: 'card', en: 'Card', ar: 'بطاقة' },
   { id: 'other', en: 'Other', ar: 'أخرى' },
@@ -156,7 +158,29 @@ export default function RegisterPaymentModal({
           </div>
         ) : null}
 
-        <div className="mt-5 flex gap-3">
+        <div className="mt-5 flex flex-wrap gap-3">
+          {method === 'cheque' && invoice?.flow === 'purchase' ? (
+            <button
+              type="button"
+              className="btn btn-secondary inline-flex items-center gap-2"
+              onClick={async () => {
+                try {
+                  await printVendorCheck({
+                    payeeName: invoice?.seller?.name || invoice?.seller?.nameAr,
+                    amount: numericAmount,
+                    currency: invoice?.currency || 'SAR',
+                    memo: memo || invoice?.invoiceNumber,
+                    paymentDate: new Date().toISOString().slice(0, 10),
+                  })
+                } catch (err) {
+                  window.alert(err.message || 'Check print failed')
+                }
+              }}
+            >
+              <Printer className="h-4 w-4" />
+              {isAr ? 'طباعة الشيك' : 'Print check'}
+            </button>
+          ) : null}
           <button type="button" className="btn btn-secondary flex-1" onClick={onClose}>
             {isAr ? 'إلغاء' : 'Cancel'}
           </button>

@@ -17,15 +17,32 @@ export const CREDIT_NOTE_STATUS_STEPS = [
   { id: 'reversed', en: 'Reversed', ar: 'معكوس' },
 ]
 
+export const BILL_STATUS_STEPS = INVOICE_STATUS_STEPS
+export const VENDOR_REFUND_STATUS_STEPS = CREDIT_NOTE_STATUS_STEPS
+
+export function isVendorBill(invoice = {}) {
+  return String(invoice?.flow || '') === 'purchase' && String(invoice?.invoiceType || '388') === '388'
+}
+
+export function isVendorRefund(invoice = {}) {
+  return String(invoice?.flow || '') === 'purchase' && String(invoice?.invoiceType || '') === '381'
+}
+
+export function isCustomerCreditNote(invoice = {}) {
+  return String(invoice?.flow || 'sell') !== 'purchase' && String(invoice?.invoiceType || '') === '381'
+}
+
 export function resolveInvoiceRibbonStep(invoice = {}) {
   const docStatus = String(invoice?.status || 'draft').toLowerCase()
   const payStatus = String(invoice?.paymentStatus || '').toLowerCase()
   const isCreditNote = String(invoice?.invoiceType || '') === '381'
+  const isPurchase = String(invoice?.flow || '') === 'purchase'
 
   if (['cancelled', 'credited'].includes(docStatus)) return 'cancelled'
   if (isCreditNote && ['issued', 'approved', 'paid', 'sent'].includes(docStatus)) return 'reversed'
   if (payStatus === 'paid' || docStatus === 'paid') return 'paid'
-  if (['issued', 'approved', 'sent'].includes(docStatus) || invoice?.zatca?.signedXml) return 'posted'
+  if (['issued', 'approved', 'sent'].includes(docStatus)) return 'posted'
+  if (!isPurchase && invoice?.zatca?.signedXml) return 'posted'
   return 'draft'
 }
 
@@ -76,4 +93,15 @@ export function canRegisterPaymentOnInvoice(invoice = {}) {
   if (invoice?.flow === 'purchase') return false
   if (['draft', 'cancelled', 'credited'].includes(String(invoice?.status || '').toLowerCase())) return false
   return invoiceRemainingBalance(invoice) > 0.005
+}
+
+export function canRegisterPaymentOnBill(invoice = {}) {
+  if (invoice?.flow !== 'purchase') return false
+  if (String(invoice?.invoiceType || '388') !== '388') return false
+  if (['draft', 'cancelled', 'credited'].includes(String(invoice?.status || '').toLowerCase())) return false
+  return invoiceRemainingBalance(invoice) > 0.005
+}
+
+export function canRegisterPaymentOnDocument(invoice = {}) {
+  return canRegisterPaymentOnInvoice(invoice) || canRegisterPaymentOnBill(invoice)
 }

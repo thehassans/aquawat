@@ -143,6 +143,34 @@ export async function listUnmatchedJournalItems(tenantId, accountId, { from, to,
     .lean();
 }
 
+/**
+ * Unmatched Outstanding Payments credits (vendor disbursements awaiting bank clearance).
+ */
+export async function listUnmatchedOutstandingPayments(tenantId, { limit = 200 } = {}) {
+  let outstandingAccountId = null;
+  try {
+    const { ensureAccountingDefaults, resolveRoleAccount, getAccountMap } = await import('./accountingService.js');
+    const { byCode, byId } = await getAccountMap(tenantId);
+    const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+    const outstanding = await resolveRoleAccount(tenantId, 'outstandingPayments', { byCode, byId, defaultIds });
+    outstandingAccountId = outstanding?._id || null;
+  } catch {
+    outstandingAccountId = null;
+  }
+  if (!outstandingAccountId) return [];
+
+  return JournalItem.find({
+    tenantId,
+    accountId: outstandingAccountId,
+    state: 'posted',
+    credit: { $gt: 0 },
+    $or: [{ reconcileId: null }, { reconcileId: { $exists: false } }],
+  })
+    .sort({ entryDate: -1, createdAt: -1 })
+    .limit(Math.min(500, Math.max(1, Number(limit) || 200)))
+    .lean();
+}
+
 export async function listUnmatchedStatementLines(tenantId, { statementId = null, accountId = null } = {}) {
   const filter = {
     tenantId,
@@ -155,18 +183,70 @@ export async function listUnmatchedStatementLines(tenantId, { statementId = null
 
 /**
  * Match one statement line to one or more journal items (amounts should net-equal).
+ * Optionally clear Outstanding Payments: select outstanding credit items for an outflow;
+ * a clearance journal (Outstanding Dr / Bank Cr) is posted and matched to the statement.
  */
 export async function matchBankReconciliation(tenantId, userId, {
   statementLineId,
   journalItemIds = [],
+  outstandingJournalItemIds = [],
 } = {}) {
   if (!statementLineId) throw new Error('statementLineId is required');
-  const ids = (Array.isArray(journalItemIds) ? journalItemIds : []).filter(Boolean);
-  if (!ids.length) throw new Error('journalItemIds required');
+  const bankIds = (Array.isArray(journalItemIds) ? journalItemIds : []).filter(Boolean);
+  const outstandingIds = (Array.isArray(outstandingJournalItemIds) ? outstandingJournalItemIds : []).filter(Boolean);
+  if (!bankIds.length && !outstandingIds.length) throw new Error('journalItemIds required');
 
   const line = await BankStatementLine.findOne({ _id: statementLineId, tenantId });
   if (!line) throw new Error('Statement line not found');
   if (line.reconcileId) throw new Error('Statement line already matched');
+
+  let ids = [...bankIds];
+  let clearanceEntry = null;
+
+  if (outstandingIds.length) {
+    const stmtAmt = round2(line.amount);
+    if (stmtAmt >= 0) {
+      throw new Error('Outstanding payments can only clear bank outflows (negative statement lines)');
+    }
+    const outstandingItems = await JournalItem.find({
+      _id: { $in: outstandingIds },
+      tenantId,
+      state: 'posted',
+    });
+    if (outstandingItems.length !== outstandingIds.length) {
+      throw new Error('One or more outstanding payment items not found');
+    }
+    if (outstandingItems.some((i) => i.reconcileId)) {
+      throw new Error('One or more outstanding payment items are already matched');
+    }
+    const outCredit = round2(outstandingItems.reduce((s, i) => s + Number(i.credit || 0), 0));
+    if (Math.abs(outCredit + stmtAmt) > 0.02) {
+      throw new Error(`Outstanding credits ${outCredit} do not match statement outflow ${stmtAmt}`);
+    }
+
+    const { postOutstandingPaymentClearance } = await import('./accountingService.js');
+    clearanceEntry = await postOutstandingPaymentClearance({
+      tenantId,
+      userId,
+      bankAccountId: line.accountId,
+      amount: outCredit,
+      paymentDate: line.date || new Date(),
+      reference: line.reference || line.label || '',
+      memo: `Bank clearance: ${line.label || line.reference || ''}`.trim(),
+    });
+    if (!clearanceEntry?._id) throw new Error('Failed to post outstanding payment clearance');
+
+    const bankCreditItems = await JournalItem.find({
+      tenantId,
+      moveId: clearanceEntry._id,
+      accountId: line.accountId,
+      credit: { $gt: 0 },
+      state: 'posted',
+    }).select('_id');
+    ids = [...ids, ...bankCreditItems.map((i) => String(i._id))];
+  }
+
+  if (!ids.length) throw new Error('journalItemIds required');
 
   const items = await JournalItem.find({
     _id: { $in: ids },
@@ -202,10 +282,19 @@ export async function matchBankReconciliation(tenantId, userId, {
     { $set: { reconcileId } },
   );
 
+  if (outstandingIds.length) {
+    await JournalItem.updateMany(
+      { _id: { $in: outstandingIds }, tenantId },
+      { $set: { reconcileId } },
+    );
+  }
+
   return {
     reconcileId,
     statementLine: line.toObject(),
     journalItemIds: ids,
+    outstandingJournalItemIds: outstandingIds,
+    clearanceEntryId: clearanceEntry?._id || null,
   };
 }
 

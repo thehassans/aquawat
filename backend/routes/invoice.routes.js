@@ -160,6 +160,54 @@ async function postSellInvoiceLedgers(invoice, req, tenant) {
   }
 }
 
+async function postPurchaseInvoiceLedgers(invoice, req, tenant) {
+  if (invoice.flow !== 'purchase') return;
+  if (['draft', 'cancelled'].includes(invoice.status)) return;
+
+  const currency = invoice.currency || tenant?.settings?.currency || 'SAR';
+
+  try {
+    const accounting = await import('../services/accountingService.js');
+
+    if (String(invoice.invoiceType) === '381') {
+      await accounting.postVendorRefundJournal({
+        tenantId: invoice.tenantId,
+        userId: req.user._id,
+        creditNote: invoice,
+        currency,
+      });
+
+      if (invoice.originalInvoiceId) {
+        const originalBill = await Invoice.findOne({
+          _id: invoice.originalInvoiceId,
+          tenantId: invoice.tenantId,
+        });
+        if (originalBill) {
+          await accounting.reconcileVendorRefundWithBill({
+            tenantId: invoice.tenantId,
+            userId: req.user._id,
+            refund: invoice,
+            originalBill,
+          });
+        }
+      }
+      return;
+    }
+
+    if (String(invoice.invoiceType) === '388') {
+      const { postPurchaseInvoiceJournal } = await import('../services/inventory/stockAccounting.js');
+      await postPurchaseInvoiceJournal({
+        tenantId: invoice.tenantId,
+        userId: req.user._id,
+        invoice,
+        currency,
+      });
+    }
+  } catch (glError) {
+    console.warn('[accounting] purchase invoice journal failed:', glError.message);
+  }
+}
+
 /** After invoice create: post accounting journals only (no stock). */
 async function postSellLedgersOrConflict(res, invoice, req, tenant) {
   try {
@@ -188,6 +236,48 @@ function cleanObjectId(val) {
   if (typeof val === 'string' && mongoose.Types.ObjectId.isValid(val)) return val;
   if (val instanceof mongoose.Types.ObjectId) return val;
   return undefined;
+}
+
+function buildReversedBillLines(lineItems = [], refundLines = null) {
+  const items = Array.isArray(lineItems) ? lineItems : [];
+  const refundMap = new Map();
+  if (Array.isArray(refundLines) && refundLines.length) {
+    for (const row of refundLines) {
+      const qty = Math.abs(Number(row.quantity || 0));
+      if (qty <= 0) continue;
+      if (row.lineNumber != null) refundMap.set(`n:${row.lineNumber}`, qty);
+      if (row.productId) refundMap.set(`p:${String(row.productId)}`, qty);
+    }
+  }
+
+  const reversed = items.map((line, index) => {
+    const lineNumber = line.lineNumber || index + 1;
+    let refundQty = null;
+    if (refundMap.size) {
+      refundQty = refundMap.get(`n:${lineNumber}`) ?? refundMap.get(`p:${String(line.productId || '')}`);
+      if (!refundQty) return null;
+    }
+    const origQty = Math.abs(Number(line.quantity || 0));
+    const qty = refundQty != null ? -Math.min(refundQty, origQty) : -origQty;
+    if (!qty) return null;
+    const unitPrice = Number(line.unitPrice || 0);
+    const taxRate = Number(line.taxRate || 0);
+    const lineExtensionAmount = Number((qty * unitPrice).toFixed(2));
+    const taxAmount = Number((lineExtensionAmount * (taxRate / 100)).toFixed(2));
+    return {
+      ...line,
+      _id: undefined,
+      lineNumber,
+      quantity: qty,
+      lineExtensionAmount,
+      taxAmount,
+      lineTotal: lineExtensionAmount,
+      lineTotalWithTax: Number((lineExtensionAmount + taxAmount).toFixed(2)),
+      allowanceAmount: line.allowanceAmount ? -Math.abs(Number(line.allowanceAmount)) : 0,
+    };
+  }).filter(Boolean);
+
+  return reversed;
 }
 
 function sanitizeInvoicePayload(payload = {}) {
@@ -300,6 +390,18 @@ function sanitizeInvoicePayload(payload = {}) {
         cleanItem.variantId = variantId;
       } else {
         delete cleanItem.variantId;
+      }
+      const expenseAccountId = cleanObjectId(cleanItem.expenseAccountId);
+      if (expenseAccountId) {
+        cleanItem.expenseAccountId = expenseAccountId;
+      } else {
+        delete cleanItem.expenseAccountId;
+      }
+      const analyticAccountId = cleanObjectId(cleanItem.analyticAccountId);
+      if (analyticAccountId) {
+        cleanItem.analyticAccountId = analyticAccountId;
+      } else {
+        delete cleanItem.analyticAccountId;
       }
       return cleanItem;
     });
@@ -826,7 +928,7 @@ async function ensureProductsExist(tenantId, userId, lineItems, flow) {
 // @route   GET /api/invoices
 router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, paymentStatus, transactionType, businessContext, search, startDate, endDate, zatcaFilter, flow, invoiceType, cursor } = req.query;
+    const { page = 1, limit = 20, status, paymentStatus, transactionType, businessContext, search, startDate, endDate, zatcaFilter, flow, invoiceType, cursor, supplierId, productId } = req.query;
     
     const query = { ...req.tenantFilter };
     if (status) query.status = status;
@@ -835,6 +937,10 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
     if (invoiceType) query.invoiceType = String(invoiceType);
     if (transactionType) query.transactionType = transactionType;
     if (businessContext) query.businessContext = businessContext;
+    const supplierFilter = cleanObjectId(supplierId);
+    if (supplierFilter) query.supplierId = supplierFilter;
+    const productFilter = cleanObjectId(productId);
+    if (productFilter) query['lineItems.productId'] = productFilter;
     if (startDate || endDate) {
       query.issueDate = {};
       if (startDate) query.issueDate.$gte = new Date(startDate);
@@ -1075,7 +1181,7 @@ router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req,
     if (!canRecordPayment(invoice)) {
       return res.status(400).json({
         error: invoice.flow === 'purchase'
-          ? 'Purchase invoices do not accept customer payments'
+          ? 'Cannot record payment on this vendor bill'
           : 'Cannot record payment on this invoice',
       });
     }
@@ -1089,7 +1195,7 @@ router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req,
       return res.status(400).json({ error: 'Amount exceeds remaining balance' });
     }
 
-    const method = ['cash', 'card', 'bank_transfer', 'other', 'khata'].includes(req.body?.method)
+    const method = ['cash', 'card', 'bank_transfer', 'cheque', 'other', 'khata'].includes(req.body?.method)
       ? req.body.method
       : 'bank_transfer';
 
@@ -1100,17 +1206,31 @@ router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req,
     await invoice.save();
 
     try {
-      const { postInvoicePaymentJournal } = await import('../services/accountingService.js');
-      await postInvoicePaymentJournal({
-        tenantId: invoice.tenantId,
-        userId: req.user._id,
-        invoice,
-        amount,
-        paymentMethod: method,
-        paymentDate: req.body?.paymentDate ? new Date(req.body.paymentDate) : new Date(),
-        reference: `pay-${invoice.invoiceNumber}-${Date.now()}`,
-        currency: invoice.currency || req.tenant?.settings?.currency || 'SAR',
-      });
+      const accounting = await import('../services/accountingService.js');
+      if (invoice.flow === 'purchase') {
+        await accounting.postVendorBillPaymentJournal({
+          tenantId: invoice.tenantId,
+          userId: req.user._id,
+          invoice,
+          amount,
+          paymentMethod: method,
+          paymentDate: req.body?.paymentDate ? new Date(req.body.paymentDate) : new Date(),
+          reference: `pay-${invoice.invoiceNumber}-${Date.now()}`,
+          currency: invoice.currency || req.tenant?.settings?.currency || 'SAR',
+          memo: req.body?.memo || '',
+        });
+      } else {
+        await accounting.postInvoicePaymentJournal({
+          tenantId: invoice.tenantId,
+          userId: req.user._id,
+          invoice,
+          amount,
+          paymentMethod: method,
+          paymentDate: req.body?.paymentDate ? new Date(req.body.paymentDate) : new Date(),
+          reference: `pay-${invoice.invoiceNumber}-${Date.now()}`,
+          currency: invoice.currency || req.tenant?.settings?.currency || 'SAR',
+        });
+      }
     } catch (glError) {
       console.warn('[accounting] invoice payment journal failed:', glError.message);
     }
@@ -1845,7 +1965,7 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
   }
 });
 
-// @route   POST /api/invoices/three-way-match — preview for vendor bills
+// @route   POST /api/invoices/preview-journal
 router.post('/preview-journal', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
     const flow = String(req.body?.flow || 'sell').toLowerCase() === 'purchase' ? 'purchase' : 'sell';
@@ -1871,6 +1991,7 @@ router.post('/preview-journal', checkPermission('invoicing', 'read'), async (req
   }
 });
 
+// @route   POST /api/invoices/three-way-match — preview for vendor bills
 router.post('/three-way-match', checkPermission('invoicing', 'create'), async (req, res) => {
   try {
     const { threeWayMatch } = await import('../services/inventory/threeWayMatch.js');
@@ -1889,6 +2010,112 @@ router.post('/three-way-match', checkPermission('invoicing', 'create'), async (r
   } catch (error) {
     const status = error.code === 'PO_NOT_FOUND' ? 404 : 400;
     res.status(status).json({ error: error.message, code: error.code });
+  }
+});
+
+// @route   GET /api/invoices/purchase/vendor-account-predictions
+router.get('/purchase/vendor-account-predictions', checkPermission('invoicing', 'read'), async (req, res) => {
+  try {
+    const supplierId = cleanObjectId(req.query.supplierId);
+    if (!supplierId) {
+      return res.status(400).json({ error: 'supplierId required' });
+    }
+    const { predictVendorLineAccounts } = await import('../services/vendorApService.js');
+    const predictions = await predictVendorLineAccounts(req.user.tenantId, supplierId);
+    res.json(predictions);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   GET /api/invoices/purchase/vendor-stats/:supplierId
+router.get('/purchase/vendor-stats/:supplierId', checkPermission('invoicing', 'read'), async (req, res) => {
+  try {
+    const supplierId = cleanObjectId(req.params.supplierId);
+    if (!supplierId) {
+      return res.status(400).json({ error: 'Invalid supplierId' });
+    }
+    const { getVendorApStats } = await import('../services/vendorApService.js');
+    const stats = await getVendorApStats(req.user.tenantId, supplierId);
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   GET /api/invoices/purchase/product-stats/:productId
+router.get('/purchase/product-stats/:productId', checkPermission('invoicing', 'read'), async (req, res) => {
+  try {
+    const productId = cleanObjectId(req.params.productId);
+    if (!productId) {
+      return res.status(400).json({ error: 'Invalid productId' });
+    }
+    const { getProductApStats } = await import('../services/vendorApService.js');
+    const stats = await getProductApStats(req.user.tenantId, productId);
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/invoices/purchase/batch-sepa-export
+router.post('/purchase/batch-sepa-export', checkPermission('invoicing', 'read'), async (req, res) => {
+  try {
+    const invoiceIds = Array.isArray(req.body?.invoiceIds) ? req.body.invoiceIds : [];
+    const { buildSepaCreditTransferXml } = await import('../services/vendorApService.js');
+    const result = await buildSepaCreditTransferXml(req.user.tenantId, invoiceIds, {
+      executionDate: req.body?.executionDate,
+    });
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(result.xml);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/invoices/purchase/check-print
+router.post('/purchase/check-print', checkPermission('invoicing', 'read'), async (req, res) => {
+  try {
+    const tenant = await Tenant.findById(req.user.tenantId);
+    const {
+      buildCheckPrintPayload,
+      buildCheckPrintHtml,
+      allocateNextCheckNumber,
+    } = await import('../services/vendorApService.js');
+
+    let checkNumber = String(req.body?.checkNumber || '').trim();
+    let micrRouting = '';
+    let micrAccount = '';
+    if (!checkNumber) {
+      const allocated = await allocateNextCheckNumber(req.user.tenantId);
+      checkNumber = allocated.checkNumber;
+      micrRouting = allocated.micrRouting;
+      micrAccount = allocated.micrAccount;
+    } else {
+      const cfg = tenant?.settings?.accounting?.checkPrint || {};
+      micrRouting = cfg.micrRouting || '';
+      micrAccount = cfg.micrAccount || '';
+    }
+
+    const payload = buildCheckPrintPayload({
+      tenant,
+      payeeName: req.body?.payeeName,
+      amount: Number(req.body?.amount || 0),
+      currency: req.body?.currency || tenant?.settings?.currency || 'SAR',
+      memo: req.body?.memo,
+      checkNumber,
+      paymentDate: req.body?.paymentDate ? new Date(req.body.paymentDate) : new Date(),
+      micrRouting,
+      micrAccount,
+    });
+    if (String(req.query.format || req.body?.format || '').toLowerCase() === 'html') {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(buildCheckPrintHtml(payload));
+    }
+    res.json(payload);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
 });
 
@@ -1952,11 +2179,16 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
       ? parseInt(lastInvoice.invoiceNumber.split('-').pop()) + 1
       : 1;
 
-    const invoiceNumber = `PINV-${new Date().getFullYear()}-${String(invoiceCount).padStart(6, '0')}`;
+    const invoiceType = String(req.body.invoiceType || '388') === '381' ? '381' : '388';
+    const invoiceNumber = invoiceType === '381'
+      ? `VR-${new Date().getFullYear()}-${String(invoiceCount).padStart(6, '0')}`
+      : `PINV-${new Date().getFullYear()}-${String(invoiceCount).padStart(6, '0')}`;
 
     const transactionType = req.body.transactionType || 'B2B';
     const invoiceSubtype = req.body.invoiceSubtype === 'travel_ticket' ? 'travel_ticket' : 'standard';
-    const invoiceTypeCode = req.body.invoiceTypeCode || '0100000';
+    const invoiceTypeCode = req.body.invoiceTypeCode || (invoiceType === '381'
+      ? (transactionType === 'B2C' ? '0200100' : '0100100')
+      : '0100000');
     const issueDate = req.body.issueDate ? new Date(req.body.issueDate) : new Date();
     const pdfTemplateId = resolvePdfTemplateId(req.body?.pdfTemplateId, tenant, businessContext);
 
@@ -1980,6 +2212,7 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
       flow: 'purchase',
       businessContext,
       invoiceNumber,
+      invoiceType,
       transactionType,
       invoiceSubtype,
       pdfTemplateId,
@@ -2060,19 +2293,7 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
     }
 
     try {
-      const { postPurchaseInvoiceJournal } = await import('../services/inventory/stockAccounting.js');
-      const je = await postPurchaseInvoiceJournal({
-        tenantId: req.user.tenantId,
-        userId: req.user._id,
-        invoice,
-      });
-      if (je?._id) {
-        invoice.inventory = {
-          ...(invoice.inventory?.toObject?.() || invoice.inventory || {}),
-          journalEntryId: je._id,
-        };
-        await invoice.save();
-      }
+      await postPurchaseInvoiceLedgers(invoice, req, tenant);
     } catch (jErr) {
       console.error('[invoice] purchase stock journal', jErr?.message || jErr);
     }
@@ -2167,7 +2388,11 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
 
     // Post GL when leaving draft (standard invoice or credit note)
     if (!['draft', 'cancelled'].includes(invoice.status)) {
-      await postSellInvoiceLedgers(invoice, req, tenant);
+      if (invoice.flow === 'purchase') {
+        await postPurchaseInvoiceLedgers(invoice, req, tenant);
+      } else {
+        await postSellInvoiceLedgers(invoice, req, tenant);
+      }
     }
 
     if (invoice.flow === 'sell' && (invoice.status === 'approved' || invoice.zatca?.signedXml)) {
@@ -2559,19 +2784,37 @@ router.post('/:id/credit-note', checkPermission('invoicing', 'create'), async (r
       return res.status(400).json({ error: 'Cannot issue a credit note from a proforma invoice' });
     }
 
-    const existingCn = await Invoice.findOne({
-      tenantId: originalInvoice.tenantId,
-      originalInvoiceId: originalInvoice._id,
-      invoiceType: '381',
-    }).select('_id invoiceNumber');
-    if (existingCn) {
-      return res.status(400).json({
-        error: `A credit note already exists (${existingCn.invoiceNumber})`,
-        creditNoteId: existingCn._id,
-      });
+    const action = String(req.body?.action || 'full').toLowerCase();
+    const isPartial = action === 'partial';
+    const reason = String(req.body?.reason || '').trim();
+    const reversalDateRaw = req.body?.reversalDate;
+    const reversalDate = reversalDateRaw ? new Date(reversalDateRaw) : new Date();
+
+    if (!isPartial) {
+      const existingCn = await Invoice.findOne({
+        tenantId: originalInvoice.tenantId,
+        originalInvoiceId: originalInvoice._id,
+        invoiceType: '381',
+      }).select('_id invoiceNumber');
+      if (existingCn) {
+        return res.status(400).json({
+          error: `A credit note already exists (${existingCn.invoiceNumber})`,
+          creditNoteId: existingCn._id,
+        });
+      }
     }
 
-    const creditNoteNumber = `CN-${originalInvoice.invoiceNumber}`;
+    const partialCount = isPartial
+      ? await Invoice.countDocuments({
+        tenantId: originalInvoice.tenantId,
+        originalInvoiceId: originalInvoice._id,
+        invoiceType: '381',
+      })
+      : 0;
+
+    const creditNoteNumber = originalInvoice.flow === 'purchase'
+      ? (isPartial ? `VR-${originalInvoice.invoiceNumber}-${partialCount + 1}` : `VR-${originalInvoice.invoiceNumber}`)
+      : (isPartial ? `CN-${originalInvoice.invoiceNumber}-${partialCount + 1}` : `CN-${originalInvoice.invoiceNumber}`);
     const source = originalInvoice.toObject();
     delete source._id;
     delete source.__v;
@@ -2580,25 +2823,17 @@ router.post('/:id/credit-note', checkPermission('invoicing', 'create'), async (r
     delete source.zatca;
     delete source.proformaSourceId;
 
-    // ZATCA credit notes reverse the original document (negative quantities).
-    const reversedLines = (Array.isArray(source.lineItems) ? source.lineItems : []).map((line) => {
-      const qty = Number(line.quantity || 0);
-      const unitPrice = Number(line.unitPrice || 0);
-      const taxRate = Number(line.taxRate || 0);
-      const quantity = -Math.abs(qty || 0);
-      const lineExtensionAmount = Number((quantity * unitPrice).toFixed(2));
-      const taxAmount = Number((lineExtensionAmount * (taxRate / 100)).toFixed(2));
-      return {
-        ...line,
-        _id: undefined,
-        quantity,
-        lineExtensionAmount,
-        taxAmount,
-        allowanceAmount: line.allowanceAmount ? -Math.abs(Number(line.allowanceAmount)) : 0,
-      };
-    });
+    const refundLines = isPartial ? (Array.isArray(req.body?.refundLines) ? req.body.refundLines : []) : null;
+    if (isPartial && !refundLines.length) {
+      return res.status(400).json({ error: 'Partial refund requires refundLines with quantities' });
+    }
 
-    const subtotal = Number(reversedLines.reduce((sum, line) => sum + Number(line.lineExtensionAmount || 0), 0).toFixed(2));
+    const reversedLines = buildReversedBillLines(source.lineItems, refundLines);
+    if (!reversedLines.length) {
+      return res.status(400).json({ error: 'No bill lines selected for refund' });
+    }
+
+    const subtotal = Number(reversedLines.reduce((sum, line) => sum + Number(line.lineExtensionAmount || line.lineTotal || 0), 0).toFixed(2));
     const taxAmount = Number(reversedLines.reduce((sum, line) => sum + Number(line.taxAmount || 0), 0).toFixed(2));
     const grandTotal = Number((subtotal + taxAmount).toFixed(2));
 
@@ -2615,20 +2850,62 @@ router.post('/:id/credit-note', checkPermission('invoicing', 'create'), async (r
       paidAmount: 0,
       status: 'draft',
       zatca: {},
+      internalNotes: reason ? `Refund: ${reason}` : source.internalNotes,
       createdBy: req.user._id,
       ...getUserDisplayNames(req.user),
-      issueDate: new Date(),
+      issueDate: reversalDate,
+      accountingDate: reversalDate,
     });
 
-    originalInvoice.status = 'credited';
-    await originalInvoice.save();
+    if (!isPartial) {
+      originalInvoice.status = 'credited';
+      await originalInvoice.save();
+    }
+
+    if (originalInvoice.flow === 'purchase') {
+      creditNote.status = 'approved';
+      await creditNote.save();
+      try {
+        const tenant = await Tenant.findById(originalInvoice.tenantId);
+        await postPurchaseInvoiceLedgers(creditNote, req, tenant);
+      } catch (reconErr) {
+        console.warn('[invoice] vendor refund reconciliation', reconErr?.message || reconErr);
+      }
+    }
+
+    let draftBill = null;
+    if (action === 'full_and_draft' && originalInvoice.flow === 'purchase') {
+      const draftSource = originalInvoice.toObject();
+      delete draftSource._id;
+      delete draftSource.__v;
+      delete draftSource.createdAt;
+      delete draftSource.updatedAt;
+      delete draftSource.zatca;
+      delete draftSource.proformaSourceId;
+      const draftCount = await Invoice.countDocuments({
+        tenantId: originalInvoice.tenantId,
+        flow: 'purchase',
+        invoiceType: '388',
+      });
+      draftBill = await Invoice.create({
+        ...draftSource,
+        invoiceNumber: `PINV-${new Date().getFullYear()}-${String(draftCount + 1).padStart(6, '0')}`,
+        status: 'draft',
+        paidAmount: 0,
+        paymentStatus: 'unpaid',
+        originalInvoiceId: undefined,
+        zatca: {},
+        createdBy: req.user._id,
+        ...getUserDisplayNames(req.user),
+        issueDate: new Date(),
+      });
+    }
 
     if (originalInvoice.customerId) {
       await syncCustomerStats(originalInvoice.tenantId, originalInvoice.customerId);
     }
 
-    // Credit note starts as draft — GL posts on first non-draft save / sign.
-    res.status(201).json(creditNote);
+    res.status(201).json({ creditNote, draftBill });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

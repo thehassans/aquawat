@@ -36,6 +36,14 @@ import {
 } from '../../pages/sales/salesUi'
 import { normalizeGrnList } from '../../lib/grnApi'
 import InvoiceJournalItemsPanel, { InvoiceDocumentReferencesBar } from './InvoiceJournalItemsPanel'
+import AccountingDocumentShell from '../accounting/AccountingDocumentShell'
+import VendorBillOcrPanel from '../accounting/VendorBillOcrPanel'
+import {
+  BILL_STATUS_STEPS,
+  isVendorRefund,
+  resolveInvoiceRibbonStep,
+  VENDOR_REFUND_STATUS_STEPS,
+} from '../../lib/accountingDocumentStatus'
 
 const denseControlClass =
   'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-900/10 dark:border-dark-500 dark:bg-dark-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-400'
@@ -87,6 +95,8 @@ const getEmptyLine = (tenant) => ({
   unitPrice: '',
   taxRate: 15,
   sourcePoItemId: '',
+  expenseAccountId: '',
+  analyticAccountId: '',
 })
 
 const purchaseContexts = ['trading', 'construction', 'travel_agency', 'furniture', 'furniture_shop']
@@ -121,6 +131,9 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
     authorizedPersonSignature: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonSignature || '') : '',
     stampImage: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.stampImage || '') : '',
     paymentTerms: invoice?.paymentTerms || 'immediate',
+    contractNumber: invoice?.contractNumber || '',
+    issueDate: toDateInput(invoice?.issueDate) || toDateInput(new Date()),
+    accountingDate: toDateInput(invoice?.accountingDate) || toDateInput(invoice?.issueDate) || toDateInput(new Date()),
     printFormat: invoice?.printFormat === 'thermal' ? 'thermal' : 'a4',
     dueDate: (() => {
       if (invoice?.dueDate) return toDateInput(invoice.dueDate)
@@ -155,6 +168,8 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
           unitPrice: Math.max(0, toNumber(line?.unitPrice, 0)),
           taxRate: Math.max(0, toNumber(line?.taxRate, 15)),
           sourcePoItemId: line?.sourcePoItemId || '',
+          expenseAccountId: line?.expenseAccountId || '',
+          analyticAccountId: line?.analyticAccountId || '',
         }))
       : [empty],
   }
@@ -181,13 +196,14 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const [searchParams] = useSearchParams()
   const poIdParam = String(searchParams.get('poId') || '').trim()
   const partnerIdParam = String(searchParams.get('partnerId') || '').trim()
+  const isEdit = Boolean(invoiceId)
+  const isManualRefund = !isEdit && ['1', 'true', 'refund', '381'].includes(String(searchParams.get('refund') || '').toLowerCase())
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
   const { tenant, user } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const [transactionType, setTransactionType] = useState('B2B')
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
-  const isEdit = Boolean(invoiceId)
   const [selectedSupplier, setSelectedSupplier] = useState(() => {
     const s = initialInvoice?.supplierId
     return s && typeof s === 'object' ? s : null
@@ -551,9 +567,56 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       purchaseOrderId: selectedPoId,
       billLines: billLinesForMatch,
     }).then((r) => r.data),
-    enabled: Boolean(isTradingContext && selectedPoId && billLinesForMatch.length > 0 && !isEdit),
+    enabled: Boolean(isTradingContext && selectedPoId && billLinesForMatch.length > 0),
     staleTime: 5_000,
   })
+
+  const lineMatchWarnings = useMemo(() => {
+    const map = {}
+    for (const ex of threeWayQuery.data?.exceptions || []) {
+      if (!ex?.productId) continue
+      const key = String(ex.productId)
+      const prev = map[key] || { productId: key, types: [] }
+      prev.types = [...new Set([...(prev.types || []), ex.type].filter(Boolean))]
+      map[key] = { ...prev, ...ex, type: ex.type === 'price_mismatch' && prev.type === 'qty_mismatch' ? 'qty_mismatch' : (ex.type || prev.type) }
+      if (ex.type === 'qty_mismatch') {
+        map[key].qty = ex
+        map[key].type = map[key].price ? 'qty_mismatch' : 'qty_mismatch'
+      }
+      if (ex.type === 'price_mismatch') {
+        map[key].price = ex
+      }
+      if (ex.type === 'unknown_product') {
+        map[key].type = 'unknown_product'
+      }
+    }
+    return map
+  }, [threeWayQuery.data])
+
+  const activeSupplierId = watch('supplierId') || selectedSupplier?._id || ''
+
+  const { data: vendorPredictions } = useQuery({
+    queryKey: ['vendor-account-predictions', activeSupplierId],
+    queryFn: () => api.get('/invoices/purchase/vendor-account-predictions', {
+      params: { supplierId: activeSupplierId },
+    }).then((r) => r.data),
+    enabled: Boolean(activeSupplierId),
+    staleTime: 120_000,
+  })
+
+  const { data: expenseAccounts = [] } = useQuery({
+    queryKey: ['accounting-accounts-active'],
+    queryFn: () => api.get('/accounting/accounts').then((r) => r.data || []),
+    staleTime: 60_000,
+  })
+
+  const { data: analyticAccounts = [] } = useQuery({
+    queryKey: ['accounting-analytic-accounts'],
+    queryFn: () => api.get('/accounting/analytic-accounts').then((r) => r.data || []),
+    staleTime: 60_000,
+  })
+
+  const isBillPosted = isEdit && initialInvoice && !['draft', 'pending'].includes(String(initialInvoice.status || ''))
 
   const onSelectProduct = (index, productId) => {
     const product = productList.find((item) => item._id === productId)
@@ -567,6 +630,13 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     setValue(`lineItems.${index}.taxRate`, typeof product.purchaseTaxRate === 'number' ? product.purchaseTaxRate : (typeof product.taxRate === 'number' ? product.taxRate : 15), opts)
     setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType), opts)
     setValue(`lineItems.${index}.unitPrice`, resolveProductPurchasePrice(product), opts)
+    const predictedAccount = vendorPredictions?.byProduct?.[productId] || vendorPredictions?.defaultAccountId
+    if (predictedAccount) {
+      setValue(`lineItems.${index}.expenseAccountId`, predictedAccount, opts)
+    }
+    if (product.expenseAccountId) {
+      setValue(`lineItems.${index}.expenseAccountId`, product.expenseAccountId, opts)
+    }
   }
 
   const fillSellerFromParty = (supplier) => {
@@ -749,7 +819,10 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   }
 
   const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [formTab, setFormTab] = useState('lines')
   const [pendingPayload, setPendingPayload] = useState(null)
+  const [showOcrPanel, setShowOcrPanel] = useState(false)
+  const [ocrAttachment, setOcrAttachment] = useState(null)
 
   const buildPayload = (data) => {
     const namedLines = (data.lineItems || []).filter((line) => String(line?.productName || '').trim() || toNumber(line?.unitPrice, 0) > 0)
@@ -762,7 +835,16 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       invoiceDiscount: toNumber(data.invoiceDiscount, 0),
     })
     const sellerName = String(data.seller?.name || data.seller?.nameAr || '').trim() || (language === 'ar' ? 'مورد نقدي' : 'Cash Supplier')
-    const issueDate = isEdit ? (initialInvoice?.issueDate || new Date()) : new Date()
+    const issueDate = (() => {
+      const raw = typeof data?.issueDate === 'string' ? data.issueDate.trim() : ''
+      if (raw) return new Date(`${raw}T12:00:00`)
+      return isEdit ? (initialInvoice?.issueDate || new Date()) : new Date()
+    })()
+    const accountingDate = (() => {
+      const raw = typeof data?.accountingDate === 'string' ? data.accountingDate.trim() : ''
+      if (raw) return new Date(`${raw}T12:00:00`)
+      return issueDate
+    })()
     const payload = {
       ...data,
       flow: 'purchase',
@@ -771,8 +853,10 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       pdfTemplateId: selectedTemplateId,
       transactionType,
       invoiceTypeCode: transactionType === 'B2C' ? '0200000' : '0100000',
+      invoiceType: isManualRefund || isVendorRefund(initialInvoice || {}) ? '381' : (initialInvoice?.invoiceType || '388'),
       status: 'approved',
       issueDate,
+      accountingDate,
       printFormat: data?.printFormat === 'thermal' ? 'thermal' : 'a4',
       paymentTerms: data?.paymentTerms || 'immediate',
       dueDate: (() => {
@@ -943,9 +1027,60 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     setValue('invoiceTypeCode', next === 'B2C' ? '0200000' : '0100000', { shouldDirty: true })
   }
 
+  const isRefundDoc = isManualRefund || isVendorRefund(initialInvoice || {})
+  const ribbonStep = resolveInvoiceRibbonStep(initialInvoice || { status: 'draft', flow: 'purchase', invoiceType: isRefundDoc ? '381' : '388' })
+  const statusSteps = isRefundDoc ? VENDOR_REFUND_STATUS_STEPS : BILL_STATUS_STEPS
+  const lineCount = (lineItems || []).filter((line) => line?.productName || line?.productId || Number(line?.unitPrice) > 0).length
+
+  const applyOcrToForm = (extracted) => {
+    if (!extracted) return
+    const supplier = extracted.supplier || {}
+    if (supplier.name || supplier.nameAr) {
+      setValue('seller.name', supplier.name || supplier.nameEn || '')
+      setValue('seller.nameAr', supplier.nameAr || supplier.name || '')
+      setValue('seller.vatNumber', supplier.vatNumber || '')
+    }
+    if (extracted.issueDate) setValue('issueDate', extracted.issueDate)
+    if (extracted.notes) setValue('notes', extracted.notes)
+    if (extracted.grandTotal || extracted.totalAmount) {
+      /* totals recalc from lines when present */
+    }
+    const ocrLines = Array.isArray(extracted.lineItems) ? extracted.lineItems : []
+    if (ocrLines.length) {
+      replace(ocrLines.map((line, index) => ({
+        productName: line.name || line.productName || '',
+        productNameAr: line.nameAr || line.productNameAr || '',
+        quantity: Number(line.quantity) || 1,
+        unitPrice: Number(line.unitPrice) || 0,
+        taxRate: Number(line.taxRate) || 15,
+        unitCode: line.unitCode || 'PCE',
+        productType: 'goods',
+        lineNumber: index + 1,
+      })))
+    }
+    setShowOcrPanel(false)
+    toast.success(language === 'ar' ? 'تم تطبيق بيانات OCR' : 'OCR data applied to draft')
+  }
+
   return (
     <div className="space-y-4">
       <div className="mx-auto w-full max-w-6xl space-y-2.5">
+        <AccountingDocumentShell
+          language={language}
+          backTo={isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : (isRefundDoc ? '/app/dashboard/accounting/vendor-refunds' : '/app/dashboard/accounting/vendor-bills')}
+          eyebrow={isRefundDoc ? (language === 'ar' ? 'مرتجع مورد' : 'Vendor refund') : (language === 'ar' ? 'فاتورة مورد' : 'Vendor bill')}
+          title={initialInvoice?.invoiceNumber || (language === 'ar' ? 'مسودة جديدة' : 'New draft')}
+          subtitle={language === 'ar' ? 'منشئ المستند' : 'Document builder'}
+          statusSteps={statusSteps}
+          activeStatusStep={ribbonStep}
+          tabs={[
+            { id: 'lines', labelEn: isRefundDoc ? 'Refund lines' : 'Bill lines', labelAr: isRefundDoc ? 'بنود المرتجع' : 'بنود الفاتورة', count: lineCount || undefined },
+            { id: 'journal', labelEn: 'Journal items', labelAr: 'بنود القيد' },
+            { id: 'other', labelEn: 'Other info', labelAr: 'معلومات أخرى' },
+          ]}
+          activeTab={formTab}
+          onTabChange={setFormTab}
+        />
         <form
           onSubmit={handleSubmit(onSubmit, () => toast.error(language === 'ar' ? 'أكمل البنود المطلوبة قبل الحفظ' : 'Complete the billing lines before saving'))}
           className="space-y-2.5"
@@ -1029,6 +1164,57 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               </div>
             </div>
           ) : null}
+
+          {formTab === 'lines' && (
+          <>
+          {!isEdit ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShowOcrPanel((v) => !v)}
+              >
+                {language === 'ar' ? 'رفع فاتورة PDF (OCR)' : 'Upload bill PDF (OCR)'}
+              </button>
+              {vendorPredictions?.sampleSize > 0 ? (
+                <span className="text-[11px] text-sky-700 dark:text-sky-300">
+                  {language === 'ar'
+                    ? `توقع الحسابات من ${vendorPredictions.sampleSize} فاتورة سابقة`
+                    : `Account prediction from ${vendorPredictions.sampleSize} past bills`}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          {showOcrPanel && !isEdit ? (
+            <VendorBillOcrPanel
+              language={language}
+              onApply={(data, file) => {
+                setOcrAttachment(file)
+                applyOcrToForm(data)
+              }}
+              onClose={() => setShowOcrPanel(false)}
+            />
+          ) : null}
+          {threeWayQuery.data?.ok === false && (threeWayQuery.data?.exceptions || []).length ? (
+            <div className="rounded-xl border border-orange-200 bg-orange-50/80 px-3 py-2 text-xs text-orange-800 dark:border-orange-900/40 dark:bg-orange-950/30 dark:text-orange-200">
+              {language === 'ar' ? 'تحذير مطابقة ثلاثية:' : '3-way match warning:'}{' '}
+              {(threeWayQuery.data.exceptions || []).slice(0, 2).map((ex) => ex.message).join(' · ')}
+            </div>
+          ) : null}
+          <div className={`${sectionCardClass} grid grid-cols-1 gap-3 !p-3.5 md:grid-cols-3`}>
+            <div>
+              <label className={fieldLabelClass}>{language === 'ar' ? 'تاريخ الفاتورة' : 'Bill date'}</label>
+              <input type="date" {...register('issueDate')} className={`mt-1 ${denseControlClass}`} />
+            </div>
+            <div>
+              <label className={fieldLabelClass}>{language === 'ar' ? 'تاريخ المحاسبة' : 'Accounting date'}</label>
+              <input type="date" {...register('accountingDate')} className={`mt-1 ${denseControlClass}`} title={language === 'ar' ? 'يمكن أن يختلف عن تاريخ الفاتورة' : 'May differ from bill date'} />
+            </div>
+            <div>
+              <label className={fieldLabelClass}>{language === 'ar' ? 'مرجع المورد' : 'Bill reference'}</label>
+              <input {...register('contractNumber')} className={`mt-1 ${denseControlClass}`} placeholder={language === 'ar' ? 'رقم فاتورة المورد' : 'Supplier invoice number'} />
+            </div>
+          </div>
 
           <div className={`${sectionCardClass} space-y-2.5 !p-3.5`}>
             <div className="flex items-center justify-between gap-3">
@@ -1316,27 +1502,40 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
             ) : (
               <div className="overflow-x-auto">
                 <div
-                  className="hidden gap-1 border-y border-slate-100 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5 lg:grid lg:grid-cols-12"
+                  className="hidden gap-1 border-y border-slate-100 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5 lg:grid lg:grid-cols-[repeat(14,minmax(0,1fr))]"
                   dir="ltr"
                 >
-                  <div className={showArabicFields ? 'lg:col-span-4' : 'lg:col-span-5'}>
+                  <div className="col-span-3">
                     {language === 'ar' ? 'المنتج' : 'Product'}
                   </div>
-                  {showArabicFields ? <div className="lg:col-span-2">عربي</div> : null}
-                  <div className="lg:col-span-1">{language === 'ar' ? 'وحدة' : 'UOM'}</div>
-                  <div className="lg:col-span-1">{t('quantity')}</div>
-                  <div className="lg:col-span-1">{t('unitPrice')}</div>
-                  <div className="lg:col-span-1">{t('tax')} %</div>
-                  <div className="text-end lg:col-span-2">{t('total')}</div>
+                  {showArabicFields ? <div className="col-span-2">عربي</div> : null}
+                  <div className="col-span-2">{language === 'ar' ? 'الحساب' : 'Account'}</div>
+                  <div className="col-span-2">{language === 'ar' ? 'تحليلي' : 'Analytic'}</div>
+                  <div className="col-span-1">{language === 'ar' ? 'وحدة' : 'UOM'}</div>
+                  <div className="col-span-1">{t('quantity')}</div>
+                  <div className="col-span-1">{t('unitPrice')}</div>
+                  <div className="col-span-1">{t('tax')} %</div>
+                  <div className="text-end col-span-1">{t('total')}</div>
                 </div>
 
                 <div className="divide-y divide-slate-100 dark:divide-white/5">
-                  {fields.map((field, index) => (
-                    <div key={field.id} className="group px-3 py-2 transition hover:bg-slate-50/70 dark:hover:bg-white/[0.02] sm:px-4">
+                  {fields.map((field, index) => {
+                    const lineProductId = watch(`lineItems.${index}.productId`)
+                    const matchWarning = lineProductId ? lineMatchWarnings[String(lineProductId)] : null
+                    return (
+                    <div
+                      key={field.id}
+                      className={`group px-3 py-2 transition sm:px-4 ${
+                        matchWarning
+                          ? 'bg-orange-50/90 ring-1 ring-inset ring-orange-300 hover:bg-orange-50 dark:bg-orange-950/25 dark:ring-orange-800'
+                          : 'hover:bg-slate-50/70 dark:hover:bg-white/[0.02]'
+                      }`}
+                      title={matchWarning?.message || undefined}
+                    >
                       <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} />
                       <input type="hidden" {...register(`lineItems.${index}.productType`)} />
-                      <div className="grid grid-cols-2 items-center gap-1.5 lg:grid-cols-12" dir="ltr">
-                        <div className={`col-span-2 ${showArabicFields ? 'lg:col-span-4' : 'lg:col-span-5'}`}>
+                      <div className="grid grid-cols-2 items-center gap-1.5 lg:grid-cols-[repeat(14,minmax(0,1fr))]" dir="ltr">
+                        <div className={`col-span-2 ${showArabicFields ? 'lg:col-span-3' : 'lg:col-span-3'}`}>
                           {isTradingContext ? (
                             <div className="flex min-h-[36px] items-center gap-1 rounded-lg bg-slate-50/80 pe-0.5 ps-1 dark:bg-white/[0.03]">
                               <ProductTypeToggle
@@ -1475,6 +1674,34 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                         ) : (
                           <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
                         )}
+                        <div className="col-span-2 lg:col-span-2">
+                          <select
+                            {...register(`lineItems.${index}.expenseAccountId`)}
+                            disabled={isBillPosted}
+                            className={`${lineGhostInputClass} cursor-pointer disabled:opacity-60`}
+                          >
+                            <option value="">{language === 'ar' ? 'حساب…' : 'Account…'}</option>
+                            {expenseAccounts.map((a) => (
+                              <option key={a._id} value={a._id}>
+                                {a.code} — {language === 'ar' ? (a.nameAr || a.name) : a.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="col-span-2 lg:col-span-2">
+                          <select
+                            {...register(`lineItems.${index}.analyticAccountId`)}
+                            disabled={isBillPosted}
+                            className={`${lineGhostInputClass} cursor-pointer disabled:opacity-60`}
+                          >
+                            <option value="">{language === 'ar' ? 'تحليلي…' : 'Analytic…'}</option>
+                            {analyticAccounts.map((a) => (
+                              <option key={a._id} value={a._id}>
+                                {a.code ? `${a.code} — ` : ''}{language === 'ar' ? (a.nameAr || a.name) : a.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                         <div className="col-span-1 lg:col-span-1">
                           <Select
                             className="react-select-container"
@@ -1504,10 +1731,37 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                           />
                         </div>
                         <div className="col-span-1 lg:col-span-1">
-                          <input id={`qty-${index}`} type="number" min="0.0001" step="any" {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })} className={`${lineGhostInputClass} tabular-nums`} />
+                          <input
+                            id={`qty-${index}`}
+                            type="number"
+                            min="0.0001"
+                            step="any"
+                            {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })}
+                            className={`${lineGhostInputClass} tabular-nums ${matchWarning?.qty || matchWarning?.type === 'qty_mismatch' ? 'ring-1 ring-orange-400' : ''}`}
+                          />
+                          {(matchWarning?.qty || matchWarning?.type === 'qty_mismatch') ? (
+                            <p className="mt-0.5 text-[9px] font-medium text-orange-700 dark:text-orange-300">
+                              {language === 'ar'
+                                ? `مستلم ${(matchWarning.qty || matchWarning).received ?? '—'} · قابل للفوترة ${(matchWarning.qty || matchWarning).remainingBillable ?? '—'}`
+                                : `Recv ${(matchWarning.qty || matchWarning).received ?? '—'} · billable ${(matchWarning.qty || matchWarning).remainingBillable ?? '—'}`}
+                            </p>
+                          ) : null}
                         </div>
                         <div className="col-span-1 lg:col-span-1">
-                          <input id={`price-${index}`} type="number" step="0.01" {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })} className={`${lineGhostInputClass} tabular-nums`} />
+                          <input
+                            id={`price-${index}`}
+                            type="number"
+                            step="0.01"
+                            {...register(`lineItems.${index}.unitPrice`, { valueAsNumber: true, required: true, min: 0 })}
+                            className={`${lineGhostInputClass} tabular-nums ${matchWarning?.price || matchWarning?.type === 'price_mismatch' ? 'ring-1 ring-orange-400' : ''}`}
+                          />
+                          {(matchWarning?.price || matchWarning?.type === 'price_mismatch') ? (
+                            <p className="mt-0.5 text-[9px] font-medium text-orange-700 dark:text-orange-300">
+                              {language === 'ar'
+                                ? `سعر الطلب ${Number((matchWarning.price || matchWarning).poPrice || 0).toFixed(2)}`
+                                : `PO ${Number((matchWarning.price || matchWarning).poPrice || 0).toFixed(2)}`}
+                            </p>
+                          ) : null}
                         </div>
                         <div className="col-span-1 lg:col-span-1">
                           {(() => {
@@ -1531,7 +1785,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                             )
                           })()}
                         </div>
-                        <div className="col-span-2 flex items-center justify-end gap-1 lg:col-span-2">
+                        <div className="col-span-2 flex items-center justify-end gap-1 lg:col-span-1">
                           <p className="text-[13px] font-semibold tabular-nums text-slate-900 dark:text-white">
                             <Money value={getLineTotal(index)} />
                           </p>
@@ -1548,12 +1802,34 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                         </div>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}
           </div>
 
+          </>
+          )}
+
+          {formTab === 'journal' && (
+          <InvoiceJournalItemsPanel
+            flow="purchase"
+            language={language}
+            totals={totals}
+            lineItems={totals.lines || []}
+            sourcePurchaseOrderId={selectedPoId || watch('sourcePurchaseOrderId')}
+            sourceGrnIds={sourceGrnIds}
+            value={accountingLines}
+            onChange={setAccountingLines}
+            suggestedAccounts={vendorPredictions}
+            lineItemsRaw={lineItems}
+            readOnly={isBillPosted}
+          />
+          )}
+
+          {formTab === 'other' && (
+          <>
           <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
             <div className="flex items-center gap-1 border-b border-slate-100 px-2 py-1.5 dark:border-white/5">
               <span className="px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
@@ -1805,17 +2081,6 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
             </div>
           </div>
 
-          <InvoiceJournalItemsPanel
-            flow="purchase"
-            language={language}
-            totals={totals}
-            lineItems={totals.lines || []}
-            sourcePurchaseOrderId={selectedPoId || watch('sourcePurchaseOrderId')}
-            sourceGrnIds={sourceGrnIds}
-            value={accountingLines}
-            onChange={setAccountingLines}
-          />
-
           <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
             <div className="grid grid-cols-1 lg:grid-cols-2 lg:items-stretch">
               <div className="flex flex-col border-b border-slate-100 px-5 py-5 dark:border-white/5 lg:border-b-0 lg:border-e">
@@ -1942,13 +2207,15 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                   : 'Tap Preview to review before saving'}
               </p>
               <div className="flex justify-end gap-3">
-                <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : '/app/dashboard/accounting/invoices')} className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:bg-transparent dark:text-slate-300">{t('cancel')}</button>
+                <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : (isRefundDoc ? '/app/dashboard/accounting/vendor-refunds' : '/app/dashboard/accounting/vendor-bills'))} className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:bg-transparent dark:text-slate-300">{t('cancel')}</button>
                 <button type="submit" disabled={saveMutation.isPending} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 dark:bg-white dark:text-slate-900">
                   {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" /> : <><Eye className="w-4 h-4" />{language === 'ar' ? 'معاينة' : 'Preview'}</>}
                 </button>
               </div>
             </div>
           </div>
+          </>
+          )}
         </form>
       </div>
 

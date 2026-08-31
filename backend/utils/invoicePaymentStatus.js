@@ -68,7 +68,14 @@ export function paymentExceedsRemaining(amount, grandTotal, paidAmount) {
 
 export function canRecordPayment(invoice) {
   if (!invoice) return false;
-  if (invoice.flow === 'purchase') return false;
+  if (invoice.flow === 'purchase') return canRecordBillPayment(invoice);
+  return !['draft', 'cancelled', 'credited'].includes(invoice.status);
+}
+
+export function canRecordBillPayment(invoice) {
+  if (!invoice) return false;
+  if (invoice.flow !== 'purchase') return false;
+  if (String(invoice.invoiceType || '388') !== '388') return false;
   return !['draft', 'cancelled', 'credited'].includes(invoice.status);
 }
 
@@ -78,4 +85,5 @@ export default {
   isOverpay,
   paymentExceedsRemaining,
   canRecordPayment,
+  canRecordBillPayment,
 };

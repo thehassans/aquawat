@@ -24,12 +24,18 @@ import DocumentChatter from '../../components/sales/DocumentChatter'
 import AccountingDocumentShell from '../../components/accounting/AccountingDocumentShell'
 import RegisterPaymentModal from '../../components/accounting/RegisterPaymentModal'
 import CreditNoteFromInvoiceModal from '../../components/accounting/CreditNoteFromInvoiceModal'
+import VendorRefundFromBillModal from '../../components/accounting/VendorRefundFromBillModal'
 import {
+  BILL_STATUS_STEPS,
+  canRegisterPaymentOnBill,
   canRegisterPaymentOnInvoice,
   CREDIT_NOTE_STATUS_STEPS,
   INVOICE_STATUS_STEPS,
   invoiceRemainingBalance,
+  isVendorBill,
+  isVendorRefund,
   resolveInvoiceRibbonStep,
+  VENDOR_REFUND_STATUS_STEPS,
 } from '../../lib/accountingDocumentStatus'
 import {
   dangerActionClass,
@@ -208,10 +214,21 @@ export default function InvoiceView() {
   const creditNoteMutation = useMutation({
     mutationFn: (payload) => api.post(`/invoices/${id}/credit-note`, payload),
     onSuccess: (res) => {
-      toast.success(language === 'ar' ? 'تم إصدار إشعار دائن بنجاح' : 'Credit note issued successfully')
+      const creditNote = res.data?.creditNote || res.data
+      const draftBill = res.data?.draftBill
+      toast.success(
+        draftBill
+          ? (language === 'ar' ? 'تم إنشاء المرتجع وفاتورة مسودة جديدة' : 'Refund and draft bill created')
+          : (language === 'ar' ? 'تم إصدار إشعار دائن بنجاح' : 'Credit note issued successfully'),
+      )
       queryClient.invalidateQueries(['invoices'])
       queryClient.invalidateQueries(['invoice', id])
-      navigate(`/app/dashboard/accounting/invoices/${res.data._id}/edit`)
+      queryClient.invalidateQueries(['vendor-bills'])
+      queryClient.invalidateQueries(['vendor-refunds'])
+      setCnModalOpen(false)
+      if (creditNote?._id) {
+        navigate(`/app/dashboard/accounting/invoices/${creditNote._id}`)
+      }
     },
     onError: (error) => {
       toast.error(error.response?.data?.error || 'Failed to issue credit note')
@@ -232,10 +249,16 @@ export default function InvoiceView() {
   })
 
   const remainingBalance = invoiceRemainingBalance(invoice)
-  const canRecordPayment = canRegisterPaymentOnInvoice(invoice)
-  const isCreditNote = String(invoice?.invoiceType || '') === '381'
+  const isPurchaseBill = isVendorBill(invoice)
+  const isPurchaseRefund = isVendorRefund(invoice)
+  const canRecordPayment = isPurchaseBill
+    ? canRegisterPaymentOnBill(invoice)
+    : canRegisterPaymentOnInvoice(invoice)
+  const isCreditNote = String(invoice?.invoiceType || '') === '381' && !isPurchaseBill
   const ribbonStep = resolveInvoiceRibbonStep(invoice)
-  const statusSteps = isCreditNote ? CREDIT_NOTE_STATUS_STEPS : INVOICE_STATUS_STEPS
+  const statusSteps = isPurchaseRefund
+    ? VENDOR_REFUND_STATUS_STEPS
+    : (isCreditNote ? CREDIT_NOTE_STATUS_STEPS : (isPurchaseBill ? BILL_STATUS_STEPS : INVOICE_STATUS_STEPS))
   const paymentCount = Array.isArray(invoice?.payments) ? invoice.payments.length : 0
 
   const recordPaymentMutation = useMutation({
@@ -339,11 +362,15 @@ export default function InvoiceView() {
         language={language}
         onBack={() => navigate(-1)}
         eyebrow={
-          isCreditNote
-            ? (language === 'ar' ? 'إشعار دائن' : 'Credit note')
-            : invoice?.flow === 'purchase'
-              ? (language === 'ar' ? 'فاتورة مشتريات' : 'Purchase invoice')
-              : (language === 'ar' ? 'فاتورة مبيعات' : 'Customer invoice')
+          isPurchaseRefund
+            ? (language === 'ar' ? 'مرتجع مورد' : 'Vendor refund')
+            : isPurchaseBill
+              ? (language === 'ar' ? 'فاتورة مورد' : 'Vendor bill')
+              : isCreditNote
+                ? (language === 'ar' ? 'إشعار دائن' : 'Credit note')
+                : invoice?.flow === 'purchase'
+                  ? (language === 'ar' ? 'فاتورة مشتريات' : 'Purchase invoice')
+                  : (language === 'ar' ? 'فاتورة مبيعات' : 'Customer invoice')
         }
         title={invoice?.invoiceNumber}
         subtitle={`${new Date(invoice?.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB')}${remainingBalance > 0.005 ? ` · ${language === 'ar' ? 'المتبقي' : 'Due'} ${remainingBalance.toFixed(2)}` : ''}`}
@@ -363,6 +390,12 @@ export default function InvoiceView() {
             href: `/app/dashboard/sales/orders/${invoice.sourcePurchaseOrderId || invoice.purchaseOrderId}`,
             icon: <FileText className="h-3.5 w-3.5" />,
           }] : []),
+          ...((invoice?.sourcePurchaseOrderId) && invoice?.flow === 'purchase' ? [{
+            id: 'purchase-order',
+            label: (lang) => (lang === 'ar' ? '1 أمر شراء' : '1 Purchase Order'),
+            href: `/app/dashboard/purchases/orders/${invoice.sourcePurchaseOrderId?._id || invoice.sourcePurchaseOrderId}`,
+            icon: <FileText className="h-3.5 w-3.5" />,
+          }] : []),
           ...(paymentCount > 0 ? [{
             id: 'payments',
             label: (lang) => (lang === 'ar' ? `${paymentCount} مدفوعات` : `${paymentCount} Payments`),
@@ -375,7 +408,7 @@ export default function InvoiceView() {
             {canRecordPayment && (
               <button type="button" onClick={() => setPayOpen(true)} className="btn btn-action-dark btn-sm">
                 <Banknote className="w-4 h-4" />
-                {language === 'ar' ? 'تسجيل دفعة' : 'Register payment'}
+                {language === 'ar' ? 'تسجيل دفعة' : (isPurchaseBill ? 'Register payment' : 'Register payment')}
               </button>
             )}
             {isEditableInvoice(invoice, tenant?.zatca?.phase || 2) && (
@@ -396,8 +429,11 @@ export default function InvoiceView() {
                     className={dangerActionClass}
                   >
                     {creditNoteMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Undo2 className="w-4 h-4" />}
-                    {language === 'ar' ? 'إشعار دائن' : 'Add credit note'}
+                    {isPurchaseBill
+                      ? (language === 'ar' ? 'مرتجع مورد' : 'Add credit note')
+                      : (language === 'ar' ? 'إشعار دائن' : 'Add credit note')}
                   </button>
+                  {!isPurchaseBill ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -411,6 +447,7 @@ export default function InvoiceView() {
                     {debitNoteMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
                     {language === 'ar' ? 'إشعار مدين' : 'Debit note'}
                   </button>
+                  ) : null}
                 </>
             )}
             {invoice?.invoiceSubtype === 'proforma' && invoice?.status !== 'cancelled' && invoice?.status !== 'sent' && (
@@ -823,7 +860,15 @@ export default function InvoiceView() {
         />
       )}
       <CreditNoteFromInvoiceModal
-        isOpen={cnModalOpen}
+        isOpen={cnModalOpen && !isPurchaseBill}
+        onClose={() => setCnModalOpen(false)}
+        invoice={invoice}
+        language={language}
+        isPending={creditNoteMutation.isPending}
+        onSubmit={(payload) => creditNoteMutation.mutate(payload)}
+      />
+      <VendorRefundFromBillModal
+        isOpen={cnModalOpen && isPurchaseBill}
         onClose={() => setCnModalOpen(false)}
         invoice={invoice}
         language={language}

@@ -948,7 +948,7 @@ export async function postPurchaseInvoiceJournal({
     const entry = await createJournalEntry({
       tenantId: tid,
       userId,
-      entryDate: invoice.issueDate || new Date(),
+      entryDate: invoice.accountingDate || invoice.issueDate || new Date(),
       type: 'stock',
       memo: `Purchase invoice ${invoice.invoiceNumber}`,
       memoAr: `فاتورة مشتريات ${invoice.invoiceNumber}`,
@@ -1127,7 +1127,7 @@ export async function postPurchaseInvoiceJournal({
   return createJournalEntry({
     tenantId: tid,
     userId,
-    entryDate: invoice.issueDate || new Date(),
+    entryDate: invoice.accountingDate || invoice.issueDate || new Date(),
     type: 'stock',
     memo: `Purchase invoice ${invoice.invoiceNumber || ''}`,
     memoAr: `فاتورة مشتريات ${invoice.invoiceNumber || ''}`,

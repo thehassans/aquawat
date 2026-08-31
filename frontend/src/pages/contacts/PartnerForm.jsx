@@ -153,6 +153,13 @@ export default function PartnerForm() {
   const isVendor = watch('isVendor')
   const parentCompanyId = watch('parentCompanyId')
 
+  const { data: vendorApStats } = useQuery({
+    queryKey: ['vendor-ap-stats', id],
+    queryFn: () => api.get(`/invoices/purchase/vendor-stats/${id}`).then((r) => r.data),
+    enabled: Boolean(isEditing && id && isVendor),
+    staleTime: 60_000,
+  })
+
   const { data: existing, isLoading } = useQuery({
     queryKey: ['partner', id],
     queryFn: async () => {
@@ -789,6 +796,27 @@ export default function PartnerForm() {
 
           {tab === 'accounting' && (
             <div className={`${sectionCardClass} space-y-5`}>
+              {isVendor && isEditing && vendorApStats ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Link to={`/app/dashboard/accounting/vendor-bills?supplierId=${id}`} className={`${sectionCardClass} !p-3 transition hover:border-sky-300`}>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{ar ? 'فواتير' : 'Billed'}</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900 dark:text-white">{vendorApStats.billCount || 0}</p>
+                    <p className="text-xs text-slate-500">{Number(vendorApStats.billedTotal || 0).toFixed(2)} SAR</p>
+                  </Link>
+                  <Link to={`/app/dashboard/accounting/vendor-payments`} className={`${sectionCardClass} !p-3 transition hover:border-sky-300`}>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{ar ? 'مدفوع' : 'Paid'}</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900 dark:text-white">{Number(vendorApStats.paidTotal || 0).toFixed(2)}</p>
+                  </Link>
+                  <div className={`${sectionCardClass} !p-3`}>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{ar ? 'مستحق' : 'Outstanding'}</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums text-amber-700 dark:text-amber-300">{Number(vendorApStats.outstanding || 0).toFixed(2)}</p>
+                  </div>
+                  <Link to={`/app/dashboard/accounting/vendor-refunds`} className={`${sectionCardClass} !p-3 transition hover:border-sky-300`}>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{ar ? 'مرتجعات' : 'Refunds'}</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900 dark:text-white">{vendorApStats.refundCount || 0}</p>
+                  </Link>
+                </div>
+              ) : null}
               {isCustomer && (
                 <label>
                   <span className={fieldLabelClass}>{ar ? 'حسابات القبض' : 'Accounts receivable'}</span>

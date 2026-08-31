@@ -42,7 +42,7 @@ import { getTravelInvoiceLabelMeta, isTravelAgencyInvoice } from '../../lib/trav
 import { isSaudiTenant } from '../../lib/saudiTenant'
 import AccountingDocumentBatchBar from '../accounting/documents/AccountingDocumentBatchBar'
 import RegisterPaymentModal from '../../components/accounting/RegisterPaymentModal'
-import { canRegisterPaymentOnInvoice } from '../../lib/accountingDocumentStatus'
+import { canRegisterPaymentOnDocument } from '../../lib/accountingDocumentStatus'
 import {
   chipFilterClass,
   docLinkClass,
@@ -238,7 +238,7 @@ export default function Invoices() {
   })
 
   const handleBatchRegisterPayment = () => {
-    const payable = selectedInvoices.filter((inv) => canRegisterPaymentOnInvoice(inv))
+    const payable = selectedInvoices.filter((inv) => canRegisterPaymentOnDocument(inv))
     if (!payable.length) {
       toast.error(language === 'ar' ? 'لا توجد فواتير قابلة للدفع في التحديد' : 'No payable invoices in selection')
       return
@@ -884,7 +884,7 @@ export default function Invoices() {
         language={language}
         onRegisterPayment={handleBatchRegisterPayment}
         onSendPrint={handleBatchSendPrint}
-        registerDisabled={!selectedInvoices.some((inv) => canRegisterPaymentOnInvoice(inv))}
+        registerDisabled={!selectedInvoices.some((inv) => canRegisterPaymentOnDocument(inv))}
       />
 
       {/* Table */}

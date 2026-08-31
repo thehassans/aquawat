@@ -87,7 +87,9 @@ const invoiceLineSchema = new mongoose.Schema({
   isTravelMargin: { type: Boolean, default: false },
   marginTaxable: { type: Number, default: 0 },
   sourceDnItemId: { type: mongoose.Schema.Types.ObjectId, set: cleanObjectId },
-  sourcePoItemId: { type: mongoose.Schema.Types.ObjectId, set: cleanObjectId }
+  sourcePoItemId: { type: mongoose.Schema.Types.ObjectId, set: cleanObjectId },
+  expenseAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', set: cleanObjectId },
+  analyticAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'AnalyticAccount', set: cleanObjectId },
 });
 
 const partySchema = new mongoose.Schema({
@@ -224,6 +226,8 @@ const invoiceSchema = new mongoose.Schema({
   supplyDate: { type: Date },
   supplyDateHijri: { type: String },
   dueDate: { type: Date },
+  /** GL recognition date; defaults to issueDate when unset (vendor bills). */
+  accountingDate: { type: Date },
   printFormat: { type: String, enum: ['a4', 'thermal'], default: 'a4' },
   
   // Parties
@@ -250,7 +254,7 @@ const invoiceSchema = new mongoose.Schema({
   // Payment
   paymentMethod: { type: String, enum: ['cash', 'card', 'credit', 'bank_transfer', 'cheque', 'other', 'split', 'khata'], default: 'cash' },
   payments: [{
-    method: { type: String, enum: ['cash', 'card', 'bank_transfer', 'other', 'khata'] },
+    method: { type: String, enum: ['cash', 'card', 'bank_transfer', 'cheque', 'other', 'khata'] },
     amount: { type: Number }
   }],
   paymentTerms: { type: String },

@@ -19,6 +19,9 @@ export default function InvoiceJournalItemsPanel({
   sourceGrnIds = [],
   value = null,
   onChange,
+  suggestedAccounts = null,
+  lineItemsRaw = [],
+  readOnly = false,
 }) {
   const isAr = language === 'ar'
   const [localLines, setLocalLines] = useState([])
@@ -29,16 +32,18 @@ export default function InvoiceJournalItemsPanel({
     grandTotal: Number(totals.grandTotal || 0),
     totalTax: Number(totals.totalTax || 0),
     taxableAmount: Number(totals.taxableAmount || 0),
-    lines: (lineItems || []).map((l) => ({
+    lines: (lineItems || []).map((l, i) => ({
       productId: l.productId || '',
       productType: l.productType || 'goods',
       lineTotal: Number(l.lineTotal || 0),
       taxAmount: Number(l.taxAmount || 0),
       lineTotalWithTax: Number(l.lineTotalWithTax || 0),
+      expenseAccountId: lineItemsRaw?.[i]?.expenseAccountId || l.expenseAccountId || '',
+      analyticAccountId: lineItemsRaw?.[i]?.analyticAccountId || l.analyticAccountId || '',
     })),
     sourcePurchaseOrderId: sourcePurchaseOrderId || '',
     sourceGrnIds: sourceGrnIds || [],
-  }), [flow, totals, lineItems, sourcePurchaseOrderId, sourceGrnIds])
+  }), [flow, totals, lineItems, sourcePurchaseOrderId, sourceGrnIds, lineItemsRaw])
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounting-accounts-active'],
@@ -62,6 +67,8 @@ export default function InvoiceJournalItemsPanel({
           lineTotal: lineItems[i]?.lineTotal ?? l.lineTotal,
           taxAmount: lineItems[i]?.taxAmount ?? l.taxAmount,
           lineTotalWithTax: lineItems[i]?.lineTotalWithTax ?? l.lineTotalWithTax,
+          expenseAccountId: l.expenseAccountId || undefined,
+          analyticAccountId: l.analyticAccountId || undefined,
         })),
         sourcePurchaseOrderId: body.sourcePurchaseOrderId || undefined,
         sourceGrnIds: body.sourceGrnIds || undefined,
@@ -87,6 +94,35 @@ export default function InvoiceJournalItemsPanel({
       setLocalLines(value)
     }
   }, [value, dirty, preview])
+
+  useEffect(() => {
+    if (dirty || flow !== 'purchase') return
+    if (!suggestedAccounts?.defaultAccountId || !accounts.length) return
+    if (!Array.isArray(preview?.lines) || !preview.lines.length) return
+    setLocalLines((prev) => {
+      if (!prev.length) return prev
+      let changed = false
+      const next = prev.map((line) => {
+        if (!(Number(line.debit) > 0 && Number(line.credit) === 0)) return line
+        const role = String(line.role || '').toLowerCase()
+        if (role === 'ap' || role === 'vat_input' || role === 'ar' || role === 'vatoutput') return line
+        if (line.accountId && String(line.accountId) === String(suggestedAccounts.defaultAccountId)) return line
+        const acct = accounts.find((a) => String(a._id) === String(suggestedAccounts.defaultAccountId))
+        if (!acct) return line
+        changed = true
+        return {
+          ...line,
+          accountId: acct._id,
+          accountCode: acct.code,
+          accountName: acct.name,
+          accountNameAr: acct.nameAr || '',
+        }
+      })
+      if (changed) onChange?.(next)
+      return changed ? next : prev
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- apply once when prediction + preview ready
+  }, [suggestedAccounts?.defaultAccountId, suggestedAccounts?.sampleSize, preview, accounts, dirty, flow])
 
   const debit = localLines.reduce((s, l) => s + Number(l.debit || 0), 0)
   const credit = localLines.reduce((s, l) => s + Number(l.credit || 0), 0)
@@ -121,6 +157,29 @@ export default function InvoiceJournalItemsPanel({
     refetch()
   }
 
+  const applySuggestedAccounts = () => {
+    if (!suggestedAccounts?.defaultAccountId || !localLines.length) return
+    setDirty(true)
+    setLocalLines((prev) => {
+      const next = prev.map((line) => {
+        if (!(Number(line.debit) > 0 && Number(line.credit) === 0)) return line
+        const role = String(line.role || '').toLowerCase()
+        if (role === 'ap' || role === 'vat_input' || role === 'ar' || role === 'vatoutput') return line
+        const acct = accounts.find((a) => String(a._id) === String(suggestedAccounts.defaultAccountId))
+        if (!acct) return line
+        return {
+          ...line,
+          accountId: acct._id,
+          accountCode: acct.code,
+          accountName: acct.name,
+          accountNameAr: acct.nameAr || '',
+        }
+      })
+      onChange?.(next)
+      return next
+    })
+  }
+
   if (Number(totals.grandTotal || 0) <= 0) {
     return (
       <div className={`${sectionCardClass} !p-3.5`}>
@@ -148,21 +207,37 @@ export default function InvoiceJournalItemsPanel({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {readOnly ? (
+            <span className="rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-dark-700 dark:text-slate-300">
+              {isAr ? 'للقراءة فقط' : 'Read only'}
+            </span>
+          ) : null}
+          {flow === 'purchase' && suggestedAccounts?.sampleSize > 0 && !readOnly ? (
+            <button
+              type="button"
+              onClick={applySuggestedAccounts}
+              className="rounded-lg bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700 hover:bg-sky-100 dark:bg-sky-500/10 dark:text-sky-300"
+            >
+              {isAr ? 'تطبيق حسابات المورد' : 'Apply vendor AI accounts'}
+            </button>
+          ) : null}
           <span className={`rounded-lg px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
             balanced ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-amber-50 text-amber-700'
           }`}
           >
             {balanced ? (isAr ? 'متوازن' : 'Balanced') : (isAr ? 'غير متوازن' : 'Unbalanced')}
           </span>
-          <button
-            type="button"
-            onClick={resetToPreview}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5"
-            title={isAr ? 'إعادة الحساب' : 'Recalculate'}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-            {isAr ? 'إعادة' : 'Reset'}
-          </button>
+          {!readOnly ? (
+            <button
+              type="button"
+              onClick={resetToPreview}
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5"
+              title={isAr ? 'إعادة الحساب' : 'Recalculate'}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+              {isAr ? 'إعادة' : 'Reset'}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -180,18 +255,24 @@ export default function InvoiceJournalItemsPanel({
             {localLines.map((line, index) => (
               <tr key={`${line.role}-${index}`} className="hover:bg-slate-50/60 dark:hover:bg-white/[0.02]">
                 <td className="px-4 py-2">
-                  <select
-                    value={line.accountId || ''}
-                    onChange={(e) => updateLine(index, { accountId: e.target.value })}
-                    className="w-full max-w-xs rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium dark:border-dark-600 dark:bg-dark-800"
-                  >
-                    <option value="">{isAr ? 'اختر حساب…' : 'Select account…'}</option>
-                    {accounts.map((a) => (
-                      <option key={a._id} value={a._id}>
-                        {a.code} — {isAr ? (a.nameAr || a.name) : a.name}
-                      </option>
-                    ))}
-                  </select>
+                  {readOnly ? (
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                      {line.accountCode ? `${line.accountCode} — ${isAr ? (line.accountNameAr || line.accountName) : line.accountName}` : '—'}
+                    </span>
+                  ) : (
+                    <select
+                      value={line.accountId || ''}
+                      onChange={(e) => updateLine(index, { accountId: e.target.value })}
+                      className="w-full max-w-xs rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium dark:border-dark-600 dark:bg-dark-800"
+                    >
+                      <option value="">{isAr ? 'اختر حساب…' : 'Select account…'}</option>
+                      {accounts.map((a) => (
+                        <option key={a._id} value={a._id}>
+                          {a.code} — {isAr ? (a.nameAr || a.name) : a.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-300">
                   {line.description || line.role || '—'}

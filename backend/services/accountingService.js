@@ -8,6 +8,7 @@ import Supplier from '../models/Supplier.js';
 import Voucher from '../models/Voucher.js';
 import Expense from '../models/Expense.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
+import { applyPaidAmountStatus } from '../utils/invoicePaymentStatus.js';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -22,6 +23,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS = [
   { code: '1600', name: 'Fixed Assets', nameAr: 'الأصول الثابتة', type: 'asset', subtype: 'fixed_asset' },
   { code: '1900', name: 'Suspense / Clearing', nameAr: 'حساب وسيط / مقاصة', type: 'asset', subtype: 'other_asset' },
   { code: '2000', name: 'Accounts Payable', nameAr: 'الذمم الدائنة', type: 'liability', subtype: 'payable' },
+  { code: '2050', name: 'Outstanding Payments', nameAr: 'مدفوعات معلقة', type: 'liability', subtype: 'other_liability' },
   { code: '2100', name: 'VAT Output (Payable)', nameAr: 'ضريبة المخرجات', type: 'liability', subtype: 'tax' },
   { code: '2200', name: 'Accrued Expenses', nameAr: 'مصروفات مستحقة', type: 'liability', subtype: 'other_liability' },
   { code: '2300', name: 'Short-term Loans', nameAr: 'قروض قصيرة الأجل', type: 'liability', subtype: 'other_liability' },
@@ -48,6 +50,7 @@ const ACCOUNT_CODE_MAP = {
   vatInput: '1400',
   suspense: '1900',
   ap: '2000',
+  outstandingPayments: '2050',
   vatOutput: '2100',
   capital: '3000',
   retained: '3100',
@@ -75,6 +78,7 @@ export const DEFAULT_ACCOUNT_KEYS = [
   'taxOutputAccountId',
   'suspenseAccountId',
   'inventoryAccountId',
+  'outstandingPaymentsAccountId',
 ];
 
 const ROLE_TO_DEFAULT_KEY = {
@@ -89,6 +93,7 @@ const ROLE_TO_DEFAULT_KEY = {
   vatOutput: 'taxOutputAccountId',
   suspense: 'suspenseAccountId',
   inventory: 'inventoryAccountId',
+  outstandingPayments: 'outstandingPaymentsAccountId',
 };
 
 const DEFAULT_KEY_TO_CODE = {
@@ -103,6 +108,7 @@ const DEFAULT_KEY_TO_CODE = {
   taxOutputAccountId: ACCOUNT_CODE_MAP.vatOutput,
   suspenseAccountId: ACCOUNT_CODE_MAP.suspense,
   inventoryAccountId: ACCOUNT_CODE_MAP.inventory,
+  outstandingPaymentsAccountId: ACCOUNT_CODE_MAP.outstandingPayments,
 };
 
 export function normaliseLines(lines = []) {
@@ -1097,6 +1103,7 @@ export async function previewSalesInvoiceJournal({ tenantId, invoice = {} }) {
 
 /**
  * Preview purchase invoice GL lines (simplified AP / expense|stock / VAT in).
+ * When bill lines carry expenseAccountId, expense is split per line.
  */
 export async function previewPurchaseInvoiceJournal({ tenantId, invoice = {} }) {
   const { byCode, byId } = await getAccountMap(tenantId);
@@ -1121,8 +1128,60 @@ export async function previewPurchaseInvoiceJournal({ tenantId, invoice = {} }) 
     return { lines: [], debit: 0, credit: 0, balanced: false, error: 'Missing expense/inventory account' };
   }
 
-  const lines = [
-    {
+  const lineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
+  const expenseBuckets = new Map();
+  let allocatedNet = 0;
+
+  for (const li of lineItems) {
+    const rawNet = li.lineTotal ?? (Number(li.quantity || 0) * Number(li.unitPrice || 0));
+    const lineNet = round2(Math.abs(Number(rawNet) || 0));
+    if (lineNet <= 0) continue;
+    const accountId = String(li.expenseAccountId || expenseAcct._id);
+    const analyticAccountId = li.analyticAccountId ? String(li.analyticAccountId) : '';
+    const key = `${accountId}|${analyticAccountId}`;
+    const prev = expenseBuckets.get(key) || {
+      accountId,
+      analyticAccountId: analyticAccountId || null,
+      amount: 0,
+    };
+    prev.amount = round2(prev.amount + lineNet);
+    expenseBuckets.set(key, prev);
+    allocatedNet = round2(allocatedNet + lineNet);
+  }
+
+  if (expenseBuckets.size && allocatedNet > 0 && allocatedNet !== net) {
+    const scale = net / allocatedNet;
+    let running = 0;
+    const keys = [...expenseBuckets.keys()];
+    keys.forEach((key, idx) => {
+      const bucket = expenseBuckets.get(key);
+      if (idx === keys.length - 1) {
+        bucket.amount = round2(net - running);
+      } else {
+        bucket.amount = round2(bucket.amount * scale);
+        running = round2(running + bucket.amount);
+      }
+    });
+  }
+
+  const lines = [];
+  if (expenseBuckets.size) {
+    for (const bucket of expenseBuckets.values()) {
+      const acct = byId[String(bucket.accountId)] || expenseAcct;
+      lines.push({
+        accountId: acct._id,
+        accountCode: acct.code,
+        accountName: acct.name,
+        accountNameAr: acct.nameAr || '',
+        debit: bucket.amount,
+        credit: 0,
+        description: `Purchase ${invoice.invoiceNumber || 'DRAFT'}`,
+        role: invoice.sourcePurchaseOrderId ? 'stock' : 'expense',
+        analyticAccountId: bucket.analyticAccountId || undefined,
+      });
+    }
+  } else {
+    lines.push({
       accountId: expenseAcct._id,
       accountCode: expenseAcct.code,
       accountName: expenseAcct.name,
@@ -1131,8 +1190,9 @@ export async function previewPurchaseInvoiceJournal({ tenantId, invoice = {} }) 
       credit: 0,
       description: `Purchase ${invoice.invoiceNumber || 'DRAFT'}`,
       role: invoice.sourcePurchaseOrderId ? 'stock' : 'expense',
-    },
-  ];
+    });
+  }
+
   if (tax > 0 && vatIn) {
     lines.push({
       accountId: vatIn._id,
@@ -1158,7 +1218,8 @@ export async function previewPurchaseInvoiceJournal({ tenantId, invoice = {} }) 
 
   // If no VAT account, fold tax into expense debit already handled by credit = gross above
   if (tax > 0 && !vatIn) {
-    lines[0].debit = gross;
+    const firstExpense = lines.find((l) => l.role === 'expense' || l.role === 'stock');
+    if (firstExpense) firstExpense.debit = round2(firstExpense.debit + tax);
     lines[lines.length - 1].credit = gross;
   }
 
@@ -1384,6 +1445,272 @@ export async function postInvoicePaymentJournal({
     status: 'posted',
     journalId,
   });
+}
+
+/** Vendor payment against purchase bill — AP Dr, Cash/Bank Cr */
+export async function postVendorBillPaymentJournal({
+  tenantId,
+  userId,
+  invoice,
+  amount,
+  paymentMethod = 'bank_transfer',
+  paymentDate = new Date(),
+  reference = '',
+  currency = 'SAR',
+  memo = '',
+}) {
+  const payAmt = round2(amount);
+  if (!invoice?._id || payAmt <= 0 || invoice.flow !== 'purchase') return null;
+
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+  const partnerId = invoice.supplierId || null;
+  const partnerAccounts = await loadPartnerAccountIds(tenantId, partnerId);
+  const ctx = { byCode, byId, defaultIds };
+  const { account: cash, role: liqRole } = await resolveLiquidityAccount(tenantId, paymentMethod, ctx);
+  const ap = await resolveRoleAccount(tenantId, 'ap', {
+    ...ctx,
+    partnerAccountId: partnerAccounts.payableAccountId,
+  });
+  if (!cash || !ap) return null;
+
+  const method = String(paymentMethod || '').toLowerCase();
+  const useOutstanding = !method.includes('cash') && method !== 'card';
+  let creditAccount = cash;
+  let creditDescription = 'Vendor disbursement';
+  if (useOutstanding) {
+    const tenant = await Tenant.findById(tenantId).select('settings.accounting.useOutstandingPayments').lean();
+    const outstandingEnabled = tenant?.settings?.accounting?.useOutstandingPayments !== false;
+    if (outstandingEnabled) {
+      const outstanding = await resolveRoleAccount(tenantId, 'outstandingPayments', ctx);
+      if (outstanding) {
+        creditAccount = outstanding;
+        creditDescription = 'Outstanding vendor payment (awaiting bank clearance)';
+      }
+    }
+  }
+
+  const key = `VendorBillPayment:${invoice._id}:${payAmt}:${reference || paymentDate}`;
+  const dup = await JournalEntry.findOne({
+    tenantId,
+    sourceModel: 'VendorBillPayment',
+    sourceId: invoice._id,
+    reference: key,
+    status: { $ne: 'void' },
+  });
+  if (dup) return dup;
+
+  const journalId = await resolveJournalBookId(
+    tenantId,
+    userId,
+    liqRole === 'cash' ? 'ensureDefaultCashJournal' : 'ensureDefaultBankJournal',
+  );
+
+  return createJournalEntry({
+    tenantId,
+    userId,
+    entryDate: paymentDate,
+    type: 'payment',
+    memo: memo || `Payment for vendor bill ${invoice.invoiceNumber}`,
+    memoAr: `سداد فاتورة مورد ${invoice.invoiceNumber}`,
+    reference: key,
+    currency,
+    lines: stampPartnerId([
+      { accountId: ap._id, accountCode: ap.code, debit: payAmt, credit: 0, description: `Settle AP ${invoice.invoiceNumber}` },
+      { accountId: creditAccount._id, accountCode: creditAccount.code, debit: 0, credit: payAmt, description: creditDescription },
+    ], partnerId),
+    sourceModel: 'VendorBillPayment',
+    sourceId: invoice._id,
+    sourceNumber: invoice.invoiceNumber,
+    status: 'posted',
+    journalId,
+  });
+}
+
+/**
+ * Clear Outstanding Payments against the real bank account when the statement arrives.
+ * Outstanding Payments Dr, Bank Cr.
+ */
+export async function postOutstandingPaymentClearance({
+  tenantId,
+  userId,
+  bankAccountId,
+  amount,
+  paymentDate = new Date(),
+  reference = '',
+  currency = 'SAR',
+  memo = '',
+  partnerId = null,
+}) {
+  const payAmt = round2(amount);
+  if (!bankAccountId || payAmt <= 0) return null;
+
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+  const ctx = { byCode, byId, defaultIds };
+  const outstanding = await resolveRoleAccount(tenantId, 'outstandingPayments', ctx);
+  const bank = byId[String(bankAccountId)] || await ChartOfAccount.findOne({ _id: bankAccountId, tenantId }).lean();
+  if (!outstanding || !bank) return null;
+
+  const key = `OutstandingClearance:${bankAccountId}:${payAmt}:${reference || paymentDate}`;
+  const dup = await JournalEntry.findOne({
+    tenantId,
+    sourceModel: 'OutstandingPaymentClearance',
+    reference: key,
+    status: { $ne: 'void' },
+  });
+  if (dup) return dup;
+
+  const journalId = await resolveJournalBookId(tenantId, userId, 'ensureDefaultBankJournal');
+
+  return createJournalEntry({
+    tenantId,
+    userId,
+    entryDate: paymentDate,
+    type: 'payment',
+    memo: memo || 'Clear outstanding vendor payment to bank',
+    memoAr: 'مقاصة مدفوعات معلقة إلى البنك',
+    reference: key,
+    currency,
+    lines: stampPartnerId([
+      {
+        accountId: outstanding._id,
+        accountCode: outstanding.code,
+        debit: payAmt,
+        credit: 0,
+        description: 'Clear outstanding payment',
+      },
+      {
+        accountId: bank._id,
+        accountCode: bank.code,
+        debit: 0,
+        credit: payAmt,
+        description: 'Bank statement clearance',
+      },
+    ], partnerId),
+    sourceModel: 'OutstandingPaymentClearance',
+    sourceId: bankAccountId,
+    sourceNumber: reference || '',
+    status: 'posted',
+    journalId,
+  });
+}
+
+/** Vendor refund (purchase credit note) — AP Dr, expense & VAT in Cr */
+export async function postVendorRefundJournal({
+  tenantId,
+  userId,
+  creditNote,
+  currency = 'SAR',
+}) {
+  if (!creditNote?._id || creditNote.flow !== 'purchase') return null;
+  if (String(creditNote.invoiceType) !== '381') return null;
+
+  const existing = await findExistingSourceEntry(tenantId, 'VendorRefund', creditNote._id);
+  if (existing) return existing;
+
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+  const partnerId = creditNote.supplierId || null;
+  const partnerAccounts = await loadPartnerAccountIds(tenantId, partnerId);
+  const ctx = { byCode, byId, defaultIds };
+  const ap = await resolveRoleAccount(tenantId, 'ap', {
+    ...ctx,
+    partnerAccountId: partnerAccounts.payableAccountId,
+  });
+  const expense = await resolveRoleAccount(tenantId, 'opex', ctx);
+  const vatIn = await resolveRoleAccount(tenantId, 'vatInput', ctx);
+  if (!ap || !expense) return null;
+
+  const { net, tax, gross } = absInvoiceAmounts(creditNote);
+  if (gross <= 0) return null;
+
+  const purchaseTaxId = tax > 0 ? await resolveDefaultTaxId(tenantId, 'purchase') : null;
+  const lines = stampPartnerId([
+    {
+      accountId: ap._id,
+      accountCode: ap.code,
+      debit: gross,
+      credit: 0,
+      description: `Vendor refund ${creditNote.invoiceNumber}`,
+      role: 'ap',
+    },
+    {
+      accountId: expense._id,
+      accountCode: expense.code,
+      debit: 0,
+      credit: net,
+      description: `VR expense ${creditNote.invoiceNumber}`,
+      role: 'expense',
+    },
+    ...(tax > 0 && vatIn
+      ? [{
+        accountId: vatIn._id,
+        accountCode: vatIn.code,
+        debit: 0,
+        credit: tax,
+        description: `VR VAT ${creditNote.invoiceNumber}`,
+        role: 'vat_input',
+        taxIds: purchaseTaxId ? [purchaseTaxId] : [],
+      }]
+      : []),
+  ], partnerId);
+
+  const journalId = await resolveJournalBookId(tenantId, userId, 'ensureDefaultPurchaseJournal');
+
+  return createJournalEntry({
+    tenantId,
+    userId,
+    entryDate: creditNote.accountingDate || creditNote.issueDate || new Date(),
+    type: 'adjustment',
+    memo: `Vendor refund ${creditNote.invoiceNumber}`,
+    memoAr: `مرتجع مورد ${creditNote.invoiceNumber}`,
+    reference: creditNote.invoiceNumber,
+    currency,
+    lines,
+    sourceModel: 'VendorRefund',
+    sourceId: creditNote._id,
+    sourceNumber: creditNote.invoiceNumber,
+    status: 'posted',
+    journalId,
+  });
+}
+
+/**
+ * Match vendor refund AP debit against original bill liability.
+ * Updates paid amounts so both documents reflect settlement.
+ */
+export async function reconcileVendorRefundWithBill({
+  tenantId,
+  userId,
+  refund,
+  originalBill,
+}) {
+  if (!refund?._id || !originalBill?._id) return null;
+  if (originalBill.flow !== 'purchase' || String(originalBill.invoiceType) !== '388') return null;
+
+  const refundAmt = Math.abs(round2(Number(refund.grandTotal || 0)));
+  if (refundAmt <= 0) return null;
+
+  const remaining = round2(Math.max(0, Number(originalBill.grandTotal || 0) - Number(originalBill.paidAmount || 0)));
+  const applied = round2(Math.min(refundAmt, remaining));
+  if (applied <= 0) return { applied: 0, skipped: true };
+
+  originalBill.paidAmount = round2(Number(originalBill.paidAmount || 0) + applied);
+  applyPaidAmountStatus(originalBill);
+  await originalBill.save();
+
+  refund.paymentStatus = applied >= remaining - 0.005 ? 'paid' : 'partial';
+  refund.paidAmount = refundAmt;
+  await refund.save();
+
+  return {
+    applied,
+    billId: originalBill._id,
+    refundId: refund._id,
+    billPaymentStatus: originalBill.paymentStatus,
+    refundPaymentStatus: refund.paymentStatus,
+  };
 }
 
 /** Supplier payment against purchase order / vendor bill — AP (Accounts Payable) Dr, Cash/Bank Cr */
@@ -3185,6 +3512,10 @@ export default {
   backfillJournalItems,
   postSalesInvoiceJournal,
   postInvoicePaymentJournal,
+  postVendorBillPaymentJournal,
+  postOutstandingPaymentClearance,
+  postVendorRefundJournal,
+  reconcileVendorRefundWithBill,
   postSupplierPaymentJournal,
   postExpensePaidJournal,
   postVoucherJournal,

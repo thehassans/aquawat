@@ -735,6 +735,7 @@ export function AccountingLockDatesPanel({ language }) {
 const DEFAULT_ACCOUNT_FIELDS = [
   ['receivableAccountId', 'Accounts receivable', 'الذمم المدينة'],
   ['payableAccountId', 'Accounts payable', 'الذمم الدائنة'],
+  ['outstandingPaymentsAccountId', 'Outstanding payments', 'مدفوعات معلقة'],
   ['incomeAccountId', 'Income / sales', 'الإيرادات / المبيعات'],
   ['expenseAccountId', 'Operating expense', 'مصروف تشغيلي'],
   ['cogsAccountId', 'Cost of goods sold', 'تكلفة البضاعة'],
@@ -749,6 +750,11 @@ const DEFAULT_ACCOUNT_FIELDS = [
 export function AccountingDefaultsPanel({ language }) {
   const isAr = language === 'ar'
   const [form, setForm] = useState({})
+  const [apForm, setApForm] = useState({
+    sepa: { debtorIban: '', debtorBic: '', debtorName: '' },
+    checkPrint: { prefix: 'CHK', nextNumber: 1001, micrRouting: '', micrAccount: '' },
+    useOutstandingPayments: true,
+  })
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounting-accounts'],
     queryFn: () => api.get('/accounting/accounts').then((r) => r.data?.accounts || r.data || []),
@@ -756,6 +762,10 @@ export function AccountingDefaultsPanel({ language }) {
   const { data, refetch } = useQuery({
     queryKey: ['accounting-defaults'],
     queryFn: () => api.get('/accounting/defaults').then((r) => r.data),
+  })
+  const { data: apSettings, refetch: refetchAp } = useQuery({
+    queryKey: ['accounting-ap-payment-settings'],
+    queryFn: () => api.get('/accounting/ap-payment-settings').then((r) => r.data),
   })
 
   useEffect(() => {
@@ -766,6 +776,24 @@ export function AccountingDefaultsPanel({ language }) {
     }
     setForm(next)
   }, [data])
+
+  useEffect(() => {
+    if (!apSettings) return
+    setApForm({
+      sepa: {
+        debtorIban: apSettings.sepa?.debtorIban || '',
+        debtorBic: apSettings.sepa?.debtorBic || '',
+        debtorName: apSettings.sepa?.debtorName || '',
+      },
+      checkPrint: {
+        prefix: apSettings.checkPrint?.prefix || 'CHK',
+        nextNumber: Number(apSettings.checkPrint?.nextNumber || 1001),
+        micrRouting: apSettings.checkPrint?.micrRouting || '',
+        micrAccount: apSettings.checkPrint?.micrAccount || '',
+      },
+      useOutstandingPayments: apSettings.useOutstandingPayments !== false,
+    })
+  }, [apSettings])
 
   const save = useMutation({
     mutationFn: () => {
@@ -778,6 +806,11 @@ export function AccountingDefaultsPanel({ language }) {
     onSuccess: () => refetch(),
   })
 
+  const saveAp = useMutation({
+    mutationFn: () => api.put('/accounting/ap-payment-settings', apForm).then((r) => r.data),
+    onSuccess: () => refetchAp(),
+  })
+
   const ensure = useMutation({
     mutationFn: () => api.post('/accounting/defaults/ensure').then((r) => r.data),
     onSuccess: () => refetch(),
@@ -786,6 +819,7 @@ export function AccountingDefaultsPanel({ language }) {
   const postable = (Array.isArray(accounts) ? accounts : []).filter((a) => a.isPostable !== false)
 
   return (
+    <div className="space-y-4">
     <div className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
       <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
         {isAr ? 'الحسابات الافتراضية' : 'Default accounts'}
@@ -835,6 +869,106 @@ export function AccountingDefaultsPanel({ language }) {
           <span className="self-center text-xs text-emerald-600">{isAr ? 'تم' : 'Done'}</span>
         ) : null}
       </div>
+    </div>
+
+    <div className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
+      <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+        {isAr ? 'مدفوعات الموردين (SEPA والشيكات)' : 'Vendor payments (SEPA & checks)'}
+      </h3>
+      <p className="mt-1 text-xs text-slate-500">
+        {isAr
+          ? 'IBAN الشركة لتصدير SEPA، وتسلسل أرقام الشيكات مع سطر MICR اختياري.'
+          : 'Company IBAN for SEPA export, plus check numbering and optional MICR line.'}
+      </p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="text-xs font-medium text-slate-500">
+          {isAr ? 'اسم المدين (SEPA)' : 'Debtor name (SEPA)'}
+          <input
+            value={apForm.sepa.debtorName}
+            onChange={(e) => setApForm((p) => ({ ...p, sepa: { ...p.sepa, debtorName: e.target.value } }))}
+            className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+            placeholder={isAr ? 'اسم الشركة' : 'Company legal name'}
+          />
+        </label>
+        <label className="text-xs font-medium text-slate-500">
+          {isAr ? 'IBAN المدين' : 'Debtor IBAN'}
+          <input
+            value={apForm.sepa.debtorIban}
+            onChange={(e) => setApForm((p) => ({ ...p, sepa: { ...p.sepa, debtorIban: e.target.value } }))}
+            className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+            placeholder="SAxx…"
+          />
+        </label>
+        <label className="text-xs font-medium text-slate-500">
+          {isAr ? 'BIC المدين' : 'Debtor BIC'}
+          <input
+            value={apForm.sepa.debtorBic}
+            onChange={(e) => setApForm((p) => ({ ...p, sepa: { ...p.sepa, debtorBic: e.target.value.toUpperCase() } }))}
+            className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+            placeholder="XXXASARI"
+          />
+        </label>
+        <label className="text-xs font-medium text-slate-500">
+          {isAr ? 'بادئة الشيك' : 'Check prefix'}
+          <input
+            value={apForm.checkPrint.prefix}
+            onChange={(e) => setApForm((p) => ({ ...p, checkPrint: { ...p.checkPrint, prefix: e.target.value } }))}
+            className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+          />
+        </label>
+        <label className="text-xs font-medium text-slate-500">
+          {isAr ? 'رقم الشيك التالي' : 'Next check number'}
+          <input
+            type="number"
+            min="1"
+            value={apForm.checkPrint.nextNumber}
+            onChange={(e) => setApForm((p) => ({ ...p, checkPrint: { ...p.checkPrint, nextNumber: Number(e.target.value || 1) } }))}
+            className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+          />
+        </label>
+        <label className="text-xs font-medium text-slate-500">
+          {isAr ? 'MICR routing' : 'MICR routing'}
+          <input
+            value={apForm.checkPrint.micrRouting}
+            onChange={(e) => setApForm((p) => ({ ...p, checkPrint: { ...p.checkPrint, micrRouting: e.target.value } }))}
+            className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+          />
+        </label>
+        <label className="text-xs font-medium text-slate-500">
+          {isAr ? 'MICR account' : 'MICR account'}
+          <input
+            value={apForm.checkPrint.micrAccount}
+            onChange={(e) => setApForm((p) => ({ ...p, checkPrint: { ...p.checkPrint, micrAccount: e.target.value } }))}
+            className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+          />
+        </label>
+        <label className="flex items-center gap-2 text-xs font-medium text-slate-600 sm:col-span-2">
+          <input
+            type="checkbox"
+            checked={apForm.useOutstandingPayments}
+            onChange={(e) => setApForm((p) => ({ ...p, useOutstandingPayments: e.target.checked }))}
+            className="rounded border-slate-300"
+          />
+          {isAr ? 'استخدام حساب المدفوعات المعلقة حتى المقاصة البنكية' : 'Use Outstanding Payments until bank clearance'}
+        </label>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={saveAp.isPending}
+          onClick={() => saveAp.mutate()}
+          className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {saveAp.isPending ? '…' : (isAr ? 'حفظ إعدادات الدفع' : 'Save payment settings')}
+        </button>
+        {saveAp.isSuccess ? (
+          <span className="self-center text-xs text-emerald-600">{isAr ? 'تم' : 'Done'}</span>
+        ) : null}
+        {saveAp.isError ? (
+          <span className="self-center text-xs text-rose-600">{saveAp.error?.response?.data?.error || (isAr ? 'فشل الحفظ' : 'Save failed')}</span>
+        ) : null}
+      </div>
+    </div>
     </div>
   )
 }
@@ -1241,6 +1375,7 @@ export function BankReconPanel({ language }) {
   const [statementId, setStatementId] = useState('')
   const [selectedLineId, setSelectedLineId] = useState('')
   const [selectedItemIds, setSelectedItemIds] = useState([])
+  const [selectedOutstandingIds, setSelectedOutstandingIds] = useState([])
   const [newStmt, setNewStmt] = useState({
     name: '',
     statementDate: todayIso(),
@@ -1264,6 +1399,12 @@ export function BankReconPanel({ language }) {
   const { data: unmatchedItems = [], refetch: refetchItems } = useQuery({
     queryKey: ['bank-unmatched-items', accountId],
     queryFn: () => api.get('/accounting/bank-recon/unmatched-items', { params: { accountId } }).then((r) => r.data || []),
+    enabled: Boolean(accountId),
+  })
+
+  const { data: outstandingItems = [], refetch: refetchOutstanding } = useQuery({
+    queryKey: ['bank-unmatched-outstanding', accountId],
+    queryFn: () => api.get('/accounting/bank-recon/unmatched-outstanding').then((r) => r.data || []),
     enabled: Boolean(accountId),
   })
 
@@ -1309,11 +1450,14 @@ export function BankReconPanel({ language }) {
     mutationFn: () => api.post('/accounting/bank-recon/match', {
       statementLineId: selectedLineId,
       journalItemIds: selectedItemIds,
+      outstandingJournalItemIds: selectedOutstandingIds,
     }).then((r) => r.data),
     onSuccess: () => {
       setSelectedLineId('')
       setSelectedItemIds([])
+      setSelectedOutstandingIds([])
       refetchItems()
+      refetchOutstanding()
       refetchLines()
     },
   })
@@ -1322,12 +1466,17 @@ export function BankReconPanel({ language }) {
     mutationFn: (lineId) => api.post('/accounting/bank-recon/unmatch', { statementLineId: lineId }).then((r) => r.data),
     onSuccess: () => {
       refetchItems()
+      refetchOutstanding()
       refetchLines()
     },
   })
 
   const toggleItem = (id) => {
     setSelectedItemIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  const toggleOutstanding = (id) => {
+    setSelectedOutstandingIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }
 
   return (
@@ -1342,6 +1491,7 @@ export function BankReconPanel({ language }) {
               setStatementId('')
               setSelectedLineId('')
               setSelectedItemIds([])
+              setSelectedOutstandingIds([])
             }}
             className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
           >
@@ -1463,6 +1613,31 @@ export function BankReconPanel({ language }) {
                 <p className="px-4 py-8 text-center text-sm text-slate-400">{isAr ? 'لا قيود' : 'No unmatched items'}</p>
               )}
             </div>
+            {(Array.isArray(outstandingItems) ? outstandingItems : []).length > 0 ? (
+              <>
+                <div className="border-y border-slate-100 px-4 py-3 text-sm font-semibold dark:border-white/10">
+                  {isAr ? 'مدفوعات معلقة (بانتظار المقاصة البنكية)' : 'Outstanding payments (awaiting bank clearance)'}
+                </div>
+                <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-white/5">
+                  {outstandingItems.map((item) => {
+                    const credit = Number(item.credit || 0)
+                    const checked = selectedOutstandingIds.includes(item._id)
+                    return (
+                      <label key={item._id} className={`flex cursor-pointer items-center gap-3 px-4 py-3 text-sm ${checked ? 'bg-amber-50 dark:bg-amber-900/20' : ''}`}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleOutstanding(item._id)} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium">{item.entryNumber} · {item.description || '—'}</p>
+                          <p className="text-xs text-slate-400">{item.entryDate ? new Date(item.entryDate).toLocaleDateString() : '—'}</p>
+                        </div>
+                        <span className="font-semibold tabular-nums text-amber-700">
+                          <Money value={credit} />
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
       ) : (
@@ -1473,7 +1648,7 @@ export function BankReconPanel({ language }) {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            disabled={!selectedLineId || selectedItemIds.length === 0 || match.isPending}
+            disabled={!selectedLineId || (selectedItemIds.length === 0 && selectedOutstandingIds.length === 0) || match.isPending}
             onClick={() => match.mutate()}
             className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
           >

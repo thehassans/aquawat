@@ -258,6 +258,25 @@ router.post('/defaults/ensure', checkPermission('finance', 'update'), async (req
   }
 });
 
+// ─── AP payment settings (SEPA debtor + check sequence) ───────────────────────
+router.get('/ap-payment-settings', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { getApPaymentSettings } = await import('../services/vendorApService.js');
+    res.json(await getApPaymentSettings(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/ap-payment-settings', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    const { setApPaymentSettings } = await import('../services/vendorApService.js');
+    res.json(await setApPaymentSettings(tenantIdOf(req), req.body || {}));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // ─── Journal Entries ─────────────────────────────────────────────────────────
 router.get('/journals', checkPermission('finance', 'read'), async (req, res) => {
   try {
@@ -741,6 +760,17 @@ router.get('/bank-recon/unmatched-items', checkPermission('finance', 'read'), as
   }
 });
 
+router.get('/bank-recon/unmatched-outstanding', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { listUnmatchedOutstandingPayments } = await import('../services/bankReconciliationService.js');
+    res.json(await listUnmatchedOutstandingPayments(tenantIdOf(req), {
+      limit: req.query.limit,
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 router.get('/bank-recon/unmatched-lines', checkPermission('finance', 'read'), async (req, res) => {
   try {
     const { listUnmatchedStatementLines } = await import('../services/bankReconciliationService.js');
@@ -769,6 +799,7 @@ router.post('/bank-recon/match', checkPermission('finance', 'update'), async (re
     res.json(await matchBankReconciliation(tenantIdOf(req), req.user._id, {
       statementLineId: req.body.statementLineId,
       journalItemIds: req.body.journalItemIds || [],
+      outstandingJournalItemIds: req.body.outstandingJournalItemIds || [],
     }));
   } catch (error) {
     res.status(400).json({ error: error.message });

@@ -15,8 +15,6 @@ export const ACCOUNTING_PATH = {
 /** Flat list of coming-soon section ids (for Accounting.jsx TABS registration). */
 export const ACCOUNTING_COMING_SOON_SECTIONS = [
   { id: 'follow-up-reports', labelEn: 'Follow-up Reports', labelAr: 'تقارير المتابعة' },
-  { id: 'vendor-refunds', labelEn: 'Vendor Refunds', labelAr: 'مرتجعات الموردين' },
-  { id: 'vendor-payments', labelEn: 'Vendor Payments', labelAr: 'مدفوعات الموردين' },
   { id: 'journal-items', labelEn: 'Journal Items', labelAr: 'بنود القيود' },
   { id: 'automatic-transfers', labelEn: 'Automatic Transfers', labelAr: 'تحويلات تلقائية' },
   { id: 'analytic-items', labelEn: 'Analytic Items', labelAr: 'البنود التحليلية' },
@@ -84,7 +82,7 @@ export const ACCOUNTING_MENU = [
     labelEn: 'Vendors',
     labelAr: 'الموردون',
     children: [
-      { href: `${A}/invoices`, labelEn: 'Bills', labelAr: 'فواتير المشتريات', end: true },
+      { href: `${A}/vendor-bills`, labelEn: 'Bills', labelAr: 'فواتير المشتريات' },
       { href: `${A}/vendor-refunds`, labelEn: 'Refunds', labelAr: 'المرتجعات' },
       { href: `${A}/vendor-payments`, labelEn: 'Payments', labelAr: 'المدفوعات' },
       { href: `${A}/aged-ap`, labelEn: 'Aged Payable', labelAr: 'أعمار الدائنين' },

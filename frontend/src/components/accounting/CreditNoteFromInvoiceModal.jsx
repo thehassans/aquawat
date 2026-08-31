@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
+import Money from '../ui/Money'
 
 const ACTIONS = [
   { id: 'partial', en: 'Partial refund', ar: 'استرداد جزئي' },
@@ -14,12 +15,24 @@ export default function CreditNoteFromInvoiceModal({
   isPending = false,
   invoice,
   language = 'en',
+  title,
+  documentLabelEn = 'invoice',
+  documentLabelAr = 'الفاتورة',
+  createLabelEn = 'Create credit note',
+  createLabelAr = 'إنشاء إشعار دائن',
+  allowPartialLines = false,
 }) {
   const isAr = language === 'ar'
   const [reason, setReason] = useState('')
   const [reversalDate, setReversalDate] = useState('')
   const [useJournalDate, setUseJournalDate] = useState(true)
   const [action, setAction] = useState('full')
+  const [refundQtyByLine, setRefundQtyByLine] = useState({})
+
+  const sourceLines = useMemo(
+    () => (Array.isArray(invoice?.lineItems) ? invoice.lineItems : []).filter((line) => Math.abs(Number(line.quantity || 0)) > 0),
+    [invoice?.lineItems],
+  )
 
   useEffect(() => {
     if (!isOpen) return
@@ -27,9 +40,41 @@ export default function CreditNoteFromInvoiceModal({
     setReversalDate(new Date().toISOString().slice(0, 10))
     setUseJournalDate(true)
     setAction('full')
-  }, [isOpen, invoice?._id])
+    const next = {}
+    for (const line of sourceLines) {
+      const key = String(line.lineNumber || line._id || line.productId || '')
+      next[key] = Math.abs(Number(line.quantity || 0))
+    }
+    setRefundQtyByLine(next)
+  }, [isOpen, invoice?._id, sourceLines])
 
   if (!isOpen) return null
+
+  const buildRefundLines = () => sourceLines
+    .map((line, index) => {
+      const key = String(line.lineNumber || line._id || line.productId || index)
+      const maxQty = Math.abs(Number(line.quantity || 0))
+      const qty = Math.min(maxQty, Math.abs(Number(refundQtyByLine[key] || 0)))
+      if (qty <= 0) return null
+      return {
+        lineNumber: line.lineNumber || index + 1,
+        productId: line.productId || undefined,
+        quantity: qty,
+      }
+    })
+    .filter(Boolean)
+
+  const handleSubmit = () => {
+    const payload = {
+      reason: reason.trim(),
+      reversalDate: useJournalDate ? null : reversalDate,
+      action,
+    }
+    if (action === 'partial' && allowPartialLines) {
+      payload.refundLines = buildRefundLines()
+    }
+    onSubmit?.(payload)
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -37,10 +82,10 @@ export default function CreditNoteFromInvoiceModal({
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {isAr ? 'إشعار دائن' : 'Credit note'}
+              {title || (isAr ? 'إشعار دائن' : 'Credit note')}
             </h3>
             <p className="mt-0.5 text-sm text-gray-500">
-              {isAr ? 'من الفاتورة' : 'From invoice'} {invoice?.invoiceNumber || ''}
+              {isAr ? `من ${documentLabelAr}` : `From ${documentLabelEn}`} {invoice?.invoiceNumber || ''}
             </p>
           </div>
           <button type="button" onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-700">
@@ -99,6 +144,66 @@ export default function CreditNoteFromInvoiceModal({
           ))}
         </fieldset>
 
+        {action === 'partial' && allowPartialLines && sourceLines.length ? (
+          <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-dark-600">
+            <table className="w-full min-w-[420px] text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:border-dark-600">
+                  <th className="px-3 py-2 text-start">{isAr ? 'البند' : 'Line'}</th>
+                  <th className="px-3 py-2 text-end">{isAr ? 'الأصل' : 'Original'}</th>
+                  <th className="px-3 py-2 text-end">{isAr ? 'استرداد' : 'Refund qty'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sourceLines.map((line, index) => {
+                  const key = String(line.lineNumber || line._id || line.productId || index)
+                  const maxQty = Math.abs(Number(line.quantity || 0))
+                  return (
+                    <tr key={key} className="border-b border-slate-50 dark:border-dark-700">
+                      <td className="px-3 py-2">{line.productName || line.description || `#${index + 1}`}</td>
+                      <td className="px-3 py-2 text-end tabular-nums">{maxQty}</td>
+                      <td className="px-3 py-2 text-end">
+                        <input
+                          type="number"
+                          min="0"
+                          max={maxQty}
+                          step="any"
+                          value={refundQtyByLine[key] ?? 0}
+                          onChange={(e) => setRefundQtyByLine((prev) => ({
+                            ...prev,
+                            [key]: Math.min(maxQty, Math.max(0, Number(e.target.value || 0))),
+                          }))}
+                          className="input !w-24 !py-1 text-end tabular-nums"
+                        />
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td className="px-3 py-2 text-xs text-slate-500" colSpan={3}>
+                    {isAr ? 'إجمالي الاسترداد:' : 'Refund total:'}{' '}
+                    <Money
+                      value={sourceLines.reduce((sum, line, index) => {
+                        const key = String(line.lineNumber || line._id || line.productId || index)
+                        const qty = Math.min(
+                          Math.abs(Number(line.quantity || 0)),
+                          Math.abs(Number(refundQtyByLine[key] || 0)),
+                        )
+                        const unit = Number(line.unitPrice || 0)
+                        const taxRate = Number(line.taxRate || 0)
+                        const net = qty * unit
+                        return sum + net + (net * taxRate / 100)
+                      }, 0)}
+                    />
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        ) : null}
+
         <div className="mt-5 flex gap-3">
           <button type="button" className="btn btn-secondary flex-1" onClick={onClose}>
             {isAr ? 'إلغاء' : 'Cancel'}
@@ -106,14 +211,10 @@ export default function CreditNoteFromInvoiceModal({
           <button
             type="button"
             className="btn btn-primary flex-1"
-            disabled={isPending || !reason.trim()}
-            onClick={() => onSubmit?.({
-              reason: reason.trim(),
-              reversalDate: useJournalDate ? null : reversalDate,
-              action,
-            })}
+            disabled={isPending || !reason.trim() || (action === 'partial' && allowPartialLines && !buildRefundLines().length)}
+            onClick={handleSubmit}
           >
-            {isPending ? (isAr ? 'جارٍ الإنشاء…' : 'Creating…') : (isAr ? 'إنشاء إشعار دائن' : 'Create credit note')}
+            {isPending ? (isAr ? 'جارٍ الإنشاء…' : 'Creating…') : (isAr ? createLabelAr : createLabelEn)}
           </button>
         </div>
       </div>

@@ -1,10 +1,11 @@
-import { Banknote, Printer, Send } from 'lucide-react'
+import { Banknote, Download, Printer, Send } from 'lucide-react'
 
 export default function AccountingDocumentBatchBar({
   count = 0,
   language = 'en',
   onRegisterPayment,
   onSendPrint,
+  onSepaExport,
   registerDisabled = false,
 }) {
   if (count < 1) return null
@@ -25,6 +26,12 @@ export default function AccountingDocumentBatchBar({
           <Banknote className="h-4 w-4" />
           {isAr ? 'تسجيل دفعة' : 'Register payment'}
         </button>
+        {onSepaExport ? (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onSepaExport}>
+            <Download className="h-4 w-4" />
+            {isAr ? 'تصدير SEPA' : 'SEPA export'}
+          </button>
+        ) : null}
         <button type="button" className="btn btn-secondary btn-sm" onClick={onSendPrint}>
           <Send className="h-4 w-4" />
           {isAr ? 'إرسال وطباعة' : 'Send & print'}

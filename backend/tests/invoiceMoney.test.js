@@ -7,6 +7,7 @@ import {
   isOverpay,
   paymentExceedsRemaining,
   canRecordPayment,
+  canRecordBillPayment,
 } from '../utils/invoicePaymentStatus.js';
 import { computeDueDateFromPaymentTerms } from '../utils/invoicePaymentTerms.js';
 import { isPastDueInRiyadh, startOfDayInRiyadh } from '../utils/riyadhTime.js';
@@ -96,14 +97,18 @@ test('IEEE: 15% VAT on 99.99 and 1.33 (halala, not binary leftover)', () => {
   assert.equal(roundMoney(1.33 * 0.15), 0.2);
 });
 
-test('state machine: draft / cancelled / credited / purchase cannot record payment', () => {
+test('state machine: draft / cancelled / credited block payment; vendor bills use canRecordBillPayment', () => {
   assert.equal(canRecordPayment({ flow: 'sell', status: 'draft' }), false);
   assert.equal(canRecordPayment({ flow: 'sell', status: 'cancelled' }), false);
   assert.equal(canRecordPayment({ flow: 'sell', status: 'credited' }), false);
-  assert.equal(canRecordPayment({ flow: 'purchase', status: 'approved' }), false);
   assert.equal(canRecordPayment({ flow: 'sell', status: 'approved' }), true);
   assert.equal(canRecordPayment({ flow: 'sell', status: 'pending' }), true);
   assert.equal(canRecordPayment({ flow: 'sell', status: 'sent' }), true);
+
+  assert.equal(canRecordBillPayment({ flow: 'purchase', status: 'draft', invoiceType: '388' }), false);
+  assert.equal(canRecordBillPayment({ flow: 'purchase', status: 'approved', invoiceType: '381' }), false);
+  assert.equal(canRecordBillPayment({ flow: 'purchase', status: 'approved', invoiceType: '388' }), true);
+  assert.equal(canRecordPayment({ flow: 'purchase', status: 'approved', invoiceType: '388' }), true);
 });
 
 test('partial payment remaining: 40 then +70 on 100 is 400; +60 is allowed', () => {
