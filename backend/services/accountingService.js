@@ -3184,6 +3184,262 @@ export async function setFollowUpLevels(tenantId, levels) {
   return { levels: cleaned };
 }
 
+/** Resolve the highest follow-up level whose daysOverdue threshold is met. */
+export function resolveFollowUpLevel(ageDays, levels) {
+  const sorted = [...(levels || [])].sort(
+    (a, b) => (Number(b.daysOverdue) || 0) - (Number(a.daysOverdue) || 0),
+  );
+  const age = Number(ageDays) || 0;
+  for (const level of sorted) {
+    if (age >= Number(level.daysOverdue || 0)) return level;
+  }
+  return sorted[sorted.length - 1] || null;
+}
+
+export const DEFAULT_RECONCILIATION_MODELS = [
+  {
+    name: 'Exact amount match',
+    nameAr: 'مطابقة المبلغ بالضبط',
+    active: true,
+    priority: 100,
+    labelContains: '',
+    referenceContains: '',
+    feePercent: 0,
+    feeAccountPrefix: '',
+    autoMatchExactAmount: true,
+    autoMatchInvoiceRef: false,
+  },
+  {
+    name: 'Stripe / card fees',
+    nameAr: 'رسوم Stripe / البطاقات',
+    active: true,
+    priority: 80,
+    labelContains: 'stripe',
+    referenceContains: '',
+    feePercent: 2,
+    feeAccountPrefix: '62',
+    autoMatchExactAmount: false,
+    autoMatchInvoiceRef: false,
+  },
+  {
+    name: 'Invoice reference in label',
+    nameAr: 'مرجع الفاتورة في الوصف',
+    active: true,
+    priority: 70,
+    labelContains: '',
+    referenceContains: 'INV',
+    feePercent: 0,
+    feeAccountPrefix: '',
+    autoMatchExactAmount: false,
+    autoMatchInvoiceRef: true,
+  },
+];
+
+export async function getReconciliationModels(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.reconciliationModels').lean();
+  const rows = tenant?.settings?.accounting?.reconciliationModels;
+  if (Array.isArray(rows) && rows.length) {
+    return { models: rows.sort((a, b) => (b.priority || 0) - (a.priority || 0)) };
+  }
+  return { models: DEFAULT_RECONCILIATION_MODELS };
+}
+
+export async function setReconciliationModels(tenantId, models) {
+  if (!Array.isArray(models)) throw new Error('models array required');
+  const cleaned = models.slice(0, 40).map((row, idx) => ({
+    name: String(row.name || '').trim().slice(0, 120),
+    nameAr: String(row.nameAr || '').trim().slice(0, 120),
+    active: row.active !== false,
+    priority: Number(row.priority) || (100 - idx),
+    labelContains: String(row.labelContains || '').trim().slice(0, 80),
+    referenceContains: String(row.referenceContains || '').trim().slice(0, 80),
+    feePercent: Math.min(100, Math.max(0, Number(row.feePercent) || 0)),
+    feeAccountPrefix: String(row.feeAccountPrefix || '').trim().slice(0, 16),
+    autoMatchExactAmount: Boolean(row.autoMatchExactAmount),
+    autoMatchInvoiceRef: Boolean(row.autoMatchInvoiceRef),
+  })).filter((row) => row.name);
+  if (!cleaned.length) throw new Error('At least one reconciliation model is required');
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.reconciliationModels': cleaned },
+  });
+  return { models: cleaned };
+}
+
+export const DEFAULT_JOURNAL_GROUPS = [
+  { code: 'SALES', name: 'Sales journals', nameAr: 'دفاتر المبيعات', journalCodes: ['SAL', 'INV'], sequence: 1 },
+  { code: 'PURCHASE', name: 'Purchase journals', nameAr: 'دفاتر المشتريات', journalCodes: ['PUR', 'BILL'], sequence: 2 },
+  { code: 'BANK', name: 'Bank & cash', nameAr: 'البنوك والنقد', journalCodes: ['BNK', 'CSH'], sequence: 3 },
+  { code: 'MISC', name: 'Miscellaneous', nameAr: 'متنوع', journalCodes: ['MISC', 'GEN'], sequence: 4 },
+];
+
+export async function getJournalGroups(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.journalGroups').lean();
+  const rows = tenant?.settings?.accounting?.journalGroups;
+  if (Array.isArray(rows) && rows.length) {
+    return { groups: rows.sort((a, b) => (a.sequence || 0) - (b.sequence || 0)) };
+  }
+  return { groups: DEFAULT_JOURNAL_GROUPS };
+}
+
+export async function setJournalGroups(tenantId, groups) {
+  if (!Array.isArray(groups)) throw new Error('groups array required');
+  const cleaned = groups.slice(0, 30).map((row, idx) => ({
+    code: String(row.code || '').trim().toUpperCase().slice(0, 32),
+    name: String(row.name || '').trim().slice(0, 120),
+    nameAr: String(row.nameAr || '').trim().slice(0, 120),
+    journalCodes: (Array.isArray(row.journalCodes) ? row.journalCodes : String(row.journalCodes || '').split(/[,،\s]+/))
+      .map((c) => String(c || '').trim().toUpperCase())
+      .filter(Boolean)
+      .slice(0, 20),
+    sequence: Number(row.sequence) || (idx + 1),
+  })).filter((row) => row.code && row.name);
+  if (!cleaned.length) throw new Error('At least one journal group is required');
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.journalGroups': cleaned },
+  });
+  return { groups: cleaned };
+}
+
+export async function getAccountingPaymentProviders(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.paymentProviders').lean();
+  const rows = tenant?.settings?.accounting?.paymentProviders;
+  return { providers: Array.isArray(rows) ? rows.filter((r) => r?.provider || r?.name) : [] };
+}
+
+export async function setAccountingPaymentProviders(tenantId, providers) {
+  if (!Array.isArray(providers)) throw new Error('providers array required');
+  const cleaned = providers.slice(0, 20).map((row) => ({
+    provider: String(row.provider || '').trim().toLowerCase().slice(0, 40),
+    name: String(row.name || '').trim().slice(0, 120),
+    nameAr: String(row.nameAr || '').trim().slice(0, 120),
+    journalCode: String(row.journalCode || '').trim().toUpperCase().slice(0, 16),
+    active: row.active !== false,
+    webhookSecret: String(row.webhookSecret || '').trim().slice(0, 200),
+  })).filter((row) => row.provider || row.name);
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.paymentProviders': cleaned },
+  });
+  return { providers: cleaned };
+}
+
+export async function getBankAccountsCatalog(tenantId) {
+  await ensureDefaultChartOfAccounts(tenantId);
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.bankAccounts settings.accounting.sepa').lean();
+  const meta = Array.isArray(tenant?.settings?.accounting?.bankAccounts)
+    ? tenant.settings.accounting.bankAccounts
+    : [];
+  const accounts = await ChartOfAccount.find({
+    tenantId,
+    isActive: true,
+    $or: [{ subtype: 'bank' }, { subtype: 'cash' }, { type: 'asset', code: /^11/ }],
+  }).sort({ code: 1 }).lean();
+  const Journal = (await import('../models/Journal.js')).default;
+  const journals = await Journal.find({ tenantId, type: 'bank', active: { $ne: false } }).lean();
+  const journalById = Object.fromEntries(journals.map((j) => [String(j._id), j]));
+  const rows = accounts.map((acc) => {
+    const link = meta.find((m) => String(m.accountId) === String(acc._id)) || {};
+    const journal = link.journalId ? journalById[String(link.journalId)] : journals.find((j) => String(j.defaultDebitAccountId) === String(acc._id));
+    return {
+      accountId: acc._id,
+      code: acc.code,
+      name: acc.name,
+      nameAr: acc.nameAr,
+      subtype: acc.subtype,
+      balance: acc.balance,
+      iban: link.iban || '',
+      bic: link.bic || '',
+      journalId: journal?._id || link.journalId || null,
+      journalCode: journal?.code || '',
+    };
+  });
+  return { rows, sepa: tenant?.settings?.accounting?.sepa || {} };
+}
+
+/** Create bank CoA account + bank journal + link IBAN metadata. */
+export async function createBankAccountSetup(tenantId, userId, {
+  name,
+  nameAr = '',
+  code = null,
+  iban = '',
+  bic = '',
+  currency = 'SAR',
+} = {}) {
+  if (!name) throw new Error('name is required');
+  await ensureDefaultChartOfAccounts(tenantId, userId, currency);
+  const Journal = (await import('../models/Journal.js')).default;
+
+  let nextCode = code ? String(code).trim() : null;
+  if (!nextCode) {
+    const existing = await ChartOfAccount.find({ tenantId, code: /^11/ }).select('code').lean();
+    const nums = existing.map((a) => Number(String(a.code).replace(/\D/g, ''))).filter((n) => n >= 1100 && n < 1200);
+    const max = nums.length ? Math.max(...nums) : 1100;
+    nextCode = String(max + 1);
+  }
+
+  const dup = await ChartOfAccount.findOne({ tenantId, code: nextCode });
+  if (dup) throw new Error(`Account code ${nextCode} already exists`);
+
+  const account = await ChartOfAccount.create({
+    tenantId,
+    code: nextCode,
+    name,
+    nameAr: nameAr || '',
+    type: 'asset',
+    subtype: 'bank',
+    currency,
+    isPostable: true,
+    createdBy: userId,
+  });
+
+  const journalCode = `BNK${String(nextCode).slice(-2)}`.toUpperCase().slice(0, 8);
+  let jCode = journalCode;
+  let suffix = 1;
+  while (await Journal.findOne({ tenantId, code: jCode })) {
+    jCode = `${journalCode}${suffix}`;
+    suffix += 1;
+  }
+
+  const journal = await Journal.create({
+    tenantId,
+    code: jCode,
+    name: `${name} Journal`,
+    nameAr: nameAr ? `${nameAr} — دفتر` : '',
+    type: 'bank',
+    sequencePrefix: jCode,
+    defaultDebitAccountId: account._id,
+    defaultCreditAccountId: account._id,
+    active: true,
+    createdBy: userId,
+  });
+
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.bankAccounts settings.accounting.sepa').lean();
+  const links = Array.isArray(tenant?.settings?.accounting?.bankAccounts)
+    ? [...tenant.settings.accounting.bankAccounts]
+    : [];
+  links.push({
+    accountId: account._id,
+    journalId: journal._id,
+    iban: String(iban || '').trim(),
+    bic: String(bic || '').trim(),
+    label: name,
+  });
+
+  const patch = { 'settings.accounting.bankAccounts': links.slice(0, 40) };
+  if (iban && !tenant?.settings?.accounting?.sepa?.debtorIban) {
+    patch['settings.accounting.sepa.debtorIban'] = String(iban).trim();
+    patch['settings.accounting.sepa.debtorBic'] = String(bic || '').trim();
+    patch['settings.accounting.sepa.debtorName'] = name;
+  }
+  await Tenant.findByIdAndUpdate(tenantId, { $set: patch });
+
+  return {
+    account,
+    journal,
+    iban: String(iban || '').trim(),
+    bic: String(bic || '').trim(),
+  };
+}
+
 export async function getCurrenciesCatalog(tenantId) {
   const tenant = await Tenant.findById(tenantId).select('settings.currency settings.accounting.currencies').lean();
   const companyCurrency = tenant?.settings?.currency || 'SAR';
@@ -5090,6 +5346,8 @@ async function buildAgedInvoices(tenantId, { flow, asOf = null } = {}) {
     : [];
   const partnerById = Object.fromEntries(partners.map((p) => [String(p._id), p]));
 
+  const followUpLevels = flow === 'sell' ? (await getFollowUpLevels(tenantId)).levels : [];
+
   const buckets = EMPTY_AGING_BUCKETS();
   const rows = [];
 
@@ -5120,6 +5378,7 @@ async function buildAgedInvoices(tenantId, { flow, asOf = null } = {}) {
       ageDays,
       bucket,
       paymentStatus: inv.paymentStatus,
+      followUpLevel: flow === 'sell' ? resolveFollowUpLevel(ageDays, followUpLevels) : null,
     });
   }
 
@@ -5360,6 +5619,15 @@ export default {
   buildInvoiceAnalysis,
   getFollowUpLevels,
   setFollowUpLevels,
+  resolveFollowUpLevel,
+  getReconciliationModels,
+  setReconciliationModels,
+  getJournalGroups,
+  setJournalGroups,
+  getAccountingPaymentProviders,
+  setAccountingPaymentProviders,
+  getBankAccountsCatalog,
+  createBankAccountSetup,
   getCurrenciesCatalog,
   setCurrenciesCatalog,
   getAssetModels,

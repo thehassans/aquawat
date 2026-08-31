@@ -434,6 +434,10 @@ export async function suggestBankMatches(tenantId, statementLineId, { limit = 12
   if (!line) throw new Error('Statement line not found');
   if (line.reconcileId) return { line, suggestions: [], message: 'Line already matched' };
 
+  const { getReconciliationModels } = await import('./accountingService.js');
+  const { models: reconModels } = await getReconciliationModels(tenantId);
+  const activeModels = (reconModels || []).filter((m) => m.active !== false);
+
   const stmtAmt = round2(line.amount);
   const isInflow = stmtAmt > 0;
   const absStmt = Math.abs(stmtAmt);
@@ -538,6 +542,33 @@ export async function suggestBankMatches(tenantId, statementLineId, { limit = 12
     if (ref && c.item.entryNumber && ref.toLowerCase().includes(String(c.item.entryNumber).toLowerCase())) {
       score += 40;
       reasons.push('entry_number');
+    }
+
+    const labelText = String(line.label || '').toLowerCase();
+    const refText = String(line.reference || '').toLowerCase();
+    for (const model of activeModels) {
+      const labelNeedle = String(model.labelContains || '').toLowerCase();
+      const refNeedle = String(model.referenceContains || '').toLowerCase();
+      if (labelNeedle && labelText.includes(labelNeedle)) {
+        score += 25 + Math.min(20, Number(model.priority) || 0);
+        reasons.push(`model:${model.name}`);
+      }
+      if (refNeedle && refText.includes(refNeedle)) {
+        score += 20;
+        reasons.push(`model_ref:${model.name}`);
+      }
+      if (model.autoMatchExactAmount && amtDiff <= 0.01) {
+        score += 15;
+        reasons.push(`model_exact:${model.name}`);
+      }
+      if (model.autoMatchInvoiceRef && overlap >= 1) {
+        score += 12;
+        reasons.push(`model_inv:${model.name}`);
+      }
+      if (model.feePercent > 0 && labelNeedle && labelText.includes(labelNeedle) && amtDiff <= absStmt * (Number(model.feePercent) / 100) * 1.5) {
+        score += 10;
+        reasons.push(`model_fee:${model.feePercent}%`);
+      }
     }
 
     return {

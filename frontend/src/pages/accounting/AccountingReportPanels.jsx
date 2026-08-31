@@ -40,6 +40,81 @@ function VarianceCells({ current, prior, show }) {
   )
 }
 
+function HorizontalGroupsSection({
+  language,
+  groups,
+  amountKey = 'amount',
+  priorMap,
+  showVar,
+  onAccountClick,
+}) {
+  const isAr = language === 'ar'
+  const [expanded, setExpanded] = useState(() => ({}))
+
+  if (!groups?.length) return null
+
+  const getAmount = (row) => Number(row?.[amountKey] ?? row?.balance ?? row?.amount ?? 0)
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+      <div className="border-b border-slate-100 px-5 py-4 dark:border-white/10">
+        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+          {isAr ? 'المجموعات الأفقية' : 'Horizontal groups'}
+        </h3>
+        <p className="mt-1 text-xs text-slate-500">
+          {isAr ? 'عرض شجري حسب مجموعات الحسابات المعرّفة في الإعدادات.' : 'Collapsible tree by account groups defined in Configuration.'}
+        </p>
+      </div>
+      <div className="divide-y divide-slate-100 dark:divide-white/5">
+        {groups.map((group) => {
+          const key = group.code || group.name
+          const open = expanded[key] !== false
+          return (
+            <div key={key}>
+              <button
+                type="button"
+                onClick={() => setExpanded((p) => ({ ...p, [key]: !open }))}
+                className="flex w-full items-center justify-between px-5 py-3 text-start hover:bg-slate-50/80 dark:hover:bg-white/[0.03]"
+              >
+                <span className="font-semibold text-emerald-900 dark:text-emerald-200">
+                  {isAr ? (group.nameAr || group.name) : group.name}
+                  <span className="ms-2 font-mono text-[10px] font-normal text-slate-400">{group.code}</span>
+                </span>
+                <span className="text-sm font-semibold"><Money value={group.amount} /></span>
+              </button>
+              {open ? (
+                <table className="min-w-full text-sm">
+                  <tbody className="divide-y divide-slate-50 dark:divide-white/5">
+                    {(group.accounts || []).map((row) => (
+                      <tr
+                        key={String(row._id || row.code)}
+                        className={onAccountClick && row.accountId ? 'cursor-pointer hover:bg-emerald-50/60 dark:hover:bg-white/[0.04]' : ''}
+                        onClick={() => onAccountClick?.(row)}
+                      >
+                        <td className="px-8 py-2 text-slate-600 dark:text-slate-300">
+                          <span className="font-mono text-xs text-emerald-800">{row.code}</span>
+                          {' · '}
+                          {isAr ? (row.nameAr || row.name) : row.name}
+                        </td>
+                        <td className="px-4 py-2 text-end font-medium"><Money value={getAmount(row)} /></td>
+                        <VarianceCells
+                          current={getAmount(row)}
+                          prior={priorMap?.get(row.code) ?? priorMap?.get(String(row._id))}
+                          show={showVar}
+                        />
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export function BalanceSheetPanel({ language }) {
   const isAr = language === 'ar'
   const navigate = useNavigate()
@@ -180,6 +255,14 @@ export function BalanceSheetPanel({ language }) {
         <Section id="liabilities" title={isAr ? 'الالتزامات' : 'Liabilities'} rows={data?.liabilities} total={data?.totalLiabilities} tone="text-amber-800" />
         <Section id="equity" title={isAr ? 'حقوق الملكية' : 'Equity'} rows={data?.equity} total={data?.totalEquity} tone="text-sky-800" />
       </div>
+      <HorizontalGroupsSection
+        language={language}
+        groups={data?.horizontalGroups}
+        amountKey="balance"
+        priorMap={priorMap}
+        showVar={showVar}
+        onAccountClick={openGl}
+      />
     </div>
   )
 }
@@ -322,6 +405,14 @@ export function ProfitAndLossPanel({ language }) {
         <LineBlock title={isAr ? 'الإيرادات' : 'Revenue'} rows={data?.revenue} total={data?.totalRevenue} tone="text-emerald-800" />
         <LineBlock title={isAr ? 'المصروفات' : 'Expenses'} rows={data?.expenses} total={data?.totalExpenses} tone="text-rose-700" />
       </div>
+      <HorizontalGroupsSection
+        language={language}
+        groups={data?.horizontalGroups}
+        amountKey="amount"
+        priorMap={priorMap}
+        showVar={showVar}
+        onAccountClick={openGl}
+      />
     </div>
   )
 }

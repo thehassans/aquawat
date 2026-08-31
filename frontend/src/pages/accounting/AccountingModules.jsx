@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -7,6 +7,7 @@ import api from '../../lib/api'
 import Money from '../../components/ui/Money'
 import VirtualTableBody from '../../components/ui/VirtualTableBody'
 import { ReportFilterRibbon, compareRange, variance } from './ReportFilterRibbon'
+import { ConfigPanelShell } from './ConfigPanelShell'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 const yearStartIso = () => new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10)
@@ -2699,6 +2700,7 @@ export function FollowUpReportsPanel({ language }) {
               <th className="px-4 py-2 text-start">{isAr ? 'العميل' : 'Customer'}</th>
               <th className="px-4 py-2 text-start">{isAr ? 'الفاتورة' : 'Invoice'}</th>
               <th className="px-4 py-2 text-start">{isAr ? 'النشاط التالي' : 'Next activity'}</th>
+              <th className="px-4 py-2 text-start">{isAr ? 'المستوى' : 'Level'}</th>
               <th className="px-4 py-2 text-end">{isAr ? 'المتبقي' : 'Due'}</th>
               <th className="px-4 py-2 text-end">{isAr ? 'تذكير' : 'Remind'}</th>
             </tr>
@@ -2724,6 +2726,14 @@ export function FollowUpReportsPanel({ language }) {
                     {nextActivityLabel(row)}
                   </span>
                 </td>
+                <td className="px-4 py-2">
+                  {row.followUpLevel ? (
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                      {isAr ? (row.followUpLevel.nameAr || row.followUpLevel.name) : row.followUpLevel.name}
+                      {' · '}{row.followUpLevel.channel}
+                    </span>
+                  ) : '—'}
+                </td>
                 <td className="px-4 py-2 text-end"><Money value={row.residual} /></td>
                 <td className="px-4 py-2 text-end">
                   <button
@@ -2738,7 +2748,7 @@ export function FollowUpReportsPanel({ language }) {
               </tr>
             ))}
             {!overdueRows.length && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا فواتير متأخرة' : 'No overdue invoices'}</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا فواتير متأخرة' : 'No overdue invoices'}</td></tr>
             )}
           </tbody>
         </table>
@@ -4391,37 +4401,82 @@ export function IncotermsPanel({ language }) {
 export function BankAccountsPanel({ language }) {
   const isAr = language === 'ar'
   const navigate = useNavigate()
-  const { data: accounts = [], isFetching } = useQuery({
-    queryKey: ['accounting-accounts'],
-    queryFn: () => api.get('/accounting/accounts').then((r) => r.data || []),
+  const queryClient = useQueryClient()
+  const [showWizard, setShowWizard] = useState(false)
+  const [form, setForm] = useState({ name: '', nameAr: '', code: '', iban: '', bic: '' })
+  const { data, isFetching, refetch } = useQuery({
+    queryKey: ['accounting-bank-accounts-catalog'],
+    queryFn: () => api.get('/accounting/bank-accounts').then((r) => r.data),
   })
-  const { data: apSettings } = useQuery({
-    queryKey: ['accounting-ap-payment-settings'],
-    queryFn: () => api.get('/accounting/ap-payment-settings').then((r) => r.data),
+  const rows = data?.rows || []
+
+  const createBank = useMutation({
+    mutationFn: () => api.post('/accounting/bank-accounts/setup', {
+      name: form.name,
+      nameAr: form.nameAr || undefined,
+      code: form.code || undefined,
+      iban: form.iban,
+      bic: form.bic,
+    }).then((r) => r.data),
+    onSuccess: () => {
+      toast.success(isAr ? 'تم إنشاء حساب البنك والدفتر' : 'Bank account and journal created')
+      setShowWizard(false)
+      setForm({ name: '', nameAr: '', code: '', iban: '', bic: '' })
+      refetch()
+      queryClient.invalidateQueries({ queryKey: ['accounting-accounts'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-journal-books'] })
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
   })
-  const bankAccounts = (Array.isArray(accounts) ? accounts : []).filter((a) => a.subtype === 'bank' || a.subtype === 'cash')
 
   return (
-    <div className="space-y-4">
+    <ConfigPanelShell
+      language={language}
+      titleEn="Bank accounts"
+      titleAr="الحسابات البنكية"
+      purposeEn="Link liquidity ledgers (CoA) to bank journals and IBAN metadata for reconciliation and SEPA."
+      purposeAr="ربط حسابات السيولة بدفاتر البنوك وبيانات IBAN للتسوية وSEPA."
+      impactEn="Creates account.journal (type Bank) + account.account (Bank and Cash). Feeds bank reconciliation and payment provider settlement."
+      impactAr="ينشئ دفتر بنك + حساب نقد/بنك. يغذي التسوية البنكية وتسوية بوابات الدفع."
+      actions={(
+        <>
+          <button type="button" onClick={() => setShowWizard((v) => !v)} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white">
+            {showWizard ? (isAr ? 'إلغاء' : 'Cancel') : (isAr ? 'إضافة حساب بنك' : 'Add bank account')}
+          </button>
+          <button type="button" onClick={() => navigate('/app/dashboard/accounting/bank-recon')} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">
+            {isAr ? 'التسوية البنكية' : 'Bank reconciliation'}
+          </button>
+        </>
+      )}
+    >
+      {showWizard ? (
+        <div className="grid gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 sm:grid-cols-2 dark:border-dark-600 dark:bg-dark-800">
+          {[
+            ['name', isAr ? 'اسم الحساب' : 'Account name', form.name, (v) => setForm((p) => ({ ...p, name: v }))],
+            ['nameAr', isAr ? 'الاسم (عربي)' : 'Name (Arabic)', form.nameAr, (v) => setForm((p) => ({ ...p, nameAr: v }))],
+            ['code', isAr ? 'رمز الدليل (اختياري)' : 'CoA code (optional)', form.code, (v) => setForm((p) => ({ ...p, code: v }))],
+            ['iban', 'IBAN', form.iban, (v) => setForm((p) => ({ ...p, iban: v }))],
+            ['bic', 'BIC / SWIFT', form.bic, (v) => setForm((p) => ({ ...p, bic: v }))],
+          ].map(([key, label, value, onChange]) => (
+            <label key={key} className="text-xs font-medium text-slate-500">
+              {label}
+              <input value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono dark:border-dark-600 dark:bg-dark-900" />
+            </label>
+          ))}
+          <div className="sm:col-span-2">
+            <button type="button" disabled={!form.name || createBank.isPending} onClick={() => createBank.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+              {createBank.isPending ? '…' : (isAr ? 'إنشاء حساب + دفتر' : 'Create account + journal')}
+            </button>
+          </div>
+        </div>
+      ) : null}
       <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
         <p className="text-sm font-semibold">{isAr ? 'مدين SEPA (الشركة)' : 'SEPA debtor (company)'}</p>
-        <p className="mt-1 text-xs text-slate-500">
-          {isAr
-            ? 'يُستخدم عند تصدير pain.001 لرفعه على بوابة البنك.'
-            : 'Used when exporting pain.001 for upload to your bank portal.'}
-        </p>
         <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
-          <div><span className="text-slate-400">{isAr ? 'الاسم' : 'Name'}</span><p className="font-medium">{apSettings?.sepa?.debtorName || '—'}</p></div>
-          <div><span className="text-slate-400">IBAN</span><p className="font-mono text-xs">{apSettings?.sepa?.debtorIban || '—'}</p></div>
-          <div><span className="text-slate-400">BIC</span><p className="font-mono text-xs">{apSettings?.sepa?.debtorBic || '—'}</p></div>
+          <div><span className="text-slate-400">{isAr ? 'الاسم' : 'Name'}</span><p className="font-medium">{data?.sepa?.debtorName || '—'}</p></div>
+          <div><span className="text-slate-400">IBAN</span><p className="font-mono text-xs">{data?.sepa?.debtorIban || '—'}</p></div>
+          <div><span className="text-slate-400">BIC</span><p className="font-mono text-xs">{data?.sepa?.debtorBic || '—'}</p></div>
         </div>
-        <button
-          type="button"
-          onClick={() => navigate('/app/dashboard/accounting/defaults')}
-          className="mt-3 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold dark:border-dark-600"
-        >
-          {isAr ? 'تعديل في الحسابات الافتراضية' : 'Edit in Default accounts'}
-        </button>
       </div>
       {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
@@ -4430,26 +4485,28 @@ export function BankAccountsPanel({ language }) {
             <tr>
               <th className="px-4 py-2 text-start">{isAr ? 'الرمز' : 'Code'}</th>
               <th className="px-4 py-2 text-start">{isAr ? 'الاسم' : 'Name'}</th>
-              <th className="px-4 py-2 text-start">{isAr ? 'النوع' : 'Type'}</th>
+              <th className="px-4 py-2 text-start">{isAr ? 'الدفتر' : 'Journal'}</th>
+              <th className="px-4 py-2 text-start">IBAN</th>
               <th className="px-4 py-2 text-end">{isAr ? 'الرصيد' : 'Balance'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-            {bankAccounts.map((a) => (
-              <tr key={a._id}>
+            {rows.map((a) => (
+              <tr key={a.accountId}>
                 <td className="px-4 py-2 font-mono text-xs">{a.code}</td>
                 <td className="px-4 py-2">{isAr ? (a.nameAr || a.name) : a.name}</td>
-                <td className="px-4 py-2 capitalize text-slate-500">{a.subtype}</td>
+                <td className="px-4 py-2 font-mono text-xs">{a.journalCode || '—'}</td>
+                <td className="px-4 py-2 font-mono text-[11px] text-slate-500">{a.iban || '—'}</td>
                 <td className="px-4 py-2 text-end"><Money value={a.balance} /></td>
               </tr>
             ))}
-            {!bankAccounts.length && (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا حسابات نقد/بنك في الدليل' : 'No cash/bank accounts in chart'}</td></tr>
+            {!rows.length && (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا حسابات بنك — أنشئ واحداً' : 'No bank accounts — create one'}</td></tr>
             )}
           </tbody>
         </table>
       </div>
-    </div>
+    </ConfigPanelShell>
   )
 }
 
@@ -4524,17 +4581,21 @@ export function FollowUpLevelsPanel({ language }) {
     onSuccess: () => refetch(),
   })
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold">{isAr ? 'مستويات المتابعة' : 'Follow-up levels'}</p>
-          <p className="text-xs text-slate-500">{isAr ? 'عتبات التأخير لقنوات التذكير.' : 'Overdue day thresholds for reminder channels.'}</p>
-        </div>
-        <div className="flex gap-2">
+    <ConfigPanelShell
+      language={language}
+      titleEn="Follow-up levels"
+      titleAr="مستويات المتابعة"
+      purposeEn="Sequential dunning rules by days overdue — drives collection messages and follow-up report badges."
+      purposeAr="قواعد التذكير المتسلسلة حسب أيام التأخير — تتحكم برسائل التحصيل وشارات تقرير المتابعة."
+      impactEn="Aged AR rows and WhatsApp reminders use the matching level name, channel, and escalation tone."
+      impactAr="صفوف أعمار المدينين وتذكيرات واتساب تستخدم اسم المستوى والقناة ونبرة التصعيد."
+      actions={(
+        <>
           <button type="button" onClick={() => setRows((p) => [...p, { level: p.length + 1, daysOverdue: 0, name: '', nameAr: '', channel: 'whatsapp' }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
           <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{save.isPending ? '…' : (isAr ? 'حفظ' : 'Save')}</button>
-        </div>
-      </div>
+        </>
+      )}
+    >
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
@@ -4566,7 +4627,7 @@ export function FollowUpLevelsPanel({ language }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </ConfigPanelShell>
   )
 }
 
@@ -5578,6 +5639,201 @@ export function AutomaticTransfersPanel({ language }) {
         {!rows.length ? <p className="text-sm text-slate-400">{isAr ? 'لا قواعد بعد — أضف قاعدة أو استخدم إقفال الفترة.' : 'No rules yet — add one, or use Period close for P&L sweeps.'}</p> : null}
       </div>
     </div>
+  )
+}
+
+export function ReconciliationModelsPanel({ language }) {
+  const isAr = language === 'ar'
+  const { data, refetch, isFetching } = useQuery({
+    queryKey: ['accounting-reconciliation-models'],
+    queryFn: () => api.get('/accounting/reconciliation-models').then((r) => r.data),
+  })
+  const [rows, setRows] = useState([])
+  useEffect(() => {
+    if (data?.models) setRows(data.models.map((r) => ({ ...r })))
+  }, [data?.models])
+  const save = useMutation({
+    mutationFn: () => api.put('/accounting/reconciliation-models', { models: rows }).then((r) => r.data),
+    onSuccess: () => { toast.success(isAr ? 'تم الحفظ' : 'Saved'); refetch() },
+    onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
+  })
+
+  return (
+    <ConfigPanelShell
+      language={language}
+      titleEn="Reconciliation models"
+      titleAr="نماذج التسوية"
+      purposeEn="Rule engine that scores bank statement lines against open ledger items during reconciliation."
+      purposeAr="محرك قواعد يقيّم كشوف البنك مقابل بنود الدفتر أثناء التسوية."
+      impactEn="Boosts auto-match scores in bank reconciliation when label/reference/amount rules hit (e.g. Stripe fees, exact invoice refs)."
+      impactAr="يرفع درجة المطابقة التلقائية عند تطابق القواعد (مثل Stripe أو مراجع الفواتير)."
+      actions={(
+        <>
+          <button type="button" onClick={() => setRows((p) => [...p, { name: '', nameAr: '', active: true, priority: 50, labelContains: '', referenceContains: '', feePercent: 0, feeAccountPrefix: '', autoMatchExactAmount: false, autoMatchInvoiceRef: false }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
+          <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{save.isPending ? '…' : (isAr ? 'حفظ' : 'Save')}</button>
+        </>
+      )}
+    >
+      <div className="overflow-x-auto overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
+            <tr>
+              <th className="px-2 py-2">{isAr ? 'مفعّل' : 'On'}</th>
+              <th className="px-2 py-2">{isAr ? 'الاسم' : 'Name'}</th>
+              <th className="px-2 py-2">{isAr ? 'الوصف يحتوي' : 'Label contains'}</th>
+              <th className="px-2 py-2">{isAr ? 'المرجع' : 'Ref contains'}</th>
+              <th className="px-2 py-2">{isAr ? 'رسوم %' : 'Fee %'}</th>
+              <th className="px-2 py-2">{isAr ? 'مطابقة' : 'Match'}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+            {rows.map((row, i) => (
+              <tr key={i}>
+                <td className="px-2 py-2"><input type="checkbox" checked={Boolean(row.active)} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, active: e.target.checked } : r)))} /></td>
+                <td className="px-2 py-2"><input value={row.name || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, name: e.target.value } : r)))} className="w-full min-w-[8rem] rounded-lg border border-slate-200 px-2 py-1 dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-2 py-2"><input value={row.labelContains || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, labelContains: e.target.value } : r)))} className="w-full rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-2 py-2"><input value={row.referenceContains || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, referenceContains: e.target.value } : r)))} className="w-full rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-2 py-2"><input type="number" value={row.feePercent ?? 0} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, feePercent: Number(e.target.value) } : r)))} className="w-16 rounded-lg border border-slate-200 px-2 py-1 dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-2 py-2 text-[10px]">
+                  <label className="flex items-center gap-1"><input type="checkbox" checked={Boolean(row.autoMatchExactAmount)} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, autoMatchExactAmount: e.target.checked } : r)))} />{isAr ? 'مبلغ' : 'Amt'}</label>
+                  <label className="flex items-center gap-1"><input type="checkbox" checked={Boolean(row.autoMatchInvoiceRef)} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, autoMatchInvoiceRef: e.target.checked } : r)))} />{isAr ? 'فاتورة' : 'Inv'}</label>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </ConfigPanelShell>
+  )
+}
+
+export function JournalGroupsPanel({ language }) {
+  const isAr = language === 'ar'
+  const { data, refetch, isFetching } = useQuery({
+    queryKey: ['accounting-journal-groups'],
+    queryFn: () => api.get('/accounting/journal-groups').then((r) => r.data),
+  })
+  const [rows, setRows] = useState([])
+  useEffect(() => {
+    if (data?.groups) setRows(data.groups.map((r) => ({ ...r, journalCodes: (r.journalCodes || []).join(', ') })))
+  }, [data?.groups])
+  const save = useMutation({
+    mutationFn: () => api.put('/accounting/journal-groups', {
+      groups: rows.map((r) => ({
+        ...r,
+        journalCodes: String(r.journalCodes || '').split(/[,،\s]+/).filter(Boolean),
+      })),
+    }).then((r) => r.data),
+    onSuccess: () => { toast.success(isAr ? 'تم الحفظ' : 'Saved'); refetch() },
+  })
+
+  return (
+    <ConfigPanelShell
+      language={language}
+      titleEn="Journal groups"
+      titleAr="مجموعات الدفاتر"
+      purposeEn="Reporting metadata — group journal books (Sales, Bank, Purchases) for filters and document numbering views."
+      purposeAr="بيانات وصفية لتجميع دفاتر القيود (مبيعات، بنك، مشتريات) في التقارير والفلاتر."
+      impactEn="Organizes journal books for UI and future consolidated journal reports; does not change posting logic."
+      impactAr="ينظم دفاتر القيود للواجهة والتقارير دون تغيير منطق الترحيل."
+      actions={(
+        <>
+          <button type="button" onClick={() => setRows((p) => [...p, { code: '', name: '', nameAr: '', journalCodes: '', sequence: p.length + 1 }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
+          <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{save.isPending ? '…' : (isAr ? 'حفظ' : 'Save')}</button>
+        </>
+      )}
+    >
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
+            <tr>
+              <th className="px-3 py-2 text-start">{isAr ? 'الرمز' : 'Code'}</th>
+              <th className="px-3 py-2 text-start">{isAr ? 'الاسم' : 'Name'}</th>
+              <th className="px-3 py-2 text-start">{isAr ? 'دفاتر (رموز)' : 'Journal codes'}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+            {rows.map((row, i) => (
+              <tr key={i}>
+                <td className="px-3 py-2"><input value={row.code || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, code: e.target.value.toUpperCase() } : r)))} className="w-24 rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-3 py-2"><input value={row.name || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, name: e.target.value } : r)))} className="w-full rounded-lg border border-slate-200 px-2 py-1 dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-3 py-2"><input value={row.journalCodes || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, journalCodes: e.target.value } : r)))} placeholder="SAL, BNK" className="w-full rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs dark:border-dark-600 dark:bg-dark-900" /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </ConfigPanelShell>
+  )
+}
+
+export function PaymentProvidersPanel({ language }) {
+  const isAr = language === 'ar'
+  const { data: journals = [] } = useQuery({
+    queryKey: ['accounting-journal-books'],
+    queryFn: () => api.get('/accounting/journal-books').then((r) => r.data || []),
+  })
+  const { data, refetch, isFetching } = useQuery({
+    queryKey: ['accounting-payment-providers'],
+    queryFn: () => api.get('/accounting/payment-providers').then((r) => r.data),
+  })
+  const [rows, setRows] = useState([])
+  useEffect(() => {
+    if (data?.providers) setRows(data.providers.map((r) => ({ ...r })))
+  }, [data?.providers])
+  const save = useMutation({
+    mutationFn: () => api.put('/accounting/payment-providers', { providers: rows }).then((r) => r.data),
+    onSuccess: () => { toast.success(isAr ? 'تم الحفظ' : 'Saved'); refetch() },
+  })
+  const bankJournals = (Array.isArray(journals) ? journals : []).filter((j) => j.type === 'bank')
+
+  return (
+    <ConfigPanelShell
+      language={language}
+      titleEn="Payment providers"
+      titleAr="بوابات الدفع"
+      purposeEn="Map external gateways (Moyasar, Stripe, etc.) to bank journals for automated invoice settlement."
+      purposeAr="ربط بوابات الدفع بدفاتر البنوك لتسوية الفواتير تلقائياً."
+      impactEn="Webhook handlers use journalCode to post customer receipts and mark invoices paid on successful capture."
+      impactAr="معالجات webhook تستخدم دفتر البنك لترحيل المقبوضات وتحديث حالة الفاتورة."
+      actions={(
+        <>
+          <button type="button" onClick={() => setRows((p) => [...p, { provider: '', name: '', nameAr: '', journalCode: '', active: true, webhookSecret: '' }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
+          <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{save.isPending ? '…' : (isAr ? 'حفظ' : 'Save')}</button>
+        </>
+      )}
+    >
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
+            <tr>
+              <th className="px-3 py-2">{isAr ? 'مفعّل' : 'On'}</th>
+              <th className="px-3 py-2">{isAr ? 'المزود' : 'Provider'}</th>
+              <th className="px-3 py-2">{isAr ? 'الاسم' : 'Name'}</th>
+              <th className="px-3 py-2">{isAr ? 'دفتر البنك' : 'Bank journal'}</th>
+              <th className="px-3 py-2">{isAr ? 'Webhook' : 'Webhook secret'}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+            {rows.map((row, i) => (
+              <tr key={i}>
+                <td className="px-3 py-2"><input type="checkbox" checked={Boolean(row.active)} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, active: e.target.checked } : r)))} /></td>
+                <td className="px-3 py-2"><input value={row.provider || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, provider: e.target.value } : r)))} placeholder="stripe" className="w-28 rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-3 py-2"><input value={row.name || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, name: e.target.value } : r)))} className="w-full rounded-lg border border-slate-200 px-2 py-1 dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-3 py-2">
+                  <select value={row.journalCode || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, journalCode: e.target.value } : r)))} className="rounded-lg border border-slate-200 px-2 py-1 text-xs dark:border-dark-600 dark:bg-dark-900">
+                    <option value="">—</option>
+                    {bankJournals.map((j) => <option key={j._id} value={j.code}>{j.code}</option>)}
+                  </select>
+                </td>
+                <td className="px-3 py-2"><input value={row.webhookSecret || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, webhookSecret: e.target.value } : r)))} className="w-full rounded-lg border border-slate-200 px-2 py-1 font-mono text-[10px] dark:border-dark-600 dark:bg-dark-900" /></td>
+              </tr>
+            ))}
+            {!rows.length && <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">{isAr ? 'أضف مزود دفع' : 'Add a payment provider'}</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </ConfigPanelShell>
   )
 }
 

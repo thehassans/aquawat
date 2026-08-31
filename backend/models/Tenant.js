@@ -512,6 +512,44 @@ const tenantSchema = new mongoose.Schema({
         active: { type: Boolean, default: true },
         sequence: { type: Number, default: 0 },
       }],
+      /** Bank account metadata (IBAN linked to CoA + journal) */
+      bankAccounts: [{
+        accountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+        journalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Journal', default: null },
+        iban: { type: String, trim: true, default: '' },
+        bic: { type: String, trim: true, default: '' },
+        label: { type: String, trim: true, default: '' },
+      }],
+      /** Bank reconciliation auto-match rules */
+      reconciliationModels: [{
+        name: { type: String, trim: true, default: '' },
+        nameAr: { type: String, trim: true, default: '' },
+        active: { type: Boolean, default: true },
+        priority: { type: Number, default: 10 },
+        labelContains: { type: String, trim: true, default: '' },
+        referenceContains: { type: String, trim: true, default: '' },
+        feePercent: { type: Number, default: 0 },
+        feeAccountPrefix: { type: String, trim: true, default: '' },
+        autoMatchExactAmount: { type: Boolean, default: false },
+        autoMatchInvoiceRef: { type: Boolean, default: false },
+      }],
+      /** UI/report grouping of journal books */
+      journalGroups: [{
+        code: { type: String, trim: true },
+        name: { type: String, trim: true, default: '' },
+        nameAr: { type: String, trim: true, default: '' },
+        journalCodes: [{ type: String, trim: true }],
+        sequence: { type: Number, default: 0 },
+      }],
+      /** Payment gateway → bank journal mapping */
+      paymentProviders: [{
+        provider: { type: String, trim: true, default: '' },
+        name: { type: String, trim: true, default: '' },
+        nameAr: { type: String, trim: true, default: '' },
+        journalCode: { type: String, trim: true, default: '' },
+        active: { type: Boolean, default: true },
+        webhookSecret: { type: String, trim: true, default: '' },
+      }],
     },
     hiddenUoms: [{ type: String }],
     couriers: {

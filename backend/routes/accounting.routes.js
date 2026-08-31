@@ -49,6 +49,15 @@ import {
   buildInvoiceAnalysis,
   getFollowUpLevels,
   setFollowUpLevels,
+  resolveFollowUpLevel,
+  getReconciliationModels,
+  setReconciliationModels,
+  getJournalGroups,
+  setJournalGroups,
+  getAccountingPaymentProviders,
+  setAccountingPaymentProviders,
+  getBankAccountsCatalog,
+  createBankAccountSetup,
   getCurrenciesCatalog,
   setCurrenciesCatalog,
   getAssetModels,
@@ -399,6 +408,70 @@ router.get('/follow-up-levels', checkPermission('finance', 'read'), async (req, 
 router.put('/follow-up-levels', checkPermission('finance', 'approve'), async (req, res) => {
   try {
     res.json(await setFollowUpLevels(tenantIdOf(req), req.body?.levels || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/reconciliation-models', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getReconciliationModels(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/reconciliation-models', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setReconciliationModels(tenantIdOf(req), req.body?.models || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/journal-groups', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getJournalGroups(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/journal-groups', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setJournalGroups(tenantIdOf(req), req.body?.groups || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/payment-providers', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getAccountingPaymentProviders(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/payment-providers', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setAccountingPaymentProviders(tenantIdOf(req), req.body?.providers || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/bank-accounts', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getBankAccountsCatalog(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/bank-accounts/setup', checkPermission('finance', 'create'), async (req, res) => {
+  try {
+    res.status(201).json(await createBankAccountSetup(tenantIdOf(req), req.user._id, req.body || {}));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -1319,6 +1392,7 @@ router.post('/follow-up/remind', checkPermission('finance', 'update'), async (re
     const Customer = (await import('../models/Customer.js')).default;
     const Tenant = (await import('../models/Tenant.js')).default;
     const tenant = req.tenant || await Tenant.findById(tenantId);
+    const { levels } = await getFollowUpLevels(tenantId);
     const invoices = await Invoice.find({
       _id: { $in: ids.slice(0, 50) },
       tenantId,
@@ -1343,8 +1417,16 @@ router.post('/follow-up/remind', checkPermission('finance', 'update'), async (re
       const amountLabel = `${residual.toFixed(2)} ${invoice.currency || 'SAR'}`;
       const customerName = customer?.name || customer?.nameAr || invoice?.buyer?.name || 'Customer';
       const link = `${baseUrl}/app/dashboard/accounting/invoices/${invoice._id}`;
-      const textEn = `Dear ${customerName}, friendly reminder: invoice ${invoice.invoiceNumber} has an outstanding balance of ${amountLabel}. View: ${link}`;
-      const textAr = `عزيزي ${customerName}، تذكير ودي: الفاتورة ${invoice.invoiceNumber} عليها رصيد متبقي ${amountLabel}. العرض: ${link}`;
+      const baseDate = new Date(invoice.dueDate || invoice.issueDate || Date.now());
+      const ageDays = Math.max(0, Math.floor((Date.now() - baseDate.getTime()) / 86400000));
+      const level = resolveFollowUpLevel(ageDays, levels);
+      const levelName = language === 'ar' ? (level?.nameAr || level?.name) : (level?.name || 'Reminder');
+      const textEn = level && Number(level.daysOverdue) >= 30
+        ? `Dear ${customerName}, ${levelName}: invoice ${invoice.invoiceNumber} remains overdue (${ageDays} days) — ${amountLabel}. View: ${link}`
+        : `Dear ${customerName}, ${levelName || 'friendly reminder'}: invoice ${invoice.invoiceNumber} has an outstanding balance of ${amountLabel}. View: ${link}`;
+      const textAr = level && Number(level.daysOverdue) >= 30
+        ? `عزيزي ${customerName}، ${level?.nameAr || levelName}: الفاتورة ${invoice.invoiceNumber} متأخرة (${ageDays} يوم) — ${amountLabel}. العرض: ${link}`
+        : `عزيزي ${customerName}، ${level?.nameAr || 'تذكير ودي'}: الفاتورة ${invoice.invoiceNumber} عليها رصيد متبقي ${amountLabel}. العرض: ${link}`;
       const messageText = language === 'ar' ? textAr : textEn;
       const waLink = cleanPhone
         ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`
@@ -1355,6 +1437,9 @@ router.post('/follow-up/remind', checkPermission('finance', 'update'), async (re
         partnerName: customerName,
         phone: cleanPhone || null,
         residual: Math.round(residual * 100) / 100,
+        ageDays,
+        followUpLevel: level?.level || null,
+        followUpChannel: level?.channel || 'whatsapp',
         waLink,
         messageText,
       };

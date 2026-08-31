@@ -52,6 +52,9 @@ import {
   TaxUnitsPanel,
   AnalyticDistributionModelsPanel,
   AutomaticTransfersPanel,
+  PaymentProvidersPanel,
+  ReconciliationModelsPanel,
+  JournalGroupsPanel,
   SimpleStatusPanel,
   GeneralVoucherPanel,
   JournalBooksPanel,
@@ -1023,22 +1026,13 @@ export default function Accounting() {
 
           {tab === 'journal-groups' && (
             <motion.div key="journal-groups" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              <JournalBooksPanel language={language} />
+              <JournalGroupsPanel language={language} />
             </motion.div>
           )}
 
           {tab === 'reconciliation-models' && (
             <motion.div key="reconciliation-models" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              <SimpleStatusPanel
-                language={language}
-                titleEn="Reconciliation models"
-                titleAr="نماذج التسوية"
-                bodyEn="Bank reconciliation matching rules live in Bank reconciliation. Configure outstanding payments/receipts under Default accounts."
-                bodyAr="قواعد مطابقة التسوية البنكية موجودة في التسوية البنكية. اضبط المقبوضات/المدفوعات المعلقة من الحسابات الافتراضية."
-                href="/app/dashboard/accounting/bank-recon"
-                ctaEn="Open bank reconciliation"
-                ctaAr="فتح التسوية البنكية"
-              />
+              <ReconciliationModelsPanel language={language} />
             </motion.div>
           )}
 
@@ -1059,16 +1053,7 @@ export default function Accounting() {
 
           {tab === 'payment-providers' && (
             <motion.div key="payment-providers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              <SimpleStatusPanel
-                language={language}
-                titleEn="Payment providers"
-                titleAr="بوابات الدفع"
-                bodyEn="Customer/vendor payments are recorded in Accounting documents and vouchers. Card/gateway checkout is configured from Settings / App Store integrations when enabled for your tenant."
-                bodyAr="تُسجَّل مدفوعات العملاء والموردين من مستندات المحاسبة والسندات. بوابات البطاقات تُضبط من الإعدادات / متجر التطبيقات عند تفعيلها للمستأجر."
-                href="/app/dashboard/accounting/customer-payments"
-                ctaEn="Customer payments"
-                ctaAr="مدفوعات العملاء"
-              />
+              <PaymentProvidersPanel language={language} />
             </motion.div>
           )}
 
