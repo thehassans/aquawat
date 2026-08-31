@@ -22,7 +22,6 @@ import CreatableSelect from 'react-select/creatable'
 import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { INVOICE_PAYMENT_TERMS, computeDueDateFromPaymentTerms, isImmediatePaymentTerm, formPaymentStatusFromInvoice, applyFormPaymentToPayload } from '../../lib/invoicePaymentTerms'
 import { normalizeProductType, productPickerLabel, productDisplayName, resolveProductPurchasePrice, hasArabicScript } from '../../lib/productType'
-import ProductTypeToggle from '../ui/ProductTypeToggle'
 import VariantLineSelect from '../inventory/VariantLineSelect'
 import RichTextNoteField from './RichTextNoteField'
 import PurchaseReceivingLedger from '../../pages/purchases/PurchaseReceivingLedger'
@@ -116,8 +115,8 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
     businessContext: invoice?.businessContext || defaultBusinessContext,
     invoiceSubtype: invoice?.invoiceSubtype || (hasTravel ? 'travel_ticket' : 'standard'),
     pdfTemplateId: invoice?.pdfTemplateId || getInvoiceTemplateId(tenant, invoice?.businessContext || defaultBusinessContext),
-    transactionType: invoice?.transactionType || 'B2B',
-    invoiceTypeCode: invoice?.invoiceTypeCode || (invoice?.transactionType === 'B2C' ? '0200000' : '0100000'),
+    transactionType: 'B2B',
+    invoiceTypeCode: '0100000',
     warehouseId: invoice?.warehouseId?._id || invoice?.warehouseId || '',
     supplierId: invoice?.supplierId?._id || invoice?.supplierId || '',
     sourcePurchaseOrderId: invoice?.sourcePurchaseOrderId?._id || invoice?.sourcePurchaseOrderId || '',
@@ -398,7 +397,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   useEffect(() => {
     if (!isEdit || !initialInvoice?._id) return
     skipBusinessContextResetRef.current = true
-    setTransactionType(initialInvoice?.transactionType === 'B2C' ? 'B2C' : 'B2B')
+    setTransactionType('B2B')
     setShowAuthorizedPerson(
       Boolean(
         initialInvoice?.authorizedPersonName ||
@@ -503,8 +502,8 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
             businessContext: data.businessContext || 'trading',
             invoiceSubtype: data.invoiceSubtype || 'standard',
             pdfTemplateId: Number(data.pdfTemplateId) || 1,
-            transactionType: data.transactionType || 'B2B',
-            invoiceTypeCode: data.transactionType === 'B2C' ? '0200000' : '0100000',
+            transactionType: 'B2B',
+            invoiceTypeCode: '0100000',
             issueDate: new Date(),
             status: 'draft',
             lineItems: (data.lineItems || []).map((line, index) => ({
@@ -543,6 +542,10 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           `${data.error}: ${first.message || first.type}${data.exceptions.length > 1 ? ` (+${data.exceptions.length - 1})` : ''}`,
           { duration: 8000 },
         )
+        return
+      }
+      if (data?.code === 'DUPLICATE_BILL_REFERENCE' || data?.code === 'BILL_REFERENCE_REQUIRED') {
+        toast.error(data.error || (language === 'ar' ? 'مرجع الفاتورة مكرر أو ناقص' : 'Bill reference missing or duplicate'))
         return
       }
       toast.error(data?.error || (isEdit ? 'Failed to update purchase invoice' : 'Failed to create purchase invoice'))
@@ -727,7 +730,11 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         productNameAr: product?.nameAr || '',
         productType: normalizeProductType(li?.productType || product?.productType),
         unitCode: li?.uom || product?.unitOfMeasure || 'PCE',
-        quantity: Math.max(0.0001, toNumber(li?.quantityOrdered ?? li?.quantity, 1) - toNumber(li?.quantityReturned, 0)),
+        quantity: (() => {
+          const received = toNumber(li?.quantityReceived, 0)
+          if (received > 0) return Math.max(0.0001, received)
+          return Math.max(0.0001, toNumber(li?.quantityOrdered ?? li?.quantity, 1) - toNumber(li?.quantityReturned, 0))
+        })(),
         unitPrice: Math.max(0, toNumber(li?.unitCost ?? li?.unitPrice, 0)),
         taxRate: Math.max(0, toNumber(li?.taxRate, 15)),
         sourcePoItemId: li?._id || '',
@@ -851,8 +858,8 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       businessContext,
       invoiceSubtype,
       pdfTemplateId: selectedTemplateId,
-      transactionType,
-      invoiceTypeCode: transactionType === 'B2C' ? '0200000' : '0100000',
+      transactionType: 'B2B',
+      invoiceTypeCode: '0100000',
       invoiceType: isManualRefund || isVendorRefund(initialInvoice || {}) ? '381' : (initialInvoice?.invoiceType || '388'),
       status: 'approved',
       issueDate,
@@ -1025,10 +1032,11 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     tenant?.business?.crNumber ? `CR ${tenant.business.crNumber}` : null,
   ].filter(Boolean).join(' · ')
 
-  const setTxnType = (next) => {
-    setTransactionType(next)
-    setValue('transactionType', next, { shouldDirty: true })
-    setValue('invoiceTypeCode', next === 'B2C' ? '0200000' : '0100000', { shouldDirty: true })
+  const setTxnType = () => {
+    // Vendor bills are always B2B — B2C path is disabled.
+    setTransactionType('B2B')
+    setValue('transactionType', 'B2B', { shouldDirty: true })
+    setValue('invoiceTypeCode', '0100000', { shouldDirty: true })
   }
 
   const isRefundDoc = isManualRefund || isVendorRefund(initialInvoice || {})
@@ -1103,37 +1111,11 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           ) : null}
           <div className={`${sectionCardClass} !p-3 space-y-2`}>
             <div className="flex flex-wrap items-center gap-2">
-              <div className={segmentWrapClass}>
-                {[
-                  { id: 'a4', labelEn: 'A4', labelAr: 'A4', Icon: FileText },
-                  { id: 'thermal', labelEn: 'Thermal', labelAr: 'حراري', Icon: Receipt },
-                ].map((fmt) => {
-                  const active = (values?.printFormat || 'a4') === fmt.id
-                  const Icon = fmt.Icon
-                  return (
-                    <button
-                      key={fmt.id}
-                      type="button"
-                      disabled={isBillPosted}
-                      onClick={() => setValue('printFormat', fmt.id, { shouldDirty: true, shouldTouch: true })}
-                      className={`${segmentBtnClass(active)} inline-flex items-center gap-1.5`}
-                    >
-                      <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      {language === 'ar' ? fmt.labelAr : fmt.labelEn}
-                    </button>
-                  )
-                })}
-              </div>
-
-              <div className={segmentWrapClass}>
-                <button type="button" disabled={isBillPosted} onClick={() => setTxnType('B2B')} className={segmentBtnClass(transactionType === 'B2B')}>
-                  B2B
-                </button>
-                <button type="button" disabled={isBillPosted} onClick={() => setTxnType('B2C')} className={segmentBtnClass(transactionType === 'B2C')}>
-                  B2C
-                </button>
-              </div>
-
+              <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                {isRefundDoc
+                  ? (language === 'ar' ? 'مرتجع مورد · B2B' : 'Vendor refund · B2B')
+                  : (language === 'ar' ? 'فاتورة مورد · B2B' : 'Vendor bill · B2B')}
+              </span>
               <div className="ms-auto flex min-w-0 max-w-full items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                 {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
                   <img
@@ -1147,11 +1129,11 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 </span>
               </div>
             </div>
-            <input type="hidden" {...register('printFormat')} />
+            <input type="hidden" {...register('printFormat')} value="a4" />
             <input type="hidden" {...register('businessContext')} />
             <input type="hidden" {...register('invoiceSubtype')} />
             <input type="hidden" {...register('pdfTemplateId')} />
-            <input type="hidden" {...register('transactionType')} />
+            <input type="hidden" {...register('transactionType')} value="B2B" />
           </div>
 
           {availablePurchaseContexts.length > 1 ? (
@@ -1203,16 +1185,20 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               ) : null}
             </div>
           ) : null}
+          <div className={showOcrPanel && !isEdit ? 'grid gap-3 lg:grid-cols-[minmax(280px,0.95fr)_minmax(0,1.2fr)]' : ''}>
           {showOcrPanel && !isEdit ? (
-            <VendorBillOcrPanel
-              language={language}
-              onApply={(data, file) => {
-                setOcrAttachment(file)
-                applyOcrToForm(data)
-              }}
-              onClose={() => setShowOcrPanel(false)}
-            />
+            <div className="lg:sticky lg:top-3 lg:self-start">
+              <VendorBillOcrPanel
+                language={language}
+                onApply={(data, file) => {
+                  setOcrAttachment(file)
+                  applyOcrToForm(data)
+                }}
+                onClose={() => setShowOcrPanel(false)}
+              />
+            </div>
           ) : null}
+          <div className="min-w-0 space-y-2.5">
           {threeWayQuery.data?.ok === false && (threeWayQuery.data?.exceptions || []).length ? (
             <div className="rounded-xl border border-orange-200 bg-orange-50/80 px-3 py-2 text-xs text-orange-800 dark:border-orange-900/40 dark:bg-orange-950/30 dark:text-orange-200">
               {language === 'ar' ? 'تحذير مطابقة ثلاثية:' : '3-way match warning:'}{' '}
@@ -1229,8 +1215,18 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               <input type="date" {...register('accountingDate')} disabled={isBillPosted} className={`mt-1 ${denseControlClass} disabled:opacity-60`} title={language === 'ar' ? 'يمكن أن يختلف عن تاريخ الفاتورة' : 'May differ from bill date'} />
             </div>
             <div>
-              <label className={fieldLabelClass}>{language === 'ar' ? 'مرجع المورد' : 'Bill reference'}</label>
-              <input {...register('contractNumber')} disabled={isBillPosted} className={`mt-1 ${denseControlClass} disabled:opacity-60`} placeholder={language === 'ar' ? 'رقم فاتورة المورد' : 'Supplier invoice number'} />
+              <label className={fieldLabelClass}>
+                {language === 'ar' ? 'مرجع المورد' : 'Bill reference'}
+                <span className="ms-0.5 text-rose-500" aria-hidden>*</span>
+              </label>
+              <input
+                {...register('contractNumber', { required: true })}
+                disabled={isBillPosted}
+                required
+                aria-required="true"
+                className={`mt-1 ${denseControlClass} disabled:opacity-60`}
+                placeholder={language === 'ar' ? 'رقم فاتورة المورد' : 'Supplier invoice number'}
+              />
             </div>
           </div>
 
@@ -1239,11 +1235,6 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
                 {language === 'ar' ? 'المورد' : 'Supplier'}
               </h3>
-              {transactionType === 'B2C' ? (
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                  {language === 'ar' ? 'نقدي' : 'Cash'}
-                </span>
-              ) : null}
             </div>
 
             {isTravelContext ? (
@@ -1465,43 +1456,13 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               </>
             )}
 
-            {transactionType === 'B2C' && !selectedSupplier?._id && invoiceSubtype !== 'travel_ticket' ? (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" dir="ltr">
-                <div>
-                  <FieldLabel en="Walk-in supplier" ar="مورد نقدي" />
-                  <input
-                    className={compactFieldClass}
-                    placeholder={language === 'ar' ? 'مورد نقدي' : 'Cash supplier'}
-                    value={watch('seller.name') || ''}
-                    onChange={(e) => setValue('seller.name', e.target.value, { shouldDirty: true })}
-                  />
-                </div>
-                <div>
-                  <FieldLabel en="Phone" ar="الهاتف" />
-                  <input
-                    className={compactFieldClass}
-                    value={watch('seller.contactPhone') || ''}
-                    onChange={(e) => setValue('seller.contactPhone', e.target.value, { shouldDirty: true })}
-                  />
-                </div>
-              </div>
-            ) : null}
           </div>
 
           <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
-            <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="px-4 py-3">
               <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
                 {language === 'ar' ? 'البنود' : 'Lines'}
               </h3>
-              <button
-                type="button"
-                disabled={isBillPosted}
-                onClick={() => append(getEmptyLine(tenant))}
-                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200"
-              >
-                <Plus className="h-3.5 w-3.5" strokeWidth={2} />
-                {t('add')}
-              </button>
             </div>
 
             {fields.length === 0 ? (
@@ -1516,29 +1477,27 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                   className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 underline-offset-2 hover:underline disabled:opacity-50 dark:text-slate-200"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  {language === 'ar' ? 'إضافة بند' : 'Add line'}
+                  {language === 'ar' ? 'إضافة بند' : 'Add a line'}
                 </button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="mx-4 mb-3 w-auto overflow-x-auto rounded-lg border border-slate-200/80 dark:border-white/10">
                 <div
-                  className="hidden gap-1 border-y border-slate-100 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5 lg:grid lg:grid-cols-[repeat(14,minmax(0,1fr))]"
+                  className="hidden min-w-[1200px] gap-2 border-b border-slate-100 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5 lg:grid lg:grid-cols-[minmax(280px,2fr)_minmax(180px,1fr)_minmax(160px,0.9fr)_minmax(100px,5rem)_minmax(100px,5rem)_minmax(100px,7rem)_minmax(100px,6rem)_minmax(100px,7rem)_auto]"
                   dir="ltr"
                 >
-                  <div className="col-span-3">
-                    {language === 'ar' ? 'المنتج' : 'Product'}
-                  </div>
-                  {showArabicFields ? <div className="col-span-2">عربي</div> : null}
-                  <div className="col-span-2">{language === 'ar' ? 'الحساب' : 'Account'}</div>
-                  <div className="col-span-2">{language === 'ar' ? 'تحليلي' : 'Analytic'}</div>
-                  <div className="col-span-1">{language === 'ar' ? 'وحدة' : 'UOM'}</div>
-                  <div className="col-span-1">{t('quantity')}</div>
-                  <div className="col-span-1">{t('unitPrice')}</div>
-                  <div className="col-span-1">{t('tax')} %</div>
-                  <div className="text-end col-span-1">{t('total')}</div>
+                  <div>{language === 'ar' ? 'المنتج / الوصف' : 'Product / description'}</div>
+                  <div>{language === 'ar' ? 'الحساب' : 'Account'}</div>
+                  <div>{language === 'ar' ? 'تحليلي' : 'Analytic'}</div>
+                  <div className="text-center">{language === 'ar' ? 'وحدة' : 'UoM'}</div>
+                  <div className="text-end">{t('quantity')}</div>
+                  <div className="text-end">{t('unitPrice')}</div>
+                  <div className="text-center">{t('tax')} %</div>
+                  <div className="text-end">{t('total')}</div>
+                  <div className="text-center">{language === 'ar' ? 'إجراءات' : 'Actions'}</div>
                 </div>
 
-                <div className="divide-y divide-slate-100 dark:divide-white/5">
+                <div className="min-w-[1200px] divide-y divide-slate-100 dark:divide-white/5">
                   {fields.map((field, index) => {
                     const lineProductId = watch(`lineItems.${index}.productId`)
                     const matchWarning = lineProductId ? lineMatchWarnings[String(lineProductId)] : null
@@ -1554,147 +1513,140 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                     >
                       <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} />
                       <input type="hidden" {...register(`lineItems.${index}.productType`)} />
-                      <div className="grid grid-cols-2 items-center gap-1.5 lg:grid-cols-[repeat(14,minmax(0,1fr))]" dir="ltr">
-                        <div className={`col-span-2 ${showArabicFields ? 'lg:col-span-3' : 'lg:col-span-3'}`}>
+                      <div
+                        className="grid grid-cols-2 items-start gap-2 lg:grid-cols-[minmax(280px,2fr)_minmax(180px,1fr)_minmax(160px,0.9fr)_minmax(100px,5rem)_minmax(100px,5rem)_minmax(100px,7rem)_minmax(100px,6rem)_minmax(100px,7rem)_auto]"
+                        dir="ltr"
+                      >
+                        <div className="col-span-2 min-w-[280px] lg:col-span-1">
                           {isTradingContext ? (
-                            <div className="flex min-h-[36px] items-center gap-1 rounded-lg bg-slate-50/80 pe-0.5 ps-1 dark:bg-white/[0.03]">
-                              <ProductTypeToggle
-                                value={watch(`lineItems.${index}.productType`)}
-                                onChange={(next) => {
-                                  const opts = { shouldDirty: true, shouldTouch: true }
-                                  setValue(`lineItems.${index}.productType`, next, opts)
+                            <div className="space-y-1">
+                              <CreatableSelect
+                                inputId={`product-select-${index}`}
+                                name={`react-select-product-${index}`}
+                                options={productList.map((p) => ({
+                                  value: p._id,
+                                  label: productPickerLabel(p, language, { includeType: true }),
+                                }))}
+                                value={(() => {
                                   const pid = watch(`lineItems.${index}.productId`)
-                                  if (!pid) return
-                                  const selected = productList.find((p) => p._id === pid)
-                                  if (selected && normalizeProductType(selected.productType) !== next) {
-                                    setValue(`lineItems.${index}.productId`, '', opts)
-                                    setValue(`lineItems.${index}.variantId`, '', opts)
-                                    setValue(`lineItems.${index}.productName`, '', opts)
-                                    setValue(`lineItems.${index}.productNameAr`, '', opts)
-                                    setValue(`lineItems.${index}.unitPrice`, 0, opts)
+                                  const product = productList.find((p) => p._id === pid)
+                                  if (product) {
+                                    return {
+                                      value: product._id,
+                                      label: productDisplayName(product, language),
+                                    }
+                                  }
+                                  const typed = watch(`lineItems.${index}.productName`)
+                                  if (typed && !pid) {
+                                    return { value: typed, label: typed, __isNew__: true }
+                                  }
+                                  return null
+                                })()}
+                                onChange={(selected) => {
+                                  if (selected) {
+                                    if (selected.__isNew__) {
+                                      setValue(`lineItems.${index}.productId`, '', { shouldDirty: true })
+                                      setValue(`lineItems.${index}.productName`, selected.value, { shouldDirty: true })
+                                      setValue(`lineItems.${index}.productNameAr`, '', { shouldDirty: true })
+                                    } else {
+                                      onSelectProduct(index, selected.value)
+                                    }
+                                  } else {
+                                    setValue(`lineItems.${index}.productId`, '', { shouldDirty: true })
+                                    setValue(`lineItems.${index}.productName`, '', { shouldDirty: true })
+                                    setValue(`lineItems.${index}.productNameAr`, '', { shouldDirty: true })
+                                    setValue(`lineItems.${index}.variantId`, '', { shouldDirty: true })
+                                    setValue(`lineItems.${index}.unitPrice`, 0, { shouldDirty: true })
                                   }
                                 }}
-                                language={language}
-                                bare
+                                formatCreateLabel={(inputValue) => language === 'ar' ? `إضافة "${inputValue}"` : `Add "${inputValue}"`}
+                                placeholder={language === 'ar' ? 'منتج أو خدمة…' : 'Product or service…'}
+                                isClearable
+                                isSearchable
+                                menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                                menuPosition="fixed"
+                                menuShouldScrollIntoView={false}
+                                styles={{
+                                  ...lineSelectStyles,
+                                  container: (base) => ({ ...base, width: '100%', minWidth: 0 }),
+                                  control: (base, state) => ({
+                                    ...lineSelectStyles.control(base, state),
+                                    minHeight: 36,
+                                    minWidth: 0,
+                                  }),
+                                  menu: (base) => ({
+                                    ...lineSelectStyles.menu(base),
+                                    minWidth: 320,
+                                    maxWidth: 'min(92vw, 480px)',
+                                  }),
+                                  option: (base, state) => ({
+                                    ...base,
+                                    fontSize: '0.8125rem',
+                                    backgroundColor: state.isFocused ? '#f1f5f9' : '#fff',
+                                    color: '#0f172a',
+                                    cursor: 'pointer',
+                                  }),
+                                }}
                               />
-                              <div className="h-4 w-px shrink-0 bg-slate-200/80 dark:bg-white/10" aria-hidden />
-                              <div className="min-w-0 flex-1 overflow-hidden">
-                                <CreatableSelect
-                                  inputId={`product-select-${index}`}
-                                  name={`react-select-product-${index}`}
-                                  options={productList
-                                    .filter((p) => normalizeProductType(p.productType) === normalizeProductType(watch(`lineItems.${index}.productType`)))
-                                    .map((p) => ({
-                                      value: p._id,
-                                      label: productPickerLabel(p, language, { includeType: false }),
-                                    }))}
-                                  value={(() => {
-                                    const pid = watch(`lineItems.${index}.productId`)
-                                    const product = productList.find((p) => p._id === pid)
-                                    if (product) {
-                                      return {
-                                        value: product._id,
-                                        label: productDisplayName(product, language),
-                                      }
-                                    }
-                                    const typed = watch(`lineItems.${index}.productName`)
-                                    if (typed && !pid) {
-                                      return { value: typed, label: typed, __isNew__: true }
-                                    }
-                                    return null
-                                  })()}
-                                  onChange={(selected) => {
-                                    if (selected) {
-                                      if (selected.__isNew__) {
-                                        setValue(`lineItems.${index}.productId`, '', { shouldDirty: true })
-                                        setValue(`lineItems.${index}.productName`, selected.value, { shouldDirty: true })
-                                        setValue(`lineItems.${index}.productNameAr`, '', { shouldDirty: true })
-                                      } else {
-                                        onSelectProduct(index, selected.value)
-                                      }
-                                    } else {
-                                      setValue(`lineItems.${index}.productId`, '', { shouldDirty: true })
-                                      setValue(`lineItems.${index}.productName`, '', { shouldDirty: true })
-                                      setValue(`lineItems.${index}.productNameAr`, '', { shouldDirty: true })
-                                      setValue(`lineItems.${index}.variantId`, '', { shouldDirty: true })
-                                      setValue(`lineItems.${index}.unitPrice`, 0, { shouldDirty: true })
-                                    }
-                                  }}
-                                  formatCreateLabel={(inputValue) => language === 'ar' ? `إضافة "${inputValue}"` : `Add "${inputValue}"`}
-                                  placeholder={
-                                    normalizeProductType(watch(`lineItems.${index}.productType`)) === 'service'
-                                      ? (language === 'ar' ? 'خدمة…' : 'Service…')
-                                      : (language === 'ar' ? 'منتج…' : 'Product…')
-                                  }
-                                  isClearable
-                                  isSearchable
-                                  menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
-                                  menuPosition="fixed"
-                                  menuShouldScrollIntoView={false}
-                                  styles={{
-                                    ...lineSelectStyles,
-                                    container: (base) => ({ ...base, width: '100%', minWidth: 0 }),
-                                    control: (base, state) => ({
-                                      ...lineSelectStyles.control(base, state),
-                                      minHeight: 32,
-                                      minWidth: 0,
-                                    }),
-                                    menu: (base) => ({
-                                      ...lineSelectStyles.menu(base),
-                                      minWidth: 320,
-                                      maxWidth: 'min(92vw, 480px)',
-                                    }),
-                                    option: (base, state) => ({
-                                      ...base,
-                                      fontSize: '0.8125rem',
-                                      backgroundColor: state.isFocused ? '#f1f5f9' : '#fff',
-                                      color: '#0f172a',
-                                      cursor: 'pointer',
-                                    }),
-                                  }}
-                                />
-                              </div>
                               <input type="hidden" {...register(`lineItems.${index}.productName`)} />
                               <input type="hidden" {...register(`lineItems.${index}.productId`)} />
                               <input type="hidden" {...register(`lineItems.${index}.variantId`)} />
+                              {(() => {
+                                const pid = watch(`lineItems.${index}.productId`)
+                                const product = productList.find((p) => p._id === pid)
+                                const sku = product?.sku || product?.productId || ''
+                                const nameAr = watch(`lineItems.${index}.productNameAr`) || product?.nameAr || ''
+                                if (!sku && !nameAr) return null
+                                return (
+                                  <div className="px-0.5">
+                                    {sku ? <p className="text-[11px] font-medium text-slate-500">[{sku}]</p> : null}
+                                    {nameAr ? <p className="text-xs text-slate-400" dir="auto">{nameAr}</p> : null}
+                                  </div>
+                                )
+                              })()}
+                              {showArabicFields ? (
+                                <input
+                                  {...register(`lineItems.${index}.productNameAr`)}
+                                  className={`${lineGhostInputClass} text-xs`}
+                                  dir="auto"
+                                  placeholder="الاسم بالعربي"
+                                  aria-label="Arabic name"
+                                />
+                              ) : (
+                                <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
+                              )}
+                              {watch(`lineItems.${index}.productId`) ? (
+                                <VariantLineSelect
+                                  productId={watch(`lineItems.${index}.productId`)}
+                                  value={watch(`lineItems.${index}.variantId`) || ''}
+                                  language={language}
+                                  onChange={(variantId) => setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })}
+                                />
+                              ) : null}
                             </div>
                           ) : (
-                            <div className="flex min-h-[36px] items-center gap-1 rounded-lg bg-slate-50/80 pe-0.5 ps-1 dark:bg-white/[0.03]">
-                              <ProductTypeToggle
-                                value={watch(`lineItems.${index}.productType`)}
-                                onChange={(next) => setValue(`lineItems.${index}.productType`, next, { shouldDirty: true, shouldTouch: true })}
-                                language={language}
-                                bare
+                            <div className="space-y-1">
+                              <input
+                                id={`product-select-${index}`}
+                                {...register(`lineItems.${index}.productName`, { required: true })}
+                                className={lineGhostInputClass}
+                                placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'}
                               />
-                              <div className="h-4 w-px shrink-0 bg-slate-200/80 dark:bg-white/10" aria-hidden />
-                              <input id={`product-select-${index}`} {...register(`lineItems.${index}.productName`, { required: true })} className={`${lineGhostInputClass} flex-1`} placeholder={language === 'ar' ? 'اسم الخدمة' : 'Service name'} />
+                              {showArabicFields ? (
+                                <input
+                                  {...register(`lineItems.${index}.productNameAr`)}
+                                  className={`${lineGhostInputClass} text-xs`}
+                                  dir="auto"
+                                  placeholder="اسم البند"
+                                  aria-label="Arabic name"
+                                />
+                              ) : (
+                                <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
+                              )}
                             </div>
                           )}
-                          {isTradingContext && watch(`lineItems.${index}.productId`) ? (
-                            <div className="mt-1 ps-1">
-                              <VariantLineSelect
-                                productId={watch(`lineItems.${index}.productId`)}
-                                value={watch(`lineItems.${index}.variantId`) || ''}
-                                language={language}
-                                onChange={(variantId) => setValue(`lineItems.${index}.variantId`, variantId || '', { shouldDirty: true })}
-                              />
-                            </div>
-                          ) : null}
                         </div>
-                        {showArabicFields ? (
-                          <div className="col-span-2 lg:col-span-2">
-                            <input
-                              {...register(`lineItems.${index}.productNameAr`)}
-                              className={lineGhostInputClass}
-                              dir="auto"
-                              placeholder="اسم البند"
-                              aria-label="Arabic name"
-                            />
-                          </div>
-                        ) : (
-                          <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
-                        )}
-                        <div className="col-span-2 lg:col-span-2">
+                        <div className="col-span-2 min-w-[180px] lg:col-auto">
                           <select
                             {...register(`lineItems.${index}.expenseAccountId`)}
                             disabled={isBillPosted}
@@ -1708,7 +1660,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                             ))}
                           </select>
                         </div>
-                        <div className="col-span-2 lg:col-span-2">
+                        <div className="col-span-2 min-w-[160px] lg:col-auto">
                           <select
                             {...register(`lineItems.${index}.analyticAccountId`)}
                             disabled={isBillPosted}
@@ -1722,7 +1674,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                             ))}
                           </select>
                         </div>
-                        <div className="col-span-1 lg:col-span-1">
+                        <div className="col-span-1 min-w-[4.5rem] lg:col-span-1">
                           <Select
                             className="react-select-container"
                             classNamePrefix="react-select"
@@ -1754,13 +1706,13 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                           <input
                             id={`qty-${index}`}
                             type="number"
-                            min="0.0001"
+                            min="0"
                             step="any"
-                            {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })}
-                            className={`${lineGhostInputClass} tabular-nums ${matchWarning?.qty || matchWarning?.type === 'qty_mismatch' ? 'ring-1 ring-orange-400' : ''}`}
+                            {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0 })}
+                            className={`${lineGhostInputClass} tabular-nums ${matchWarning?.qty || matchWarning?.type === 'qty_mismatch' ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-400 dark:bg-rose-950/30' : ''}`}
                           />
                           {(matchWarning?.qty || matchWarning?.type === 'qty_mismatch') ? (
-                            <p className="mt-0.5 text-[9px] font-medium text-orange-700 dark:text-orange-300">
+                            <p className="mt-0.5 text-[9px] font-medium text-rose-700 dark:text-rose-300">
                               {language === 'ar'
                                 ? `مستلم ${(matchWarning.qty || matchWarning).received ?? '—'} · قابل للفوترة ${(matchWarning.qty || matchWarning).remainingBillable ?? '—'}`
                                 : `Recv ${(matchWarning.qty || matchWarning).received ?? '—'} · billable ${(matchWarning.qty || matchWarning).remainingBillable ?? '—'}`}
@@ -1805,10 +1757,12 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                             )
                           })()}
                         </div>
-                        <div className="col-span-2 flex items-center justify-end gap-1 lg:col-span-1">
+                        <div className="col-span-1 flex items-center justify-end lg:col-span-1">
                           <p className="text-[13px] font-semibold tabular-nums text-slate-900 dark:text-white">
                             <Money value={getLineTotal(index)} />
                           </p>
+                        </div>
+                        <div className="col-span-1 flex items-center justify-center lg:col-span-1">
                           {fields.length > 1 ? (
                             <button
                               type="button"
@@ -1828,8 +1782,51 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 </div>
               </div>
             )}
+
+            {fields.length > 0 && !isBillPosted ? (
+              <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 px-4 py-3 dark:border-white/5">
+                <button
+                  type="button"
+                  onClick={() => append(getEmptyLine(tenant))}
+                  className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-700 underline-offset-2 hover:underline dark:text-slate-200"
+                >
+                  <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+                  {language === 'ar' ? 'إضافة بند' : 'Add a line'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => append({
+                    ...getEmptyLine(tenant),
+                    productName: language === 'ar' ? 'قسم' : 'Section',
+                    productNameAr: language === 'ar' ? 'قسم' : '',
+                    quantity: 0,
+                    unitPrice: 0,
+                    taxRate: 0,
+                  })}
+                  className="text-[12px] font-medium text-slate-500 underline-offset-2 hover:text-slate-700 hover:underline dark:hover:text-slate-300"
+                >
+                  {language === 'ar' ? 'إضافة قسم' : 'Add a section'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => append({
+                    ...getEmptyLine(tenant),
+                    productName: language === 'ar' ? 'ملاحظة' : 'Note',
+                    productNameAr: language === 'ar' ? 'ملاحظة' : '',
+                    quantity: 0,
+                    unitPrice: 0,
+                    taxRate: 0,
+                  })}
+                  className="text-[12px] font-medium text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline dark:hover:text-slate-300"
+                >
+                  {language === 'ar' ? 'إضافة ملاحظة' : 'Add a note'}
+                </button>
+              </div>
+            ) : null}
           </div>
 
+          </div>
+          </div>
           </>
           )}
 

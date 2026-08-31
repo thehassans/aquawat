@@ -226,6 +226,13 @@ const PANEL_EXPORT_TABS = new Set([
   'partner-ledger',
   'assets',
   'depreciation-schedule',
+  'vendor-bills',
+  'vendor-refunds',
+  'vendor-payments',
+  'credit-notes',
+  'customer-payments',
+  'customers',
+  'products',
 ])
 
 const fontPage = { fontFamily: "'Plus Jakarta Sans', 'DM Sans', 'Tajawal', sans-serif" }
@@ -514,6 +521,38 @@ export default function Accounting() {
             >
               <Plus className="h-3.5 w-3.5" />
               {isAr ? 'إشعار دائن جديد' : 'New credit note'}
+            </button>
+          ) : null}
+          {tab === 'vendor-bills' ? (
+            <button
+              type="button"
+              onClick={() => navigate('/app/dashboard/accounting/invoices/new/purchase')}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-700"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {isAr ? 'فاتورة مورد جديدة' : 'New vendor bill'}
+            </button>
+          ) : null}
+          {tab === 'vendor-refunds' ? (
+            <button
+              type="button"
+              onClick={() => navigate('/app/dashboard/accounting/invoices/new/purchase?refund=1')}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-700"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {isAr ? 'مرتجع مورد جديد' : 'New vendor refund'}
+            </button>
+          ) : null}
+          {tab === 'aged-ap' ? (
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById('aged-ap-batch-actions')
+                el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800"
+            >
+              {isAr ? 'دفعات مجمّعة' : 'Batch payment'}
             </button>
           ) : null}
           {tab === 'follow-up-reports' ? (
