@@ -40,6 +40,9 @@ import { printThermalElement, getThermalPrinterSettings } from '../../lib/therma
 import { getZatcaStatusMeta, isEditableInvoice } from '../../lib/zatcaStatus'
 import { getTravelInvoiceLabelMeta, isTravelAgencyInvoice } from '../../lib/travelInvoiceStatus'
 import { isSaudiTenant } from '../../lib/saudiTenant'
+import AccountingDocumentBatchBar from '../accounting/documents/AccountingDocumentBatchBar'
+import RegisterPaymentModal from '../../components/accounting/RegisterPaymentModal'
+import { canRegisterPaymentOnInvoice } from '../../lib/accountingDocumentStatus'
 import {
   chipFilterClass,
   docLinkClass,
@@ -153,6 +156,9 @@ export default function Invoices() {
   const [waLoadingId, setWaLoadingId] = useState(null)
   const [waMessageLang, setWaMessageLang] = useState('en')
   const [waMessage, setWaMessage] = useState('')
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [batchPayInvoice, setBatchPayInvoice] = useState(null)
+  const [batchPayOpen, setBatchPayOpen] = useState(false)
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const hasTravel = tenantBusinessTypes.includes('travel_agency')
   const isSarTenant = isSaudiTenant(tenant) || String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
@@ -188,6 +194,78 @@ export default function Invoices() {
   useEffect(() => {
     if (data?.pagination?.total != null) setKnownTotal(data.pagination.total)
   }, [data])
+
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [cursor, debouncedSearch, filters, zatcaFilter])
+
+  const selectedInvoices = useMemo(
+    () => (data?.invoices || []).filter((inv) => selectedIds.has(String(inv._id))),
+    [data?.invoices, selectedIds],
+  )
+
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      const key = String(id)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    const rows = data?.invoices || []
+    setSelectedIds((prev) => {
+      if (prev.size === rows.length && rows.length > 0) return new Set()
+      return new Set(rows.map((row) => String(row._id)))
+    })
+  }
+
+  const batchPayMutation = useMutation({
+    mutationFn: ({ invoiceId, payload }) => api.post(`/invoices/${invoiceId}/payments`, payload),
+    onSuccess: () => {
+      toast.success(language === 'ar' ? 'تم تسجيل الدفعة' : 'Payment recorded')
+      setBatchPayOpen(false)
+      setBatchPayInvoice(null)
+      setSelectedIds(new Set())
+      queryClient.invalidateQueries(['invoices'])
+      queryClient.invalidateQueries(['customers'])
+    },
+    onError: (err) => {
+      toast.error(err?.response?.data?.error || (language === 'ar' ? 'فشل تسجيل الدفعة' : 'Failed to record payment'))
+    },
+  })
+
+  const handleBatchRegisterPayment = () => {
+    const payable = selectedInvoices.filter((inv) => canRegisterPaymentOnInvoice(inv))
+    if (!payable.length) {
+      toast.error(language === 'ar' ? 'لا توجد فواتير قابلة للدفع في التحديد' : 'No payable invoices in selection')
+      return
+    }
+    if (payable.length > 1) {
+      toast.error(language === 'ar' ? 'اختر فاتورة واحدة لتسجيل الدفعة' : 'Select one invoice to register payment')
+      return
+    }
+    setBatchPayInvoice(payable[0])
+    setBatchPayOpen(true)
+  }
+
+  const handleBatchSendPrint = async () => {
+    if (!selectedInvoices.length) return
+    for (const invoice of selectedInvoices) {
+      try {
+        if (isPosInvoice(invoice)) {
+          setPrintModalInvoice(invoice)
+          continue
+        }
+        const full = await api.get(`/invoices/${invoice._id}`).then((res) => res.data)
+        await downloadInvoicePdf({ invoice: full, language, tenant })
+      } catch {
+        toast.error(language === 'ar' ? `فشل PDF: ${invoice.invoiceNumber}` : `PDF failed: ${invoice.invoiceNumber}`)
+      }
+    }
+  }
 
   const deleteMutation = useMutation({
     mutationFn: (invoiceId) => api.delete(`/invoices/${invoiceId}`).then((res) => res.data),
@@ -801,6 +879,14 @@ export default function Invoices() {
         )}
       </div>
 
+      <AccountingDocumentBatchBar
+        count={selectedIds.size}
+        language={language}
+        onRegisterPayment={handleBatchRegisterPayment}
+        onSendPrint={handleBatchSendPrint}
+        registerDisabled={!selectedInvoices.some((inv) => canRegisterPaymentOnInvoice(inv))}
+      />
+
       {/* Table */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -852,6 +938,14 @@ export default function Invoices() {
               <table className={salesTableClass}>
                 <thead>
                   <tr>
+                    <th className={`${salesThClass} w-10`}>
+                      <input
+                        type="checkbox"
+                        aria-label={language === 'ar' ? 'تحديد الكل' : 'Select all'}
+                        checked={(data?.invoices?.length || 0) > 0 && selectedIds.size === (data?.invoices?.length || 0)}
+                        onChange={toggleSelectAll}
+                      />
+                    </th>
                     <th className={salesThClass}>{t('invoiceNumber')}</th>
                     <th className={salesThClass}>{language === 'ar' ? 'العميل / المورد' : 'Customer / Supplier'}</th>
                     <th className={salesThClass}>{language === 'ar' ? 'النوع' : 'Type'}</th>
@@ -867,6 +961,14 @@ export default function Invoices() {
                 <tbody>
                   {data?.invoices?.map((invoice) => (
                     <tr key={invoice._id} className={salesTrClass}>
+                      <td className={salesTdClass}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(String(invoice._id))}
+                          onChange={() => toggleSelect(invoice._id)}
+                          aria-label={invoice.invoiceNumber}
+                        />
+                      </td>
                       <td className={salesTdClass}>
                         <button
                           type="button"
@@ -1112,6 +1214,27 @@ export default function Invoices() {
           </div>
         </div>
       )}
+
+      <RegisterPaymentModal
+        isOpen={batchPayOpen}
+        onClose={() => { setBatchPayOpen(false); setBatchPayInvoice(null) }}
+        invoice={batchPayInvoice}
+        language={language}
+        isPending={batchPayMutation.isPending}
+        onSubmit={(payload) => {
+          if (!batchPayInvoice?._id) return
+          batchPayMutation.mutate({
+            invoiceId: batchPayInvoice._id,
+            payload: {
+              amount: payload.amount,
+              method: payload.method,
+              memo: payload.memo,
+              differenceMode: payload.differenceMode,
+              differenceAccountId: payload.differenceAccountId,
+            },
+          })
+        }}
+      />
     </div>
   )
 }
