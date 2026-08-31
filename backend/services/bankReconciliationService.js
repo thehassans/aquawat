@@ -591,3 +591,64 @@ export async function suggestBankMatches(tenantId, statementLineId, { limit = 12
     best: scored[0] || null,
   };
 }
+
+/**
+ * Bulk auto-match unmatched statement lines using suggestBankMatches scoring.
+ * Applies the top suggestion when score meets minScore (default: exact amount match).
+ */
+export async function autoMatchBankStatementLines(tenantId, userId, {
+  statementId = null,
+  accountId = null,
+  minScore = 100,
+  limit = 50,
+} = {}) {
+  const lines = await listUnmatchedStatementLines(tenantId, { statementId, accountId });
+  const toProcess = lines.slice(0, Math.min(500, Math.max(1, Number(limit) || 50)));
+  const results = [];
+  let matched = 0;
+  let skipped = 0;
+
+  for (const line of toProcess) {
+    const { best } = await suggestBankMatches(tenantId, line._id, { limit: 5 });
+    if (!best || best.score < Number(minScore)) {
+      skipped += 1;
+      results.push({
+        statementLineId: line._id,
+        skipped: true,
+        bestScore: best?.score || 0,
+      });
+      continue;
+    }
+
+    const payload = { statementLineId: line._id };
+    if (best.bucket === 'journal') payload.journalItemIds = [best.id];
+    else if (best.bucket === 'outstanding_payment') payload.outstandingJournalItemIds = [best.id];
+    else if (best.bucket === 'outstanding_receipt') payload.outstandingReceiptJournalItemIds = [best.id];
+
+    try {
+      const result = await matchBankReconciliation(tenantId, userId, payload);
+      matched += 1;
+      results.push({
+        statementLineId: line._id,
+        matched: true,
+        score: best.score,
+        bucket: best.bucket,
+        reconcileId: result.reconcileId,
+      });
+    } catch (error) {
+      skipped += 1;
+      results.push({
+        statementLineId: line._id,
+        error: error.message,
+        score: best.score,
+      });
+    }
+  }
+
+  return {
+    matched,
+    skipped,
+    processed: toProcess.length,
+    results,
+  };
+}

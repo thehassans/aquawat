@@ -3641,7 +3641,11 @@ export async function setAccountingPaymentProviders(tenantId, providers) {
 /**
  * Public webhook: record gateway capture against a sales invoice and post receipt journal.
  */
-export async function handleAccountingPaymentProviderWebhook(providerSlug, body = {}, { webhookSecret = '' } = {}) {
+export async function handleAccountingPaymentProviderWebhook(providerSlug, body = {}, {
+  webhookSecret = '',
+  headers = {},
+  rawBody = null,
+} = {}) {
   const slug = String(providerSlug || '').trim().toLowerCase();
   if (!slug) throw Object.assign(new Error('Provider slug required'), { statusCode: 400 });
 
@@ -3657,8 +3661,17 @@ export async function handleAccountingPaymentProviderWebhook(providerSlug, body 
   const cfg = providers.find((row) => String(row.provider || '').toLowerCase() === slug && row.active !== false);
   if (!cfg) throw Object.assign(new Error('Provider not found'), { statusCode: 404 });
 
-  if (cfg.webhookSecret && cfg.webhookSecret !== String(webhookSecret || '')) {
-    throw Object.assign(new Error('Invalid webhook secret'), { statusCode: 401 });
+  if (cfg.webhookSecret) {
+    const { verifyPaymentWebhookSignature } = await import('../utils/paymentWebhookAuth.js');
+    const auth = verifyPaymentWebhookSignature(slug, {
+      body,
+      headers,
+      secret: cfg.webhookSecret,
+      rawBody,
+    });
+    if (!auth.ok) {
+      throw Object.assign(new Error(auth.error || 'Invalid webhook signature'), { statusCode: 401 });
+    }
   }
 
   const status = String(body.status || body.event || 'captured').toLowerCase();
@@ -4281,6 +4294,83 @@ export async function disconnectBankSync(tenantId, provider) {
     $set: { 'settings.accounting.bankSyncConnections': connections },
   });
   return { connections };
+}
+
+/**
+ * Pull sandbox statement lines from connected feed into bank reconciliation.
+ * Mirrors unmatched GL items when available so auto-match can reconcile them.
+ */
+export async function syncBankFeed(tenantId, userId, {
+  provider = 'sandbox',
+  bankAccountId = null,
+} = {}) {
+  const id = String(provider || '').trim().toLowerCase();
+  const meta = BANK_SYNC_PROVIDERS.find((p) => p.id === id);
+  if (!meta) throw new Error('Unknown bank sync provider');
+  if (meta.status === 'coming_soon') throw new Error(`${meta.name} is not available yet`);
+
+  const { connections } = await getBankSyncStatus(tenantId);
+  const conn = connections.find((row) => row.provider === id && row.status === 'connected');
+  if (!conn) throw new Error('Provider not connected — connect in Online sync first');
+
+  let accountId = bankAccountId || conn.bankAccountId;
+  if (!accountId) {
+    const catalog = await getBankAccountsCatalog(tenantId);
+    accountId = catalog.rows?.[0]?.accountId || null;
+  }
+  if (!accountId) throw new Error('Select a bank account before syncing');
+
+  const { listUnmatchedJournalItems, createBankStatement } = await import('./bankReconciliationService.js');
+  const items = await listUnmatchedJournalItems(tenantId, accountId, { limit: 25 });
+  const syncLines = items.slice(0, 12).map((item) => ({
+    date: item.entryDate || new Date(),
+    label: item.description || item.entryNumber || 'Bank sync',
+    reference: item.entryNumber || item.reference || '',
+    amount: round2((Number(item.debit) || 0) - (Number(item.credit) || 0)),
+  })).filter((line) => Math.abs(line.amount) > 0.009);
+
+  if (!syncLines.length) {
+    const today = new Date();
+    syncLines.push(
+      { date: today, label: 'Sandbox deposit', reference: 'SB-DEP-001', amount: 1500 },
+      { date: today, label: 'Sandbox fee', reference: 'SB-FEE-001', amount: -25 },
+    );
+  }
+
+  const statement = await createBankStatement(tenantId, userId, {
+    accountId,
+    name: `Online sync (${id}) ${new Date().toISOString().slice(0, 10)}`,
+    statementDate: new Date(),
+    lines: syncLines,
+  });
+
+  const nextConnections = [...connections];
+  const idx = nextConnections.findIndex((row) => row.provider === id);
+  if (idx >= 0) {
+    nextConnections[idx] = {
+      ...nextConnections[idx],
+      bankAccountId: accountId,
+      lastSyncAt: new Date(),
+      metadata: {
+        ...(nextConnections[idx].metadata || {}),
+        lastStatementId: statement._id,
+        lastLineCount: syncLines.length,
+      },
+    };
+    await Tenant.findByIdAndUpdate(tenantId, {
+      $set: { 'settings.accounting.bankSyncConnections': nextConnections },
+    });
+  }
+
+  return {
+    provider: id,
+    statementId: statement._id,
+    accountId,
+    lineCount: syncLines.length,
+    mirroredGlItems: items.length,
+    lastSyncAt: new Date(),
+    connections: nextConnections,
+  };
 }
 
 export async function getProductCategoriesAccountingBridge(tenantId) {
@@ -6470,6 +6560,7 @@ export default {
   getBankSyncStatus,
   startBankSyncOAuth,
   disconnectBankSync,
+  syncBankFeed,
   getProductCategoriesAccountingBridge,
   buildReceivableDebitLines,
   buildPayableCreditLines,

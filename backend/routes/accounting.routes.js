@@ -80,6 +80,7 @@ import {
   getBankSyncStatus,
   startBankSyncOAuth,
   disconnectBankSync,
+  syncBankFeed,
   getProductCategoriesAccountingBridge,
   getTaxUnits,
   setTaxUnits,
@@ -117,6 +118,8 @@ router.post('/webhooks/payment/:provider', async (req, res) => {
     const secret = req.headers['x-webhook-secret'] || req.body?.webhookSecret || '';
     const result = await handleAccountingPaymentProviderWebhook(req.params.provider, req.body, {
       webhookSecret: secret,
+      headers: req.headers,
+      rawBody: req.rawBody || null,
     });
     res.json(result);
   } catch (error) {
@@ -658,6 +661,14 @@ router.post('/bank-sync/connect', checkPermission('finance', 'approve'), async (
 router.post('/bank-sync/disconnect', checkPermission('finance', 'approve'), async (req, res) => {
   try {
     res.json(await disconnectBankSync(tenantIdOf(req), req.body?.provider));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/bank-sync/sync', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    res.json(await syncBankFeed(tenantIdOf(req), req.user._id, req.body || {}));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -1386,6 +1397,15 @@ router.post('/bank-recon/unmatch', checkPermission('finance', 'update'), async (
       reconcileId: req.body.reconcileId || null,
       statementLineId: req.body.statementLineId || null,
     }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/bank-recon/auto-match', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const { autoMatchBankStatementLines } = await import('../services/bankReconciliationService.js');
+    res.json(await autoMatchBankStatementLines(tenantIdOf(req), req.user._id, req.body || {}));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

@@ -47,6 +47,10 @@ function HorizontalGroupsSection({
   priorMap,
   showVar,
   onAccountClick,
+  titleEn = 'Horizontal groups',
+  titleAr = 'المجموعات الأفقية',
+  purposeEn = 'Collapsible tree by account groups defined in Configuration.',
+  purposeAr = 'عرض شجري حسب مجموعات الحسابات المعرّفة في الإعدادات.',
 }) {
   const isAr = language === 'ar'
   const [expanded, setExpanded] = useState(() => ({}))
@@ -59,10 +63,10 @@ function HorizontalGroupsSection({
     <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
       <div className="border-b border-slate-100 px-5 py-4 dark:border-white/10">
         <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-          {isAr ? 'المجموعات الأفقية' : 'Horizontal groups'}
+          {isAr ? titleAr : titleEn}
         </h3>
         <p className="mt-1 text-xs text-slate-500">
-          {isAr ? 'عرض شجري حسب مجموعات الحسابات المعرّفة في الإعدادات.' : 'Collapsible tree by account groups defined in Configuration.'}
+          {isAr ? purposeAr : purposeEn}
         </p>
       </div>
       <div className="divide-y divide-slate-100 dark:divide-white/5">
@@ -291,6 +295,18 @@ export function BalanceSheetPanel({ language }) {
         showVar={showVar}
         onAccountClick={openGl}
       />
+      <HorizontalGroupsSection
+        language={language}
+        groups={data?.accountGroups}
+        amountKey="balance"
+        priorMap={priorMap}
+        showVar={showVar}
+        onAccountClick={openGl}
+        titleEn="Account groups"
+        titleAr="مجموعات الحسابات"
+        purposeEn="P&L and balance sheet sections by account prefix from Configuration."
+        purposeAr="أقسام قائمة الدخل والميزانية حسب بادئة الحساب من الإعدادات."
+      />
       <CustomReportLinesSection language={language} lines={data?.customReportLines} />
     </div>
   )
@@ -441,6 +457,18 @@ export function ProfitAndLossPanel({ language }) {
         priorMap={priorMap}
         showVar={showVar}
         onAccountClick={openGl}
+      />
+      <HorizontalGroupsSection
+        language={language}
+        groups={data?.accountGroups}
+        amountKey="amount"
+        priorMap={priorMap}
+        showVar={showVar}
+        onAccountClick={openGl}
+        titleEn="Account groups"
+        titleAr="مجموعات الحسابات"
+        purposeEn="P&L sections by account prefix from Configuration."
+        purposeAr="أقسام قائمة الدخل حسب بادئة الحساب من الإعدادات."
       />
       <CustomReportLinesSection language={language} lines={data?.customReportLines} />
     </div>

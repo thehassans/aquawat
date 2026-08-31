@@ -1731,6 +1731,24 @@ export function BankReconPanel({ language }) {
     },
   })
 
+  const autoMatch = useMutation({
+    mutationFn: () => api.post('/accounting/bank-recon/auto-match', {
+      accountId,
+      statementId: statementId || undefined,
+      minScore: 100,
+    }).then((r) => r.data),
+    onSuccess: (payload) => {
+      toast.success(isAr
+        ? `تمت مطابقة ${payload.matched} سطر`
+        : `Auto-matched ${payload.matched} line(s)`)
+      refetchItems()
+      refetchOutstanding()
+      refetchOutstandingReceipts()
+      refetchLines()
+    },
+    onError: (e) => toast.error(e.response?.data?.error || e.message || 'Failed'),
+  })
+
   const toggleItem = (id) => {
     setSelectedItemIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }
@@ -1797,6 +1815,16 @@ export function BankReconPanel({ language }) {
               ))}
             </select>
           </label>
+        ) : null}
+        {accountId ? (
+          <button
+            type="button"
+            disabled={autoMatch.isPending}
+            onClick={() => autoMatch.mutate()}
+            className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {autoMatch.isPending ? '…' : (isAr ? 'مطابقة تلقائية' : 'Auto-match')}
+          </button>
         ) : null}
       </div>
 
@@ -5878,16 +5906,34 @@ export function OnlineSyncPanel({ language }) {
   const isAr = language === 'ar'
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [bankAccountId, setBankAccountId] = useState('')
   const { data, refetch, isFetching } = useQuery({
     queryKey: ['accounting-bank-sync'],
     queryFn: () => api.get('/accounting/bank-sync/status').then((r) => r.data),
   })
+  const { data: bankCatalog } = useQuery({
+    queryKey: ['accounting-bank-catalog'],
+    queryFn: () => api.get('/accounting/bank-accounts').then((r) => r.data),
+  })
   const connect = useMutation({
-    mutationFn: (provider) => api.post('/accounting/bank-sync/connect', { provider }).then((r) => r.data),
+    mutationFn: (payload) => api.post('/accounting/bank-sync/connect', payload).then((r) => r.data),
     onSuccess: (payload) => {
       toast.success(payload?.message || (isAr ? 'تم الربط' : 'Connected'))
       refetch()
       queryClient.invalidateQueries({ queryKey: ['accounting-bank-sync'] })
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
+  })
+  const syncFeed = useMutation({
+    mutationFn: () => api.post('/accounting/bank-sync/sync', {
+      provider: 'sandbox',
+      bankAccountId: bankAccountId || undefined,
+    }).then((r) => r.data),
+    onSuccess: (payload) => {
+      toast.success(isAr
+        ? `تم استيراد ${payload.lineCount} سطر`
+        : `Imported ${payload.lineCount} statement lines`)
+      refetch()
     },
     onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
   })
@@ -5898,6 +5944,7 @@ export function OnlineSyncPanel({ language }) {
   const providers = data?.providers || []
   const connections = data?.connections || []
   const connectedSet = new Set(connections.filter((c) => c.status === 'connected').map((c) => c.provider))
+  const bankRows = bankCatalog?.rows || []
 
   return (
     <ConfigPanelShell
@@ -5906,15 +5953,42 @@ export function OnlineSyncPanel({ language }) {
       titleAr="مزامنة بنكية عبر الإنترنت"
       purposeEn="OAuth connections to bank aggregators for automatic statement feeds (sandbox stub today)."
       purposeAr="ربط OAuth مع مجمعات البنوك لسحب كشوف الحساب (تجريبي حالياً)."
-      impactEn="Connected providers store tenant metadata; use Bank reconciliation CSV import until live feeds ship."
-      impactAr="المزودون المتصلون يُخزَّنون للمستأجر؛ استخدم استيراد CSV حتى تفعيل المزامنة المباشرة."
+      impactEn="Sync pulls statement lines into Bank reconciliation; auto-match can reconcile mirrored GL items."
+      impactAr="المزامنة تستورد أسطر الكشف إلى التسوية؛ المطابقة التلقائية ت reconciles بنود GL."
       actions={(
-        <button type="button" onClick={() => navigate('/app/dashboard/accounting/bank-recon')} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">
-          {isAr ? 'التسوية البنكية' : 'Bank reconciliation'}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => navigate('/app/dashboard/accounting/bank-recon')} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">
+            {isAr ? 'التسوية البنكية' : 'Bank reconciliation'}
+          </button>
+          {connectedSet.has('sandbox') ? (
+            <button
+              type="button"
+              disabled={syncFeed.isPending}
+              onClick={() => syncFeed.mutate()}
+              className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {syncFeed.isPending ? '…' : (isAr ? 'مزامنة الآن' : 'Sync now')}
+            </button>
+          ) : null}
+        </div>
       )}
     >
       {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
+      {connectedSet.has('sandbox') && bankRows.length ? (
+        <label className="mb-4 block max-w-md text-xs font-medium text-slate-500">
+          {isAr ? 'حساب البنك للمزامنة' : 'Bank account for sync'}
+          <select
+            value={bankAccountId}
+            onChange={(e) => setBankAccountId(e.target.value)}
+            className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+          >
+            <option value="">{isAr ? 'الافتراضي' : 'Default'}</option>
+            {bankRows.map((row) => (
+              <option key={row.accountId} value={row.accountId}>{row.code} — {isAr ? (row.nameAr || row.name) : row.name}</option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {providers.map((provider) => {
           const connected = connectedSet.has(provider.id)
@@ -5925,7 +5999,7 @@ export function OnlineSyncPanel({ language }) {
               <p className="mt-1 text-xs text-slate-500">{comingSoon ? (isAr ? 'قريباً' : 'Coming soon') : (connected ? (isAr ? 'متصل' : 'Connected') : (isAr ? 'غير متصل' : 'Not connected'))}</p>
               <div className="mt-3 flex gap-2">
                 {!comingSoon && !connected ? (
-                  <button type="button" disabled={connect.isPending} onClick={() => connect.mutate(provider.id)} className="rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
+                  <button type="button" disabled={connect.isPending} onClick={() => connect.mutate({ provider: provider.id, bankAccountId: bankAccountId || null })} className="rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
                     {isAr ? 'ربط' : 'Connect'}
                   </button>
                 ) : null}
