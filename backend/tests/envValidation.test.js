@@ -92,3 +92,21 @@ test('ALLOW_LOCAL_UPLOADS=true does not warn about missing S3', () => {
     assert.equal(result.warnings.some((w) => /Object storage/i.test(w)), false);
   });
 });
+
+test('BANK_SYNC_ENCRYPTION_KEY warns when bank sync credentials set without it', () => {
+  withEnv({
+    NODE_ENV: 'production',
+    JWT_SECRET: 'a-unique-production-jwt-secret-value-ok',
+    MONGODB_URI: 'mongodb://localhost/maqder',
+    SUPER_ADMIN_PASSWORD: 'Mqd#NotADefault-Pass9',
+    ZATCA_KEY_ENCRYPTION_KEY: 'dedicated-zatca-key-material-32chars',
+    ALLOW_LOCAL_UPLOADS: 'true',
+    PLAID_CLIENT_ID: 'cid',
+    PLAID_SECRET: 'sec',
+    BANK_SYNC_ENCRYPTION_KEY: undefined,
+  }, () => {
+    const result = validateProductionEnv({ logger: silent });
+    assert.equal(result.ok, true);
+    assert.ok(result.warnings.some((w) => /BANK_SYNC_ENCRYPTION_KEY/i.test(w)));
+  });
+});

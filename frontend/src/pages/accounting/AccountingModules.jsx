@@ -10,6 +10,7 @@ import { ReportFilterRibbon, compareRange, variance } from './ReportFilterRibbon
 import { ConfigPanelShell } from './ConfigPanelShell'
 import { CustomReportLinesSection } from './AccountingReportPanels'
 import { openPlaidLink } from './plaidLink'
+import { openSaltEdgeConnect } from './saltEdgeConnect'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 const yearStartIso = () => new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10)
@@ -5941,12 +5942,17 @@ export function OnlineSyncPanel({ language }) {
   const connect = useMutation({
     mutationFn: (payload) => api.post('/accounting/bank-sync/connect', payload).then((r) => r.data),
     onSuccess: async (payload) => {
-      if (payload?.authorizeUrl) {
-        window.open(payload.authorizeUrl, '_blank', 'noopener,noreferrer')
-      }
       if (payload?.linkToken) {
         toast.success(isAr ? 'فتح Plaid Link…' : 'Opening Plaid Link…')
         await launchPlaid(payload.linkToken)
+      } else if (payload?.authorizeUrl) {
+        try {
+          openSaltEdgeConnect(payload.authorizeUrl)
+          toast.success(payload?.message || (isAr ? 'أكمل الربط ثم أكّد' : 'Finish Connect, then confirm'))
+        } catch (error) {
+          window.open(payload.authorizeUrl, '_blank', 'noopener,noreferrer')
+          toast.success(payload?.message || (isAr ? 'أكمل الربط ثم أكّد' : 'Finish Connect, then confirm'))
+        }
       } else {
         setLinkTokenHint('')
         toast.success(payload?.message || (isAr ? 'تم الربط' : 'Connected'))
@@ -6065,11 +6071,17 @@ export function OnlineSyncPanel({ language }) {
             return null
           })}
           <label className="block text-xs font-medium text-slate-500">
-            {isAr ? 'Plaid public_token أو Salt Edge connection id' : 'Plaid public_token or Salt Edge connection id'}
+            {isAr
+              ? (pendingSet.has('saltedge') && !pendingSet.has('plaid')
+                ? 'معرّف اتصال Salt Edge'
+                : 'Plaid public_token أو Salt Edge connection id')
+              : (pendingSet.has('saltedge') && !pendingSet.has('plaid')
+                ? 'Salt Edge connection id'
+                : 'Plaid public_token or Salt Edge connection id')}
             <input
               value={oauthToken}
               onChange={(e) => setOauthToken(e.target.value)}
-              placeholder="public-sandbox-… / connection id"
+              placeholder={pendingSet.has('saltedge') && !pendingSet.has('plaid') ? 'connection_id' : 'public-sandbox-… / connection id'}
               className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm dark:border-dark-600 dark:bg-dark-900"
             />
           </label>

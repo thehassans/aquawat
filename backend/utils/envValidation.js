@@ -72,6 +72,14 @@ export function validateProductionEnv({ logger = console } = {}) {
       warnings.push('ZATCA_KEY_ENCRYPTION_KEY not set — falling back to JWT_SECRET for key encryption');
     }
 
+    const bankSyncConfigured = Boolean(
+      (process.env.PLAID_CLIENT_ID && process.env.PLAID_SECRET)
+      || (process.env.SALTEDGE_APP_ID && process.env.SALTEDGE_SECRET),
+    );
+    if (bankSyncConfigured && !process.env.BANK_SYNC_ENCRYPTION_KEY && jwt) {
+      warnings.push('BANK_SYNC_ENCRYPTION_KEY not set — bank sync tokens fall back to JWT_SECRET encryption');
+    }
+
     if (!process.env.REDIS_URL && !process.env.REDIS_HOST) {
       warnings.push('Redis not configured — rate limits, Socket.IO adapter, and cron election will be process-local');
     }
