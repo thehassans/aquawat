@@ -161,3 +161,26 @@ export const ACCOUNTING_MENU = [
     ],
   },
 ]
+
+export function flattenAccountingMenuHrefs(menu = ACCOUNTING_MENU) {
+  const hrefs = []
+  for (const hub of menu) {
+    if (hub.href) hrefs.push(hub.href)
+    for (const child of hub.children || []) {
+      if (child.href) hrefs.push(child.href)
+    }
+  }
+  return hrefs
+}
+
+export function hubIsActive(hub, pathname) {
+  if (hub.href) {
+    if (hub.end) return pathname === hub.href || pathname === `${hub.href}/`
+    return pathname === hub.href || pathname.startsWith(`${hub.href}/`)
+  }
+  return (hub.children || []).some((item) => {
+    if (!item.href) return false
+    if (item.end) return pathname === item.href || pathname === `${item.href}/`
+    return pathname === item.href || pathname.startsWith(`${item.href}/`)
+  })
+}
