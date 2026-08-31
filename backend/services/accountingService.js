@@ -4303,7 +4303,53 @@ export async function startBankSyncOAuth(tenantId, { provider, bankAccountId = n
   }
 
   const state = createOAuthState(tenantId, id);
-  const oauth = buildAuthorizeUrl(id, { state });
+  let authorizeUrl = null;
+  let linkToken = null;
+  let mode = `${id}_oauth`;
+  let message = `Open authorize URL to connect ${meta.name}.`;
+
+  if (id === 'plaid') {
+    try {
+      const { createPlaidLinkToken } = await import('./bankSyncProviderClient.js');
+      const redirectUri = `${String(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')}/app/dashboard/accounting/online-sync`;
+      const link = await createPlaidLinkToken({
+        clientUserId: `${tenantId}`,
+        redirectUri,
+      });
+      linkToken = link.linkToken;
+      authorizeUrl = null;
+      mode = 'plaid_link_token';
+      message = 'Use the Plaid link token in Link, then confirm with the public_token.';
+    } catch (error) {
+      const oauth = buildAuthorizeUrl(id, { state });
+      authorizeUrl = oauth.authorizeUrl;
+      mode = oauth.mode;
+      message = `${oauth.note || message} (${error.message})`;
+    }
+  } else if (id === 'saltedge') {
+    try {
+      const { createSaltEdgeConnectSession } = await import('./bankSyncProviderClient.js');
+      const redirectUri = `${String(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')}/app/dashboard/accounting/online-sync`;
+      const session = await createSaltEdgeConnectSession({
+        redirectUri,
+        state,
+      });
+      authorizeUrl = session.connectUrl;
+      mode = 'saltedge_connect_session';
+      message = 'Complete Salt Edge Connect, then confirm the connection.';
+    } catch (error) {
+      const oauth = buildAuthorizeUrl(id, { state });
+      authorizeUrl = oauth.authorizeUrl;
+      mode = oauth.mode;
+      message = `${oauth.note || message} (${error.message})`;
+    }
+  } else {
+    const oauth = buildAuthorizeUrl(id, { state });
+    authorizeUrl = oauth.authorizeUrl;
+    mode = oauth.mode;
+    message = oauth.note || message;
+  }
+
   const next = {
     provider: id,
     status: 'pending',
@@ -4312,8 +4358,9 @@ export async function startBankSyncOAuth(tenantId, { provider, bankAccountId = n
     connectedAt: null,
     lastSyncAt: null,
     metadata: {
-      mode: oauth.mode,
+      mode,
       oauthState: state,
+      linkToken: linkToken || null,
       startedAt: new Date(),
     },
   };
@@ -4326,9 +4373,10 @@ export async function startBankSyncOAuth(tenantId, { provider, bankAccountId = n
   return {
     provider: id,
     status: 'pending',
-    authorizeUrl: oauth.authorizeUrl,
+    authorizeUrl,
+    linkToken,
     state,
-    message: oauth.note || `Open authorize URL to connect ${meta.name}.`,
+    message,
     connections,
   };
 }
@@ -4357,6 +4405,23 @@ export async function completeBankSyncOAuth(tenantId, {
     : [];
   const existingIdx = connections.findIndex((row) => row.provider === id);
   const prev = existingIdx >= 0 ? connections[existingIdx] : {};
+
+  let accessToken = prev.metadata?.accessToken || null;
+  let itemId = prev.metadata?.itemId || null;
+  let resolvedConnectionId = connectionId || prev.metadata?.connectionId || null;
+
+  if (id === 'plaid' && publicToken) {
+    try {
+      const { exchangePlaidPublicToken } = await import('./bankSyncProviderClient.js');
+      const exchanged = await exchangePlaidPublicToken(publicToken);
+      accessToken = exchanged.accessToken;
+      itemId = exchanged.itemId;
+    } catch (error) {
+      // Keep connection without live token when exchange fails (demo / misconfig)
+      accessToken = accessToken || `pending:${publicToken}`;
+    }
+  }
+
   const next = {
     ...prev,
     provider: id,
@@ -4366,9 +4431,11 @@ export async function completeBankSyncOAuth(tenantId, {
     lastSyncAt: null,
     metadata: {
       ...(prev.metadata || {}),
-      mode: `${id}_oauth`,
-      publicToken: publicToken || null,
-      connectionId: connectionId || null,
+      mode: accessToken && !String(accessToken).startsWith('pending:') ? `${id}_live` : `${id}_oauth`,
+      publicToken: publicToken || prev.metadata?.publicToken || null,
+      accessToken,
+      itemId,
+      connectionId: resolvedConnectionId,
       completedAt: new Date(),
     },
   };
@@ -4423,21 +4490,33 @@ export async function syncBankFeed(tenantId, userId, {
   if (!accountId) throw new Error('Select a bank account before syncing');
 
   const { listUnmatchedJournalItems, createBankStatement } = await import('./bankReconciliationService.js');
-  const items = await listUnmatchedJournalItems(tenantId, accountId, { limit: 25 });
-  const syncLines = items.slice(0, 12).map((item) => ({
-    date: item.entryDate || new Date(),
-    label: item.description || item.entryNumber || 'Bank sync',
-    reference: item.entryNumber || item.reference || '',
-    amount: round2((Number(item.debit) || 0) - (Number(item.credit) || 0)),
-  })).filter((line) => Math.abs(line.amount) > 0.009);
+  const { fetchProviderStatementLines, demoTransactions } = await import('./bankSyncProviderClient.js');
+
+  let syncLines = [];
+  let feedSource = 'gl_mirror';
+  let feedError = null;
+
+  if (id === 'plaid' || id === 'saltedge') {
+    const feed = await fetchProviderStatementLines(id, conn.metadata || {});
+    syncLines = feed.lines || [];
+    feedSource = feed.source;
+    feedError = feed.error || null;
+  }
 
   if (!syncLines.length) {
-    const today = new Date();
-    const prefix = id === 'sandbox' ? 'SB' : id.toUpperCase().slice(0, 2);
-    syncLines.push(
-      { date: today, label: `${meta.name} deposit`, reference: `${prefix}-DEP-001`, amount: 1500 },
-      { date: today, label: `${meta.name} fee`, reference: `${prefix}-FEE-001`, amount: -25 },
-    );
+    const items = await listUnmatchedJournalItems(tenantId, accountId, { limit: 25 });
+    syncLines = items.slice(0, 12).map((item) => ({
+      date: item.entryDate || new Date(),
+      label: item.description || item.entryNumber || 'Bank sync',
+      reference: item.entryNumber || item.reference || '',
+      amount: round2((Number(item.debit) || 0) - (Number(item.credit) || 0)),
+    })).filter((line) => Math.abs(line.amount) > 0.009);
+    if (syncLines.length) feedSource = 'gl_mirror';
+  }
+
+  if (!syncLines.length) {
+    syncLines = demoTransactions(id);
+    feedSource = feedSource || 'demo';
   }
 
   const statement = await createBankStatement(tenantId, userId, {
@@ -4458,6 +4537,8 @@ export async function syncBankFeed(tenantId, userId, {
         ...(nextConnections[idx].metadata || {}),
         lastStatementId: statement._id,
         lastLineCount: syncLines.length,
+        lastFeedSource: feedSource,
+        lastFeedError: feedError,
       },
     };
     await Tenant.findByIdAndUpdate(tenantId, {
@@ -4470,7 +4551,8 @@ export async function syncBankFeed(tenantId, userId, {
     statementId: statement._id,
     accountId,
     lineCount: syncLines.length,
-    mirroredGlItems: items.length,
+    feedSource,
+    feedError,
     lastSyncAt: new Date(),
     connections: nextConnections,
   };

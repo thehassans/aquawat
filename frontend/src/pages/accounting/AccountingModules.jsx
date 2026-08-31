@@ -5916,13 +5916,20 @@ export function OnlineSyncPanel({ language }) {
     queryKey: ['accounting-bank-catalog'],
     queryFn: () => api.get('/accounting/bank-accounts').then((r) => r.data),
   })
+  const [oauthToken, setOauthToken] = useState('')
+  const [linkTokenHint, setLinkTokenHint] = useState('')
   const connect = useMutation({
     mutationFn: (payload) => api.post('/accounting/bank-sync/connect', payload).then((r) => r.data),
     onSuccess: (payload) => {
       if (payload?.authorizeUrl) {
         window.open(payload.authorizeUrl, '_blank', 'noopener,noreferrer')
-        toast.success(payload?.message || (isAr ? 'أكمل الربط ثم أكّد' : 'Finish OAuth, then confirm'))
+      }
+      if (payload?.linkToken) {
+        setLinkTokenHint(payload.linkToken)
+        setOauthToken('')
+        toast.success(isAr ? 'تم إنشاء رابط Plaid — الصق public_token ثم أكّد' : 'Plaid link token ready — paste public_token then confirm')
       } else {
+        setLinkTokenHint('')
         toast.success(payload?.message || (isAr ? 'تم الربط' : 'Connected'))
       }
       refetch()
@@ -5937,9 +5944,13 @@ export function OnlineSyncPanel({ language }) {
         provider,
         state: conn?.metadata?.oauthState || undefined,
         bankAccountId: bankAccountId || undefined,
+        publicToken: provider === 'plaid' ? (oauthToken || undefined) : undefined,
+        connectionId: provider === 'saltedge' ? (oauthToken || undefined) : undefined,
       }).then((r) => r.data)
     },
     onSuccess: (payload) => {
+      setOauthToken('')
+      setLinkTokenHint('')
       toast.success(payload?.message || (isAr ? 'تم تأكيد الربط' : 'Connected'))
       refetch()
     },
@@ -5997,6 +6008,24 @@ export function OnlineSyncPanel({ language }) {
       )}
     >
       {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
+      {pendingSet.size ? (
+        <div className="mb-4 space-y-2 max-w-xl">
+          {linkTokenHint ? (
+            <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 font-mono text-[11px] text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+              link_token: {linkTokenHint}
+            </p>
+          ) : null}
+          <label className="block text-xs font-medium text-slate-500">
+            {isAr ? 'Plaid public_token أو Salt Edge connection id' : 'Plaid public_token or Salt Edge connection id'}
+            <input
+              value={oauthToken}
+              onChange={(e) => setOauthToken(e.target.value)}
+              placeholder="public-sandbox-… / connection id"
+              className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm dark:border-dark-600 dark:bg-dark-900"
+            />
+          </label>
+        </div>
+      ) : null}
       {anyConnected ? (
         <div className="mb-4 grid gap-3 sm:grid-cols-2">
           <label className="block text-xs font-medium text-slate-500">

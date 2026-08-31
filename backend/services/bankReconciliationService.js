@@ -3,6 +3,7 @@ import ChartOfAccount from '../models/ChartOfAccount.js';
 import JournalItem from '../models/JournalItem.js';
 import BankStatement from '../models/BankStatement.js';
 import BankStatementLine from '../models/BankStatementLine.js';
+import { scoreBankMatchCandidate } from '../utils/bankMatchScore.js';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -417,14 +418,6 @@ export async function getReconciliationSummary(tenantId, accountId) {
   return { accountId, unmatchedItems, unmatchedLines, statements };
 }
 
-function tokenizeMatchText(...parts) {
-  return String(parts.filter(Boolean).join(' '))
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
-    .split(/\s+/)
-    .filter((t) => t.length >= 2);
-}
-
 /**
  * Score unmatched GL / outstanding items against one bank statement line.
  * Factors: exact/near amount, date proximity, label/reference token overlap.
@@ -440,9 +433,6 @@ export async function suggestBankMatches(tenantId, statementLineId, { limit = 12
 
   const stmtAmt = round2(line.amount);
   const isInflow = stmtAmt > 0;
-  const absStmt = Math.abs(stmtAmt);
-  const lineDate = line.date ? new Date(line.date) : null;
-  const tokens = new Set(tokenizeMatchText(line.label, line.reference));
 
   const [glItems, outstandingPays, outstandingReceipts] = await Promise.all([
     listUnmatchedJournalItems(tenantId, line.accountId, { limit: 300 }),
@@ -477,110 +467,8 @@ export async function suggestBankMatches(tenantId, statementLineId, { limit = 12
     });
   }
 
-  const scored = candidates.map((c) => {
-    let score = 0;
-    const reasons = [];
-    const absAmt = Math.abs(c.amount);
-    const amtDiff = round2(Math.abs(absAmt - absStmt));
-
-    // Direction: statement inflow should match positive GL net / receipt debit
-    if ((stmtAmt > 0 && c.amount > 0) || (stmtAmt < 0 && c.amount < 0)) {
-      score += 15;
-      reasons.push('direction');
-    } else {
-      score -= 40;
-      reasons.push('wrong_direction');
-    }
-
-    if (amtDiff <= 0.01) {
-      score += 100;
-      reasons.push('exact_amount');
-    } else if (amtDiff <= 1) {
-      score += 70;
-      reasons.push('near_amount');
-    } else if (amtDiff <= absStmt * 0.02) {
-      score += 40;
-      reasons.push('close_amount');
-    } else if (amtDiff > absStmt * 0.25 && absStmt > 0) {
-      score -= 30;
-      reasons.push('amount_mismatch');
-    }
-
-    if (lineDate && c.item.entryDate) {
-      const days = Math.abs((new Date(c.item.entryDate) - lineDate) / 86400000);
-      if (days <= 0.5) {
-        score += 25;
-        reasons.push('same_day');
-      } else if (days <= 3) {
-        score += 15;
-        reasons.push('within_3_days');
-      } else if (days <= 14) {
-        score += 5;
-        reasons.push('within_2_weeks');
-      }
-    }
-
-    const itemTokens = tokenizeMatchText(
-      c.item.description,
-      c.item.entryNumber,
-      c.item.sourceModel,
-    );
-    let overlap = 0;
-    for (const t of itemTokens) {
-      if (tokens.has(t)) overlap += 1;
-    }
-    if (overlap >= 2) {
-      score += 35;
-      reasons.push('reference_match');
-    } else if (overlap === 1) {
-      score += 18;
-      reasons.push('partial_reference');
-    }
-
-    // Prefer invoice-like refs embedded in label
-    const ref = String(line.reference || line.label || '');
-    if (ref && c.item.entryNumber && ref.toLowerCase().includes(String(c.item.entryNumber).toLowerCase())) {
-      score += 40;
-      reasons.push('entry_number');
-    }
-
-    const labelText = String(line.label || '').toLowerCase();
-    const refText = String(line.reference || '').toLowerCase();
-    for (const model of activeModels) {
-      const labelNeedle = String(model.labelContains || '').toLowerCase();
-      const refNeedle = String(model.referenceContains || '').toLowerCase();
-      if (labelNeedle && labelText.includes(labelNeedle)) {
-        score += 25 + Math.min(20, Number(model.priority) || 0);
-        reasons.push(`model:${model.name}`);
-      }
-      if (refNeedle && refText.includes(refNeedle)) {
-        score += 20;
-        reasons.push(`model_ref:${model.name}`);
-      }
-      if (model.autoMatchExactAmount && amtDiff <= 0.01) {
-        score += 15;
-        reasons.push(`model_exact:${model.name}`);
-      }
-      if (model.autoMatchInvoiceRef && overlap >= 1) {
-        score += 12;
-        reasons.push(`model_inv:${model.name}`);
-      }
-      if (model.feePercent > 0 && labelNeedle && labelText.includes(labelNeedle) && amtDiff <= absStmt * (Number(model.feePercent) / 100) * 1.5) {
-        score += 10;
-        reasons.push(`model_fee:${model.feePercent}%`);
-      }
-    }
-
-    return {
-      id: c.id,
-      bucket: c.bucket,
-      score,
-      reasons,
-      amount: c.amount,
-      residual: round2(stmtAmt - c.amount),
-      item: c.item,
-    };
-  })
+  const scored = candidates
+    .map((c) => scoreBankMatchCandidate(line, c, activeModels))
     .filter((s) => s.score >= 40)
     .sort((a, b) => b.score - a.score || Math.abs(a.residual) - Math.abs(b.residual))
     .slice(0, Math.min(30, Math.max(1, Number(limit) || 12)));
