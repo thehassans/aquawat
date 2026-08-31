@@ -47,6 +47,8 @@ import SalesEnhancementBar from '../sales/SalesEnhancementBar'
 import { canViewSalesMargin } from '../../lib/salesPermissions'
 import { useSalesSettings } from '../../context/SalesSettingsContext'
 import InvoiceJournalItemsPanel, { InvoiceDocumentReferencesBar } from './InvoiceJournalItemsPanel'
+import AccountingDocumentShell from '../accounting/AccountingDocumentShell'
+import { CREDIT_NOTE_STATUS_STEPS, INVOICE_STATUS_STEPS, resolveInvoiceRibbonStep } from '../../lib/accountingDocumentStatus'
 
 const getEmptyLine = (tenant) => {
   const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
@@ -1179,6 +1181,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   }, [showMargin, lineItems, totals.lines])
 
   const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [formTab, setFormTab] = useState('lines')
   const [pendingPayload, setPendingPayload] = useState(null)
 
   const buildPayload = (data) => {
@@ -1430,9 +1433,30 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     tenant?.business?.crNumber ? `CR ${tenant.business.crNumber}` : null,
   ].filter(Boolean).join(' · ')
 
+  const isCreditNoteDoc = String(initialInvoice?.invoiceType || '') === '381'
+  const ribbonStep = resolveInvoiceRibbonStep(initialInvoice || { status: 'draft' })
+  const statusSteps = isCreditNoteDoc ? CREDIT_NOTE_STATUS_STEPS : INVOICE_STATUS_STEPS
+  const lineCount = (lineItems || []).filter(sellLineHasContent).length
+
   return (
     <div className="space-y-4">
       <div className="mx-auto w-full max-w-6xl space-y-2.5">
+        <AccountingDocumentShell
+          language={language}
+          backTo={isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : '/app/dashboard/accounting/invoices'}
+          eyebrow={isCreditNoteDoc ? (language === 'ar' ? 'إشعار دائن' : 'Credit note') : (language === 'ar' ? 'فاتورة مبيعات' : 'Customer invoice')}
+          title={initialInvoice?.invoiceNumber || (language === 'ar' ? 'مسودة جديدة' : 'New draft')}
+          subtitle={language === 'ar' ? 'منشئ المستند' : 'Document builder'}
+          statusSteps={statusSteps}
+          activeStatusStep={ribbonStep}
+          tabs={[
+            { id: 'lines', labelEn: 'Invoice lines', labelAr: 'بنود الفاتورة', count: lineCount || undefined },
+            { id: 'journal', labelEn: 'Journal items', labelAr: 'بنود القيد' },
+            { id: 'other', labelEn: 'Other info', labelAr: 'معلومات أخرى' },
+          ]}
+          activeTab={formTab}
+          onTabChange={setFormTab}
+        />
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -1520,6 +1544,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             <input type="hidden" {...register('pdfTemplateId')} />
           </div>
 
+          {formTab === 'lines' && (
+          <>
           {(isRestaurantContext || isTravelContext || isManpowerContext) && (
             <div className={`${sectionCardClass} !py-3`}>
               <div className="grid grid-cols-1 items-end gap-3 md:grid-cols-12">
@@ -2126,6 +2152,23 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             })}
           />
 
+          </>
+          )}
+
+          {formTab === 'journal' && (
+          <InvoiceJournalItemsPanel
+            flow="sell"
+            language={language}
+            totals={totals}
+            lineItems={totals.lines || []}
+            sourcePurchaseOrderId={watch('sourcePurchaseOrderId')}
+            value={accountingLines}
+            onChange={setAccountingLines}
+          />
+          )}
+
+          {formTab === 'other' && (
+          <>
           <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
             <div className="flex items-center gap-1 border-b border-slate-100 px-2 py-1.5 dark:border-white/5">
               <span className="px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
@@ -2377,16 +2420,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             </div>
           </div>
 
-          <InvoiceJournalItemsPanel
-            flow="sell"
-            language={language}
-            totals={totals}
-            lineItems={totals.lines || []}
-            sourcePurchaseOrderId={watch('sourcePurchaseOrderId')}
-            value={accountingLines}
-            onChange={setAccountingLines}
-          />
-
           <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
             <div className="grid grid-cols-1 lg:grid-cols-2 lg:items-stretch">
               <div className="flex flex-col border-b border-slate-100 px-5 py-5 dark:border-white/5 lg:border-b-0 lg:border-e">
@@ -2530,6 +2563,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               </div>
             </div>
           </div>
+          </>
+          )}
         </form>
       </div>
 

@@ -2445,3 +2445,24 @@ export function OpeningBalancesPanel({ language, onNewOpening }) {
     </div>
   )
 }
+
+/** Placeholder for Accounting menu items not yet built as full modules. */
+export function AccountingComingSoonPanel({ language, titleEn, titleAr, descriptionEn, descriptionAr }) {
+  const isAr = language === 'ar'
+  return (
+    <div className="rounded-[1.5rem] border border-dashed border-emerald-200/80 bg-white/80 px-6 py-16 text-center shadow-[0_14px_36px_-28px_rgba(15,23,42,0.35)] dark:border-emerald-500/20 dark:bg-dark-800/60">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700/70 dark:text-emerald-300/80">
+        {isAr ? 'قريباً' : 'Coming soon'}
+      </p>
+      <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
+        {isAr ? (titleAr || titleEn) : (titleEn || titleAr)}
+      </h2>
+      <p className="mx-auto mt-3 max-w-lg text-sm text-slate-500 dark:text-slate-400">
+        {isAr
+          ? (descriptionAr || 'هذه الشاشة مخططة في قائمة المحاسبة وستُبنى في مرحلة لاحقة.')
+          : (descriptionEn || 'This screen is listed in the Accounting menu and will be built in a later phase.')}
+      </p>
+    </div>
+  )
+}
+

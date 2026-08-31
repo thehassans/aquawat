@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion } from 'framer-motion'
-import { ArrowLeft, FileText, Download, Send, CheckCircle, Clock, QrCode, Printer, Mail, Edit, RefreshCw, Undo2, Trash2, Banknote, Smartphone, MessageCircle } from 'lucide-react'
+import { FileText, Download, Send, CheckCircle, Clock, QrCode, Printer, Mail, Edit, RefreshCw, Undo2, Trash2, Banknote, MessageCircle } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
@@ -21,15 +21,21 @@ import { tenantHasSmsAddon } from '../../lib/smsAddon'
 import { printThermalElement, getThermalPrinterSettings } from '../../lib/thermalPrinter'
 import { getTaxQrLabel, isSaudiTenant } from '../../lib/saudiTenant'
 import DocumentChatter from '../../components/sales/DocumentChatter'
+import AccountingDocumentShell from '../../components/accounting/AccountingDocumentShell'
+import RegisterPaymentModal from '../../components/accounting/RegisterPaymentModal'
+import CreditNoteFromInvoiceModal from '../../components/accounting/CreditNoteFromInvoiceModal'
 import {
-  actionBarClass,
-  backBtnClass,
+  canRegisterPaymentOnInvoice,
+  CREDIT_NOTE_STATUS_STEPS,
+  INVOICE_STATUS_STEPS,
+  invoiceRemainingBalance,
+  resolveInvoiceRibbonStep,
+} from '../../lib/accountingDocumentStatus'
+import {
   dangerActionClass,
   ghostActionClass,
   metaRowClass,
   metaValueClass,
-  pageSubtitleClass,
-  pageTitleClass,
   sectionCardClass,
   sectionEyebrowClass,
 } from '../sales/salesUi'
@@ -77,8 +83,7 @@ export default function InvoiceView() {
   const [downloadingPdf, setDownloadingPdf] = useState(false)
   const [printModalOpen, setPrintModalOpen] = useState(false)
   const [payOpen, setPayOpen] = useState(false)
-  const [payAmount, setPayAmount] = useState('')
-  const [payMethod, setPayMethod] = useState('bank_transfer')
+  const [cnModalOpen, setCnModalOpen] = useState(false)
   const invoicePreviewRef = useRef(null)
   const printModalRef = useRef(null)
 
@@ -201,7 +206,7 @@ export default function InvoiceView() {
   })
 
   const creditNoteMutation = useMutation({
-    mutationFn: () => api.post(`/invoices/${id}/credit-note`),
+    mutationFn: (payload) => api.post(`/invoices/${id}/credit-note`, payload),
     onSuccess: (res) => {
       toast.success(language === 'ar' ? 'تم إصدار إشعار دائن بنجاح' : 'Credit note issued successfully')
       queryClient.invalidateQueries(['invoices'])
@@ -226,20 +231,24 @@ export default function InvoiceView() {
     }
   })
 
-  const remainingBalance = Math.max(0, Number(invoice?.grandTotal || 0) - Number(invoice?.paidAmount || 0))
-  const canRecordPayment = invoice?.flow !== 'purchase'
-    && !['draft', 'cancelled', 'credited'].includes(invoice?.status)
-    && remainingBalance > 0.005
+  const remainingBalance = invoiceRemainingBalance(invoice)
+  const canRecordPayment = canRegisterPaymentOnInvoice(invoice)
+  const isCreditNote = String(invoice?.invoiceType || '') === '381'
+  const ribbonStep = resolveInvoiceRibbonStep(invoice)
+  const statusSteps = isCreditNote ? CREDIT_NOTE_STATUS_STEPS : INVOICE_STATUS_STEPS
+  const paymentCount = Array.isArray(invoice?.payments) ? invoice.payments.length : 0
 
   const recordPaymentMutation = useMutation({
-    mutationFn: () => api.post(`/invoices/${id}/payments`, {
-      amount: Number(payAmount),
-      method: payMethod,
+    mutationFn: (payload) => api.post(`/invoices/${id}/payments`, {
+      amount: Number(payload?.amount),
+      method: payload?.method,
+      memo: payload?.memo,
+      differenceMode: payload?.differenceMode,
+      differenceAccountId: payload?.differenceAccountId,
     }),
     onSuccess: () => {
       toast.success(language === 'ar' ? 'تم تسجيل الدفعة' : 'Payment recorded')
       setPayOpen(false)
-      setPayAmount('')
       queryClient.invalidateQueries(['invoice', id])
       queryClient.invalidateQueries(['invoices'])
       queryClient.invalidateQueries(['customers'])
@@ -326,275 +335,171 @@ export default function InvoiceView() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex items-start gap-4">
-          <button type="button" onClick={() => navigate(-1)} className={backBtnClass}>
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <div>
-            <p className={sectionEyebrowClass}>
-              {invoice?.flow === 'purchase'
-                ? (language === 'ar' ? 'فاتورة مشتريات' : 'Purchase invoice')
-                : (language === 'ar' ? 'فاتورة مبيعات' : 'Sales invoice')}
-            </p>
-            <h1 className={pageTitleClass}>{invoice?.invoiceNumber}</h1>
-            <p className={pageSubtitleClass}>
-              {new Date(invoice?.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}
-              {' '}
-              <span className="text-slate-400">
-                {new Date(invoice?.issueDate).toLocaleTimeString(language === 'ar' ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </p>
-            {(() => {
-              const createdByEn = [invoice?.createdBy?.firstName, invoice?.createdBy?.lastName].filter(Boolean).join(' ')
-              const createdByAr = [invoice?.createdBy?.firstNameAr, invoice?.createdBy?.lastNameAr].filter(Boolean).join(' ')
-              const creator = language === 'ar'
-                ? (invoice?.createdByNameAr || createdByAr || invoice?.createdByName || createdByEn)
-                : (invoice?.createdByName || createdByEn || invoice?.createdByNameAr || createdByAr)
-              return creator ? (
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  {language === 'ar' ? 'تم الإنشاء بواسطة' : 'Created by'}: <span className="font-medium text-slate-700 dark:text-slate-200">{creator}</span>
-                </p>
-              ) : null
-            })()}
-            {invoice?.paymentStatus && (
-              <p className="mt-1 text-xs text-slate-500">
-                {language === 'ar' ? 'حالة الدفع' : 'Payment'}: <span className="font-medium text-slate-800 dark:text-slate-200">{invoice.paymentStatus}</span>
-                {remainingBalance > 0.005 ? ` · ${language === 'ar' ? 'المتبقي' : 'Due'} ${remainingBalance.toFixed(2)}` : ''}
-              </p>
-            )}
-          </div>
-        </div>
-        <div className={`${actionBarClass} max-w-3xl justify-start lg:justify-end`}>
-          {(invoice?.sourcePurchaseOrderId || invoice?.purchaseOrderId) && invoice?.flow === 'sell' ? (
-            <button
-              type="button"
-              onClick={() => navigate(`/app/dashboard/sales/orders/${invoice.sourcePurchaseOrderId || invoice.purchaseOrderId}`)}
-              className={ghostActionClass}
-            >
-              <FileText className="w-4 h-4" />
-              {language === 'ar' ? 'أمر البيع' : '1 Sale Order'}
-            </button>
-          ) : null}
-          {canRecordPayment && (
-            <button
-              type="button"
-              onClick={() => {
-                setPayAmount(remainingBalance.toFixed(2))
-                setPayOpen(true)
-              }}
-              className="btn btn-action-dark btn-sm"
-            >
-              <Banknote className="w-4 h-4" />
-              {language === 'ar' ? 'تسجيل دفعة' : 'Record payment'}
-            </button>
-          )}
-          {isEditableInvoice(invoice, tenant?.zatca?.phase || 2) && (
-            <button
-              type="button"
-              onClick={() => navigate(`/app/dashboard/accounting/invoices/${id}/edit`)}
-              className={ghostActionClass}
-            >
-              <Edit className="w-4 h-4" />
-              {language === 'ar' ? 'تعديل' : 'Edit'}
-            </button>
-          )}
-          {!isEditableInvoice(invoice, tenant?.zatca?.phase || 2) && 
-           invoice?.invoiceSubtype !== 'proforma' && 
-           invoice?.invoiceType === '388' &&
-           !['cancelled', 'credited'].includes(invoice?.status) && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  if (window.confirm(language === 'ar' ? 'إصدار إشعار دائن؟ سيتم عكس بنود الفاتورة وإنشاء مسودة جديدة.' : 'Issue a credit note? Line items will be reversed into a new draft.')) {
-                    creditNoteMutation.mutate()
-                  }
-                }}
-                disabled={creditNoteMutation.isPending || debitNoteMutation.isPending}
-                className={dangerActionClass}
-              >
-                {creditNoteMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Undo2 className="w-4 h-4" />}
-                {language === 'ar' ? 'إشعار دائن' : 'Credit note'}
+      <AccountingDocumentShell
+        language={language}
+        onBack={() => navigate(-1)}
+        eyebrow={
+          isCreditNote
+            ? (language === 'ar' ? 'إشعار دائن' : 'Credit note')
+            : invoice?.flow === 'purchase'
+              ? (language === 'ar' ? 'فاتورة مشتريات' : 'Purchase invoice')
+              : (language === 'ar' ? 'فاتورة مبيعات' : 'Customer invoice')
+        }
+        title={invoice?.invoiceNumber}
+        subtitle={`${new Date(invoice?.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB')}${remainingBalance > 0.005 ? ` · ${language === 'ar' ? 'المتبقي' : 'Due'} ${remainingBalance.toFixed(2)}` : ''}`}
+        statusSteps={statusSteps}
+        activeStatusStep={ribbonStep}
+        statusCancelled={['cancelled', 'credited'].includes(String(invoice?.status || '').toLowerCase()) && ribbonStep === 'cancelled'}
+        smartButtons={[
+          ...(invoice?.originalInvoiceId ? [{
+            id: 'reversed-doc',
+            label: (lang) => (lang === 'ar' ? 'الفاتورة الأصلية' : 'Reversed document'),
+            href: `/app/dashboard/accounting/invoices/${invoice.originalInvoiceId?._id || invoice.originalInvoiceId}`,
+            icon: <FileText className="h-3.5 w-3.5" />,
+          }] : []),
+          ...((invoice?.sourcePurchaseOrderId || invoice?.purchaseOrderId) && invoice?.flow === 'sell' ? [{
+            id: 'sales-order',
+            label: (lang) => (lang === 'ar' ? '1 أمر بيع' : '1 Sales Order'),
+            href: `/app/dashboard/sales/orders/${invoice.sourcePurchaseOrderId || invoice.purchaseOrderId}`,
+            icon: <FileText className="h-3.5 w-3.5" />,
+          }] : []),
+          ...(paymentCount > 0 ? [{
+            id: 'payments',
+            label: (lang) => (lang === 'ar' ? `${paymentCount} مدفوعات` : `${paymentCount} Payments`),
+            onClick: () => setPayOpen(true),
+            icon: <Banknote className="h-3.5 w-3.5" />,
+          }] : []),
+        ]}
+        actionBar={(
+          <>
+            {canRecordPayment && (
+              <button type="button" onClick={() => setPayOpen(true)} className="btn btn-action-dark btn-sm">
+                <Banknote className="w-4 h-4" />
+                {language === 'ar' ? 'تسجيل دفعة' : 'Register payment'}
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (window.confirm(language === 'ar' ? 'إصدار إشعار مدين؟ سيتم إنشاء مسودة مرتبطة لرسوم إضافية.' : 'Issue a debit note? A linked draft will be created for additional charges.')) {
-                    debitNoteMutation.mutate()
-                  }
-                }}
-                disabled={creditNoteMutation.isPending || debitNoteMutation.isPending}
-                className={ghostActionClass}
-              >
-                {debitNoteMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                {language === 'ar' ? 'إشعار مدين' : 'Debit note'}
-              </button>
-            </>
-          )}
-          {invoice?.invoiceSubtype === 'proforma' && invoice?.status !== 'cancelled' && invoice?.status !== 'sent' && (
-            <button
-              type="button"
-              onClick={() => convertProformaMutation.mutate()}
-              disabled={convertProformaMutation.isPending}
-              className="btn btn-action-dark btn-sm"
-            >
-              {convertProformaMutation.isPending ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4" />
-              )}
-              {language === 'ar' ? 'تحويل لفاتورة' : 'Convert to Invoice'}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={async () => {
-              if (showThermal) {
-                setPrintModalOpen(true)
-                return
-              }
-              try {
-                const printed = await printInvoiceSnapshot({ invoice: invoiceForDisplay || invoice, language, tenant, sourceElement: invoicePreviewRef.current })
-                if (!printed) {
-                  toast.error(language === 'ar' ? 'تعذر تجهيز الطباعة' : 'Unable to prepare print view')
-                }
-              } catch {
-                toast.error(language === 'ar' ? 'تعذر تجهيز الطباعة' : 'Unable to prepare print view')
-              }
-            }}
-            className={ghostActionClass}
-          >
-            <Printer className="w-4 h-4" />
-            {language === 'ar' ? 'طباعة' : 'Print'}
-          </button>
-          <button
-            type="button"
-            onClick={async () => {
-              if (showThermal) {
-                setPrintModalOpen(true)
-                return
-              }
-              try {
-                setDownloadingPdf(true)
-                await downloadInvoicePdf({ invoice: invoiceForDisplay || invoice, language, tenant, sourceElement: invoicePreviewRef.current })
-              } catch (e) {
-                toast.error(language === 'ar' ? 'فشل تحميل PDF' : 'Failed to download PDF')
-              } finally {
-                setDownloadingPdf(false)
-              }
-            }}
-            disabled={!invoice || downloadingPdf}
-            className={ghostActionClass}
-          >
-            {downloadingPdf ? (
-              <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Download className="w-4 h-4" />
             )}
-            {language === 'ar' ? 'PDF' : 'PDF'}
-          </button>
-          {invoice?.flow !== 'purchase' && hasEmailAddon && (
-            <button
-              type="button"
-              onClick={() => sendEmailMutation.mutate()}
-              disabled={sendEmailMutation.isPending}
-              className={ghostActionClass}
-            >
-              {sendEmailMutation.isPending ? (
-                <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Mail className="w-4 h-4" />
-              )}
-              {language === 'ar' ? 'إرسال بالبريد' : 'Send Email'}
-            </button>
-          )}
-          {invoice?.flow !== 'purchase' && hasSmsAddon && (
-            <button
-              type="button"
-              onClick={() => sendSmsMutation.mutate()}
-              disabled={sendSmsMutation.isPending}
-              className={ghostActionClass}
-            >
-              {sendSmsMutation.isPending ? (
-                <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Smartphone className="w-4 h-4" />
-              )}
-              {language === 'ar' ? 'إرسال برسالة' : 'Send SMS'}
-            </button>
-          )}
-          {invoice?.flow !== 'purchase' && (
-            <button
-              type="button"
-              onClick={() => sendWhatsAppMutation.mutate()}
-              disabled={sendWhatsAppMutation.isPending}
-              className={ghostActionClass}
-              title={language === 'ar' ? 'إرسال الفاتورة عبر واتساب' : 'Send invoice via WhatsApp'}
-            >
-              {sendWhatsAppMutation.isPending ? (
-                <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <MessageCircle className="w-4 h-4" />
-              )}
-              <span>{language === 'ar' ? 'إرسال عبر واتساب' : 'Send WhatsApp'}</span>
-            </button>
-          )}
-          {String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR' && ['draft', 'pending'].includes(invoice?.status) && !invoice?.zatca?.signedXml && invoice?.flow !== 'purchase' && invoice?.invoiceSubtype !== 'proforma' && (
-            <button
-              onClick={() => signMutation.mutate()}
-              disabled={signMutation.isPending}
-              className="btn btn-action-dark btn-sm"
-            >
-              {signMutation.isPending ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
+            {isEditableInvoice(invoice, tenant?.zatca?.phase || 2) && (
+              <button type="button" onClick={() => navigate(`/app/dashboard/accounting/invoices/${id}/edit`)} className={ghostActionClass}>
+                <Edit className="w-4 h-4" />
+                {language === 'ar' ? 'تعديل' : 'Edit'}
+              </button>
+            )}
+            {!isEditableInvoice(invoice, tenant?.zatca?.phase || 2)
+              && invoice?.invoiceSubtype !== 'proforma'
+              && invoice?.invoiceType === '388'
+              && !['cancelled', 'credited'].includes(invoice?.status) && (
                 <>
-                  <Send className="w-4 h-4" />
-                  {tenant?.zatca?.phase === 1 ? (language === 'ar' ? 'تجهيز الفاتورة' : 'Finalize') : t('signInvoice')}
+                  <button
+                    type="button"
+                    onClick={() => setCnModalOpen(true)}
+                    disabled={creditNoteMutation.isPending || debitNoteMutation.isPending}
+                    className={dangerActionClass}
+                  >
+                    {creditNoteMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Undo2 className="w-4 h-4" />}
+                    {language === 'ar' ? 'إشعار دائن' : 'Add credit note'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(language === 'ar' ? 'إصدار إشعار مدين؟' : 'Issue a debit note?')) {
+                        debitNoteMutation.mutate()
+                      }
+                    }}
+                    disabled={creditNoteMutation.isPending || debitNoteMutation.isPending}
+                    className={ghostActionClass}
+                  >
+                    {debitNoteMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                    {language === 'ar' ? 'إشعار مدين' : 'Debit note'}
+                  </button>
                 </>
-              )}
-            </button>
-          )}
-          {invoice?.zatca?.signedXml && (
-            <a
-              href={`/api/invoices/${id}/xml`}
-              target="_blank"
-              className={ghostActionClass}
-            >
-              <Download className="w-4 h-4" />
-              {t('viewXml')}
-            </a>
-          )}
-          {['admin', 'super_admin'].includes(tenant?.role) || ['draft', 'pending'].includes(invoice?.status) ? (
+            )}
+            {invoice?.invoiceSubtype === 'proforma' && invoice?.status !== 'cancelled' && invoice?.status !== 'sent' && (
+              <button type="button" onClick={() => convertProformaMutation.mutate()} disabled={convertProformaMutation.isPending} className="btn btn-action-dark btn-sm">
+                {convertProformaMutation.isPending ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                {language === 'ar' ? 'تحويل لفاتورة' : 'Convert to Invoice'}
+              </button>
+            )}
             <button
               type="button"
               onClick={async () => {
-                const confirmed = window.confirm(
-                  language === 'ar'
-                    ? 'هل أنت متأكد من حذف هذه الفاتورة؟ هذا الإجراء لا يمكن التراجع عنه وسيتم حذف الفاتورة من قاعدة البيانات نهائياً.'
-                    : 'Are you sure you want to permanently delete this invoice? This action cannot be undone.'
-                )
-                if (!confirmed) return
+                if (showThermal) { setPrintModalOpen(true); return }
                 try {
-                  await api.delete(`/invoices/${id}`)
-                  toast.success(language === 'ar' ? 'تم حذف الفاتورة بنجاح' : 'Invoice deleted successfully')
-                  queryClient.invalidateQueries(['invoices'])
-                  queryClient.invalidateQueries(['dashboard'])
-                  navigate('/app/dashboard/accounting/invoices')
-                } catch (error) {
-                  toast.error(error?.response?.data?.error || (language === 'ar' ? 'فشل حذف الفاتورة' : 'Failed to delete invoice'))
+                  const printed = await printInvoiceSnapshot({ invoice: invoiceForDisplay || invoice, language, tenant, sourceElement: invoicePreviewRef.current })
+                  if (!printed) toast.error(language === 'ar' ? 'تعذر تجهيز الطباعة' : 'Unable to prepare print view')
+                } catch {
+                  toast.error(language === 'ar' ? 'تعذر تجهيز الطباعة' : 'Unable to prepare print view')
                 }
               }}
-              className={dangerActionClass}
+              className={ghostActionClass}
             >
-              <Trash2 className="w-4 h-4" />
-              {language === 'ar' ? 'حذف' : 'Delete'}
+              <Printer className="w-4 h-4" />
+              {language === 'ar' ? 'معاينة' : 'Preview'}
             </button>
-          ) : null}
-        </div>
-      </div>
+            {String(tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR' && ['draft', 'pending'].includes(invoice?.status) && !invoice?.zatca?.signedXml && invoice?.flow !== 'purchase' && invoice?.invoiceSubtype !== 'proforma' && (
+              <button onClick={() => signMutation.mutate()} disabled={signMutation.isPending} className="btn btn-action-dark btn-sm">
+                {signMutation.isPending ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Send className="w-4 h-4" />{tenant?.zatca?.phase === 1 ? (language === 'ar' ? 'تأكيد' : 'Confirm') : t('signInvoice')}</>}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={async () => {
+                if (showThermal) { setPrintModalOpen(true); return }
+                try {
+                  setDownloadingPdf(true)
+                  await downloadInvoicePdf({ invoice: invoiceForDisplay || invoice, language, tenant, sourceElement: invoicePreviewRef.current })
+                } catch {
+                  toast.error(language === 'ar' ? 'فشل تحميل PDF' : 'Failed to download PDF')
+                } finally {
+                  setDownloadingPdf(false)
+                }
+              }}
+              disabled={!invoice || downloadingPdf}
+              className={ghostActionClass}
+            >
+              {downloadingPdf ? <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" /> : <Download className="w-4 h-4" />}
+              PDF
+            </button>
+            {invoice?.flow !== 'purchase' && hasEmailAddon && (
+              <button type="button" onClick={() => sendEmailMutation.mutate()} disabled={sendEmailMutation.isPending} className={ghostActionClass}>
+                {sendEmailMutation.isPending ? <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" /> : <Mail className="w-4 h-4" />}
+                {language === 'ar' ? 'إرسال' : 'Send'}
+              </button>
+            )}
+            {invoice?.flow !== 'purchase' && (
+              <button type="button" onClick={() => sendWhatsAppMutation.mutate()} disabled={sendWhatsAppMutation.isPending} className={ghostActionClass}>
+                {sendWhatsAppMutation.isPending ? <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" /> : <MessageCircle className="w-4 h-4" />}
+                WhatsApp
+              </button>
+            )}
+            {invoice?.zatca?.signedXml && (
+              <a href={`/api/invoices/${id}/xml`} target="_blank" rel="noreferrer" className={ghostActionClass}>
+                <Download className="w-4 h-4" />
+                {t('viewXml')}
+              </a>
+            )}
+            {(['admin', 'super_admin'].includes(tenant?.role) || ['draft', 'pending'].includes(invoice?.status)) && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!window.confirm(language === 'ar' ? 'حذف هذه الفاتورة نهائياً؟' : 'Permanently delete this invoice?')) return
+                  try {
+                    await api.delete(`/invoices/${id}`)
+                    toast.success(language === 'ar' ? 'تم الحذف' : 'Deleted')
+                    queryClient.invalidateQueries(['invoices'])
+                    navigate('/app/dashboard/accounting/invoices')
+                  } catch (error) {
+                    toast.error(error?.response?.data?.error || (language === 'ar' ? 'فشل الحذف' : 'Delete failed'))
+                  }
+                }}
+                className={dangerActionClass}
+              >
+                <Trash2 className="w-4 h-4" />
+                {language === 'ar' ? 'حذف' : 'Delete'}
+              </button>
+            )}
+          </>
+        )}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Invoice */}
@@ -908,48 +813,23 @@ export default function InvoiceView() {
         </div>
       )}
       {payOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-dark-800 p-5 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {language === 'ar' ? 'تسجيل دفعة' : 'Record payment'}
-            </h3>
-            <p className="mt-1 text-sm text-gray-500">
-              {language === 'ar' ? 'المتبقي' : 'Remaining'}: {remainingBalance.toFixed(2)}
-            </p>
-            <label className="label mt-4">{language === 'ar' ? 'المبلغ' : 'Amount'}</label>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              max={remainingBalance}
-              value={payAmount}
-              onChange={(e) => setPayAmount(e.target.value)}
-              className="input"
-            />
-            <label className="label mt-3">{language === 'ar' ? 'طريقة الدفع' : 'Method'}</label>
-            <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className="select">
-              <option value="cash">{language === 'ar' ? 'نقداً' : 'Cash'}</option>
-              <option value="card">{language === 'ar' ? 'بطاقة' : 'Card'}</option>
-              <option value="bank_transfer">{language === 'ar' ? 'تحويل بنكي' : 'Bank transfer'}</option>
-            </select>
-            <div className="mt-5 flex gap-3">
-              <button type="button" className="btn btn-secondary flex-1" onClick={() => setPayOpen(false)}>
-                {language === 'ar' ? 'إلغاء' : 'Cancel'}
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary flex-1"
-                disabled={recordPaymentMutation.isPending}
-                onClick={() => recordPaymentMutation.mutate()}
-              >
-                {recordPaymentMutation.isPending
-                  ? (language === 'ar' ? 'جارٍ الحفظ...' : 'Saving...')
-                  : (language === 'ar' ? 'حفظ' : 'Save')}
-              </button>
-            </div>
-          </div>
-        </div>
+        <RegisterPaymentModal
+          isOpen={payOpen}
+          onClose={() => setPayOpen(false)}
+          invoice={invoice}
+          language={language}
+          isPending={recordPaymentMutation.isPending}
+          onSubmit={(payload) => recordPaymentMutation.mutate(payload)}
+        />
       )}
+      <CreditNoteFromInvoiceModal
+        isOpen={cnModalOpen}
+        onClose={() => setCnModalOpen(false)}
+        invoice={invoice}
+        language={language}
+        isPending={creditNoteMutation.isPending}
+        onSubmit={(payload) => creditNoteMutation.mutate(payload)}
+      />
     </div>
   )
 }
