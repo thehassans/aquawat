@@ -85,8 +85,12 @@ import VendorPaymentsPanel from './documents/VendorPaymentsPanel'
 import AccountingCustomersPanel from './documents/AccountingCustomersPanel'
 import AccountingProductsPanel from './documents/AccountingProductsPanel'
 import { ACCOUNTING_COMING_SOON_SECTIONS } from './accounting.menu'
+import { useRegisterAccountingPageActions } from './AccountingPageActionsContext'
 
-/** Tabs that own their own primary CTA — never show "+ New journal" here. */
+/** Only journal entry board / overview may expose "+ New entry" — never bleed to vouchers, items, books, etc. */
+const NEW_ENTRY_TABS = new Set(['overview', 'journals-board'])
+
+/** Tabs that own their own primary CTA — never show layout-level journal button here. */
 const HIDE_JOURNAL_CTA_TABS = new Set([
   'credit-notes',
   'customer-payments',
@@ -102,17 +106,16 @@ const HIDE_JOURNAL_CTA_TABS = new Set([
   'customer-account',
   'supplier-summary',
   'supplier-account',
-])
-
-const JOURNAL_ENTRY_TABS = new Set([
-  'overview',
-  'journals-board',
   'journal-items',
   'journal-books',
   'daily-restriction',
   'general-voucher',
+  'receipt-voucher',
+  'payment-voucher',
   'ledger-search',
 ])
+
+const JOURNAL_ENTRY_TABS = NEW_ENTRY_TABS
 
 const TABS = [
   { id: 'overview', labelEn: 'Overview', labelAr: 'نظرة عامة', icon: Landmark },
@@ -226,13 +229,6 @@ const PANEL_EXPORT_TABS = new Set([
   'partner-ledger',
   'assets',
   'depreciation-schedule',
-  'vendor-bills',
-  'vendor-refunds',
-  'vendor-payments',
-  'credit-notes',
-  'customer-payments',
-  'customers',
-  'products',
 ])
 
 const fontPage = { fontFamily: "'Plus Jakarta Sans', 'DM Sans', 'Tajawal', sans-serif" }
@@ -254,7 +250,66 @@ export default function Accounting() {
     lines: [emptyLine(), emptyLine()],
   })
   const isAr = language === 'ar'
-  const showJournalCta = JOURNAL_ENTRY_TABS.has(tab) && !HIDE_JOURNAL_CTA_TABS.has(tab)
+  const showNewEntry = NEW_ENTRY_TABS.has(tab) && !HIDE_JOURNAL_CTA_TABS.has(tab)
+
+  useRegisterAccountingPageActions(
+    (tab === 'receipt-voucher' || tab === 'payment-voucher')
+      ? null
+      : (
+      <div className="flex flex-wrap items-center gap-2">
+        {tab === 'credit-notes' ? (
+          <button
+            type="button"
+            onClick={() => navigate('/app/dashboard/accounting/invoices/new/sell?invoiceType=381')}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-700"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {isAr ? 'إشعار دائن جديد' : 'New credit note'}
+          </button>
+        ) : null}
+        {tab === 'follow-up-reports' ? (
+          <button
+            type="button"
+            onClick={() => document.getElementById('follow-up-remind-actions')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800"
+          >
+            {isAr ? 'إرسال تذكيرات المتأخرين' : 'Send overdue reminders'}
+          </button>
+        ) : null}
+        {tab === 'journal-books' ? (
+          <button
+            type="button"
+            onClick={() => navigate('/app/dashboard/accounting/journal-books/new')}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {isAr ? 'دفتر جديد' : 'New book'}
+          </button>
+        ) : null}
+        {tab === 'general-voucher' ? (
+          <button
+            type="button"
+            onClick={() => navigate('/app/dashboard/accounting/general-voucher/new')}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {isAr ? 'سند قيد جديد' : 'New voucher'}
+          </button>
+        ) : null}
+        {showNewEntry ? (
+          <button
+            type="button"
+            onClick={() => setShowJournalForm(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-700"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {isAr ? 'قيد جديد' : 'New entry'}
+          </button>
+        ) : null}
+      </div>
+      ),
+    [tab, isAr, navigate],
+  )
 
   const { data: dashboard, isLoading: dashLoading, refetch: refetchDash } = useQuery({
     queryKey: ['accounting-dashboard'],
@@ -310,9 +365,20 @@ export default function Accounting() {
   })
 
   const createJournalMutation = useMutation({
-    mutationFn: (payload) => api.post('/accounting/journals', payload),
-    onSuccess: () => {
-      toast.success(isAr ? 'تم إنشاء القيد' : 'Journal created')
+    mutationFn: async (payload) => {
+      const { postAfter, ...body } = payload
+      const created = await api.post('/accounting/journals', body).then((r) => r.data)
+      if (postAfter && created?._id) {
+        try {
+          await api.post(`/accounting/journals/${created._id}/post`)
+        } catch {
+          await api.post(`/accounting/journals/${created._id}/post-simple`)
+        }
+      }
+      return { created, postAfter }
+    },
+    onSuccess: (result) => {
+      toast.success(result?.postAfter ? (isAr ? 'تم الحفظ والترحيل' : 'Saved & posted') : (isAr ? 'تم إنشاء القيد' : 'Journal created'))
       setShowJournalForm(false)
       setJournalForm({ memo: '', entryDate: new Date().toISOString().slice(0, 10), journalId: '', type: 'manual', lines: [emptyLine(), emptyLine()] })
       refetchJournals()
@@ -512,70 +578,6 @@ export default function Accounting() {
               fileBaseName={`maqder-accounting-${tab}`}
               title={isAr ? activeTab.labelAr : activeTab.labelEn}
             />
-          ) : null}
-          {tab === 'credit-notes' ? (
-            <button
-              type="button"
-              onClick={() => navigate('/app/dashboard/accounting/invoices/new/sell?invoiceType=381')}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-700"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {isAr ? 'إشعار دائن جديد' : 'New credit note'}
-            </button>
-          ) : null}
-          {tab === 'vendor-bills' ? (
-            <button
-              type="button"
-              onClick={() => navigate('/app/dashboard/accounting/invoices/new/purchase')}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-700"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {isAr ? 'فاتورة مورد جديدة' : 'New vendor bill'}
-            </button>
-          ) : null}
-          {tab === 'vendor-refunds' ? (
-            <button
-              type="button"
-              onClick={() => navigate('/app/dashboard/accounting/invoices/new/purchase?refund=1')}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-700"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {isAr ? 'مرتجع مورد جديد' : 'New vendor refund'}
-            </button>
-          ) : null}
-          {tab === 'aged-ap' ? (
-            <button
-              type="button"
-              onClick={() => {
-                const el = document.getElementById('aged-ap-batch-actions')
-                el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-              }}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800"
-            >
-              {isAr ? 'دفعات مجمّعة' : 'Batch payment'}
-            </button>
-          ) : null}
-          {tab === 'follow-up-reports' ? (
-            <button
-              type="button"
-              onClick={() => {
-                const el = document.getElementById('follow-up-remind-actions')
-                el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-              }}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800"
-            >
-              {isAr ? 'إرسال تذكيرات المتأخرين' : 'Send overdue reminders'}
-            </button>
-          ) : null}
-          {showJournalCta ? (
-            <button
-              type="button"
-              onClick={() => setShowJournalForm(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-700"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {isAr ? 'قيد جديد' : 'New journal'}
-            </button>
           ) : null}
         </div>
       </div>
@@ -1192,7 +1194,6 @@ export default function Accounting() {
             <motion.div key="daily-restriction" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
               <DailyRestrictionPanel
                 language={language}
-                onNew={() => setShowJournalForm(true)}
                 onPost={(id) => postJournalMutation.mutate(id)}
                 posting={postJournalMutation.isPending}
                 onReverse={(id) => reverseJournalMutation.mutate(id)}
@@ -1205,7 +1206,6 @@ export default function Accounting() {
             <motion.div key="general-voucher" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
               <GeneralVoucherPanel
                 language={language}
-                onNew={() => setShowJournalForm(true)}
                 onPost={(id) => postJournalMutation.mutate(id)}
                 posting={postJournalMutation.isPending}
                 onReverse={(id) => reverseJournalMutation.mutate(id)}
@@ -1426,9 +1426,35 @@ export default function Accounting() {
                   type="button"
                   disabled={!journalTotals.balanced || createJournalMutation.isPending}
                   onClick={submitJournal}
-                  className="rounded-2xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+                  className="rounded-2xl border border-emerald-700 px-4 py-2.5 text-sm font-semibold text-emerald-800 disabled:opacity-40"
                 >
                   {isAr ? 'حفظ المسودة' : 'Save draft'}
+                </button>
+                <button
+                  type="button"
+                  disabled={!journalTotals.balanced || createJournalMutation.isPending}
+                  onClick={() => {
+                    createJournalMutation.mutate({
+                      memo: journalForm.memo,
+                      entryDate: journalForm.entryDate,
+                      type: journalForm.type === 'opening' ? 'opening' : 'manual',
+                      status: 'draft',
+                      journalId: journalForm.journalId || undefined,
+                      lines: journalForm.lines
+                        .filter((l) => l.accountId && (Number(l.debit) > 0 || Number(l.credit) > 0))
+                        .map((l) => ({
+                          accountId: l.accountId,
+                          debit: Number(l.debit) || 0,
+                          credit: Number(l.credit) || 0,
+                          description: l.description || '',
+                          analyticAccountId: l.analyticAccountId || undefined,
+                        })),
+                      postAfter: true,
+                    })
+                  }}
+                  className="rounded-2xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+                >
+                  {isAr ? 'حفظ وترحيل' : 'Save & Post'}
                 </button>
               </div>
             </motion.div>

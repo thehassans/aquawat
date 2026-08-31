@@ -188,6 +188,8 @@ const Vouchers = lazy(() => import('./pages/finance/Vouchers'))
 const Finance = lazy(() => import('./pages/Finance'))
 const Accounting = lazy(() => import('./pages/accounting/Accounting'))
 const AccountingLayout = lazy(() => import('./pages/accounting/AccountingLayout'))
+const JournalBookForm = lazy(() => import('./pages/accounting/JournalBookForm'))
+const GeneralVoucherComposer = lazy(() => import('./pages/accounting/GeneralVoucherComposer'))
 const InvoiceSettingsPage = lazy(() => import('./pages/accounting/InvoiceSettingsPage'))
 const Backup = lazy(() => import('./pages/Backup'))
 const Suppliers = lazy(() => import('./pages/Suppliers'))
@@ -1121,6 +1123,8 @@ function App() {
           <Route path="invoices/new/purchase" element={<InvoiceCreatePurchase />} />
           <Route path="invoices/:id/edit" element={<InvoiceEditPage />} />
           <Route path="invoices/:id" element={<InvoiceView />} />
+          <Route path="journal-books/new" element={<JournalBookForm />} />
+          <Route path="general-voucher/new" element={<GeneralVoucherComposer />} />
           <Route path=":section" element={<Accounting />} />
         </Route>
         <Route path="vouchers" element={<Vouchers />} />

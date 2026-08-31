@@ -8,6 +8,17 @@ import api from '../../lib/api'
 import { PortalDropdown } from '../inventory/PortalDropdown'
 import SalesComposerChrome from '../../components/sales/SalesComposerChrome'
 import { ACCOUNTING_MENU, hubIsActive } from './accounting.menu'
+import { AccountingPageActionsProvider, useAccountingPageActions } from './AccountingPageActionsContext'
+
+function AccountingPageActionsSlot() {
+  const { pageActions } = useAccountingPageActions()
+  if (!pageActions) return null
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2 border-b border-slate-100 bg-white/80 px-4 py-2 dark:border-dark-600 dark:bg-dark-900/80">
+      {pageActions}
+    </div>
+  )
+}
 
 function pathActive(pathname, href, end = false) {
   if (!href) return false
@@ -117,9 +128,9 @@ function NavDropdown({ label, items, isAr, open, onToggle, onClose, onAction, ac
   )
 }
 
-/** True when path is an invoice composer under accounting (hide module chrome). */
+/** True when path is a document composer under accounting (hide module chrome). */
 export function isAccountingInvoiceComposerPath(pathname = '') {
-  return /\/accounting\/invoices\/(new|[^/]+\/edit)/.test(pathname)
+  return /\/accounting\/(invoices\/(new|[^/]+\/edit)|general-voucher\/new|journal-books\/new)/.test(pathname)
 }
 
 export default function AccountingLayout() {
@@ -179,16 +190,19 @@ export default function AccountingLayout() {
 
   if (composerMode) {
     return (
-      <div className="min-h-[calc(100vh-4rem)]">
-        <SalesComposerChrome pathname={path} search={location.search} />
-        <div className="px-1 py-4 sm:px-2">
-          <Outlet />
+      <AccountingPageActionsProvider>
+        <div className="min-h-[calc(100vh-4rem)]">
+          <SalesComposerChrome pathname={path} search={location.search} />
+          <div className="px-1 py-4 sm:px-2">
+            <Outlet />
+          </div>
         </div>
-      </div>
+      </AccountingPageActionsProvider>
     )
   }
 
   return (
+    <AccountingPageActionsProvider>
     <div className="min-h-[calc(100vh-4rem)]">
       <div className="relative z-10 border-b border-slate-200 bg-white dark:border-dark-600 dark:bg-dark-900">
         <div className="flex flex-wrap items-end justify-between gap-3 px-1 pb-0 pt-2">
@@ -343,12 +357,14 @@ export default function AccountingLayout() {
             })}
           </div>
         ) : null}
+        <AccountingPageActionsSlot />
       </div>
 
       <div className="px-1 py-6">
         <Outlet />
       </div>
     </div>
+    </AccountingPageActionsProvider>
   )
 }
 

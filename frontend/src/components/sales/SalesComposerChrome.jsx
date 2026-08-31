@@ -5,6 +5,8 @@ import { ArrowLeft } from 'lucide-react'
 function backHref(pathname) {
   if (pathname.includes('/quotations')) return '/app/dashboard/quotations'
   if (pathname.includes('/sales/orders')) return '/app/dashboard/sales/orders'
+  if (pathname.includes('/general-voucher')) return '/app/dashboard/accounting/general-voucher'
+  if (pathname.includes('/journal-books')) return '/app/dashboard/accounting/journal-books'
   if (pathname.includes('/accounting/invoices')) return '/app/dashboard/accounting/invoices'
   if (pathname.includes('/purchase')) return '/app/dashboard/accounting/invoices'
   return '/app/dashboard/accounting/invoices'
@@ -16,6 +18,8 @@ function titleFor(pathname, search, isAr) {
     if (pathname.includes('/edit')) return isAr ? 'تعديل عرض السعر' : 'Edit quotation'
     return isAr ? 'عرض سعر جديد' : 'New quotation'
   }
+  if (pathname.includes('/general-voucher')) return isAr ? 'سند قيد عام' : 'General voucher'
+  if (pathname.includes('/journal-books')) return isAr ? 'دفتر قيد جديد' : 'New journal book'
   if (pathname.includes('/purchase')) return isAr ? 'فاتورة مشتريات' : 'New purchase invoice'
   if (search.includes('proforma=1')) return isAr ? 'فاتورة مبدئية' : 'New proforma'
   if (pathname.includes('/edit')) return isAr ? 'تعديل الفاتورة' : 'Edit invoice'
