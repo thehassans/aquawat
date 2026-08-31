@@ -12,44 +12,11 @@ export const ACCOUNTING_PATH = {
   invoiceSettings: `${A}/invoices/settings`,
 }
 
-/** Flat list of coming-soon section ids (for Accounting.jsx TABS registration). */
-export const ACCOUNTING_COMING_SOON_SECTIONS = [
-  { id: 'follow-up-reports', labelEn: 'Follow-up Reports', labelAr: 'تقارير المتابعة' },
-  { id: 'journal-items', labelEn: 'Journal Items', labelAr: 'بنود القيود' },
-  { id: 'automatic-transfers', labelEn: 'Automatic Transfers', labelAr: 'تحويلات تلقائية' },
-  { id: 'analytic-items', labelEn: 'Analytic Items', labelAr: 'البنود التحليلية' },
-  { id: 'assets', labelEn: 'Assets', labelAr: 'الأصول' },
-  { id: 'deferred-revenues', labelEn: 'Deferred Revenues', labelAr: 'إيرادات مؤجلة' },
-  { id: 'deferred-expenses', labelEn: 'Deferred Expenses', labelAr: 'مصروفات مؤجلة' },
-  { id: 'executive-summary', labelEn: 'Executive Summary', labelAr: 'الملخص التنفيذي' },
-  { id: 'general-ledger', labelEn: 'General Ledger', labelAr: 'دفتر الأستاذ العام' },
-  { id: 'journal-report', labelEn: 'Journal Report', labelAr: 'تقرير القيود' },
-  { id: 'partner-ledger', labelEn: 'Partner Ledger', labelAr: 'دفتر الشريك' },
-  { id: 'invoice-analysis', labelEn: 'Invoice Analysis', labelAr: 'تحليل الفواتير' },
-  { id: 'depreciation-schedule', labelEn: 'Depreciation Schedule', labelAr: 'جدول الإهلاك' },
-  { id: 'payment-terms', labelEn: 'Payment Terms', labelAr: 'شروط الدفع' },
-  { id: 'follow-up-levels', labelEn: 'Follow-up Levels', labelAr: 'مستويات المتابعة' },
-  { id: 'incoterms', labelEn: 'Incoterms', labelAr: 'شروط التجارة الدولية' },
-  { id: 'bank-accounts', labelEn: 'Bank Accounts', labelAr: 'الحسابات البنكية' },
-  { id: 'reconciliation-models', labelEn: 'Reconciliation Models', labelAr: 'نماذج التسوية' },
-  { id: 'online-sync', labelEn: 'Online Synchronization', labelAr: 'مزامنة عبر الإنترنت' },
-  { id: 'currencies', labelEn: 'Currencies', labelAr: 'العملات' },
-  { id: 'fiscal-positions', labelEn: 'Fiscal Positions', labelAr: 'المراكز الضريبية' },
-  { id: 'journal-groups', labelEn: 'Journal Groups', labelAr: 'مجموعات الدفاتر' },
-  { id: 'tax-groups', labelEn: 'Tax Groups', labelAr: 'مجموعات الضريبة' },
-  { id: 'tax-units', labelEn: 'Tax Units', labelAr: 'وحدات الضريبة' },
-  { id: 'account-tags', labelEn: 'Account Tags', labelAr: 'وسوم الحسابات' },
-  { id: 'account-groups', labelEn: 'Account Groups', labelAr: 'مجموعات الحسابات' },
-  { id: 'horizontal-groups', labelEn: 'Horizontal Groups', labelAr: 'مجموعات أفقية' },
-  { id: 'payment-providers', labelEn: 'Payment Providers', labelAr: 'بوابات الدفع' },
-  { id: 'asset-models', labelEn: 'Asset Models', labelAr: 'نماذج الأصول' },
-  { id: 'deferred-revenue-models', labelEn: 'Deferred Revenue Models', labelAr: 'نماذج الإيرادات المؤجلة' },
-  { id: 'product-categories', labelEn: 'Product Categories', labelAr: 'فئات المنتجات' },
-  { id: 'deferred-expense-models', labelEn: 'Deferred Expense Models', labelAr: 'نماذج المصروفات المؤجلة' },
-  { id: 'accounting-reports-config', labelEn: 'Accounting Reports', labelAr: 'تقارير المحاسبة' },
-  { id: 'analytic-distribution-models', labelEn: 'Analytic Distribution Models', labelAr: 'نماذج التوزيع التحليلي' },
-  { id: 'analytic-plans', labelEn: 'Analytic Plans', labelAr: 'الخطط التحليلية' },
-]
+/**
+ * Only leave items here when there is truly no panel yet.
+ * Prefer wiring a real panel (or SimpleStatusPanel) in Accounting.jsx.
+ */
+export const ACCOUNTING_COMING_SOON_SECTIONS = []
 
 /**
  * Top bar hubs. Dashboard is a direct link (no children).
@@ -119,7 +86,6 @@ export const ACCOUNTING_MENU = [
       { href: `${A}/bank-recon`, labelEn: 'Reconciliation', labelAr: 'التسوية' },
       { href: `${A}/lock-dates`, labelEn: 'Lock Dates', labelAr: 'تواريخ الإقفال' },
       { href: `${A}/period-close`, labelEn: 'Period Close', labelAr: 'إقفال الفترة' },
-      { id: 'seed-chart', action: 'seed-chart', labelEn: 'Seed Chart of Accounts', labelAr: 'تجهيز دليل الحسابات' },
     ],
   },
   {
@@ -127,32 +93,20 @@ export const ACCOUNTING_MENU = [
     labelEn: 'Reporting',
     labelAr: 'التقارير',
     children: [
-      { group: true, labelEn: 'Statement Reports', labelAr: 'التقارير المالية' },
-      { href: `${A}/balance-sheet`, labelEn: 'Balance Sheet', labelAr: 'الميزانية' },
+      { href: `${A}/executive-summary`, labelEn: 'Executive Summary', labelAr: 'الملخص التنفيذي' },
+      { href: `${A}/balance-sheet`, labelEn: 'Balance Sheet', labelAr: 'الميزانية العمومية' },
       { href: `${A}/pnl`, labelEn: 'Profit and Loss', labelAr: 'الأرباح والخسائر' },
       { href: `${A}/cash-flow`, labelEn: 'Cash Flow Statement', labelAr: 'قائمة التدفقات النقدية' },
-      { href: `${A}/executive-summary`, labelEn: 'Executive Summary', labelAr: 'الملخص التنفيذي' },
       { href: `${A}/tax-report`, labelEn: 'Tax Report', labelAr: 'تقرير الضريبة' },
-
-      { group: true, labelEn: 'Audit Reports', labelAr: 'تقارير التدقيق' },
       { href: `${A}/general-ledger`, labelEn: 'General Ledger', labelAr: 'دفتر الأستاذ العام' },
       { href: `${A}/trial`, labelEn: 'Trial Balance', labelAr: 'ميزان المراجعة' },
       { href: `${A}/journal-report`, labelEn: 'Journal Report', labelAr: 'تقرير القيود' },
-      { href: `${A}/account-report`, labelEn: 'Account Report', labelAr: 'تقرير الحساب' },
-
-      { group: true, labelEn: 'Partner Reports', labelAr: 'تقارير الشركاء' },
       { href: `${A}/partner-ledger`, labelEn: 'Partner Ledger', labelAr: 'دفتر الشريك' },
       { href: `${A}/aged-ar`, labelEn: 'Aged Receivable', labelAr: 'أعمار المدينين' },
       { href: `${A}/aged-ap`, labelEn: 'Aged Payable', labelAr: 'أعمار الدائنين' },
-      { href: `${A}/customer-account`, labelEn: 'Customer Account', labelAr: 'كشف العميل' },
-      { href: `${A}/customer-summary`, labelEn: 'Customer Summary', labelAr: 'ملخص العملاء' },
-      { href: `${A}/supplier-account`, labelEn: 'Supplier Account', labelAr: 'كشف المورد' },
-      { href: `${A}/supplier-summary`, labelEn: 'Supplier Summary', labelAr: 'ملخص الموردين' },
-
-      { group: true, labelEn: 'Management', labelAr: 'الإدارة' },
       { href: `${A}/invoice-analysis`, labelEn: 'Invoice Analysis', labelAr: 'تحليل الفواتير' },
-      { href: `${A}/depreciation-schedule`, labelEn: 'Depreciation Schedule', labelAr: 'جدول الإهلاك' },
       { href: `${A}/analytic-report`, labelEn: 'Analytic Report', labelAr: 'تقرير تحليلي' },
+      { href: `${A}/depreciation-schedule`, labelEn: 'Depreciation Schedule', labelAr: 'جدول الإهلاك' },
     ],
   },
   {
@@ -161,29 +115,27 @@ export const ACCOUNTING_MENU = [
     labelAr: 'الإعدادات',
     children: [
       { group: true, labelEn: 'Settings', labelAr: 'الإعدادات' },
-      { href: `${A}/invoices/settings`, labelEn: 'Settings', labelAr: 'إعدادات الفاتورة' },
       { href: `${A}/defaults`, labelEn: 'Default Accounts', labelAr: 'الحسابات الافتراضية' },
-
-      { group: true, labelEn: 'Invoicing', labelAr: 'الفوترة' },
+      { href: `${A}/chart-of-accounts`, labelEn: 'Chart of Accounts', labelAr: 'دليل الحسابات' },
+      { href: `${A}/taxes`, labelEn: 'Taxes', labelAr: 'الضريبة' },
+      { href: `${A}/journals-board`, labelEn: 'Journals', labelAr: 'دفاتر القيود' },
       { href: `${A}/payment-terms`, labelEn: 'Payment Terms', labelAr: 'شروط الدفع' },
       { href: `${A}/follow-up-levels`, labelEn: 'Follow-up Levels', labelAr: 'مستويات المتابعة' },
       { href: `${A}/incoterms`, labelEn: 'Incoterms', labelAr: 'شروط التجارة الدولية' },
 
-      { group: true, labelEn: 'Banks', labelAr: 'البنوك' },
-      { href: `${A}/bank-accounts`, labelEn: 'Add a Bank Account', labelAr: 'إضافة حساب بنكي' },
+      { group: true, labelEn: 'Accounting', labelAr: 'المحاسبة' },
+      { href: `${A}/bank-accounts`, labelEn: 'Bank Accounts', labelAr: 'الحسابات البنكية' },
       { href: `${A}/reconciliation-models`, labelEn: 'Reconciliation Models', labelAr: 'نماذج التسوية' },
       { href: `${A}/online-sync`, labelEn: 'Online Synchronization', labelAr: 'مزامنة عبر الإنترنت' },
-      { href: `${A}/bank-recon`, labelEn: 'Bank Reconciliation', labelAr: 'التسوية البنكية' },
-
-      { group: true, labelEn: 'Accounting', labelAr: 'المحاسبة' },
-      { href: `${A}/chart-of-accounts`, labelEn: 'Chart of Accounts', labelAr: 'دليل الحسابات' },
-      { href: `${A}/taxes`, labelEn: 'Taxes', labelAr: 'الضرائب' },
-      { href: `${A}/journal-books`, labelEn: 'Journals', labelAr: 'الدفاتر' },
       { href: `${A}/currencies`, labelEn: 'Currencies', labelAr: 'العملات' },
       { href: `${A}/fiscal-positions`, labelEn: 'Fiscal Positions', labelAr: 'المراكز الضريبية' },
       { href: `${A}/journal-groups`, labelEn: 'Journal Groups', labelAr: 'مجموعات الدفاتر' },
+
+      { group: true, labelEn: 'Taxes', labelAr: 'الضرائب' },
       { href: `${A}/tax-groups`, labelEn: 'Tax Groups', labelAr: 'مجموعات الضريبة' },
       { href: `${A}/tax-units`, labelEn: 'Tax Units', labelAr: 'وحدات الضريبة' },
+
+      { group: true, labelEn: 'Accounts', labelAr: 'الحسابات' },
       { href: `${A}/account-tags`, labelEn: 'Account Tags', labelAr: 'وسوم الحسابات' },
       { href: `${A}/account-groups`, labelEn: 'Account Groups', labelAr: 'مجموعات الحسابات' },
       { href: `${A}/horizontal-groups`, labelEn: 'Horizontal Groups', labelAr: 'مجموعات أفقية' },
@@ -191,40 +143,21 @@ export const ACCOUNTING_MENU = [
       { group: true, labelEn: 'Payments', labelAr: 'المدفوعات' },
       { href: `${A}/payment-providers`, labelEn: 'Payment Providers', labelAr: 'بوابات الدفع' },
 
-      { group: true, labelEn: 'Management', labelAr: 'الإدارة' },
+      { group: true, labelEn: 'Assets', labelAr: 'الأصول' },
       { href: `${A}/asset-models`, labelEn: 'Asset Models', labelAr: 'نماذج الأصول' },
       { href: `${A}/deferred-revenue-models`, labelEn: 'Deferred Revenue Models', labelAr: 'نماذج الإيرادات المؤجلة' },
-      { href: `${A}/product-categories`, labelEn: 'Product Categories', labelAr: 'فئات المنتجات' },
       { href: `${A}/deferred-expense-models`, labelEn: 'Deferred Expense Models', labelAr: 'نماذج المصروفات المؤجلة' },
+
+      { group: true, labelEn: 'Products', labelAr: 'المنتجات' },
+      { href: `${A}/product-categories`, labelEn: 'Product Categories', labelAr: 'فئات المنتجات' },
+
+      { group: true, labelEn: 'Reporting', labelAr: 'التقارير' },
       { href: `${A}/accounting-reports-config`, labelEn: 'Accounting Reports', labelAr: 'تقارير المحاسبة' },
 
-      { group: true, labelEn: 'Analytic Accounting', labelAr: 'المحاسبة التحليلية' },
-      { href: `${A}/analytic-distribution-models`, labelEn: 'Analytic Distribution Models', labelAr: 'نماذج التوزيع التحليلي' },
+      { group: true, labelEn: 'Analytic', labelAr: 'تحليلي' },
       { href: `${A}/analytic-accounts`, labelEn: 'Analytic Accounts', labelAr: 'الحسابات التحليلية' },
       { href: `${A}/analytic-plans`, labelEn: 'Analytic Plans', labelAr: 'الخطط التحليلية' },
+      { href: `${A}/analytic-distribution-models`, labelEn: 'Analytic Distribution Models', labelAr: 'نماذج التوزيع التحليلي' },
     ],
   },
 ]
-
-export function flattenAccountingMenuHrefs(menu = ACCOUNTING_MENU) {
-  const hrefs = []
-  for (const hub of menu) {
-    if (hub.href) hrefs.push(hub.href)
-    for (const child of hub.children || []) {
-      if (child.href) hrefs.push(child.href)
-    }
-  }
-  return hrefs
-}
-
-export function hubIsActive(hub, pathname) {
-  if (hub.href) {
-    if (hub.end) return pathname === hub.href || pathname === `${hub.href}/`
-    return pathname === hub.href || pathname.startsWith(`${hub.href}/`)
-  }
-  return (hub.children || []).some((item) => {
-    if (!item.href) return false
-    if (item.end) return pathname === item.href || pathname === `${item.href}/`
-    return pathname === item.href || pathname.startsWith(`${item.href}/`)
-  })
-}

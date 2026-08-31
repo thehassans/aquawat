@@ -171,6 +171,34 @@ export async function listUnmatchedOutstandingPayments(tenantId, { limit = 200 }
     .lean();
 }
 
+/**
+ * Unmatched Outstanding Receipts debits (customer receipts awaiting bank clearance).
+ */
+export async function listUnmatchedOutstandingReceipts(tenantId, { limit = 200 } = {}) {
+  let outstandingAccountId = null;
+  try {
+    const { ensureAccountingDefaults, resolveRoleAccount, getAccountMap } = await import('./accountingService.js');
+    const { byCode, byId } = await getAccountMap(tenantId);
+    const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+    const outstanding = await resolveRoleAccount(tenantId, 'outstandingReceipts', { byCode, byId, defaultIds });
+    outstandingAccountId = outstanding?._id || null;
+  } catch {
+    outstandingAccountId = null;
+  }
+  if (!outstandingAccountId) return [];
+
+  return JournalItem.find({
+    tenantId,
+    accountId: outstandingAccountId,
+    state: 'posted',
+    debit: { $gt: 0 },
+    $or: [{ reconcileId: null }, { reconcileId: { $exists: false } }],
+  })
+    .sort({ entryDate: -1, createdAt: -1 })
+    .limit(Math.min(500, Math.max(1, Number(limit) || 200)))
+    .lean();
+}
+
 export async function listUnmatchedStatementLines(tenantId, { statementId = null, accountId = null } = {}) {
   const filter = {
     tenantId,
@@ -190,11 +218,13 @@ export async function matchBankReconciliation(tenantId, userId, {
   statementLineId,
   journalItemIds = [],
   outstandingJournalItemIds = [],
+  outstandingReceiptJournalItemIds = [],
 } = {}) {
   if (!statementLineId) throw new Error('statementLineId is required');
   const bankIds = (Array.isArray(journalItemIds) ? journalItemIds : []).filter(Boolean);
   const outstandingIds = (Array.isArray(outstandingJournalItemIds) ? outstandingJournalItemIds : []).filter(Boolean);
-  if (!bankIds.length && !outstandingIds.length) throw new Error('journalItemIds required');
+  const outstandingReceiptIds = (Array.isArray(outstandingReceiptJournalItemIds) ? outstandingReceiptJournalItemIds : []).filter(Boolean);
+  if (!bankIds.length && !outstandingIds.length && !outstandingReceiptIds.length) throw new Error('journalItemIds required');
 
   const line = await BankStatementLine.findOne({ _id: statementLineId, tenantId });
   if (!line) throw new Error('Statement line not found');
@@ -246,6 +276,49 @@ export async function matchBankReconciliation(tenantId, userId, {
     ids = [...ids, ...bankCreditItems.map((i) => String(i._id))];
   }
 
+  if (outstandingReceiptIds.length) {
+    const stmtAmt = round2(line.amount);
+    if (stmtAmt <= 0) {
+      throw new Error('Outstanding receipts can only clear bank inflows (positive statement lines)');
+    }
+    const outstandingItems = await JournalItem.find({
+      _id: { $in: outstandingReceiptIds },
+      tenantId,
+      state: 'posted',
+    });
+    if (outstandingItems.length !== outstandingReceiptIds.length) {
+      throw new Error('One or more outstanding receipt items not found');
+    }
+    if (outstandingItems.some((i) => i.reconcileId)) {
+      throw new Error('One or more outstanding receipt items are already matched');
+    }
+    const outDebit = round2(outstandingItems.reduce((s, i) => s + Number(i.debit || 0), 0));
+    if (Math.abs(outDebit - stmtAmt) > 0.02) {
+      throw new Error(`Outstanding debits ${outDebit} do not match statement inflow ${stmtAmt}`);
+    }
+
+    const { postOutstandingReceiptClearance } = await import('./accountingService.js');
+    clearanceEntry = await postOutstandingReceiptClearance({
+      tenantId,
+      userId,
+      bankAccountId: line.accountId,
+      amount: outDebit,
+      paymentDate: line.date || new Date(),
+      reference: line.reference || line.label || '',
+      memo: `Bank clearance: ${line.label || line.reference || ''}`.trim(),
+    });
+    if (!clearanceEntry?._id) throw new Error('Failed to post outstanding receipt clearance');
+
+    const bankDebitItems = await JournalItem.find({
+      tenantId,
+      moveId: clearanceEntry._id,
+      accountId: line.accountId,
+      debit: { $gt: 0 },
+      state: 'posted',
+    }).select('_id');
+    ids = [...ids, ...bankDebitItems.map((i) => String(i._id))];
+  }
+
   if (!ids.length) throw new Error('journalItemIds required');
 
   const items = await JournalItem.find({
@@ -289,11 +362,19 @@ export async function matchBankReconciliation(tenantId, userId, {
     );
   }
 
+  if (outstandingReceiptIds.length) {
+    await JournalItem.updateMany(
+      { _id: { $in: outstandingReceiptIds }, tenantId },
+      { $set: { reconcileId } },
+    );
+  }
+
   return {
     reconcileId,
     statementLine: line.toObject(),
     journalItemIds: ids,
     outstandingJournalItemIds: outstandingIds,
+    outstandingReceiptJournalItemIds: outstandingReceiptIds,
     clearanceEntryId: clearanceEntry?._id || null,
   };
 }

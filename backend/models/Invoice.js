@@ -89,6 +89,7 @@ const invoiceLineSchema = new mongoose.Schema({
   sourceDnItemId: { type: mongoose.Schema.Types.ObjectId, set: cleanObjectId },
   sourcePoItemId: { type: mongoose.Schema.Types.ObjectId, set: cleanObjectId },
   expenseAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', set: cleanObjectId },
+  incomeAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', set: cleanObjectId },
   analyticAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'AnalyticAccount', set: cleanObjectId },
 });
 
@@ -288,6 +289,17 @@ const invoiceSchema = new mongoose.Schema({
     role: { type: String, default: '' },
   }],
   contractNumber: { type: String },
+  /** Customer PO / reference on AR documents */
+  customerReference: { type: String, default: '', trim: true },
+  incoterm: { type: String, default: '', trim: true },
+  salespersonId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', set: cleanObjectId },
+  fiscalPosition: { type: String, default: '', trim: true },
+  /** SEPA pain.001 export / bank-portal upload tracking (vendor bills) */
+  sepaExport: {
+    exportedAt: { type: Date, default: null },
+    filename: { type: String, default: '' },
+    markedUploadedAt: { type: Date, default: null },
+  },
   originalInvoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', set: cleanObjectId },
   proformaSourceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', set: cleanObjectId },
   sourceQuotationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Quotation', index: true, set: cleanObjectId },

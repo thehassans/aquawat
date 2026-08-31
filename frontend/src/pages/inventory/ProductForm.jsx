@@ -426,6 +426,13 @@ export default function ProductForm() {
     staleTime: 60_000,
   })
 
+  const { data: productArStats } = useQuery({
+    queryKey: ['product-ar-stats', id],
+    queryFn: () => api.get(`/invoices/sell/product-stats/${id}`).then((r) => r.data),
+    enabled: Boolean(isEdit && id && canBeSold),
+    staleTime: 60_000,
+  })
+
   const [productTab, setProductTab] = useState('general')
   const [attributeLines, setAttributeLines] = useState([])
   const [generateWarning, setGenerateWarning] = useState(null)
@@ -982,6 +989,34 @@ export default function ProductForm() {
             <div className="rounded-lg bg-emerald-100 p-2 dark:bg-emerald-900/30"><DollarSign className="h-5 w-5 text-emerald-600" /></div>
             <h3 className="text-lg font-semibold">{language === 'ar' ? 'المبيعات' : 'Sales'}</h3>
           </div>
+          {isEdit && productArStats ? (
+            <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <button
+                type="button"
+                className="rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-start shadow-sm hover:border-primary-300 dark:border-dark-600 dark:bg-dark-800"
+                onClick={() => navigate(`/app/dashboard/accounting/invoices?productId=${id}`)}
+              >
+                <div className="text-lg font-semibold tabular-nums text-slate-900 dark:text-white">{productArStats.invoiceCount || 0}</div>
+                <div className="text-[11px] uppercase tracking-wide text-slate-500">{language === 'ar' ? 'فواتير مبيعات' : 'Sales invoices'}</div>
+              </button>
+              <div className="rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-start shadow-sm dark:border-dark-600 dark:bg-dark-800">
+                <div className="text-lg font-semibold tabular-nums text-slate-900 dark:text-white">{Number(productArStats.qtySold || 0).toFixed(2)}</div>
+                <div className="text-[11px] uppercase tracking-wide text-slate-500">{language === 'ar' ? 'كمية مباعة' : 'Qty sold'}</div>
+              </div>
+              <div className="rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-start shadow-sm dark:border-dark-600 dark:bg-dark-800">
+                <div className="text-lg font-semibold tabular-nums text-slate-900 dark:text-white">{Number(productArStats.totalRevenue || 0).toFixed(2)}</div>
+                <div className="text-[11px] uppercase tracking-wide text-slate-500">{language === 'ar' ? 'إجمالي الإيراد' : 'Total revenue'}</div>
+              </div>
+              <div className="rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-start shadow-sm dark:border-dark-600 dark:bg-dark-800">
+                <div className="text-lg font-semibold tabular-nums text-slate-900 dark:text-white">
+                  {productArStats.lastInvoiceDate
+                    ? new Date(productArStats.lastInvoiceDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')
+                    : '—'}
+                </div>
+                <div className="text-[11px] uppercase tracking-wide text-slate-500">{language === 'ar' ? 'آخر فاتورة' : 'Last invoice'}</div>
+              </div>
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <label className="label">

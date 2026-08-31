@@ -134,6 +134,20 @@ async function postSellInvoiceLedgers(invoice, req, tenant) {
           currency,
         });
       }
+      if (invoice.originalInvoiceId) {
+        const originalInvoice = await Invoice.findOne({
+          _id: invoice.originalInvoiceId,
+          tenantId: invoice.tenantId,
+        });
+        if (originalInvoice) {
+          await accounting.reconcileCreditNoteWithInvoice({
+            tenantId: invoice.tenantId,
+            userId: req.user._id,
+            creditNote: invoice,
+            originalInvoice,
+          });
+        }
+      }
       return;
     }
 
@@ -295,7 +309,8 @@ function sanitizeInvoicePayload(payload = {}) {
     'restaurantOrderId',
     'travelBookingId',
     'rentalId',
-    'manpowerAssignmentId'
+    'manpowerAssignmentId',
+    'salespersonId',
   ];
 
   for (const key of objectIdKeys) {
@@ -928,7 +943,7 @@ async function ensureProductsExist(tenantId, userId, lineItems, flow) {
 // @route   GET /api/invoices
 router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, paymentStatus, transactionType, businessContext, search, startDate, endDate, zatcaFilter, flow, invoiceType, cursor, supplierId, productId } = req.query;
+    const { page = 1, limit = 20, status, paymentStatus, transactionType, businessContext, search, startDate, endDate, zatcaFilter, flow, invoiceType, cursor, supplierId, customerId, productId } = req.query;
     
     const query = { ...req.tenantFilter };
     if (status) query.status = status;
@@ -939,6 +954,8 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
     if (businessContext) query.businessContext = businessContext;
     const supplierFilter = cleanObjectId(supplierId);
     if (supplierFilter) query.supplierId = supplierFilter;
+    const customerFilter = cleanObjectId(customerId);
+    if (customerFilter) query.customerId = customerFilter;
     const productFilter = cleanObjectId(productId);
     if (productFilter) query['lineItems.productId'] = productFilter;
     if (startDate || endDate) {
@@ -1191,8 +1208,19 @@ router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req,
       return res.status(400).json({ error: 'Payment amount must be greater than zero' });
     }
 
+    const differenceMode = req.body?.differenceMode === 'mark_paid' ? 'mark_paid' : 'keep_open';
+    const differenceAccountId = cleanObjectId(req.body?.differenceAccountId);
+    const remaining = Math.round(((Number(invoice.grandTotal) || 0) - (Number(invoice.paidAmount) || 0)) * 100) / 100;
+    const paymentDiff = Math.round((remaining - amount) * 100) / 100;
+
     if (paymentExceedsRemaining(amount, invoice.grandTotal, invoice.paidAmount)) {
       return res.status(400).json({ error: 'Amount exceeds remaining balance' });
+    }
+
+    if (differenceMode === 'mark_paid' && paymentDiff > 0.005) {
+      if (!differenceAccountId) {
+        return res.status(400).json({ error: 'Difference account is required to mark as fully paid' });
+      }
     }
 
     const method = ['cash', 'card', 'bank_transfer', 'cheque', 'other', 'khata'].includes(req.body?.method)
@@ -1200,8 +1228,17 @@ router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req,
       : 'bank_transfer';
 
     const previousPaymentStatus = invoice.paymentStatus;
-    invoice.paidAmount = Math.round(((Number(invoice.paidAmount) || 0) + amount) * 100) / 100;
-    invoice.payments = [...(invoice.payments || []), { method, amount }];
+    if (differenceMode === 'mark_paid' && paymentDiff > 0.005) {
+      invoice.paidAmount = Math.round(Number(invoice.grandTotal || 0) * 100) / 100;
+    } else {
+      invoice.paidAmount = Math.round(((Number(invoice.paidAmount) || 0) + amount) * 100) / 100;
+    }
+    invoice.payments = [...(invoice.payments || []), {
+      method,
+      amount,
+      differenceMode: paymentDiff > 0.005 ? differenceMode : undefined,
+      differenceAccountId: paymentDiff > 0.005 && differenceMode === 'mark_paid' ? differenceAccountId : undefined,
+    }];
     applyPaidAmountStatus(invoice);
     await invoice.save();
 
@@ -1230,6 +1267,18 @@ router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req,
           reference: `pay-${invoice.invoiceNumber}-${Date.now()}`,
           currency: invoice.currency || req.tenant?.settings?.currency || 'SAR',
         });
+        if (differenceMode === 'mark_paid' && paymentDiff > 0.005 && differenceAccountId) {
+          await accounting.postInvoicePaymentDifferenceJournal({
+            tenantId: invoice.tenantId,
+            userId: req.user._id,
+            invoice,
+            amount: paymentDiff,
+            differenceAccountId,
+            paymentDate: req.body?.paymentDate ? new Date(req.body.paymentDate) : new Date(),
+            reference: `pay-diff-${invoice.invoiceNumber}-${Date.now()}`,
+            currency: invoice.currency || req.tenant?.settings?.currency || 'SAR',
+          });
+        }
       }
     } catch (glError) {
       console.warn('[accounting] invoice payment journal failed:', glError.message);
@@ -2028,6 +2077,21 @@ router.get('/purchase/vendor-account-predictions', checkPermission('invoicing', 
   }
 });
 
+// @route   GET /api/invoices/sell/customer-stats/:customerId
+router.get('/sell/customer-stats/:customerId', checkPermission('invoicing', 'read'), async (req, res) => {
+  try {
+    const customerId = cleanObjectId(req.params.customerId);
+    if (!customerId) {
+      return res.status(400).json({ error: 'Invalid customerId' });
+    }
+    const { getCustomerArStats } = await import('../services/vendorApService.js');
+    const stats = await getCustomerArStats(req.user.tenantId, customerId);
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // @route   GET /api/invoices/purchase/vendor-stats/:supplierId
 router.get('/purchase/vendor-stats/:supplierId', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
@@ -2037,6 +2101,21 @@ router.get('/purchase/vendor-stats/:supplierId', checkPermission('invoicing', 'r
     }
     const { getVendorApStats } = await import('../services/vendorApService.js');
     const stats = await getVendorApStats(req.user.tenantId, supplierId);
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   GET /api/invoices/sell/product-stats/:productId
+router.get('/sell/product-stats/:productId', checkPermission('invoicing', 'read'), async (req, res) => {
+  try {
+    const productId = cleanObjectId(req.params.productId);
+    if (!productId) {
+      return res.status(400).json({ error: 'Invalid productId' });
+    }
+    const { getProductArStats } = await import('../services/vendorApService.js');
+    const stats = await getProductArStats(req.user.tenantId, productId);
     res.json(stats);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -2062,13 +2141,33 @@ router.get('/purchase/product-stats/:productId', checkPermission('invoicing', 'r
 router.post('/purchase/batch-sepa-export', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
     const invoiceIds = Array.isArray(req.body?.invoiceIds) ? req.body.invoiceIds : [];
-    const { buildSepaCreditTransferXml } = await import('../services/vendorApService.js');
+    const { buildSepaCreditTransferXml, markSepaExported } = await import('../services/vendorApService.js');
     const result = await buildSepaCreditTransferXml(req.user.tenantId, invoiceIds, {
       executionDate: req.body?.executionDate,
     });
+    try {
+      await markSepaExported(req.user.tenantId, result.invoiceIds || invoiceIds, {
+        filename: result.filename,
+      });
+    } catch {
+      /* best-effort stamp */
+    }
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader('X-Sepa-Invoice-Ids', JSON.stringify(result.invoiceIds || invoiceIds));
+    res.setHeader('X-Sepa-Transaction-Count', String(result.transactionCount || 0));
     res.send(result.xml);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/invoices/purchase/batch-sepa-mark-uploaded
+router.post('/purchase/batch-sepa-mark-uploaded', checkPermission('invoicing', 'update'), async (req, res) => {
+  try {
+    const invoiceIds = Array.isArray(req.body?.invoiceIds) ? req.body.invoiceIds : [];
+    const { markSepaUploadedToBank } = await import('../services/vendorApService.js');
+    res.json(await markSepaUploadedToBank(req.user.tenantId, invoiceIds));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -2370,6 +2469,37 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
     
     if (req.body.lineItems) {
       req.body.lineItems = await ensureProductsExist(req.user.tenantId, req.user._id, req.body.lineItems, invoice.flow);
+    }
+
+    if (invoice.flow === 'purchase') {
+      const poId = cleanObjectId(req.body.sourcePurchaseOrderId || invoice.sourcePurchaseOrderId);
+      const lineItemsForMatch = (req.body.lineItems || invoice.lineItems || [])
+        .filter((li) => li?.productId && toNumber(li.quantity, 0) > 0);
+      if (poId && lineItemsForMatch.length) {
+        try {
+          await assertThreeWayMatchOrThrow({
+            tenantId: req.user.tenantId,
+            purchaseOrderId: poId,
+            billLines: lineItemsForMatch.map((li) => ({
+              productId: li.productId,
+              variantId: li.variantId,
+              quantity: li.quantity,
+              unitPrice: li.unitPrice,
+            })),
+            qtyTolerance: Number(req.body.qtyTolerance) || 0,
+            priceTolerancePct: Number(req.body.priceTolerancePct) || 0,
+          });
+        } catch (matchErr) {
+          if (matchErr.code === 'THREE_WAY_MATCH') {
+            return res.status(409).json({
+              error: matchErr.message,
+              code: matchErr.code,
+              exceptions: matchErr.exceptions || [],
+            });
+          }
+          throw matchErr;
+        }
+      }
     }
     
     // Only resolve payment status for manually edited fields (not auto-triggered updates without payment info)

@@ -40,6 +40,31 @@ import {
   buildBalanceSheet,
   buildGeneralLedger,
   getAccountingDashboard,
+  getFiscalPositions,
+  setFiscalPositions,
+  getPaymentTermsCatalog,
+  setPaymentTermsCatalog,
+  getIncotermsCatalog,
+  setIncotermsCatalog,
+  buildInvoiceAnalysis,
+  getFollowUpLevels,
+  setFollowUpLevels,
+  getCurrenciesCatalog,
+  setCurrenciesCatalog,
+  getAssetModels,
+  setAssetModels,
+  getAnalyticPlans,
+  setAnalyticPlans,
+  getAccountTags,
+  setAccountTags,
+  getHorizontalGroups,
+  setHorizontalGroups,
+  getTaxUnits,
+  setTaxUnits,
+  getAnalyticDistributionModels,
+  setAnalyticDistributionModels,
+  buildFixedAssetRegister,
+  buildDeferredAccountsReport,
   buildCustomerAccountReport,
   buildCustomerSummaryReport,
   buildSupplierSummaryReport,
@@ -274,6 +299,229 @@ router.put('/ap-payment-settings', checkPermission('finance', 'approve'), async 
     res.json(await setApPaymentSettings(tenantIdOf(req), req.body || {}));
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/ar-payment-settings', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { getArPaymentSettings } = await import('../services/vendorApService.js');
+    res.json(await getArPaymentSettings(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/ar-payment-settings', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    const { setArPaymentSettings } = await import('../services/vendorApService.js');
+    res.json(await setArPaymentSettings(tenantIdOf(req), req.body || {}));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/fiscal-positions', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getFiscalPositions(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/fiscal-positions', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setFiscalPositions(tenantIdOf(req), req.body?.positions || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/payment-terms', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getPaymentTermsCatalog(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/payment-terms', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setPaymentTermsCatalog(tenantIdOf(req), req.body || {}));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/incoterms', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getIncotermsCatalog(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/incoterms', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setIncotermsCatalog(tenantIdOf(req), req.body || {}));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/reports/invoice-analysis', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await buildInvoiceAnalysis(tenantIdOf(req), {
+      from: req.query.from,
+      to: req.query.to,
+      flow: req.query.flow,
+    }));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/follow-up-levels', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getFollowUpLevels(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/follow-up-levels', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setFollowUpLevels(tenantIdOf(req), req.body?.levels || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/currencies', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getCurrenciesCatalog(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/currencies', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setCurrenciesCatalog(tenantIdOf(req), req.body?.currencies || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/asset-models', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getAssetModels(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/asset-models', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setAssetModels(tenantIdOf(req), req.body?.models || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/analytic-plans', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getAnalyticPlans(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/analytic-plans', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setAnalyticPlans(tenantIdOf(req), req.body?.plans || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/account-tags', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getAccountTags(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/account-tags', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setAccountTags(tenantIdOf(req), req.body?.tags || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/horizontal-groups', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getHorizontalGroups(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/horizontal-groups', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setHorizontalGroups(tenantIdOf(req), req.body?.groups || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/tax-units', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getTaxUnits(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/tax-units', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setTaxUnits(tenantIdOf(req), req.body?.units || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/analytic-distribution-models', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getAnalyticDistributionModels(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/analytic-distribution-models', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setAnalyticDistributionModels(tenantIdOf(req), req.body?.models || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/reports/fixed-assets', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await buildFixedAssetRegister(tenantIdOf(req), { modelCode: req.query.modelCode }));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/reports/deferred-accounts', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const kind = req.query.kind === 'revenue' ? 'revenue' : 'expense';
+    res.json(await buildDeferredAccountsReport(tenantIdOf(req), kind));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -771,6 +1019,17 @@ router.get('/bank-recon/unmatched-outstanding', checkPermission('finance', 'read
   }
 });
 
+router.get('/bank-recon/unmatched-outstanding-receipts', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { listUnmatchedOutstandingReceipts } = await import('../services/bankReconciliationService.js');
+    res.json(await listUnmatchedOutstandingReceipts(tenantIdOf(req), {
+      limit: req.query.limit,
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 router.get('/bank-recon/unmatched-lines', checkPermission('finance', 'read'), async (req, res) => {
   try {
     const { listUnmatchedStatementLines } = await import('../services/bankReconciliationService.js');
@@ -800,6 +1059,7 @@ router.post('/bank-recon/match', checkPermission('finance', 'update'), async (re
       statementLineId: req.body.statementLineId,
       journalItemIds: req.body.journalItemIds || [],
       outstandingJournalItemIds: req.body.outstandingJournalItemIds || [],
+      outstandingReceiptJournalItemIds: req.body.outstandingReceiptJournalItemIds || [],
     }));
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -915,6 +1175,7 @@ router.get('/reports/tax', checkPermission('finance', 'read'), async (req, res) 
     res.json(await buildTaxReport(tenantIdOf(req), {
       from: req.query.from,
       to: req.query.to,
+      taxUnitCode: req.query.taxUnit || req.query.taxUnitCode || null,
     }));
   } catch (error) {
     res.status(400).json({ error: error.message });

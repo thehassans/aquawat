@@ -121,6 +121,47 @@ export async function getVendorApStats(tenantId, supplierId) {
   };
 }
 
+/** AR stats for customer master-data stat buttons. */
+export async function getCustomerArStats(tenantId, customerId) {
+  if (!tenantId || !customerId) {
+    return { invoiceCount: 0, invoicedTotal: 0, paidTotal: 0, outstanding: 0, creditNoteCount: 0 };
+  }
+
+  const match = {
+    tenantId,
+    flow: 'sell',
+    customerId,
+    status: { $nin: ['cancelled'] },
+  };
+
+  const [invoiceAgg, creditNoteAgg] = await Promise.all([
+    Invoice.aggregate([
+      { $match: { ...match, invoiceType: '388' } },
+      {
+        $group: {
+          _id: null,
+          invoiceCount: { $sum: 1 },
+          invoicedTotal: { $sum: '$grandTotal' },
+          paidTotal: { $sum: '$paidAmount' },
+        },
+      },
+    ]),
+    Invoice.countDocuments({ ...match, invoiceType: '381' }),
+  ]);
+
+  const row = invoiceAgg[0] || {};
+  const invoicedTotal = round2(row.invoicedTotal || 0);
+  const paidTotal = round2(row.paidTotal || 0);
+
+  return {
+    invoiceCount: row.invoiceCount || 0,
+    invoicedTotal,
+    paidTotal,
+    outstanding: round2(Math.max(0, invoicedTotal - paidTotal)),
+    creditNoteCount: creditNoteAgg || 0,
+  };
+}
+
 /** Purchase stats for product master-data stat buttons. */
 export async function getProductApStats(tenantId, productId) {
   if (!tenantId || !productId) {
@@ -158,6 +199,46 @@ export async function getProductApStats(tenantId, productId) {
     qtyPurchased: round2(qtyPurchased),
     totalSpent: round2(totalSpent),
     lastBillDate,
+  };
+}
+
+/** Sales stats for product master-data stat buttons. */
+export async function getProductArStats(tenantId, productId) {
+  if (!tenantId || !productId) {
+    return { invoiceCount: 0, qtySold: 0, totalRevenue: 0, lastInvoiceDate: null };
+  }
+
+  const pid = String(productId);
+  const invoices = await Invoice.find({
+    tenantId,
+    flow: 'sell',
+    invoiceType: '388',
+    status: { $nin: ['draft', 'cancelled'] },
+    'lineItems.productId': productId,
+  })
+    .select('issueDate lineItems grandTotal')
+    .lean();
+
+  let qtySold = 0;
+  let totalRevenue = 0;
+  let lastInvoiceDate = null;
+
+  for (const inv of invoices) {
+    if (inv.issueDate && (!lastInvoiceDate || new Date(inv.issueDate) > new Date(lastInvoiceDate))) {
+      lastInvoiceDate = inv.issueDate;
+    }
+    for (const line of inv.lineItems || []) {
+      if (String(line.productId || '') !== pid) continue;
+      qtySold += Math.abs(Number(line.quantity || 0));
+      totalRevenue += Math.abs(Number(line.lineTotalWithTax ?? line.lineTotal ?? 0));
+    }
+  }
+
+  return {
+    invoiceCount: invoices.length,
+    qtySold: round2(qtySold),
+    totalRevenue: round2(totalRevenue),
+    lastInvoiceDate,
   };
 }
 
@@ -276,7 +357,47 @@ export async function buildSepaCreditTransferXml(tenantId, invoiceIds = [], opti
     filename: `sepa-vendor-payments-${executionDate}.xml`,
     transactionCount: txBlocks.length,
     totalAmount: round2(ctrlSum),
+    invoiceIds: bills.map((b) => String(b._id)),
   };
+}
+
+/** Stamp SEPA export metadata after a successful pain.001 download. */
+export async function markSepaExported(tenantId, invoiceIds = [], { filename = '' } = {}) {
+  const ids = [...new Set((invoiceIds || []).map(String).filter(Boolean))];
+  if (!ids.length) return { updated: 0 };
+  const result = await Invoice.updateMany(
+    {
+      _id: { $in: ids },
+      tenantId,
+      flow: 'purchase',
+    },
+    {
+      $set: {
+        'sepaExport.exportedAt': new Date(),
+        'sepaExport.filename': String(filename || '').slice(0, 200),
+      },
+    },
+  );
+  return { updated: result.modifiedCount || 0 };
+}
+
+/** Mark bills as uploaded to the bank portal after the user confirms. */
+export async function markSepaUploadedToBank(tenantId, invoiceIds = []) {
+  const ids = [...new Set((invoiceIds || []).map(String).filter(Boolean))];
+  if (!ids.length) throw new Error('Select at least one vendor bill');
+  const result = await Invoice.updateMany(
+    {
+      _id: { $in: ids },
+      tenantId,
+      flow: 'purchase',
+    },
+    {
+      $set: {
+        'sepaExport.markedUploadedAt': new Date(),
+      },
+    },
+  );
+  return { updated: result.modifiedCount || 0 };
 }
 
 /**
@@ -417,14 +538,38 @@ export async function setApPaymentSettings(tenantId, patch = {}) {
   return getApPaymentSettings(tenantId);
 }
 
+export async function getArPaymentSettings(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.useOutstandingReceipts').lean();
+  return {
+    useOutstandingReceipts: tenant?.settings?.accounting?.useOutstandingReceipts !== false,
+  };
+}
+
+export async function setArPaymentSettings(tenantId, patch = {}) {
+  const update = {};
+  if (patch.useOutstandingReceipts !== undefined) {
+    update['settings.accounting.useOutstandingReceipts'] = Boolean(patch.useOutstandingReceipts);
+  }
+  if (Object.keys(update).length) {
+    await Tenant.findByIdAndUpdate(tenantId, { $set: update });
+  }
+  return getArPaymentSettings(tenantId);
+}
+
 export default {
   predictVendorLineAccounts,
   getVendorApStats,
+  getCustomerArStats,
   getProductApStats,
+  getProductArStats,
   buildSepaCreditTransferXml,
+  markSepaExported,
+  markSepaUploadedToBank,
   allocateNextCheckNumber,
   buildCheckPrintPayload,
   buildCheckPrintHtml,
   getApPaymentSettings,
   setApPaymentSettings,
+  getArPaymentSettings,
+  setArPaymentSettings,
 };

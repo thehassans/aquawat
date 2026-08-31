@@ -49,6 +49,7 @@ import { useSalesSettings } from '../../context/SalesSettingsContext'
 import InvoiceJournalItemsPanel, { InvoiceDocumentReferencesBar } from './InvoiceJournalItemsPanel'
 import AccountingDocumentShell from '../accounting/AccountingDocumentShell'
 import { CREDIT_NOTE_STATUS_STEPS, INVOICE_STATUS_STEPS, resolveInvoiceRibbonStep } from '../../lib/accountingDocumentStatus'
+import { INCOTERMS } from '../../pages/sales/salesConfig.menu'
 
 const getEmptyLine = (tenant) => {
   const currency = String(tenant?.settings?.currency || 'SAR').trim().toUpperCase()
@@ -80,6 +81,8 @@ const getEmptyLine = (tenant) => {
     isTravelMargin: false,
     sourcePoItemId: '',
     sourceDnItemId: '',
+    incomeAccountId: '',
+    analyticAccountId: '',
   }
 }
 
@@ -143,6 +146,8 @@ const mapSellLineItems = (invoice, tenant) => {
       agencyPrice: Math.max(0, toNumber(plain?.agencyPrice, 0)),
       isTravelMargin: Boolean(plain?.isTravelMargin),
       productType: normalizeProductType(plain?.productType),
+      incomeAccountId: idOf(plain?.incomeAccountId),
+      analyticAccountId: idOf(plain?.analyticAccountId),
     }
   }).filter((line) => line.productName || line.unitPrice > 0 || line.productId)
   return mapped.length ? mapped : [{ ...empty }]
@@ -278,6 +283,11 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
   travelBookingId: invoice?.travelBookingId || '',
   manpowerAssignmentId: invoice?.manpowerAssignmentId || '',
   contractNumber: invoice?.contractNumber || '',
+  customerReference: invoice?.customerReference || '',
+  incoterm: invoice?.incoterm || '',
+  salespersonId: idOf(invoice?.salespersonId),
+  fiscalPosition: invoice?.fiscalPosition || '',
+  internalNotes: invoice?.internalNotes || '',
   notes: invoice?.notes || '',
   termsAndConditions: invoice?.termsAndConditions || '',
   includeBankDetails: Boolean(invoice?.includeBankDetails),
@@ -611,6 +621,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   }, [defaultBusinessContext, initialInvoice, isEdit, reset, tenant, tenantBusinessTypes])
 
   useEffect(() => {
+    if (isEdit || !fiscalPositions.length) return
+    const current = watch('fiscalPosition')
+    if (String(current || '').trim()) return
+    const def = fiscalPositions.find((p) => p.isDefault) || fiscalPositions[0]
+    if (def?.code) setValue('fiscalPosition', def.code, { shouldDirty: false })
+  }, [fiscalPositions, isEdit, setValue, watch])
+
+  useEffect(() => {
     if (!isEdit || fields.length > 0 || recoveredLinesRef.current) return
     recoveredLinesRef.current = true
     replace(mapSellLineItems(initialInvoice))
@@ -665,6 +683,54 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   })
 
   const productList = Array.isArray(products) ? products : []
+
+  const { data: incomeAccounts = [] } = useQuery({
+    queryKey: ['accounting-accounts-active'],
+    queryFn: () => api.get('/accounting/accounts').then((r) => r.data || []),
+    staleTime: 60_000,
+  })
+
+  const { data: analyticAccounts = [] } = useQuery({
+    queryKey: ['accounting-analytic-accounts'],
+    queryFn: () => api.get('/accounting/analytic-accounts').then((r) => r.data || []),
+    staleTime: 60_000,
+  })
+
+  const { data: salesUsers = [] } = useQuery({
+    queryKey: ['invoice-salesperson-users'],
+    queryFn: () => api.get('/users', { params: { limit: 50, isActive: true } }).then((r) => r.data?.users || []),
+    staleTime: 120_000,
+  })
+
+  const { data: fiscalPositionsData } = useQuery({
+    queryKey: ['accounting-fiscal-positions'],
+    queryFn: () => api.get('/accounting/fiscal-positions').then((r) => r.data),
+    staleTime: 120_000,
+  })
+  const fiscalPositions = fiscalPositionsData?.positions || []
+
+  const { data: paymentTermsCatalog } = useQuery({
+    queryKey: ['accounting-payment-terms'],
+    queryFn: () => api.get('/accounting/payment-terms').then((r) => r.data),
+    staleTime: 120_000,
+  })
+  const paymentTermsList = useMemo(() => {
+    const enabled = (paymentTermsCatalog?.terms || []).filter((t) => t.enabled !== false)
+    if (enabled.length) return enabled.map((t) => ({ id: t.id, labelEn: t.labelEn, labelAr: t.labelAr }))
+    return INVOICE_PAYMENT_TERMS
+  }, [paymentTermsCatalog])
+
+  const { data: incotermsCatalog } = useQuery({
+    queryKey: ['accounting-incoterms'],
+    queryFn: () => api.get('/accounting/incoterms').then((r) => r.data),
+    staleTime: 120_000,
+  })
+  const incotermsList = useMemo(() => {
+    const enabled = (incotermsCatalog?.terms || []).filter((t) => t.enabled !== false).map((t) => t.code)
+    return enabled.length ? enabled : INCOTERMS
+  }, [incotermsCatalog])
+
+  const isInvoicePosted = isEdit && initialInvoice && !['draft', 'pending'].includes(String(initialInvoice.status || ''))
 
   const { data: sellOrdersRaw = [] } = useQuery({
     queryKey: ['sell-orders', 'invoice-fill'],
@@ -1121,6 +1187,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     setValue(`lineItems.${index}.taxRate`, tax, opts)
     setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType), opts)
     setValue(`lineItems.${index}.unitPrice`, resolveProductSalePrice(product), opts)
+    if (product.incomeAccountId) {
+      setValue(`lineItems.${index}.incomeAccountId`, product.incomeAccountId, opts)
+    }
     const qty = Number(getValues(`lineItems.${index}.quantity`))
     if (!Number.isFinite(qty) || qty <= 0) {
       setValue(`lineItems.${index}.quantity`, 1, opts)
@@ -1252,6 +1321,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           lineTotalWithTax: toNumber(summaryLine.lineTotalWithTax, 0),
           sourcePoItemId: line.sourcePoItemId || undefined,
           sourceDnItemId: line.sourceDnItemId || undefined,
+          incomeAccountId: line.incomeAccountId || undefined,
+          analyticAccountId: line.analyticAccountId || undefined,
         }
       }),
       subtotal: namedTotals.subtotal,
@@ -1286,6 +1357,11 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     if (!payload.travelBookingId) delete payload.travelBookingId
     if (!payload.manpowerAssignmentId) delete payload.manpowerAssignmentId
     if (!payload.contractNumber) delete payload.contractNumber
+    if (!payload.customerReference) delete payload.customerReference
+    if (!payload.incoterm) delete payload.incoterm
+    if (!payload.salespersonId) delete payload.salespersonId
+    if (!payload.fiscalPosition) delete payload.fiscalPosition
+    if (!payload.internalNotes) delete payload.internalNotes
     // Invoices never move stock (delivery notes / GRNs do) — warehouse is optional metadata
     if (!isTradingContext || !payload.warehouseId) delete payload.warehouseId
 
@@ -1460,6 +1536,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         <form
           onSubmit={(e) => {
             e.preventDefault()
+            if (isInvoicePosted) {
+              toast.error(language === 'ar' ? 'الفاتورة مرحّلة — للعرض فقط' : 'Posted invoice is read-only')
+              return
+            }
             const lines = getValues('lineItems') || []
             const kept = lines.filter(sellLineHasContent)
             if (!kept.length) {
@@ -1493,6 +1573,11 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           }}
           className="space-y-2.5"
         >
+          {isInvoicePosted ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+              {language === 'ar' ? 'فاتورة مرحّلة — التعديل مقفل (عرض وبنود القيد فقط).' : 'Posted invoice — editing is locked (view and journal items only).'}
+            </div>
+          ) : null}
           <div className={`${sectionCardClass} !p-3 space-y-2`}>
             <div className="flex flex-wrap items-center gap-2">
               <div className={segmentWrapClass}>
@@ -1506,6 +1591,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     <button
                       key={fmt.id}
                       type="button"
+                      disabled={isInvoicePosted}
                       onClick={() => setValue('printFormat', fmt.id, { shouldDirty: true, shouldTouch: true })}
                       className={`${segmentBtnClass(active)} inline-flex items-center gap-1.5`}
                     >
@@ -1517,10 +1603,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               </div>
 
               <div className={segmentWrapClass}>
-                <button type="button" onClick={() => setInvoiceType('B2B')} className={segmentBtnClass(invoiceType === 'B2B')}>
+                <button type="button" disabled={isInvoicePosted} onClick={() => setInvoiceType('B2B')} className={segmentBtnClass(invoiceType === 'B2B')}>
                   B2B
                 </button>
-                <button type="button" onClick={() => setInvoiceType('B2C')} className={segmentBtnClass(invoiceType === 'B2C')}>
+                <button type="button" disabled={isInvoicePosted} onClick={() => setInvoiceType('B2C')} className={segmentBtnClass(invoiceType === 'B2C')}>
                   B2C
                 </button>
               </div>
@@ -1546,6 +1632,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
 
           {formTab === 'lines' && (
           <>
+          <fieldset disabled={isInvoicePosted} className="min-w-0 space-y-2.5 border-0 p-0 m-0 disabled:opacity-60">
           {(isRestaurantContext || isTravelContext || isManpowerContext) && (
             <div className={`${sectionCardClass} !py-3`}>
               <div className="grid grid-cols-1 items-end gap-3 md:grid-cols-12">
@@ -1610,7 +1697,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               ar={language === 'ar'}
               language={language}
               onChange={onSelectCustomer}
-              showNewButton
+              showNewButton={!isInvoicePosted}
+              disabled={isInvoicePosted}
             />
             {selectedCustomer?._id ? (
               <CustomerSummaryCard
@@ -1620,7 +1708,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   const returnTo = `${window.location.pathname}${window.location.search}`
                   navigate(`/app/dashboard/customers/${selectedCustomer._id}?returnTo=${encodeURIComponent(returnTo)}`)
                 }}
-                onClear={() => onSelectCustomer('', null)}
+                onClear={isInvoicePosted ? undefined : () => onSelectCustomer('', null)}
               />
             ) : (
               <p className="text-[11px] text-slate-400">
@@ -1754,16 +1842,24 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             ) : (
               <div className="overflow-x-auto">
                 <div
-                  className={`hidden gap-1 border-y border-slate-100 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5 lg:grid lg:grid-cols-12`}
+                  className={`hidden gap-1 border-y border-slate-100 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5 lg:grid ${
+                    isTravelContext ? 'lg:grid-cols-12' : 'lg:grid-cols-[repeat(14,minmax(0,1fr))]'
+                  }`}
                   dir="ltr"
                 >
-                  <div className={showArabicFields ? 'lg:col-span-4' : 'lg:col-span-5'}>
+                  <div className={showArabicFields ? (isTravelContext ? 'lg:col-span-4' : 'col-span-2') : (isTravelContext ? 'lg:col-span-5' : 'col-span-2')}>
                     {language === 'ar' ? 'المنتج' : 'Product'}
                   </div>
-                  {showArabicFields ? <div className="lg:col-span-2">عربي</div> : null}
-                  {!isTravelContext ? <div className="lg:col-span-1">{language === 'ar' ? 'وحدة' : 'UOM'}</div> : null}
-                  {!isTravelContext ? <div className="lg:col-span-1">{t('quantity')}</div> : null}
-                  <div className={isTravelContext ? 'lg:col-span-2' : 'lg:col-span-1'}>
+                  {showArabicFields ? <div className={isTravelContext ? 'lg:col-span-2' : 'col-span-2'}>عربي</div> : null}
+                  {!isTravelContext ? (
+                    <>
+                      <div className="col-span-2">{language === 'ar' ? 'الحساب' : 'Account'}</div>
+                      <div className="col-span-2">{language === 'ar' ? 'تحليلي' : 'Analytic'}</div>
+                    </>
+                  ) : null}
+                  {!isTravelContext ? <div className="col-span-1">{language === 'ar' ? 'وحدة' : 'UOM'}</div> : null}
+                  {!isTravelContext ? <div className="col-span-1">{t('quantity')}</div> : null}
+                  <div className={isTravelContext ? 'lg:col-span-2' : 'col-span-1'}>
                     {isTravelContext ? (language === 'ar' ? 'سعر التذكرة' : 'Price') : t('unitPrice')}
                   </div>
                   {isTravelContext ? (
@@ -1772,9 +1868,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       <div className="lg:col-span-1">{language === 'ar' ? 'عميل' : 'Customer'}</div>
                     </>
                   ) : (
-                    <div className="lg:col-span-1">{t('tax')} %</div>
+                    <div className="col-span-1">{t('tax')} %</div>
                   )}
-                  <div className="text-end lg:col-span-2">{t('total')}</div>
+                  <div className="text-end col-span-2">{t('total')}</div>
                 </div>
 
                 <div className="divide-y divide-slate-100 dark:divide-white/5">
@@ -1792,8 +1888,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <input type="hidden" {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} />
                   <input type="hidden" {...register(`lineItems.${index}.isTravelMargin`)} />
                   <input type="hidden" {...register(`lineItems.${index}.productType`)} />
-                  <div className="grid grid-cols-2 items-center gap-1.5 lg:grid-cols-12" dir="ltr">
-                    <div className={`col-span-2 ${showArabicFields ? 'lg:col-span-4' : 'lg:col-span-5'}`}>
+                  <div className={`grid grid-cols-2 items-center gap-1.5 ${isTravelContext ? 'lg:grid-cols-12' : 'lg:grid-cols-[repeat(14,minmax(0,1fr))]'}`} dir="ltr">
+                    <div className={`col-span-2 ${showArabicFields ? (isTravelContext ? 'lg:col-span-4' : 'lg:col-span-2') : (isTravelContext ? 'lg:col-span-5' : 'lg:col-span-2')}`}>
                       {isTradingContext ? (
                         <div className="flex min-h-[36px] items-center gap-1 rounded-lg bg-slate-50/80 pe-0.5 ps-1 dark:bg-white/[0.03]">
                           <ProductTypeToggle
@@ -1941,6 +2037,38 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     ) : (
                       <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
                     )}
+                    {!isTravelContext ? (
+                      <>
+                        <div className="col-span-2 lg:col-span-2">
+                          <select
+                            {...register(`lineItems.${index}.incomeAccountId`)}
+                            disabled={isInvoicePosted}
+                            className={`${lineGhostInputClass} cursor-pointer disabled:opacity-60`}
+                          >
+                            <option value="">{language === 'ar' ? 'حساب…' : 'Account…'}</option>
+                            {incomeAccounts.map((a) => (
+                              <option key={a._id} value={a._id}>
+                                {a.code} — {language === 'ar' ? (a.nameAr || a.name) : a.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="col-span-2 lg:col-span-2">
+                          <select
+                            {...register(`lineItems.${index}.analyticAccountId`)}
+                            disabled={isInvoicePosted}
+                            className={`${lineGhostInputClass} cursor-pointer disabled:opacity-60`}
+                          >
+                            <option value="">{language === 'ar' ? 'تحليلي…' : 'Analytic…'}</option>
+                            {analyticAccounts.map((a) => (
+                              <option key={a._id} value={a._id}>
+                                {a.code ? `${a.code} — ` : ''}{language === 'ar' ? (a.nameAr || a.name) : a.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </>
+                    ) : null}
                     {!isTravelContext ? (
                       <div className="col-span-1 min-w-[4.5rem] lg:col-span-1">
                         <select
@@ -2164,11 +2292,61 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             sourcePurchaseOrderId={watch('sourcePurchaseOrderId')}
             value={accountingLines}
             onChange={setAccountingLines}
+            readOnly={isInvoicePosted}
           />
           )}
 
           {formTab === 'other' && (
           <>
+          <div className={`${sectionCardClass} space-y-4`}>
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+              {language === 'ar' ? 'معلومات المحاسبة' : 'Accounting metadata'}
+            </h4>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className={fieldLabelClass}>{language === 'ar' ? 'مندوب المبيعات' : 'Salesperson'}</label>
+                <select {...register('salespersonId')} disabled={isInvoicePosted} className={`mt-1.5 ${fieldControlClass} disabled:opacity-60`}>
+                  <option value="">{language === 'ar' ? '—' : '—'}</option>
+                  {salesUsers.map((u) => (
+                    <option key={u._id} value={u._id}>
+                      {[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={fieldLabelClass}>{language === 'ar' ? 'شروط التجارة (Incoterm)' : 'Incoterm'}</label>
+                <select {...register('incoterm')} disabled={isInvoicePosted} className={`mt-1.5 ${fieldControlClass} disabled:opacity-60`}>
+                  <option value="">—</option>
+                  {incotermsList.map((code) => (
+                    <option key={code} value={code}>{code}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={fieldLabelClass}>{language === 'ar' ? 'مرجع العميل' : 'Customer reference'}</label>
+                <input {...register('customerReference')} disabled={isInvoicePosted} className={`mt-1.5 ${fieldControlClass} disabled:opacity-60`} placeholder={language === 'ar' ? 'PO / مرجع العميل' : 'Customer PO / reference'} />
+              </div>
+              <div>
+                <label className={fieldLabelClass}>{language === 'ar' ? 'المركز الضريبي' : 'Fiscal position'}</label>
+                <select {...register('fiscalPosition')} disabled={isInvoicePosted} className={`mt-1.5 ${fieldControlClass} disabled:opacity-60`}>
+                  <option value="">{language === 'ar' ? '—' : '—'}</option>
+                  {values?.fiscalPosition && !fiscalPositions.some((pos) => pos.code === values.fiscalPosition) ? (
+                    <option value={values.fiscalPosition}>{values.fiscalPosition}</option>
+                  ) : null}
+                  {fiscalPositions.map((pos) => (
+                    <option key={pos.code} value={pos.code}>
+                      {language === 'ar' ? (pos.nameAr || pos.name || pos.code) : (pos.name || pos.code)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className={fieldLabelClass}>{language === 'ar' ? 'ملاحظات داخلية' : 'Internal notes'}</label>
+                <textarea {...register('internalNotes')} disabled={isInvoicePosted} rows={2} className={`mt-1.5 ${fieldControlClass} min-h-[4rem] disabled:opacity-60`} />
+              </div>
+            </div>
+          </div>
           <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
             <div className="flex items-center gap-1 border-b border-slate-100 px-2 py-1.5 dark:border-white/5">
               <span className="px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
@@ -2428,7 +2606,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 </p>
 
                 <div className="mt-3 flex flex-wrap items-center gap-1 rounded-xl bg-slate-100/80 p-1 dark:bg-white/5">
-                  {INVOICE_PAYMENT_TERMS.slice(0, 5).map((term) => {
+                  {paymentTermsList.slice(0, 5).map((term) => {
                     const active = watch('paymentTerms') === term.id
                     return (
                       <button
@@ -2459,7 +2637,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     {...register('paymentTerms')}
                     aria-label={language === 'ar' ? 'شروط أخرى' : 'More terms'}
                     className={`ms-auto max-w-[9.5rem] truncate rounded-lg border-0 bg-transparent py-1.5 pe-6 ps-2 text-[11px] font-semibold outline-none ${
-                      INVOICE_PAYMENT_TERMS.slice(0, 5).some((t) => t.id === watch('paymentTerms'))
+                      paymentTermsList.slice(0, 5).some((t) => t.id === watch('paymentTerms'))
                         ? 'text-slate-400'
                         : 'bg-white text-slate-900 shadow-sm dark:bg-dark-800 dark:text-white'
                     }`}
@@ -2473,7 +2651,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       setValue('paymentStatus', isImmediatePaymentTerm(id) ? 'paid' : 'pending', { shouldDirty: true })
                     }}
                   >
-                    {INVOICE_PAYMENT_TERMS.map((term) => (
+                    {paymentTermsList.map((term) => (
                       <option key={term.id} value={term.id}>{language === 'ar' ? term.labelAr : term.labelEn}</option>
                     ))}
                   </select>
@@ -2548,6 +2726,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
 
             {/* Optional warehouse metadata only — stock moves via delivery notes */}
             <input type="hidden" {...register('warehouseId')} />
+          </fieldset>
 
             <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 dark:border-white/5 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-slate-400">
@@ -2557,7 +2736,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               </p>
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : '/app/dashboard/accounting/invoices')} className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:bg-transparent dark:text-slate-300">{t('cancel')}</button>
-                <button type="submit" disabled={saveMutation.isPending} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 dark:bg-white dark:text-slate-900">
+                <button type="submit" disabled={saveMutation.isPending || isInvoicePosted} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 disabled:opacity-50 dark:bg-white dark:text-slate-900">
                   {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" /> : <><Eye className="w-4 h-4" />{language === 'ar' ? 'معاينة' : 'Preview'}</>}
                 </button>
               </div>

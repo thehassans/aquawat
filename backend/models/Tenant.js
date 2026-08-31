@@ -394,9 +394,12 @@ const tenantSchema = new mongoose.Schema({
         suspenseAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
         inventoryAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
         outstandingPaymentsAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+        outstandingReceiptsAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
       },
       /** When true (default), bank/cheque vendor payments credit Outstanding Payments until bank recon */
       useOutstandingPayments: { type: Boolean, default: true },
+      /** When true (default), bank/cheque customer receipts debit Outstanding Receipts until bank recon */
+      useOutstandingReceipts: { type: Boolean, default: true },
       /** SEPA pain.001 debtor (company bank) details for vendor payment export */
       sepa: {
         debtorIban: { type: String, default: '' },
@@ -410,6 +413,86 @@ const tenantSchema = new mongoose.Schema({
         micrRouting: { type: String, default: '' },
         micrAccount: { type: String, default: '' },
       },
+      /** Fiscal position master list (code stored on invoices) */
+      fiscalPositions: [{
+        code: { type: String, trim: true },
+        name: { type: String, trim: true, default: '' },
+        nameAr: { type: String, trim: true, default: '' },
+        isDefault: { type: Boolean, default: false },
+      }],
+      /** Enabled payment-term ids (empty = all built-in terms) */
+      paymentTermIds: [{ type: String }],
+      defaultPaymentTermId: { type: String, default: 'net30' },
+      /** Enabled Incoterms codes (empty = all standard codes) */
+      incoterms: [{ type: String }],
+      defaultIncoterm: { type: String, default: 'EXW' },
+      /** Multi-currency rates vs company currency */
+      currencies: [{
+        code: { type: String, trim: true, uppercase: true },
+        name: { type: String, trim: true, default: '' },
+        nameAr: { type: String, trim: true, default: '' },
+        rate: { type: Number, default: 1 },
+        active: { type: Boolean, default: true },
+      }],
+      /** AR follow-up reminder levels (days overdue) */
+      followUpLevels: [{
+        level: { type: Number, default: 1 },
+        daysOverdue: { type: Number, default: 0 },
+        name: { type: String, trim: true, default: '' },
+        nameAr: { type: String, trim: true, default: '' },
+        channel: { type: String, enum: ['whatsapp', 'email', 'sms', 'call'], default: 'whatsapp' },
+      }],
+      /** Asset depreciation models (straight-line stubs) */
+      assetModels: [{
+        code: { type: String, trim: true },
+        name: { type: String, trim: true, default: '' },
+        nameAr: { type: String, trim: true, default: '' },
+        method: { type: String, enum: ['straight_line'], default: 'straight_line' },
+        usefulLifeMonths: { type: Number, default: 60 },
+        salvagePct: { type: Number, default: 0 },
+      }],
+      /** Analytic plans (grouping of analytic accounts) */
+      analyticPlans: [{
+        code: { type: String, trim: true },
+        name: { type: String, trim: true, default: '' },
+        nameAr: { type: String, trim: true, default: '' },
+        active: { type: Boolean, default: true },
+      }],
+      /** Free-form account tags */
+      accountTags: [{ type: String, trim: true }],
+      /** Report column groupings (account code prefixes) */
+      horizontalGroups: [{
+        code: { type: String, trim: true },
+        name: { type: String, trim: true, default: '' },
+        nameAr: { type: String, trim: true, default: '' },
+        accountPrefixes: [{ type: String, trim: true }],
+        sequence: { type: Number, default: 0 },
+      }],
+      /** Legal entities / branches for consolidated tax reporting */
+      taxUnits: [{
+        code: { type: String, trim: true },
+        name: { type: String, trim: true, default: '' },
+        nameAr: { type: String, trim: true, default: '' },
+        vatNumber: { type: String, trim: true, default: '' },
+        country: { type: String, trim: true, uppercase: true, default: 'SA' },
+        taxCodes: [{ type: String, trim: true }],
+        isDefault: { type: Boolean, default: false },
+      }],
+      /** Auto-distribute analytic % on invoice/journal lines */
+      analyticDistributionModels: [{
+        name: { type: String, trim: true, default: '' },
+        nameAr: { type: String, trim: true, default: '' },
+        active: { type: Boolean, default: true },
+        priority: { type: Number, default: 10 },
+        matchPartnerTag: { type: String, trim: true, default: '' },
+        matchProductCategory: { type: String, trim: true, default: '' },
+        matchAccountPrefix: { type: String, trim: true, default: '' },
+        lines: [{
+          planCode: { type: String, trim: true, default: '' },
+          analyticAccountCode: { type: String, trim: true, default: '' },
+          percent: { type: Number, default: 100 },
+        }],
+      }],
     },
     hiddenUoms: [{ type: String }],
     couriers: {

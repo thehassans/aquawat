@@ -17,6 +17,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS = [
   { code: '1000', name: 'Cash on Hand', nameAr: 'النقدية بالصندوق', type: 'asset', subtype: 'cash' },
   { code: '1100', name: 'Bank Accounts', nameAr: 'الحسابات البنكية', type: 'asset', subtype: 'bank' },
   { code: '1200', name: 'Accounts Receivable', nameAr: 'الذمم المدينة', type: 'asset', subtype: 'receivable' },
+  { code: '1250', name: 'Outstanding Receipts', nameAr: 'مقبوضات معلقة', type: 'asset', subtype: 'other_asset' },
   { code: '1300', name: 'Inventory', nameAr: 'المخزون', type: 'asset', subtype: 'inventory' },
   { code: '1400', name: 'VAT Input (Recoverable)', nameAr: 'ضريبة المدخلات', type: 'asset', subtype: 'other_asset' },
   { code: '1500', name: 'Prepaid Expenses', nameAr: 'مصروفات مدفوعة مقدماً', type: 'asset', subtype: 'other_asset' },
@@ -46,6 +47,7 @@ const ACCOUNT_CODE_MAP = {
   cash: '1000',
   bank: '1100',
   ar: '1200',
+  outstandingReceipts: '1250',
   inventory: '1300',
   vatInput: '1400',
   suspense: '1900',
@@ -79,6 +81,7 @@ export const DEFAULT_ACCOUNT_KEYS = [
   'suspenseAccountId',
   'inventoryAccountId',
   'outstandingPaymentsAccountId',
+  'outstandingReceiptsAccountId',
 ];
 
 const ROLE_TO_DEFAULT_KEY = {
@@ -94,6 +97,7 @@ const ROLE_TO_DEFAULT_KEY = {
   suspense: 'suspenseAccountId',
   inventory: 'inventoryAccountId',
   outstandingPayments: 'outstandingPaymentsAccountId',
+  outstandingReceipts: 'outstandingReceiptsAccountId',
 };
 
 const DEFAULT_KEY_TO_CODE = {
@@ -109,6 +113,7 @@ const DEFAULT_KEY_TO_CODE = {
   suspenseAccountId: ACCOUNT_CODE_MAP.suspense,
   inventoryAccountId: ACCOUNT_CODE_MAP.inventory,
   outstandingPaymentsAccountId: ACCOUNT_CODE_MAP.outstandingPayments,
+  outstandingReceiptsAccountId: ACCOUNT_CODE_MAP.outstandingReceipts,
 };
 
 export function normaliseLines(lines = []) {
@@ -945,7 +950,8 @@ export function buildSalesInvoiceJournalLines({
     for (const r of revenueCredits) {
       const amt = round2(Math.abs(Number(r.amount) || 0));
       if (amt <= 0 || !r.account?._id) continue;
-      const key = String(r.account._id);
+      const analyticKey = r.analyticAccountId ? String(r.analyticAccountId) : '';
+      const key = `${r.account._id}|${analyticKey}`;
       const prev = byAcct.get(key);
       if (prev) prev.credit = round2(prev.credit + amt);
       else {
@@ -956,6 +962,7 @@ export function buildSalesInvoiceJournalLines({
           credit: amt,
           description: description || 'Sales revenue',
           partnerId: partnerId || null,
+          analyticAccountId: r.analyticAccountId || null,
         });
       }
     }
@@ -1041,13 +1048,20 @@ export async function previewSalesInvoiceJournal({ tenantId, invoice = {} }) {
       let share = lineNets[i];
       if (sumLines > 0 && sumLines !== net) share = round2((lineNets[i] / sumLines) * net);
       if (share <= 0) continue;
-      const account = await resolveSalesIncomeAccount(
-        tenantId,
-        lineItems[i].productId,
-        lineItems[i].productType === 'service'
-          ? (byCode[ACCOUNT_CODE_MAP.services] || sales)
-          : sales,
-      );
+      let account = null;
+      if (lineItems[i].incomeAccountId) {
+        account = byId[String(lineItems[i].incomeAccountId)]
+          || await loadActiveCoa(tenantId, lineItems[i].incomeAccountId);
+      }
+      if (!account) {
+        account = await resolveSalesIncomeAccount(
+          tenantId,
+          lineItems[i].productId,
+          lineItems[i].productType === 'service'
+            ? (byCode[ACCOUNT_CODE_MAP.services] || sales)
+            : sales,
+        );
+      }
       if (!account) continue;
       revenueCredits.push({ account, amount: share });
     }
@@ -1137,16 +1151,26 @@ export async function previewPurchaseInvoiceJournal({ tenantId, invoice = {} }) 
     const lineNet = round2(Math.abs(Number(rawNet) || 0));
     if (lineNet <= 0) continue;
     const accountId = String(li.expenseAccountId || expenseAcct._id);
-    const analyticAccountId = li.analyticAccountId ? String(li.analyticAccountId) : '';
-    const key = `${accountId}|${analyticAccountId}`;
-    const prev = expenseBuckets.get(key) || {
-      accountId,
-      analyticAccountId: analyticAccountId || null,
-      amount: 0,
-    };
-    prev.amount = round2(prev.amount + lineNet);
-    expenseBuckets.set(key, prev);
-    allocatedNet = round2(allocatedNet + lineNet);
+    const acct = byId[accountId] || expenseAcct;
+    const splits = await applyAnalyticDistributionToAmount(tenantId, {
+      amount: lineNet,
+      accountCode: acct?.code || '',
+      productCategory: li.productCategory || li.category || '',
+      partnerTag: invoice.fiscalPosition || invoice.partnerTag || '',
+      existingAnalyticAccountId: li.analyticAccountId || null,
+    });
+    for (const split of splits) {
+      const analyticAccountId = split.analyticAccountId ? String(split.analyticAccountId) : '';
+      const key = `${accountId}|${analyticAccountId}`;
+      const prev = expenseBuckets.get(key) || {
+        accountId,
+        analyticAccountId: analyticAccountId || null,
+        amount: 0,
+      };
+      prev.amount = round2(prev.amount + split.amount);
+      expenseBuckets.set(key, prev);
+      allocatedNet = round2(allocatedNet + split.amount);
+    }
   }
 
   if (expenseBuckets.size && allocatedNet > 0 && allocatedNet !== net) {
@@ -1328,15 +1352,35 @@ export async function postSalesInvoiceJournal({
         share = round2((lineNets[i] / sumLines) * net);
       }
       if (share <= 0) continue;
-      const account = await resolveSalesIncomeAccount(
-        tenantId,
-        lineItems[i].productId,
-        lineItems[i].productType === 'service'
-          ? (byCode[ACCOUNT_CODE_MAP.services] || sales)
-          : sales,
-      );
+      let account = null;
+      if (lineItems[i].incomeAccountId) {
+        account = byId[String(lineItems[i].incomeAccountId)]
+          || await loadActiveCoa(tenantId, lineItems[i].incomeAccountId);
+      }
+      if (!account) {
+        account = await resolveSalesIncomeAccount(
+          tenantId,
+          lineItems[i].productId,
+          lineItems[i].productType === 'service'
+            ? (byCode[ACCOUNT_CODE_MAP.services] || sales)
+            : sales,
+        );
+      }
       if (!account) continue;
-      revenueCredits.push({ account, amount: share });
+      const splits = await applyAnalyticDistributionToAmount(tenantId, {
+        amount: share,
+        accountCode: account.code,
+        productCategory: lineItems[i].productCategory || lineItems[i].category || '',
+        partnerTag: invoice.fiscalPosition || invoice.partnerTag || '',
+        existingAnalyticAccountId: lineItems[i].analyticAccountId || null,
+      });
+      for (const split of splits) {
+        revenueCredits.push({
+          account,
+          amount: split.amount,
+          analyticAccountId: split.analyticAccountId || null,
+        });
+      }
     }
     if (revenueCredits.length) {
       const allocated = round2(revenueCredits.reduce((s, g) => s + g.amount, 0));
@@ -1411,6 +1455,22 @@ export async function postInvoicePaymentJournal({
   });
   if (!cash || !ar) return null;
 
+  const method = String(paymentMethod || '').toLowerCase();
+  const useOutstanding = !method.includes('cash') && method !== 'card';
+  let debitAccount = cash;
+  let debitDescription = 'Customer payment';
+  if (useOutstanding) {
+    const tenant = await Tenant.findById(tenantId).select('settings.accounting.useOutstandingReceipts').lean();
+    const outstandingEnabled = tenant?.settings?.accounting?.useOutstandingReceipts !== false;
+    if (outstandingEnabled) {
+      const outstanding = await resolveRoleAccount(tenantId, 'outstandingReceipts', ctx);
+      if (outstanding) {
+        debitAccount = outstanding;
+        debitDescription = 'Outstanding customer receipt (awaiting bank clearance)';
+      }
+    }
+  }
+
   const key = `InvoicePayment:${invoice._id}:${payAmt}:${reference || paymentDate}`;
   const dup = await JournalEntry.findOne({
     tenantId,
@@ -1436,7 +1496,7 @@ export async function postInvoicePaymentJournal({
     reference: key,
     currency,
     lines: stampPartnerId([
-      { accountId: cash._id, accountCode: cash.code, debit: payAmt, credit: 0, description: 'Customer payment' },
+      { accountId: debitAccount._id, accountCode: debitAccount.code, debit: payAmt, credit: 0, description: debitDescription },
       { accountId: ar._id, accountCode: ar.code, debit: 0, credit: payAmt, description: `Settle AR ${invoice.invoiceNumber}` },
     ], partnerId),
     sourceModel: 'InvoicePayment',
@@ -1447,7 +1507,65 @@ export async function postInvoicePaymentJournal({
   });
 }
 
-/** Vendor payment against purchase bill — AP Dr, Cash/Bank Cr */
+/** Write off remaining AR balance when registering a partial payment with mark-as-paid difference. */
+export async function postInvoicePaymentDifferenceJournal({
+  tenantId,
+  userId,
+  invoice,
+  amount,
+  differenceAccountId,
+  paymentDate = new Date(),
+  reference = '',
+  currency = 'SAR',
+}) {
+  const diffAmt = round2(amount);
+  if (!invoice?._id || diffAmt <= 0 || !differenceAccountId) return null;
+
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+  const partnerId = invoice.customerId || null;
+  const partnerAccounts = await loadPartnerAccountIds(tenantId, partnerId);
+  const ctx = { byCode, byId, defaultIds };
+  const ar = await resolveRoleAccount(tenantId, 'ar', {
+    ...ctx,
+    partnerAccountId: partnerAccounts.receivableAccountId,
+  });
+  const diffAcct = byId[String(differenceAccountId)]
+    || await ChartOfAccount.findOne({ _id: differenceAccountId, tenantId, isActive: true }).lean();
+  if (!ar || !diffAcct) return null;
+
+  const key = `InvoicePaymentDiff:${invoice._id}:${diffAmt}:${reference || paymentDate}`;
+  const dup = await JournalEntry.findOne({
+    tenantId,
+    sourceModel: 'InvoicePaymentDifference',
+    sourceId: invoice._id,
+    reference: key,
+    status: { $ne: 'void' },
+  });
+  if (dup) return dup;
+
+  const journalId = await resolveJournalBookId(tenantId, userId, 'ensureDefaultMiscJournal');
+
+  return createJournalEntry({
+    tenantId,
+    userId,
+    entryDate: paymentDate,
+    type: 'adjustment',
+    memo: `Payment difference write-off ${invoice.invoiceNumber}`,
+    memoAr: `شطب فرق الدفع ${invoice.invoiceNumber}`,
+    reference: key,
+    currency,
+    lines: stampPartnerId([
+      { accountId: diffAcct._id, accountCode: diffAcct.code, debit: diffAmt, credit: 0, description: 'Payment difference' },
+      { accountId: ar._id, accountCode: ar.code, debit: 0, credit: diffAmt, description: `Clear AR diff ${invoice.invoiceNumber}` },
+    ], partnerId),
+    sourceModel: 'InvoicePaymentDifference',
+    sourceId: invoice._id,
+    sourceNumber: invoice.invoiceNumber,
+    status: 'posted',
+    journalId,
+  });
+}
 export async function postVendorBillPaymentJournal({
   tenantId,
   userId,
@@ -1596,6 +1714,75 @@ export async function postOutstandingPaymentClearance({
   });
 }
 
+/**
+ * Clear Outstanding Receipts against the real bank account when the statement arrives.
+ * Bank Dr, Outstanding Receipts Cr.
+ */
+export async function postOutstandingReceiptClearance({
+  tenantId,
+  userId,
+  bankAccountId,
+  amount,
+  paymentDate = new Date(),
+  reference = '',
+  currency = 'SAR',
+  memo = '',
+  partnerId = null,
+}) {
+  const payAmt = round2(amount);
+  if (!bankAccountId || payAmt <= 0) return null;
+
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+  const ctx = { byCode, byId, defaultIds };
+  const outstanding = await resolveRoleAccount(tenantId, 'outstandingReceipts', ctx);
+  const bank = byId[String(bankAccountId)] || await ChartOfAccount.findOne({ _id: bankAccountId, tenantId }).lean();
+  if (!outstanding || !bank) return null;
+
+  const key = `OutstandingReceiptClearance:${bankAccountId}:${payAmt}:${reference || paymentDate}`;
+  const dup = await JournalEntry.findOne({
+    tenantId,
+    sourceModel: 'OutstandingReceiptClearance',
+    reference: key,
+    status: { $ne: 'void' },
+  });
+  if (dup) return dup;
+
+  const journalId = await resolveJournalBookId(tenantId, userId, 'ensureDefaultBankJournal');
+
+  return createJournalEntry({
+    tenantId,
+    userId,
+    entryDate: paymentDate,
+    type: 'payment',
+    memo: memo || 'Clear outstanding customer receipt to bank',
+    memoAr: 'مقاصة مقبوضات معلقة إلى البنك',
+    reference: key,
+    currency,
+    lines: stampPartnerId([
+      {
+        accountId: bank._id,
+        accountCode: bank.code,
+        debit: payAmt,
+        credit: 0,
+        description: 'Bank statement clearance',
+      },
+      {
+        accountId: outstanding._id,
+        accountCode: outstanding.code,
+        debit: 0,
+        credit: payAmt,
+        description: 'Clear outstanding receipt',
+      },
+    ], partnerId),
+    sourceModel: 'OutstandingReceiptClearance',
+    sourceId: bankAccountId,
+    sourceNumber: reference || '',
+    status: 'posted',
+    journalId,
+  });
+}
+
 /** Vendor refund (purchase credit note) — AP Dr, expense & VAT in Cr */
 export async function postVendorRefundJournal({
   tenantId,
@@ -1710,6 +1897,44 @@ export async function reconcileVendorRefundWithBill({
     refundId: refund._id,
     billPaymentStatus: originalBill.paymentStatus,
     refundPaymentStatus: refund.paymentStatus,
+  };
+}
+
+/**
+ * Match sales credit note against original customer invoice.
+ * Updates paid amounts so both documents reflect settlement.
+ */
+export async function reconcileCreditNoteWithInvoice({
+  tenantId,
+  userId,
+  creditNote,
+  originalInvoice,
+}) {
+  if (!creditNote?._id || !originalInvoice?._id) return null;
+  if (originalInvoice.flow !== 'sell' || String(originalInvoice.invoiceType) !== '388') return null;
+  if (creditNote.flow !== 'sell' || String(creditNote.invoiceType) !== '381') return null;
+
+  const cnAmt = Math.abs(round2(Number(creditNote.grandTotal || 0)));
+  if (cnAmt <= 0) return null;
+
+  const remaining = round2(Math.max(0, Number(originalInvoice.grandTotal || 0) - Number(originalInvoice.paidAmount || 0)));
+  const applied = round2(Math.min(cnAmt, remaining));
+  if (applied <= 0) return { applied: 0, skipped: true };
+
+  originalInvoice.paidAmount = round2(Number(originalInvoice.paidAmount || 0) + applied);
+  applyPaidAmountStatus(originalInvoice);
+  await originalInvoice.save();
+
+  creditNote.paymentStatus = applied >= remaining - 0.005 ? 'paid' : 'partial';
+  creditNote.paidAmount = cnAmt;
+  await creditNote.save();
+
+  return {
+    applied,
+    invoiceId: originalInvoice._id,
+    creditNoteId: creditNote._id,
+    invoicePaymentStatus: originalInvoice.paymentStatus,
+    creditNotePaymentStatus: creditNote.paymentStatus,
   };
 }
 
@@ -2364,6 +2589,7 @@ export async function buildProfitAndLoss(tenantId, { from, to } = {}) {
   const totalRevenue = round2(revenue.reduce((s, a) => s + a.amount, 0));
   const totalExpenses = round2(expenses.reduce((s, a) => s + a.amount, 0));
   const netIncome = round2(totalRevenue - totalExpenses);
+  const horizontalGroups = await attachHorizontalGroups(tenantId, [...revenue, ...expenses], 'amount');
 
   return {
     from: start,
@@ -2373,6 +2599,7 @@ export async function buildProfitAndLoss(tenantId, { from, to } = {}) {
     totalRevenue,
     totalExpenses,
     netIncome,
+    horizontalGroups,
   };
 }
 
@@ -2411,6 +2638,11 @@ export async function buildBalanceSheet(tenantId, { asOf = null } = {}) {
   const totalAssets = round2(assets.reduce((s, a) => s + a.balance, 0));
   const totalLiabilities = round2(liabilities.reduce((s, a) => s + a.balance, 0));
   const totalEquity = round2(equity.reduce((s, a) => s + a.balance, 0));
+  const horizontalGroups = await attachHorizontalGroups(
+    tenantId,
+    [...assets, ...liabilities, ...equity],
+    'balance',
+  );
 
   return {
     asOf: tb.asOf,
@@ -2422,6 +2654,7 @@ export async function buildBalanceSheet(tenantId, { asOf = null } = {}) {
     totalEquity,
     totalLiabilitiesAndEquity: round2(totalLiabilities + totalEquity),
     balanced: Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 0.05,
+    horizontalGroups,
   };
 }
 
@@ -2466,6 +2699,684 @@ export async function buildGeneralLedger(tenantId, accountId, { from, to } = {})
   }
 
   return { account, from: start, to: end, lines };
+}
+
+export const DEFAULT_FISCAL_POSITIONS = [
+  { code: 'domestic', name: 'Domestic', nameAr: 'محلي', isDefault: true },
+  { code: 'export', name: 'Export', nameAr: 'تصدير', isDefault: false },
+  { code: 'gcc', name: 'GCC', nameAr: 'مجلس التعاون', isDefault: false },
+  { code: 'exempt', name: 'Tax exempt', nameAr: 'معفى', isDefault: false },
+];
+
+export async function getFiscalPositions(tenantId) {
+  const Tenant = (await import('../models/Tenant.js')).default;
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.fiscalPositions').lean();
+  const rows = tenant?.settings?.accounting?.fiscalPositions;
+  if (Array.isArray(rows) && rows.length) {
+    return { positions: rows.filter((row) => row?.code) };
+  }
+  return { positions: DEFAULT_FISCAL_POSITIONS };
+}
+
+export async function setFiscalPositions(tenantId, positions) {
+  if (!Array.isArray(positions)) throw new Error('positions array required');
+  const cleaned = positions.slice(0, 50).map((row) => ({
+    code: String(row.code || '').trim().slice(0, 32),
+    name: String(row.name || '').trim().slice(0, 120),
+    nameAr: String(row.nameAr || '').trim().slice(0, 120),
+    isDefault: Boolean(row.isDefault),
+  })).filter((row) => row.code && row.name);
+  if (!cleaned.length) throw new Error('At least one fiscal position is required');
+  if (!cleaned.some((row) => row.isDefault)) cleaned[0].isDefault = true;
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.fiscalPositions': cleaned },
+  });
+  return { positions: cleaned };
+}
+
+export const BUILTIN_PAYMENT_TERMS = [
+  { id: 'immediate', labelEn: 'Immediate Payment', labelAr: 'دفع فوري', kind: 'days', days: 0 },
+  { id: 'cod', labelEn: 'Cash on Delivery', labelAr: 'الدفع عند الاستلام', kind: 'days', days: 0 },
+  { id: 'net7', labelEn: '7 Days', labelAr: '7 أيام', kind: 'days', days: 7 },
+  { id: 'net10', labelEn: '10 Days', labelAr: '10 أيام', kind: 'days', days: 10 },
+  { id: 'net15', labelEn: '15 Days', labelAr: '15 يوم', kind: 'days', days: 15 },
+  { id: 'net21', labelEn: '21 Days', labelAr: '21 يوم', kind: 'days', days: 21 },
+  { id: 'net30', labelEn: '30 Days', labelAr: '30 يوم', kind: 'days', days: 30 },
+  { id: 'net45', labelEn: '45 Days', labelAr: '45 يوم', kind: 'days', days: 45 },
+  { id: 'net60', labelEn: '60 Days', labelAr: '60 يوم', kind: 'days', days: 60 },
+  { id: 'net90', labelEn: '90 Days', labelAr: '90 يوم', kind: 'days', days: 90 },
+  { id: 'end_of_month', labelEn: 'End of Current Month', labelAr: 'نهاية الشهر الحالي', kind: 'eom_current' },
+  { id: 'eom_following', labelEn: 'End of Following Month', labelAr: 'نهاية الشهر التالي', kind: 'eom_following' },
+  { id: 'eom_next_plus_10', labelEn: '10 Days after End of Next Month', labelAr: '10 أيام بعد نهاية الشهر التالي', kind: 'eom_next_plus_10' },
+  { id: '30_now_60_balance', labelEn: '30% Now, Balance 60 Days', labelAr: '٣٠٪ الآن والباقي خلال ٦٠ يوم', kind: 'days', days: 60 },
+];
+
+export async function getPaymentTermsCatalog(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.paymentTermIds settings.accounting.defaultPaymentTermId').lean();
+  const enabledIds = Array.isArray(tenant?.settings?.accounting?.paymentTermIds)
+    ? tenant.settings.accounting.paymentTermIds.filter(Boolean)
+    : [];
+  const defaultId = tenant?.settings?.accounting?.defaultPaymentTermId || 'net30';
+  const terms = BUILTIN_PAYMENT_TERMS.map((term) => ({
+    ...term,
+    enabled: enabledIds.length ? enabledIds.includes(term.id) : true,
+    isDefault: term.id === defaultId,
+  }));
+  return { terms, defaultPaymentTermId: defaultId, enabledIds };
+}
+
+export async function setPaymentTermsCatalog(tenantId, { enabledIds, defaultPaymentTermId } = {}) {
+  const validIds = new Set(BUILTIN_PAYMENT_TERMS.map((t) => t.id));
+  const cleaned = (Array.isArray(enabledIds) ? enabledIds : [])
+    .map((id) => String(id || '').trim())
+    .filter((id) => validIds.has(id));
+  let defaultId = String(defaultPaymentTermId || 'net30').trim();
+  if (!validIds.has(defaultId)) defaultId = 'net30';
+  if (cleaned.length && !cleaned.includes(defaultId)) cleaned.push(defaultId);
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: {
+      'settings.accounting.paymentTermIds': cleaned,
+      'settings.accounting.defaultPaymentTermId': defaultId,
+    },
+  });
+  return getPaymentTermsCatalog(tenantId);
+}
+
+export const BUILTIN_INCOTERMS = ['EXW', 'FCA', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP', 'FAS', 'FOB', 'CFR', 'CIF'];
+
+export async function getIncotermsCatalog(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.incoterms settings.accounting.defaultIncoterm').lean();
+  const enabled = Array.isArray(tenant?.settings?.accounting?.incoterms)
+    ? tenant.settings.accounting.incoterms.map(String).filter(Boolean)
+    : [];
+  const defaultCode = tenant?.settings?.accounting?.defaultIncoterm || 'EXW';
+  const terms = BUILTIN_INCOTERMS.map((code) => ({
+    code,
+    enabled: enabled.length ? enabled.includes(code) : true,
+    isDefault: code === defaultCode,
+  }));
+  return { terms, defaultIncoterm: defaultCode, enabledCodes: enabled };
+}
+
+export async function setIncotermsCatalog(tenantId, { enabledCodes, defaultIncoterm } = {}) {
+  const valid = new Set(BUILTIN_INCOTERMS);
+  const cleaned = (Array.isArray(enabledCodes) ? enabledCodes : [])
+    .map((code) => String(code || '').trim().toUpperCase())
+    .filter((code) => valid.has(code));
+  let defaultCode = String(defaultIncoterm || 'EXW').trim().toUpperCase();
+  if (!valid.has(defaultCode)) defaultCode = 'EXW';
+  if (cleaned.length && !cleaned.includes(defaultCode)) cleaned.push(defaultCode);
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: {
+      'settings.accounting.incoterms': cleaned,
+      'settings.accounting.defaultIncoterm': defaultCode,
+    },
+  });
+  return getIncotermsCatalog(tenantId);
+}
+
+export const DEFAULT_FOLLOW_UP_LEVELS = [
+  { level: 1, daysOverdue: 1, name: 'Friendly reminder', nameAr: 'تذكير ودي', channel: 'whatsapp' },
+  { level: 2, daysOverdue: 15, name: 'Second notice', nameAr: 'إشعار ثانٍ', channel: 'whatsapp' },
+  { level: 3, daysOverdue: 30, name: 'Final notice', nameAr: 'إشعار أخير', channel: 'email' },
+  { level: 4, daysOverdue: 60, name: 'Escalation', nameAr: 'تصعيد', channel: 'call' },
+];
+
+export async function getFollowUpLevels(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.followUpLevels').lean();
+  const rows = tenant?.settings?.accounting?.followUpLevels;
+  if (Array.isArray(rows) && rows.length) {
+    return { levels: rows.sort((a, b) => (a.level || 0) - (b.level || 0) || (a.daysOverdue || 0) - (b.daysOverdue || 0)) };
+  }
+  return { levels: DEFAULT_FOLLOW_UP_LEVELS };
+}
+
+export async function setFollowUpLevels(tenantId, levels) {
+  if (!Array.isArray(levels)) throw new Error('levels array required');
+  const cleaned = levels.slice(0, 20).map((row, idx) => ({
+    level: Number(row.level) || (idx + 1),
+    daysOverdue: Math.max(0, Number(row.daysOverdue) || 0),
+    name: String(row.name || '').trim().slice(0, 120),
+    nameAr: String(row.nameAr || '').trim().slice(0, 120),
+    channel: ['whatsapp', 'email', 'sms', 'call'].includes(row.channel) ? row.channel : 'whatsapp',
+  })).filter((row) => row.name);
+  if (!cleaned.length) throw new Error('At least one follow-up level is required');
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.followUpLevels': cleaned },
+  });
+  return { levels: cleaned };
+}
+
+export async function getCurrenciesCatalog(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.currency settings.accounting.currencies').lean();
+  const companyCurrency = tenant?.settings?.currency || 'SAR';
+  const rows = Array.isArray(tenant?.settings?.accounting?.currencies)
+    ? tenant.settings.accounting.currencies.filter((r) => r?.code)
+    : [];
+  const defaults = [
+    { code: 'USD', name: 'US Dollar', nameAr: 'دولار أمريكي', rate: 3.75, active: true },
+    { code: 'EUR', name: 'Euro', nameAr: 'يورو', rate: 4.1, active: true },
+    { code: 'AED', name: 'UAE Dirham', nameAr: 'درهم إماراتي', rate: 1.02, active: true },
+    { code: 'EGP', name: 'Egyptian Pound', nameAr: 'جنيه مصري', rate: 0.077, active: false },
+  ].filter((r) => r.code !== companyCurrency);
+  return {
+    companyCurrency,
+    currencies: rows.length ? rows : defaults,
+  };
+}
+
+export async function setCurrenciesCatalog(tenantId, currencies) {
+  if (!Array.isArray(currencies)) throw new Error('currencies array required');
+  const cleaned = currencies.slice(0, 40).map((row) => ({
+    code: String(row.code || '').trim().toUpperCase().slice(0, 8),
+    name: String(row.name || '').trim().slice(0, 80),
+    nameAr: String(row.nameAr || '').trim().slice(0, 80),
+    rate: Math.max(0.000001, Number(row.rate) || 1),
+    active: row.active !== false,
+  })).filter((row) => row.code && row.name);
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.currencies': cleaned },
+  });
+  return getCurrenciesCatalog(tenantId);
+}
+
+export async function getAssetModels(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.assetModels').lean();
+  const rows = tenant?.settings?.accounting?.assetModels;
+  if (Array.isArray(rows) && rows.length) return { models: rows };
+  return {
+    models: [
+      { code: 'SL-5Y', name: 'Straight line 5 years', nameAr: 'قسط ثابت 5 سنوات', method: 'straight_line', usefulLifeMonths: 60, salvagePct: 0 },
+      { code: 'SL-3Y', name: 'Straight line 3 years', nameAr: 'قسط ثابت 3 سنوات', method: 'straight_line', usefulLifeMonths: 36, salvagePct: 0 },
+      { code: 'SL-10Y', name: 'Straight line 10 years', nameAr: 'قسط ثابت 10 سنوات', method: 'straight_line', usefulLifeMonths: 120, salvagePct: 5 },
+    ],
+  };
+}
+
+export async function setAssetModels(tenantId, models) {
+  if (!Array.isArray(models)) throw new Error('models array required');
+  const cleaned = models.slice(0, 30).map((row) => ({
+    code: String(row.code || '').trim().slice(0, 32),
+    name: String(row.name || '').trim().slice(0, 120),
+    nameAr: String(row.nameAr || '').trim().slice(0, 120),
+    method: 'straight_line',
+    usefulLifeMonths: Math.max(1, Number(row.usefulLifeMonths) || 60),
+    salvagePct: Math.min(100, Math.max(0, Number(row.salvagePct) || 0)),
+  })).filter((row) => row.code && row.name);
+  if (!cleaned.length) throw new Error('At least one asset model is required');
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.assetModels': cleaned },
+  });
+  return { models: cleaned };
+}
+
+export async function getAnalyticPlans(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.analyticPlans').lean();
+  const rows = tenant?.settings?.accounting?.analyticPlans;
+  if (Array.isArray(rows) && rows.length) return { plans: rows };
+  return {
+    plans: [
+      { code: 'DEPT', name: 'Departments', nameAr: 'الأقسام', active: true },
+      { code: 'PROJ', name: 'Projects', nameAr: 'المشاريع', active: true },
+    ],
+  };
+}
+
+export async function setAnalyticPlans(tenantId, plans) {
+  if (!Array.isArray(plans)) throw new Error('plans array required');
+  const cleaned = plans.slice(0, 40).map((row) => ({
+    code: String(row.code || '').trim().slice(0, 32),
+    name: String(row.name || '').trim().slice(0, 120),
+    nameAr: String(row.nameAr || '').trim().slice(0, 120),
+    active: row.active !== false,
+  })).filter((row) => row.code && row.name);
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.analyticPlans': cleaned },
+  });
+  return { plans: cleaned };
+}
+
+export async function getAccountTags(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.accountTags').lean();
+  const tags = Array.isArray(tenant?.settings?.accounting?.accountTags)
+    ? tenant.settings.accounting.accountTags.filter(Boolean)
+    : [];
+  return { tags: tags.length ? tags : ['operating', 'investing', 'financing', 'tax', 'intercompany'] };
+}
+
+export async function setAccountTags(tenantId, tags) {
+  if (!Array.isArray(tags)) throw new Error('tags array required');
+  const cleaned = [...new Set(tags.map((t) => String(t || '').trim().slice(0, 40)).filter(Boolean))].slice(0, 50);
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.accountTags': cleaned },
+  });
+  return { tags: cleaned };
+}
+
+export const DEFAULT_HORIZONTAL_GROUPS = [
+  { code: 'PL', name: 'Profit & loss', nameAr: 'الأرباح والخسائر', accountPrefixes: ['4', '5', '6'], sequence: 1 },
+  { code: 'BS', name: 'Balance sheet', nameAr: 'الميزانية', accountPrefixes: ['1', '2', '3'], sequence: 2 },
+];
+
+export async function getHorizontalGroups(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.horizontalGroups').lean();
+  const rows = tenant?.settings?.accounting?.horizontalGroups;
+  if (Array.isArray(rows) && rows.length) {
+    return {
+      groups: rows
+        .filter((row) => row?.code)
+        .sort((a, b) => (a.sequence || 0) - (b.sequence || 0)),
+    };
+  }
+  return { groups: DEFAULT_HORIZONTAL_GROUPS };
+}
+
+export async function setHorizontalGroups(tenantId, groups) {
+  if (!Array.isArray(groups)) throw new Error('groups array required');
+  const cleaned = groups.slice(0, 30).map((row, idx) => ({
+    code: String(row.code || '').trim().slice(0, 32),
+    name: String(row.name || '').trim().slice(0, 120),
+    nameAr: String(row.nameAr || '').trim().slice(0, 120),
+    accountPrefixes: (Array.isArray(row.accountPrefixes) ? row.accountPrefixes : String(row.accountPrefixes || '').split(/[,،\s]+/))
+      .map((p) => String(p || '').trim())
+      .filter(Boolean)
+      .slice(0, 20),
+    sequence: Number(row.sequence) || (idx + 1),
+  })).filter((row) => row.code && row.name);
+  if (!cleaned.length) throw new Error('At least one horizontal group is required');
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.horizontalGroups': cleaned },
+  });
+  return { groups: cleaned };
+}
+
+export const DEFAULT_TAX_UNITS = [
+  {
+    code: 'HQ',
+    name: 'Head office',
+    nameAr: 'المقر الرئيسي',
+    vatNumber: '',
+    country: 'SA',
+    taxCodes: [],
+    isDefault: true,
+  },
+];
+
+export async function getTaxUnits(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.taxUnits').lean();
+  const rows = tenant?.settings?.accounting?.taxUnits;
+  if (Array.isArray(rows) && rows.length) {
+    return { units: rows.filter((row) => row?.code) };
+  }
+  return { units: DEFAULT_TAX_UNITS };
+}
+
+export async function setTaxUnits(tenantId, units) {
+  if (!Array.isArray(units)) throw new Error('units array required');
+  const cleaned = units.slice(0, 30).map((row) => ({
+    code: String(row.code || '').trim().slice(0, 32),
+    name: String(row.name || '').trim().slice(0, 120),
+    nameAr: String(row.nameAr || '').trim().slice(0, 120),
+    vatNumber: String(row.vatNumber || '').trim().slice(0, 40),
+    country: String(row.country || 'SA').trim().toUpperCase().slice(0, 8),
+    taxCodes: (Array.isArray(row.taxCodes) ? row.taxCodes : String(row.taxCodes || '').split(/[,،\s]+/))
+      .map((c) => String(c || '').trim())
+      .filter(Boolean)
+      .slice(0, 30),
+    isDefault: Boolean(row.isDefault),
+  })).filter((row) => row.code && row.name);
+  if (!cleaned.length) throw new Error('At least one tax unit is required');
+  if (!cleaned.some((row) => row.isDefault)) cleaned[0].isDefault = true;
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.taxUnits': cleaned },
+  });
+  return { units: cleaned };
+}
+
+export const DEFAULT_ANALYTIC_DISTRIBUTION_MODELS = [
+  {
+    name: 'Default revenue — general',
+    nameAr: 'إيرادات افتراضية — عام',
+    active: true,
+    priority: 10,
+    matchPartnerTag: '',
+    matchProductCategory: '',
+    matchAccountPrefix: '4',
+    lines: [{ planCode: 'DEPT', analyticAccountCode: 'GEN', percent: 100 }],
+  },
+];
+
+export async function getAnalyticDistributionModels(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.analyticDistributionModels').lean();
+  const rows = tenant?.settings?.accounting?.analyticDistributionModels;
+  if (Array.isArray(rows) && rows.length) {
+    return {
+      models: rows
+        .filter((row) => row?.name)
+        .sort((a, b) => (a.priority || 0) - (b.priority || 0)),
+    };
+  }
+  return { models: DEFAULT_ANALYTIC_DISTRIBUTION_MODELS };
+}
+
+export async function setAnalyticDistributionModels(tenantId, models) {
+  if (!Array.isArray(models)) throw new Error('models array required');
+  const cleaned = models.slice(0, 40).map((row) => {
+    const lines = (Array.isArray(row.lines) ? row.lines : [])
+      .slice(0, 10)
+      .map((line) => ({
+        planCode: String(line.planCode || '').trim().slice(0, 32),
+        analyticAccountCode: String(line.analyticAccountCode || '').trim().toUpperCase().slice(0, 32),
+        percent: Math.min(100, Math.max(0, Number(line.percent) || 0)),
+      }))
+      .filter((line) => line.analyticAccountCode && line.percent > 0);
+    return {
+      name: String(row.name || '').trim().slice(0, 120),
+      nameAr: String(row.nameAr || '').trim().slice(0, 120),
+      active: row.active !== false,
+      priority: Number(row.priority) || 10,
+      matchPartnerTag: String(row.matchPartnerTag || '').trim().slice(0, 60),
+      matchProductCategory: String(row.matchProductCategory || '').trim().slice(0, 60),
+      matchAccountPrefix: String(row.matchAccountPrefix || '').trim().slice(0, 20),
+      lines: lines.length ? lines : [{ planCode: 'DEPT', analyticAccountCode: 'GEN', percent: 100 }],
+    };
+  }).filter((row) => row.name);
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.analyticDistributionModels': cleaned },
+  });
+  return { models: cleaned };
+}
+
+export async function resolveAnalyticAccountIdByCode(tenantId, code) {
+  const cleaned = String(code || '').trim().toUpperCase();
+  if (!cleaned) return null;
+  const AnalyticAccount = (await import('../models/AnalyticAccount.js')).default;
+  const row = await AnalyticAccount.findOne({
+    tenantId,
+    code: cleaned,
+    active: { $ne: false },
+  }).select('_id').lean();
+  return row?._id || null;
+}
+
+/** First matching active model (already priority-sorted). Empty match fields = wildcards. */
+export function pickAnalyticDistributionModel(models, { accountCode, productCategory, partnerTag } = {}) {
+  const active = (Array.isArray(models) ? models : []).filter((m) => m.active !== false);
+  for (const m of active) {
+    if (m.matchAccountPrefix) {
+      if (!accountCode || !String(accountCode).startsWith(String(m.matchAccountPrefix))) continue;
+    }
+    if (m.matchProductCategory) {
+      const cat = String(productCategory || '').toLowerCase();
+      const want = String(m.matchProductCategory).toLowerCase();
+      if (!cat || (!cat.includes(want) && cat !== want)) continue;
+    }
+    if (m.matchPartnerTag) {
+      const tag = String(partnerTag || '').toLowerCase();
+      const want = String(m.matchPartnerTag).toLowerCase();
+      if (!tag || (!tag.includes(want) && tag !== want)) continue;
+    }
+    return m;
+  }
+  return null;
+}
+
+/**
+ * Split an amount across analytic accounts using tenant distribution models.
+ * If existingAnalyticAccountId is set, no split is applied.
+ */
+export async function applyAnalyticDistributionToAmount(tenantId, {
+  amount,
+  accountCode,
+  productCategory,
+  partnerTag,
+  existingAnalyticAccountId = null,
+} = {}) {
+  const amt = round2(amount);
+  if (amt <= 0) return [];
+  if (existingAnalyticAccountId) {
+    return [{ amount: amt, analyticAccountId: existingAnalyticAccountId }];
+  }
+  const { models } = await getAnalyticDistributionModels(tenantId);
+  const model = pickAnalyticDistributionModel(models, { accountCode, productCategory, partnerTag });
+  if (!model?.lines?.length) {
+    return [{ amount: amt, analyticAccountId: null }];
+  }
+  const results = [];
+  let allocated = 0;
+  for (let i = 0; i < model.lines.length; i += 1) {
+    const line = model.lines[i];
+    let share;
+    if (i === model.lines.length - 1) {
+      share = round2(amt - allocated);
+    } else {
+      share = round2(amt * ((Number(line.percent) || 0) / 100));
+      allocated = round2(allocated + share);
+    }
+    if (share <= 0) continue;
+    const analyticAccountId = await resolveAnalyticAccountIdByCode(tenantId, line.analyticAccountCode);
+    results.push({ amount: share, analyticAccountId: analyticAccountId || null });
+  }
+  return results.length ? results : [{ amount: amt, analyticAccountId: null }];
+}
+
+async function attachHorizontalGroups(tenantId, accountRows, amountKey = 'amount') {
+  const { groups } = await getHorizontalGroups(tenantId);
+  const buckets = (groups || []).map((g) => ({
+    code: g.code,
+    name: g.name,
+    nameAr: g.nameAr,
+    accountPrefixes: g.accountPrefixes || [],
+    sequence: g.sequence || 0,
+    amount: 0,
+    accounts: [],
+  }));
+  const unmatched = { code: 'OTHER', name: 'Other', nameAr: 'أخرى', accountPrefixes: [], sequence: 999, amount: 0, accounts: [] };
+
+  for (const row of accountRows || []) {
+    const code = String(row.code || '');
+    const amt = Number(row[amountKey] ?? row.balance ?? 0) || 0;
+    const hit = buckets.find((b) => (b.accountPrefixes || []).some((p) => p && code.startsWith(String(p))));
+    const target = hit || unmatched;
+    target.amount = round2(target.amount + amt);
+    target.accounts.push(row);
+  }
+
+  const out = buckets.filter((b) => b.accounts.length || Math.abs(b.amount) > 0.009);
+  if (unmatched.accounts.length) out.push(unmatched);
+  return out.sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+}
+
+/** Fixed-asset CoA balances + optional straight-line schedule preview. */
+export async function buildFixedAssetRegister(tenantId, { modelCode } = {}) {
+  await ensureDefaultChartOfAccounts(tenantId);
+  const accounts = await ChartOfAccount.find({
+    tenantId,
+    isActive: true,
+    $or: [{ subtype: 'fixed_asset' }, { type: 'asset', code: /^16/ }],
+  }).sort({ code: 1 }).lean();
+
+  const { models } = await getAssetModels(tenantId);
+  const model = models.find((m) => m.code === modelCode) || models[0] || {
+    usefulLifeMonths: 60,
+    salvagePct: 0,
+    method: 'straight_line',
+    code: '',
+  };
+
+  const rows = accounts.map((a) => {
+    const cost = Math.abs(Number(a.balance) || 0);
+    const salvage = round2(cost * ((Number(model.salvagePct) || 0) / 100));
+    const depreciable = Math.max(0, cost - salvage);
+    const months = Math.max(1, Number(model.usefulLifeMonths) || 60);
+    const monthly = round2(depreciable / months);
+    const annual = round2(monthly * 12);
+    return {
+      accountId: a._id,
+      code: a.code,
+      name: a.name,
+      nameAr: a.nameAr,
+      cost,
+      salvage,
+      depreciable,
+      monthlyDepreciation: monthly,
+      annualDepreciation: annual,
+      usefulLifeMonths: months,
+      modelCode: model.code || '',
+    };
+  });
+
+  return {
+    model,
+    rows,
+    totals: {
+      cost: round2(rows.reduce((s, r) => s + r.cost, 0)),
+      annualDepreciation: round2(rows.reduce((s, r) => s + r.annualDepreciation, 0)),
+    },
+  };
+}
+
+export async function buildDeferredAccountsReport(tenantId, kind = 'expense') {
+  await ensureDefaultChartOfAccounts(tenantId);
+  const nameRx = kind === 'revenue' ? /deferred.?rev/i : /prepaid|deferred.?exp/i;
+  const accounts = await ChartOfAccount.find({
+    tenantId,
+    isActive: true,
+    $or: [
+      { subtype: kind === 'revenue' ? 'other_liability' : 'other_asset' },
+      { code: kind === 'revenue' ? /^2[45]/ : /^15/ },
+      { name: nameRx },
+      { nameAr: nameRx },
+    ],
+  }).sort({ code: 1 }).lean();
+
+  const rows = accounts.map((a) => ({
+    accountId: a._id,
+    code: a.code,
+    name: a.name,
+    nameAr: a.nameAr,
+    type: a.type,
+    subtype: a.subtype,
+    balance: Number(a.balance) || 0,
+  }));
+  return {
+    kind,
+    rows,
+    total: round2(rows.reduce((s, r) => s + Math.abs(r.balance), 0)),
+  };
+}
+
+export async function buildInvoiceAnalysis(tenantId, { from, to, flow } = {}) {
+  const { start, end } = periodRange({ from, to });
+  const filter = {
+    tenantId,
+    status: { $nin: ['cancelled'] },
+    issueDate: { $gte: start, $lte: end },
+  };
+  if (flow === 'sell' || flow === 'purchase') filter.flow = flow;
+
+  const invoices = await Invoice.find(filter)
+    .select('flow invoiceType invoiceNumber issueDate status paymentStatus grandTotal paidAmount taxableAmount totalTax customerId supplierId buyer.name seller.name lineItems.productId lineItems.productName lineItems.quantity lineItems.unitPrice')
+    .lean();
+
+  const byMonth = new Map();
+  const byPayment = { paid: 0, partial: 0, pending: 0, overdue: 0, other: 0 };
+  const byStatus = {};
+  const partnerMap = new Map();
+  const productMap = new Map();
+  let sellCount = 0;
+  let purchaseCount = 0;
+  let sellTotal = 0;
+  let purchaseTotal = 0;
+  let sellOutstanding = 0;
+  let purchaseOutstanding = 0;
+  let taxTotal = 0;
+
+  for (const inv of invoices) {
+    const total = Number(inv.grandTotal) || 0;
+    const paid = Number(inv.paidAmount) || 0;
+    const residual = Math.max(0, total - paid);
+    const monthKey = inv.issueDate ? new Date(inv.issueDate).toISOString().slice(0, 7) : 'unknown';
+    if (!byMonth.has(monthKey)) byMonth.set(monthKey, { month: monthKey, count: 0, total: 0, paid: 0 });
+    const monthRow = byMonth.get(monthKey);
+    monthRow.count += 1;
+    monthRow.total = round2(monthRow.total + total);
+    monthRow.paid = round2(monthRow.paid + paid);
+
+    const st = String(inv.status || 'unknown');
+    byStatus[st] = (byStatus[st] || 0) + 1;
+
+    const ps = String(inv.paymentStatus || 'pending').toLowerCase();
+    if (ps in byPayment) byPayment[ps] += 1;
+    else byPayment.other += 1;
+
+    taxTotal = round2(taxTotal + (Number(inv.totalTax) || 0));
+
+    if (inv.flow === 'purchase') {
+      purchaseCount += 1;
+      purchaseTotal = round2(purchaseTotal + total);
+      purchaseOutstanding = round2(purchaseOutstanding + residual);
+      const pid = String(inv.supplierId || inv.seller?.name || 'unknown');
+      const pname = inv.seller?.name || 'Unknown vendor';
+      if (!partnerMap.has(`p:${pid}`)) partnerMap.set(`p:${pid}`, { partnerId: inv.supplierId || null, name: pname, flow: 'purchase', count: 0, total: 0, outstanding: 0 });
+      const prow = partnerMap.get(`p:${pid}`);
+      prow.count += 1;
+      prow.total = round2(prow.total + total);
+      prow.outstanding = round2(prow.outstanding + residual);
+    } else {
+      sellCount += 1;
+      sellTotal = round2(sellTotal + total);
+      sellOutstanding = round2(sellOutstanding + residual);
+      const cid = String(inv.customerId || inv.buyer?.name || 'unknown');
+      const cname = inv.buyer?.name || 'Unknown customer';
+      if (!partnerMap.has(`c:${cid}`)) partnerMap.set(`c:${cid}`, { partnerId: inv.customerId || null, name: cname, flow: 'sell', count: 0, total: 0, outstanding: 0 });
+      const crow = partnerMap.get(`c:${cid}`);
+      crow.count += 1;
+      crow.total = round2(crow.total + total);
+      crow.outstanding = round2(crow.outstanding + residual);
+    }
+
+    for (const line of inv.lineItems || []) {
+      const key = String(line.productId || line.productName || 'manual');
+      if (!productMap.has(key)) {
+        productMap.set(key, {
+          productId: line.productId || null,
+          name: line.productName || 'Manual line',
+          qty: 0,
+          amount: 0,
+        });
+      }
+      const prod = productMap.get(key);
+      prod.qty = round2(prod.qty + (Number(line.quantity) || 0));
+      prod.amount = round2(prod.amount + ((Number(line.quantity) || 0) * (Number(line.unitPrice) || 0)));
+    }
+  }
+
+  const months = [...byMonth.values()].sort((a, b) => String(a.month).localeCompare(String(b.month)));
+  const topPartners = [...partnerMap.values()].sort((a, b) => b.total - a.total).slice(0, 15);
+  const topProducts = [...productMap.values()].sort((a, b) => b.amount - a.amount).slice(0, 15);
+
+  return {
+    from: start,
+    to: end,
+    flow: flow || 'all',
+    summary: {
+      invoiceCount: invoices.length,
+      sellCount,
+      purchaseCount,
+      sellTotal,
+      purchaseTotal,
+      sellOutstanding,
+      purchaseOutstanding,
+      taxTotal,
+      grandTotal: round2(sellTotal + purchaseTotal),
+    },
+    byPaymentStatus: byPayment,
+    byDocumentStatus: byStatus,
+    byMonth: months,
+    topPartners,
+    topProducts,
+  };
 }
 
 export async function getAccountingDashboard(tenantId) {
@@ -3393,11 +4304,21 @@ export async function buildAgedPayables(tenantId, opts = {}) {
  * Accounting tax summary from posted JournalItems tagged with taxIds (Phase 4 stamp).
  * Complements the statutory VAT return under /reports/vat-return.
  */
-export async function buildTaxReport(tenantId, { from, to } = {}) {
+export async function buildTaxReport(tenantId, { from, to, taxUnitCode = null } = {}) {
   const { start, end } = periodRange({ from, to });
   const Tax = (await import('../models/Tax.js')).default;
   const taxes = await Tax.find({ tenantId }).lean();
   const taxById = Object.fromEntries(taxes.map((t) => [String(t._id), t]));
+
+  let allowedCodes = null;
+  let taxUnit = null;
+  if (taxUnitCode) {
+    const { units } = await getTaxUnits(tenantId);
+    taxUnit = (units || []).find((u) => String(u.code).toLowerCase() === String(taxUnitCode).toLowerCase()) || null;
+    if (taxUnit?.taxCodes?.length) {
+      allowedCodes = new Set(taxUnit.taxCodes.map((c) => String(c).toUpperCase()));
+    }
+  }
 
   const items = await JournalItem.find({
     tenantId,
@@ -3419,8 +4340,9 @@ export async function buildTaxReport(tenantId, { from, to } = {}) {
     totalCredit = round2(totalCredit + credit);
     for (const tid of ids) {
       const key = String(tid);
+      const tax = taxById[key];
+      if (allowedCodes && (!tax?.code || !allowedCodes.has(String(tax.code).toUpperCase()))) continue;
       if (!byTax[key]) {
-        const tax = taxById[key];
         byTax[key] = {
           taxId: tid,
           code: tax?.code || 'TAX',
@@ -3444,13 +4366,17 @@ export async function buildTaxReport(tenantId, { from, to } = {}) {
     net: round2(r.credit - r.debit),
   })).sort((a, b) => String(a.code).localeCompare(String(b.code)));
 
+  const filteredDebit = round2(rows.reduce((s, r) => s + r.debit, 0));
+  const filteredCredit = round2(rows.reduce((s, r) => s + r.credit, 0));
+
   return {
     from: start,
     to: end,
     rows,
-    totalDebit,
-    totalCredit,
-    net: round2(totalCredit - totalDebit),
+    totalDebit: allowedCodes ? filteredDebit : totalDebit,
+    totalCredit: allowedCodes ? filteredCredit : totalCredit,
+    net: round2((allowedCodes ? filteredCredit : totalCredit) - (allowedCodes ? filteredDebit : totalDebit)),
+    taxUnit: taxUnit ? { code: taxUnit.code, name: taxUnit.name, nameAr: taxUnit.nameAr } : null,
   };
 }
 
@@ -3512,10 +4438,13 @@ export default {
   backfillJournalItems,
   postSalesInvoiceJournal,
   postInvoicePaymentJournal,
+  postInvoicePaymentDifferenceJournal,
   postVendorBillPaymentJournal,
   postOutstandingPaymentClearance,
+  postOutstandingReceiptClearance,
   postVendorRefundJournal,
   reconcileVendorRefundWithBill,
+  reconcileCreditNoteWithInvoice,
   postSupplierPaymentJournal,
   postExpensePaidJournal,
   postVoucherJournal,
@@ -3528,6 +4457,33 @@ export default {
   buildBalanceSheet,
   buildGeneralLedger,
   getAccountingDashboard,
+  getFiscalPositions,
+  setFiscalPositions,
+  getPaymentTermsCatalog,
+  setPaymentTermsCatalog,
+  getIncotermsCatalog,
+  setIncotermsCatalog,
+  buildInvoiceAnalysis,
+  getFollowUpLevels,
+  setFollowUpLevels,
+  getCurrenciesCatalog,
+  setCurrenciesCatalog,
+  getAssetModels,
+  setAssetModels,
+  getAnalyticPlans,
+  setAnalyticPlans,
+  getAccountTags,
+  setAccountTags,
+  getHorizontalGroups,
+  setHorizontalGroups,
+  getTaxUnits,
+  setTaxUnits,
+  getAnalyticDistributionModels,
+  setAnalyticDistributionModels,
+  applyAnalyticDistributionToAmount,
+  pickAnalyticDistributionModel,
+  buildFixedAssetRegister,
+  buildDeferredAccountsReport,
   buildCustomerAccountReport,
   buildCustomerSummaryReport,
   buildSupplierSummaryReport,

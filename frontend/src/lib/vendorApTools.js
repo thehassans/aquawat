@@ -26,7 +26,7 @@ export async function printVendorCheck({
   win.focus()
 }
 
-/** Download SEPA XML for selected vendor bill ids. */
+/** Download SEPA XML for selected vendor bill ids. Returns stamped invoice ids. */
 export async function downloadSepaBatch(invoiceIds = [], executionDate) {
   const res = await api.post('/invoices/purchase/batch-sepa-export', {
     invoiceIds,
@@ -42,6 +42,21 @@ export async function downloadSepaBatch(invoiceIds = [], executionDate) {
   link.click()
   link.remove()
   URL.revokeObjectURL(url)
+
+  let stampedIds = invoiceIds
+  try {
+    const header = res.headers?.['x-sepa-invoice-ids']
+    if (header) stampedIds = JSON.parse(header)
+  } catch {
+    /* keep request ids */
+  }
+  return { invoiceIds: stampedIds }
 }
 
-export default { printVendorCheck, downloadSepaBatch }
+/** Confirm that the SEPA file was uploaded to the bank portal. */
+export async function markSepaUploaded(invoiceIds = []) {
+  const res = await api.post('/invoices/purchase/batch-sepa-mark-uploaded', { invoiceIds })
+  return res.data
+}
+
+export default { printVendorCheck, downloadSepaBatch, markSepaUploaded }

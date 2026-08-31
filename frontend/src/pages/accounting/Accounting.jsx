@@ -27,11 +27,37 @@ import {
   CustomerSummaryPanel,
   DailyRestrictionPanel,
   FirmClientsPanel,
+  FollowUpReportsPanel,
+  FiscalPositionsPanel,
+  ExecutiveSummaryPanel,
+  InvoiceAnalysisPanel,
+  PaymentTermsPanel,
+  IncotermsPanel,
+  BankAccountsPanel,
+  CurrenciesPanel,
+  FollowUpLevelsPanel,
+  AnalyticItemsPanel,
+  FixedAssetsPanel,
+  DepreciationSchedulePanel,
+  DeferredAccountsPanel,
+  AssetModelsPanel,
+  AnalyticPlansPanel,
+  AccountTagsPanel,
+  AccountGroupsPanel,
+  TaxGroupsPanel,
+  ProductCategoriesBridgePanel,
+  AccountingReportsConfigPanel,
+  HorizontalGroupsPanel,
+  TaxUnitsPanel,
+  AnalyticDistributionModelsPanel,
+  SimpleStatusPanel,
   GeneralVoucherPanel,
   JournalBooksPanel,
+  JournalItemsPanel,
   JournalsBoardPanel,
   LedgerSearchPanel,
   OpeningBalancesPanel,
+  PartnerLedgerPanel,
   PeriodClosePanel,
   SupplierAccountPanel,
   SupplierSummaryPanel,
@@ -74,6 +100,41 @@ const TABS = [
   { id: 'vendor-refunds', labelEn: 'Vendor Refunds', labelAr: 'مرتجعات الموردين', icon: FileText },
   { id: 'vendor-payments', labelEn: 'Vendor Payments', labelAr: 'مدفوعات الموردين', icon: Wallet },
   { id: 'aged-ap', labelEn: 'Aged payables', labelAr: 'أعمار الدائنين', icon: Truck },
+  { id: 'follow-up-reports', labelEn: 'Follow-up Reports', labelAr: 'تقارير المتابعة', icon: Users },
+  { id: 'journal-items', labelEn: 'Journal Items', labelAr: 'بنود القيود', icon: FileSpreadsheet },
+  { id: 'executive-summary', labelEn: 'Executive Summary', labelAr: 'الملخص التنفيذي', icon: TrendingUp },
+  { id: 'fiscal-positions', labelEn: 'Fiscal Positions', labelAr: 'المراكز الضريبية', icon: Scale },
+  { id: 'invoice-analysis', labelEn: 'Invoice Analysis', labelAr: 'تحليل الفواتير', icon: TrendingUp },
+  { id: 'payment-terms', labelEn: 'Payment Terms', labelAr: 'شروط الدفع', icon: FileText },
+  { id: 'incoterms', labelEn: 'Incoterms', labelAr: 'شروط التجارة الدولية', icon: FileText },
+  { id: 'bank-accounts', labelEn: 'Bank Accounts', labelAr: 'الحسابات البنكية', icon: Landmark },
+  { id: 'journal-report', labelEn: 'Journal Report', labelAr: 'تقرير القيود', icon: FileSpreadsheet },
+  { id: 'currencies', labelEn: 'Currencies', labelAr: 'العملات', icon: Landmark },
+  { id: 'follow-up-levels', labelEn: 'Follow-up Levels', labelAr: 'مستويات المتابعة', icon: Users },
+  { id: 'analytic-items', labelEn: 'Analytic Items', labelAr: 'البنود التحليلية', icon: FileSpreadsheet },
+  { id: 'assets', labelEn: 'Assets', labelAr: 'الأصول', icon: Landmark },
+  { id: 'depreciation-schedule', labelEn: 'Depreciation Schedule', labelAr: 'جدول الإهلاك', icon: Scale },
+  { id: 'deferred-revenues', labelEn: 'Deferred Revenues', labelAr: 'إيرادات مؤجلة', icon: Wallet },
+  { id: 'deferred-expenses', labelEn: 'Deferred Expenses', labelAr: 'مصروفات مؤجلة', icon: Wallet },
+  { id: 'asset-models', labelEn: 'Asset Models', labelAr: 'نماذج الأصول', icon: Landmark },
+  { id: 'analytic-plans', labelEn: 'Analytic Plans', labelAr: 'الخطط التحليلية', icon: Users },
+  { id: 'account-tags', labelEn: 'Account Tags', labelAr: 'وسوم الحسابات', icon: FileText },
+  { id: 'account-groups', labelEn: 'Account Groups', labelAr: 'مجموعات الحسابات', icon: BookOpen },
+  { id: 'horizontal-groups', labelEn: 'Horizontal Groups', labelAr: 'مجموعات أفقية', icon: BookOpen },
+  { id: 'tax-groups', labelEn: 'Tax Groups', labelAr: 'مجموعات الضريبة', icon: Scale },
+  { id: 'tax-units', labelEn: 'Tax Units', labelAr: 'وحدات الضريبة', icon: Scale },
+  { id: 'analytic-distribution-models', labelEn: 'Analytic Distribution Models', labelAr: 'نماذج التوزيع التحليلي', icon: Users },
+  { id: 'product-categories', labelEn: 'Product Categories', labelAr: 'فئات المنتجات', icon: FileText },
+  { id: 'accounting-reports-config', labelEn: 'Accounting Reports', labelAr: 'تقارير المحاسبة', icon: TrendingUp },
+  { id: 'journal-groups', labelEn: 'Journal Groups', labelAr: 'مجموعات الدفاتر', icon: FileSpreadsheet },
+  { id: 'reconciliation-models', labelEn: 'Reconciliation Models', labelAr: 'نماذج التسوية', icon: Wallet },
+  { id: 'online-sync', labelEn: 'Online Synchronization', labelAr: 'مزامنة عبر الإنترنت', icon: RefreshCw },
+  { id: 'payment-providers', labelEn: 'Payment Providers', labelAr: 'بوابات الدفع', icon: Wallet },
+  { id: 'automatic-transfers', labelEn: 'Automatic Transfers', labelAr: 'تحويلات تلقائية', icon: ArrowUpRight },
+  { id: 'deferred-revenue-models', labelEn: 'Deferred Revenue Models', labelAr: 'نماذج الإيرادات المؤجلة', icon: Wallet },
+  { id: 'deferred-expense-models', labelEn: 'Deferred Expense Models', labelAr: 'نماذج المصروفات المؤجلة', icon: Wallet },
+  { id: 'general-ledger', labelEn: 'General Ledger', labelAr: 'دفتر الأستاذ العام', icon: BookOpen },
+  { id: 'partner-ledger', labelEn: 'Partner Ledger', labelAr: 'دفتر الشريك', icon: Users },
   { id: 'customer-account', labelEn: 'Customer Account', labelAr: 'كشف حساب العميل', icon: Users },
   { id: 'customer-summary', labelEn: 'Customer Summary', labelAr: 'ملخص العملاء', icon: Users },
   { id: 'supplier-account', labelEn: 'Supplier Account', labelAr: 'كشف حساب المورد', icon: Truck },
@@ -780,6 +841,252 @@ export default function Accounting() {
             </motion.div>
           )}
 
+          {tab === 'follow-up-reports' && (
+            <motion.div key="follow-up-reports" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <FollowUpReportsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'general-ledger' && (
+            <motion.div key="general-ledger" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <AccountReportPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'partner-ledger' && (
+            <motion.div key="partner-ledger" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <PartnerLedgerPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'journal-items' && (
+            <motion.div key="journal-items" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <JournalItemsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'executive-summary' && (
+            <motion.div key="executive-summary" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <ExecutiveSummaryPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'fiscal-positions' && (
+            <motion.div key="fiscal-positions" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <FiscalPositionsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'invoice-analysis' && (
+            <motion.div key="invoice-analysis" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <InvoiceAnalysisPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'payment-terms' && (
+            <motion.div key="payment-terms" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <PaymentTermsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'incoterms' && (
+            <motion.div key="incoterms" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <IncotermsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'bank-accounts' && (
+            <motion.div key="bank-accounts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <BankAccountsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'journal-report' && (
+            <motion.div key="journal-report" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <JournalsBoardPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'currencies' && (
+            <motion.div key="currencies" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <CurrenciesPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'follow-up-levels' && (
+            <motion.div key="follow-up-levels" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <FollowUpLevelsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'analytic-items' && (
+            <motion.div key="analytic-items" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <AnalyticItemsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'assets' && (
+            <motion.div key="assets" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <FixedAssetsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'depreciation-schedule' && (
+            <motion.div key="depreciation-schedule" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <DepreciationSchedulePanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'deferred-revenues' && (
+            <motion.div key="deferred-revenues" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <DeferredAccountsPanel language={language} kind="revenue" />
+            </motion.div>
+          )}
+
+          {tab === 'deferred-expenses' && (
+            <motion.div key="deferred-expenses" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <DeferredAccountsPanel language={language} kind="expense" />
+            </motion.div>
+          )}
+
+          {tab === 'asset-models' && (
+            <motion.div key="asset-models" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <AssetModelsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'analytic-plans' && (
+            <motion.div key="analytic-plans" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <AnalyticPlansPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'account-tags' && (
+            <motion.div key="account-tags" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <AccountTagsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'account-groups' && (
+            <motion.div key="account-groups" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <AccountGroupsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'tax-groups' && (
+            <motion.div key="tax-groups" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <TaxGroupsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'product-categories' && (
+            <motion.div key="product-categories" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <ProductCategoriesBridgePanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'accounting-reports-config' && (
+            <motion.div key="accounting-reports-config" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <AccountingReportsConfigPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'horizontal-groups' && (
+            <motion.div key="horizontal-groups" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <HorizontalGroupsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'tax-units' && (
+            <motion.div key="tax-units" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <TaxUnitsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'analytic-distribution-models' && (
+            <motion.div key="analytic-distribution-models" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <AnalyticDistributionModelsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'journal-groups' && (
+            <motion.div key="journal-groups" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <JournalBooksPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'reconciliation-models' && (
+            <motion.div key="reconciliation-models" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <SimpleStatusPanel
+                language={language}
+                titleEn="Reconciliation models"
+                titleAr="نماذج التسوية"
+                bodyEn="Bank reconciliation matching rules live in Bank reconciliation. Configure outstanding payments/receipts under Default accounts."
+                bodyAr="قواعد مطابقة التسوية البنكية موجودة في التسوية البنكية. اضبط المقبوضات/المدفوعات المعلقة من الحسابات الافتراضية."
+                href="/app/dashboard/accounting/bank-recon"
+                ctaEn="Open bank reconciliation"
+                ctaAr="فتح التسوية البنكية"
+              />
+            </motion.div>
+          )}
+
+          {tab === 'online-sync' && (
+            <motion.div key="online-sync" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <SimpleStatusPanel
+                language={language}
+                titleEn="Online bank synchronization"
+                titleAr="مزامنة بنكية عبر الإنترنت"
+                bodyEn="Direct bank feeds are not connected yet. Use CSV/OFX import in Bank reconciliation, then match outstanding payments and receipts."
+                bodyAr="مزامنة البنوك المباشرة غير مفعّلة بعد. استخدم استيراد CSV/OFX في التسوية البنكية ثم طابق المدفوعات والمقبوضات المعلقة."
+                href="/app/dashboard/accounting/bank-recon"
+                ctaEn="Open bank reconciliation"
+                ctaAr="فتح التسوية البنكية"
+              />
+            </motion.div>
+          )}
+
+          {tab === 'payment-providers' && (
+            <motion.div key="payment-providers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <SimpleStatusPanel
+                language={language}
+                titleEn="Payment providers"
+                titleAr="بوابات الدفع"
+                bodyEn="Customer/vendor payments are recorded in Accounting documents and vouchers. Card/gateway checkout is configured from Settings / App Store integrations when enabled for your tenant."
+                bodyAr="تُسجَّل مدفوعات العملاء والموردين من مستندات المحاسبة والسندات. بوابات البطاقات تُضبط من الإعدادات / متجر التطبيقات عند تفعيلها للمستأجر."
+                href="/app/dashboard/accounting/customer-payments"
+                ctaEn="Customer payments"
+                ctaAr="مدفوعات العملاء"
+              />
+            </motion.div>
+          )}
+
+          {tab === 'automatic-transfers' && (
+            <motion.div key="automatic-transfers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <SimpleStatusPanel
+                language={language}
+                titleEn="Automatic transfers"
+                titleAr="تحويلات تلقائية"
+                bodyEn="Period close posts automated P&L transfers. Use Period close for year-end / month-end closing entries."
+                bodyAr="إقفال الفترة ينشئ تحويلات تلقائية للأرباح والخسائر. استخدم إقفال الفترة لقيود نهاية الشهر/السنة."
+                href="/app/dashboard/accounting/period-close"
+                ctaEn="Open period close"
+                ctaAr="فتح إقفال الفترة"
+              />
+            </motion.div>
+          )}
+
+          {tab === 'deferred-revenue-models' && (
+            <motion.div key="deferred-revenue-models" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <DeferredAccountsPanel language={language} kind="revenue" />
+            </motion.div>
+          )}
+
+          {tab === 'deferred-expense-models' && (
+            <motion.div key="deferred-expense-models" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <DeferredAccountsPanel language={language} kind="expense" />
+            </motion.div>
+          )}
+
           {tab === 'bank-recon' && (
             <motion.div key="bank-recon" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
               <BankReconPanel language={language} />
@@ -986,11 +1293,23 @@ export default function Accounting() {
                   <span className="text-2xl font-semibold text-emerald-950 dark:text-white" style={fontDisplay}><Money value={pnl.netIncome} /></span>
                 </div>
               </div>
+              {Array.isArray(pnl.horizontalGroups) && pnl.horizontalGroups.length > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-3">
+                  {pnl.horizontalGroups.map((g) => (
+                    <div key={g.code} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+                      <p className="text-[11px] uppercase tracking-widest text-slate-400">{g.code}</p>
+                      <p className="mt-1 text-sm font-semibold">{isAr ? (g.nameAr || g.name) : g.name}</p>
+                      <p className="mt-1 text-lg font-semibold"><Money value={g.amount} /></p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </motion.div>
           )}
 
           {tab === 'balance-sheet' && balance && (
-            <motion.div key="balance" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <motion.div key="balance" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               {[
                 { titleEn: 'Assets', titleAr: 'الأصول', rows: balance.assets, total: balance.totalAssets, tone: 'text-emerald-800' },
                 { titleEn: 'Liabilities', titleAr: 'الالتزامات', rows: balance.liabilities, total: balance.totalLiabilities, tone: 'text-amber-800' },
@@ -1012,6 +1331,18 @@ export default function Accounting() {
                   </div>
                 </div>
               ))}
+              </div>
+              {Array.isArray(balance.horizontalGroups) && balance.horizontalGroups.length > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {balance.horizontalGroups.map((g) => (
+                    <div key={g.code} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+                      <p className="text-[11px] uppercase tracking-widest text-slate-400">{g.code}</p>
+                      <p className="mt-1 text-sm font-semibold">{isAr ? (g.nameAr || g.name) : g.name}</p>
+                      <p className="mt-1 text-lg font-semibold"><Money value={g.amount} /></p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </motion.div>
           )}
         </AnimatePresence>

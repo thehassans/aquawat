@@ -945,6 +945,10 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   }
 
   const handleConfirmSave = () => {
+    if (isBillPosted) {
+      toast.error(language === 'ar' ? 'الفاتورة مرحّلة — للعرض فقط' : 'Posted bill is read-only')
+      return
+    }
     const payload = pendingPayload || buildPayload(getValues())
     if (!payload) return
     saveMutation.mutate(payload)
@@ -1082,9 +1086,21 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           onTabChange={setFormTab}
         />
         <form
-          onSubmit={handleSubmit(onSubmit, () => toast.error(language === 'ar' ? 'أكمل البنود المطلوبة قبل الحفظ' : 'Complete the billing lines before saving'))}
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (isBillPosted) {
+              toast.error(language === 'ar' ? 'الفاتورة مرحّلة — للعرض فقط' : 'Posted bill is read-only')
+              return
+            }
+            handleSubmit(onSubmit, () => toast.error(language === 'ar' ? 'أكمل البنود المطلوبة قبل الحفظ' : 'Complete the billing lines before saving'))()
+          }}
           className="space-y-2.5"
         >
+          {isBillPosted ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+              {language === 'ar' ? 'فاتورة مرحّلة — التعديل مقفل (عرض وبنود القيد فقط).' : 'Posted bill — editing is locked (view and journal items only).'}
+            </div>
+          ) : null}
           <div className={`${sectionCardClass} !p-3 space-y-2`}>
             <div className="flex flex-wrap items-center gap-2">
               <div className={segmentWrapClass}>
@@ -1098,6 +1114,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                     <button
                       key={fmt.id}
                       type="button"
+                      disabled={isBillPosted}
                       onClick={() => setValue('printFormat', fmt.id, { shouldDirty: true, shouldTouch: true })}
                       className={`${segmentBtnClass(active)} inline-flex items-center gap-1.5`}
                     >
@@ -1109,10 +1126,10 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               </div>
 
               <div className={segmentWrapClass}>
-                <button type="button" onClick={() => setTxnType('B2B')} className={segmentBtnClass(transactionType === 'B2B')}>
+                <button type="button" disabled={isBillPosted} onClick={() => setTxnType('B2B')} className={segmentBtnClass(transactionType === 'B2B')}>
                   B2B
                 </button>
-                <button type="button" onClick={() => setTxnType('B2C')} className={segmentBtnClass(transactionType === 'B2C')}>
+                <button type="button" disabled={isBillPosted} onClick={() => setTxnType('B2C')} className={segmentBtnClass(transactionType === 'B2C')}>
                   B2C
                 </button>
               </div>
@@ -1148,6 +1165,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                     <button
                       key={type}
                       type="button"
+                      disabled={isBillPosted}
                       onClick={() => setValue('businessContext', type, { shouldDirty: true })}
                       className={segmentBtnClass(businessContext === type)}
                     >
@@ -1204,15 +1222,15 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           <div className={`${sectionCardClass} grid grid-cols-1 gap-3 !p-3.5 md:grid-cols-3`}>
             <div>
               <label className={fieldLabelClass}>{language === 'ar' ? 'تاريخ الفاتورة' : 'Bill date'}</label>
-              <input type="date" {...register('issueDate')} className={`mt-1 ${denseControlClass}`} />
+              <input type="date" {...register('issueDate')} disabled={isBillPosted} className={`mt-1 ${denseControlClass} disabled:opacity-60`} />
             </div>
             <div>
               <label className={fieldLabelClass}>{language === 'ar' ? 'تاريخ المحاسبة' : 'Accounting date'}</label>
-              <input type="date" {...register('accountingDate')} className={`mt-1 ${denseControlClass}`} title={language === 'ar' ? 'يمكن أن يختلف عن تاريخ الفاتورة' : 'May differ from bill date'} />
+              <input type="date" {...register('accountingDate')} disabled={isBillPosted} className={`mt-1 ${denseControlClass} disabled:opacity-60`} title={language === 'ar' ? 'يمكن أن يختلف عن تاريخ الفاتورة' : 'May differ from bill date'} />
             </div>
             <div>
               <label className={fieldLabelClass}>{language === 'ar' ? 'مرجع المورد' : 'Bill reference'}</label>
-              <input {...register('contractNumber')} className={`mt-1 ${denseControlClass}`} placeholder={language === 'ar' ? 'رقم فاتورة المورد' : 'Supplier invoice number'} />
+              <input {...register('contractNumber')} disabled={isBillPosted} className={`mt-1 ${denseControlClass} disabled:opacity-60`} placeholder={language === 'ar' ? 'رقم فاتورة المورد' : 'Supplier invoice number'} />
             </div>
           </div>
 
@@ -1477,6 +1495,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               </h3>
               <button
                 type="button"
+                disabled={isBillPosted}
                 onClick={() => append(getEmptyLine(tenant))}
                 className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200"
               >
@@ -1492,8 +1511,9 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 </p>
                 <button
                   type="button"
+                  disabled={isBillPosted}
                   onClick={() => append(getEmptyLine(tenant))}
-                  className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 underline-offset-2 hover:underline dark:text-slate-200"
+                  className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 underline-offset-2 hover:underline disabled:opacity-50 dark:text-slate-200"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   {language === 'ar' ? 'إضافة بند' : 'Add line'}
@@ -1792,7 +1812,8 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                           {fields.length > 1 ? (
                             <button
                               type="button"
-                              onClick={() => remove(index)}
+                              onClick={() => !isBillPosted && remove(index)}
+                              disabled={isBillPosted}
                               className="rounded-md p-1.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-950/30"
                               aria-label="Remove line"
                             >
@@ -2208,7 +2229,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               </p>
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : (isRefundDoc ? '/app/dashboard/accounting/vendor-refunds' : '/app/dashboard/accounting/vendor-bills'))} className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:bg-transparent dark:text-slate-300">{t('cancel')}</button>
-                <button type="submit" disabled={saveMutation.isPending} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 dark:bg-white dark:text-slate-900">
+                <button type="submit" disabled={saveMutation.isPending || isBillPosted} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 disabled:opacity-50 dark:bg-white dark:text-slate-900">
                   {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" /> : <><Eye className="w-4 h-4" />{language === 'ar' ? 'معاينة' : 'Preview'}</>}
                 </button>
               </div>

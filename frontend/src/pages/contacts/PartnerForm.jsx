@@ -160,6 +160,13 @@ export default function PartnerForm() {
     staleTime: 60_000,
   })
 
+  const { data: customerArStats } = useQuery({
+    queryKey: ['customer-ar-stats', id],
+    queryFn: () => api.get(`/invoices/sell/customer-stats/${id}`).then((r) => r.data),
+    enabled: Boolean(isEditing && id && isCustomer),
+    staleTime: 60_000,
+  })
+
   const { data: existing, isLoading } = useQuery({
     queryKey: ['partner', id],
     queryFn: async () => {
@@ -796,6 +803,27 @@ export default function PartnerForm() {
 
           {tab === 'accounting' && (
             <div className={`${sectionCardClass} space-y-5`}>
+              {isCustomer && isEditing && customerArStats ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Link to={`/app/dashboard/accounting/invoices?customerId=${id}`} className={`${sectionCardClass} !p-3 transition hover:border-sky-300`}>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{ar ? 'فواتير' : 'Invoiced'}</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900 dark:text-white">{customerArStats.invoiceCount || 0}</p>
+                    <p className="text-xs text-slate-500">{Number(customerArStats.invoicedTotal || 0).toFixed(2)} SAR</p>
+                  </Link>
+                  <Link to={`/app/dashboard/accounting/customer-payments`} className={`${sectionCardClass} !p-3 transition hover:border-sky-300`}>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{ar ? 'محصّل' : 'Collected'}</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900 dark:text-white">{Number(customerArStats.paidTotal || 0).toFixed(2)}</p>
+                  </Link>
+                  <div className={`${sectionCardClass} !p-3`}>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{ar ? 'مستحق' : 'Outstanding'}</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums text-amber-700 dark:text-amber-300">{Number(customerArStats.outstanding || 0).toFixed(2)}</p>
+                  </div>
+                  <Link to={`/app/dashboard/accounting/credit-notes`} className={`${sectionCardClass} !p-3 transition hover:border-sky-300`}>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{ar ? 'إشعارات دائن' : 'Credit notes'}</p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900 dark:text-white">{customerArStats.creditNoteCount || 0}</p>
+                  </Link>
+                </div>
+              ) : null}
               {isVendor && isEditing && vendorApStats ? (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <Link to={`/app/dashboard/accounting/vendor-bills?supplierId=${id}`} className={`${sectionCardClass} !p-3 transition hover:border-sky-300`}>
