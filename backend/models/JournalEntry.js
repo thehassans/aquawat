@@ -10,6 +10,9 @@ const journalLineSchema = new mongoose.Schema({
   partnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', default: null },
   taxIds: [{ type: mongoose.Schema.Types.ObjectId }],
   analyticAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'AnalyticAccount', default: null },
+  /** Open-item due date for AR/AP tranches (payment terms). */
+  dueDate: { type: Date, default: null },
+  trancheSequence: { type: Number, default: null },
 }, { _id: true });
 
 const journalEntrySchema = new mongoose.Schema({

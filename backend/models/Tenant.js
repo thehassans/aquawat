@@ -476,6 +476,33 @@ const tenantSchema = new mongoose.Schema({
         accountPrefixes: [{ type: String, trim: true }],
         sequence: { type: Number, default: 0 },
       }],
+      /** Visual grouping of multiple tax rates on invoice PDF subtotals */
+      taxGroups: [{
+        code: { type: String, trim: true },
+        name: { type: String, trim: true, default: '' },
+        nameAr: { type: String, trim: true, default: '' },
+        taxCodes: [{ type: String, trim: true, uppercase: true }],
+        sequence: { type: Number, default: 0 },
+      }],
+      /** Custom financial statement lines (formula references account prefixes or other lines) */
+      reportDefinitions: [{
+        report: { type: String, enum: ['pnl', 'bs', 'cashflow'], default: 'pnl' },
+        code: { type: String, trim: true },
+        label: { type: String, trim: true, default: '' },
+        labelAr: { type: String, trim: true, default: '' },
+        formula: { type: String, trim: true, default: '' },
+        sequence: { type: Number, default: 0 },
+      }],
+      /** Online bank feed connections (OAuth stub / future providers) */
+      bankSyncConnections: [{
+        provider: { type: String, trim: true, default: '' },
+        status: { type: String, enum: ['pending', 'connected', 'error', 'disconnected'], default: 'pending' },
+        bankAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+        journalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Journal', default: null },
+        connectedAt: { type: Date, default: null },
+        lastSyncAt: { type: Date, default: null },
+        metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+      }],
       /** Legal entities / branches for consolidated tax reporting */
       taxUnits: [{
         code: { type: String, trim: true },

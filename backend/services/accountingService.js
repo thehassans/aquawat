@@ -2,7 +2,8 @@ import ChartOfAccount from '../models/ChartOfAccount.js';
 import JournalEntry from '../models/JournalEntry.js';
 import JournalItem from '../models/JournalItem.js';
 import Tenant from '../models/Tenant.js';
-import { BUILTIN_PAYMENT_TERMS, describePaymentTerm } from '../utils/invoicePaymentTerms.js';
+import { BUILTIN_PAYMENT_TERMS, describePaymentTerm, computePaymentSchedule } from '../utils/invoicePaymentTerms.js';
+import InvProductCategory from '../models/inventory/InvProductCategory.js';
 import Invoice from '../models/Invoice.js';
 import Customer from '../models/Customer.js';
 import Supplier from '../models/Supplier.js';
@@ -999,6 +1000,70 @@ function absInvoiceAmounts(doc = {}) {
 }
 
 /**
+ * Split AR debit into payment-term tranches when invoice has a multi-line schedule.
+ */
+export function buildReceivableDebitLines({
+  ar,
+  gross,
+  paymentSchedule = null,
+  description = '',
+  partnerId = null,
+}) {
+  const amount = round2(Math.abs(Number(gross) || 0));
+  if (amount <= 0 || !ar) return [];
+
+  const schedule = (Array.isArray(paymentSchedule) ? paymentSchedule : [])
+    .filter((row) => round2(Number(row.amount || 0)) > 0)
+    .map((row, index) => ({
+      sequence: Number(row.sequence) || index + 1,
+      amount: round2(Number(row.amount || 0)),
+      dueDate: row.dueDate ? new Date(row.dueDate) : null,
+      labelEn: row.labelEn || '',
+      labelAr: row.labelAr || '',
+    }));
+
+  if (schedule.length <= 1) {
+    return [{
+      accountId: ar._id,
+      accountCode: ar.code,
+      debit: amount,
+      credit: 0,
+      description: description || 'Accounts receivable',
+      partnerId: partnerId || null,
+      dueDate: schedule[0]?.dueDate || null,
+      trancheSequence: schedule[0]?.sequence || null,
+    }];
+  }
+
+  const scheduleTotal = round2(schedule.reduce((s, row) => s + row.amount, 0));
+  return schedule.map((row, index) => {
+    let debit = row.amount;
+    if (scheduleTotal > 0 && Math.abs(scheduleTotal - amount) > 0.02) {
+      debit = round2((row.amount / scheduleTotal) * amount);
+    }
+    if (index === schedule.length - 1) {
+      const prior = schedule.slice(0, -1).reduce((s, r, i) => {
+        const part = scheduleTotal > 0 && Math.abs(scheduleTotal - amount) > 0.02
+          ? round2((r.amount / scheduleTotal) * amount)
+          : r.amount;
+        return round2(s + part);
+      }, 0);
+      debit = round2(amount - prior);
+    }
+    return {
+      accountId: ar._id,
+      accountCode: ar.code,
+      debit,
+      credit: 0,
+      description: `${description || 'Accounts receivable'} — ${row.labelEn || row.labelAr || `Tranche ${row.sequence}`}`.trim(),
+      partnerId: partnerId || null,
+      dueDate: row.dueDate,
+      trancheSequence: row.sequence,
+    };
+  });
+}
+
+/**
  * Sales invoice journal lines: AR Dr, revenue Cr (optionally split), VAT Cr.
  * @param {{ account: {_id, code}, amount: number }[]} [revenueCredits]
  */
@@ -1012,6 +1077,7 @@ export function buildSalesInvoiceJournalLines({
   description = '',
   partnerId = null,
   taxIds = null,
+  paymentSchedule = null,
 }) {
   const net = round2(Math.abs(Number(netAmount) || 0));
   const tax = round2(Math.max(0, Number(taxAmount) || 0));
@@ -1019,16 +1085,13 @@ export function buildSalesInvoiceJournalLines({
   if (gross <= 0 || !ar) return [];
   const vatTaxIds = Array.isArray(taxIds) && taxIds.length ? taxIds.filter(Boolean) : [];
 
-  const lines = [
-    {
-      accountId: ar._id,
-      accountCode: ar.code,
-      debit: gross,
-      credit: 0,
-      description: description || 'Accounts receivable',
-      partnerId: partnerId || null,
-    },
-  ];
+  const lines = buildReceivableDebitLines({
+    ar,
+    gross,
+    paymentSchedule,
+    description,
+    partnerId,
+  });
 
   if (Array.isArray(revenueCredits) && revenueCredits.length) {
     const byAcct = new Map();
@@ -1170,6 +1233,8 @@ export async function previewSalesInvoiceJournal({ tenantId, invoice = {} }) {
     defaultSales: sales,
     revenueCredits,
     description: `Invoice ${invoice.invoiceNumber || 'DRAFT'}`,
+    partnerId: invoice.customerId || null,
+    paymentSchedule: invoice.paymentSchedule,
   });
 
   const accountIds = [...new Set(built.map((l) => String(l.accountId)))];
@@ -1490,6 +1555,9 @@ export async function postSalesInvoiceJournal({
     description: `Invoice ${invoice.invoiceNumber || ''}`,
     partnerId,
     taxIds: salesTaxId ? [salesTaxId] : [],
+    paymentSchedule: invoice.paymentSchedule?.length
+      ? invoice.paymentSchedule
+      : computePaymentSchedule(invoice.issueDate, invoice.paymentTerms, gross).tranches,
   });
   }
   if (!lines || lines.length < 2) return null;
@@ -2783,6 +2851,9 @@ export async function buildProfitAndLoss(tenantId, {
   const grossProfit = round2(totalRevenue - totalCogs);
   const netIncome = round2(totalRevenue - totalExpenses);
   const horizontalGroups = await attachHorizontalGroups(tenantId, [...revenue, ...expenses], 'amount');
+  const accountTotals = new Map();
+  for (const a of [...revenue, ...expenses]) accountTotals.set(String(a.code), a.amount);
+  const customReportLines = await buildEvaluatedReportLines(tenantId, 'pnl', accountTotals);
 
   return {
     from: start,
@@ -2800,6 +2871,7 @@ export async function buildProfitAndLoss(tenantId, {
     grossProfit,
     netIncome,
     horizontalGroups,
+    customReportLines,
   };
 }
 
@@ -2869,6 +2941,9 @@ export async function buildBalanceSheet(tenantId, { asOf = null } = {}) {
     [...assets, ...liabilities, ...equity],
     'balance',
   );
+  const accountTotals = new Map();
+  for (const a of [...assets, ...liabilities, ...equity]) accountTotals.set(String(a.code), a.balance);
+  const customReportLines = await buildEvaluatedReportLines(tenantId, 'bs', accountTotals);
 
   return {
     asOf: tb.asOf,
@@ -2881,6 +2956,7 @@ export async function buildBalanceSheet(tenantId, { asOf = null } = {}) {
     totalLiabilitiesAndEquity: round2(totalLiabilities + totalEquity),
     balanced: Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 0.05,
     horizontalGroups,
+    customReportLines,
   };
 }
 
@@ -3611,6 +3687,237 @@ export async function setHorizontalGroups(tenantId, groups) {
     $set: { 'settings.accounting.horizontalGroups': cleaned },
   });
   return { groups: cleaned };
+}
+
+export const DEFAULT_TAX_GROUPS = [
+  { code: 'VAT_STD', name: 'Standard VAT', nameAr: 'ضريبة القيمة المضافة', taxCodes: [], sequence: 1 },
+];
+
+export async function getTaxGroups(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.taxGroups').lean();
+  const rows = tenant?.settings?.accounting?.taxGroups;
+  if (Array.isArray(rows) && rows.length) {
+    return { groups: rows.sort((a, b) => (a.sequence || 0) - (b.sequence || 0)) };
+  }
+  return { groups: DEFAULT_TAX_GROUPS };
+}
+
+export async function setTaxGroups(tenantId, groups) {
+  if (!Array.isArray(groups)) throw new Error('groups array required');
+  const cleaned = groups.slice(0, 30).map((row, idx) => ({
+    code: String(row.code || '').trim().toUpperCase().slice(0, 32),
+    name: String(row.name || '').trim().slice(0, 120),
+    nameAr: String(row.nameAr || '').trim().slice(0, 120),
+    taxCodes: (Array.isArray(row.taxCodes) ? row.taxCodes : String(row.taxCodes || '').split(/[,،\s]+/))
+      .map((code) => String(code || '').trim().toUpperCase())
+      .filter(Boolean)
+      .slice(0, 20),
+    sequence: Number(row.sequence) || (idx + 1),
+  })).filter((row) => row.code && row.name);
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.taxGroups': cleaned },
+  });
+  return { groups: cleaned };
+}
+
+export const DEFAULT_REPORT_DEFINITIONS = [
+  { report: 'pnl', code: 'REV_TOTAL', label: 'Total Revenue', labelAr: 'إجمالي الإيرادات', formula: 'sum(prefix:4)', sequence: 1 },
+  { report: 'pnl', code: 'EXP_TOTAL', label: 'Total Expenses', labelAr: 'إجمالي المصروفات', formula: 'sum(prefix:5)', sequence: 2 },
+  { report: 'pnl', code: 'NET_INCOME', label: 'Net Income', labelAr: 'صافي الدخل', formula: 'line:REV_TOTAL - line:EXP_TOTAL', sequence: 3 },
+];
+
+export function evaluateReportFormula(formula, { accountTotals = new Map(), lineTotals = new Map() } = {}) {
+  const evaluateToken = (rawToken) => {
+    const token = String(rawToken || '').trim();
+    if (!token) return 0;
+    const prefixMatch = token.match(/^sum\(prefix:([^)]+)\)$/i);
+    if (prefixMatch) {
+      const prefix = String(prefixMatch[1] || '').replace(/\*+$/, '');
+      let sum = 0;
+      for (const [code, amount] of accountTotals.entries()) {
+        if (String(code).startsWith(prefix)) sum += Number(amount || 0);
+      }
+      return round2(sum);
+    }
+    const accountMatch = token.match(/^sum\(account:([^)]+)\)$/i);
+    if (accountMatch) {
+      return round2(accountTotals.get(String(accountMatch[1] || '').trim()) || 0);
+    }
+    const lineMatch = token.match(/^line:([A-Z0-9_]+)$/i);
+    if (lineMatch) {
+      return round2(lineTotals.get(String(lineMatch[1] || '').toUpperCase()) || 0);
+    }
+    const asNumber = Number(token);
+    return Number.isFinite(asNumber) ? round2(asNumber) : 0;
+  };
+
+  const parts = String(formula || '').trim().split(/(?=[+-])/);
+  if (!parts.length) return 0;
+  let total = 0;
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    if (trimmed.startsWith('-')) total = round2(total - evaluateToken(trimmed.slice(1)));
+    else if (trimmed.startsWith('+')) total = round2(total + evaluateToken(trimmed.slice(1)));
+    else total = round2(total + evaluateToken(trimmed));
+  }
+  return total;
+}
+
+export async function getReportDefinitions(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.reportDefinitions').lean();
+  const rows = tenant?.settings?.accounting?.reportDefinitions;
+  if (Array.isArray(rows) && rows.length) {
+    return {
+      definitions: rows.sort((a, b) => (a.sequence || 0) - (b.sequence || 0) || String(a.code).localeCompare(String(b.code))),
+    };
+  }
+  return { definitions: DEFAULT_REPORT_DEFINITIONS };
+}
+
+export async function setReportDefinitions(tenantId, definitions) {
+  if (!Array.isArray(definitions)) throw new Error('definitions array required');
+  const cleaned = definitions.slice(0, 80).map((row, idx) => ({
+    report: ['pnl', 'bs', 'cashflow'].includes(String(row.report || '').toLowerCase())
+      ? String(row.report).toLowerCase()
+      : 'pnl',
+    code: String(row.code || '').trim().toUpperCase().slice(0, 32),
+    label: String(row.label || '').trim().slice(0, 120),
+    labelAr: String(row.labelAr || '').trim().slice(0, 120),
+    formula: String(row.formula || '').trim().slice(0, 240),
+    sequence: Number(row.sequence) || (idx + 1),
+  })).filter((row) => row.code && row.label && row.formula);
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.reportDefinitions': cleaned },
+  });
+  return { definitions: cleaned };
+}
+
+export async function buildEvaluatedReportLines(tenantId, reportKey, accountTotals = new Map()) {
+  const { definitions } = await getReportDefinitions(tenantId);
+  const scoped = definitions.filter((row) => String(row.report || 'pnl') === reportKey);
+  const lineTotals = new Map();
+  const ctx = { accountTotals, lineTotals };
+  const out = [];
+  for (const row of scoped) {
+    const amount = evaluateReportFormula(row.formula, ctx);
+    lineTotals.set(String(row.code).toUpperCase(), amount);
+    out.push({
+      code: row.code,
+      label: row.label,
+      labelAr: row.labelAr,
+      formula: row.formula,
+      amount,
+      sequence: row.sequence,
+    });
+  }
+  return out;
+}
+
+export const BANK_SYNC_PROVIDERS = [
+  { id: 'sandbox', name: 'Sandbox Bank (Demo)', nameAr: 'بنك تجريبي', oauth: true, status: 'available' },
+  { id: 'saltedge', name: 'Salt Edge', nameAr: 'Salt Edge', oauth: true, status: 'coming_soon' },
+  { id: 'plaid', name: 'Plaid', nameAr: 'Plaid', oauth: true, status: 'coming_soon' },
+];
+
+export async function getBankSyncStatus(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.bankSyncConnections').lean();
+  const connections = Array.isArray(tenant?.settings?.accounting?.bankSyncConnections)
+    ? tenant.settings.accounting.bankSyncConnections
+    : [];
+  return { providers: BANK_SYNC_PROVIDERS, connections };
+}
+
+export async function startBankSyncOAuth(tenantId, { provider, bankAccountId = null, journalId = null } = {}) {
+  const id = String(provider || '').trim().toLowerCase();
+  const meta = BANK_SYNC_PROVIDERS.find((p) => p.id === id);
+  if (!meta) throw new Error('Unknown bank sync provider');
+  if (meta.status === 'coming_soon') throw new Error(`${meta.name} is not available yet — use CSV import in bank reconciliation`);
+
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.bankSyncConnections').lean();
+  const connections = Array.isArray(tenant?.settings?.accounting?.bankSyncConnections)
+    ? [...tenant.settings.accounting.bankSyncConnections]
+    : [];
+  const existingIdx = connections.findIndex((row) => row.provider === id);
+  const next = {
+    provider: id,
+    status: 'connected',
+    bankAccountId: bankAccountId || null,
+    journalId: journalId || null,
+    connectedAt: new Date(),
+    lastSyncAt: null,
+    metadata: { mode: 'sandbox_stub' },
+  };
+  if (existingIdx >= 0) connections[existingIdx] = { ...connections[existingIdx], ...next };
+  else connections.push(next);
+
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.bankSyncConnections': connections },
+  });
+
+  return {
+    provider: id,
+    status: 'connected',
+    authorizeUrl: null,
+    message: 'Sandbox provider connected — import statements via Bank reconciliation until live feeds ship.',
+    connections,
+  };
+}
+
+export async function disconnectBankSync(tenantId, provider) {
+  const id = String(provider || '').trim().toLowerCase();
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.bankSyncConnections').lean();
+  const connections = (tenant?.settings?.accounting?.bankSyncConnections || [])
+    .filter((row) => row.provider !== id);
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.bankSyncConnections': connections },
+  });
+  return { connections };
+}
+
+export async function getProductCategoriesAccountingBridge(tenantId) {
+  const categories = await InvProductCategory.find({ tenantId })
+    .populate('incomeAccountId', 'code name nameAr')
+    .populate('expenseAccountId', 'code name nameAr')
+    .populate('stockValuationAccountId', 'code name nameAr')
+    .sort({ completePath: 1 })
+    .lean();
+
+  const Product = (await import('../models/Product.js')).default;
+  const counts = await Product.aggregate([
+    { $match: { tenantId, categoryId: { $ne: null } } },
+    { $group: { _id: '$categoryId', count: { $sum: 1 } } },
+  ]);
+  const countMap = new Map(counts.map((row) => [String(row._id), row.count]));
+
+  const rows = categories.map((cat) => {
+    const missing = [];
+    if (!cat.incomeAccountId) missing.push('income');
+    if (!cat.expenseAccountId) missing.push('expense');
+    if (cat.valuationMode !== 'manual' && !cat.stockValuationAccountId) missing.push('valuation');
+    return {
+      id: cat._id,
+      name: cat.name,
+      nameAr: cat.nameAr,
+      completePath: cat.completePath,
+      productCount: countMap.get(String(cat._id)) || 0,
+      incomeAccount: cat.incomeAccountId || null,
+      expenseAccount: cat.expenseAccountId || null,
+      stockValuationAccount: cat.stockValuationAccountId || null,
+      valuationMode: cat.valuationMode || 'automated',
+      missingAccounts: missing,
+      complete: missing.length === 0,
+    };
+  });
+
+  return {
+    rows,
+    summary: {
+      total: rows.length,
+      complete: rows.filter((row) => row.complete).length,
+      incomplete: rows.filter((row) => !row.complete).length,
+    },
+  };
 }
 
 export const DEFAULT_TAX_UNITS = [
@@ -5138,6 +5445,13 @@ function cashFlowSection() {
 
 function classifyCashFlowBucket(account) {
   if (!account) return 'operating';
+  const tags = (Array.isArray(account.tags) ? account.tags : [])
+    .map((tag) => String(tag || '').trim().toLowerCase())
+    .filter(Boolean);
+  if (tags.includes('investing')) return 'investing';
+  if (tags.includes('financing')) return 'financing';
+  if (tags.includes('operating')) return 'operating';
+  if (tags.includes('tax')) return 'operating';
   const subtype = account.subtype || '';
   const type = account.type || '';
   if (subtype === 'fixed_asset' || subtype === 'inventory') {
@@ -5317,7 +5631,7 @@ async function buildAgedInvoices(tenantId, { flow, asOf = null } = {}) {
     paymentStatus: { $nin: ['paid', 'cancelled'] },
     issueDate: { $lte: asOfDate },
   })
-    .select('invoiceNumber invoiceType issueDate dueDate grandTotal paidAmount customerId supplierId paymentStatus')
+    .select('invoiceNumber invoiceType issueDate dueDate grandTotal paidAmount customerId supplierId paymentStatus paymentSchedule')
     .lean();
 
   const partnerIds = [
@@ -5337,18 +5651,20 @@ async function buildAgedInvoices(tenantId, { flow, asOf = null } = {}) {
   const buckets = EMPTY_AGING_BUCKETS();
   const rows = [];
 
-  for (const inv of invoices) {
-    const residual = round2(Math.max(0, Number(inv.grandTotal || 0) - Number(inv.paidAmount || 0)));
-    if (residual < 0.01) continue;
-
-    const partnerId = flow === 'sell' ? inv.customerId : (inv.supplierId || inv.customerId);
-    const partner = partnerId ? partnerById[String(partnerId)] : null;
-    const baseDate = new Date(inv.dueDate || inv.issueDate || asOfDate);
+  const pushAgingRow = ({
+    inv,
+    partner,
+    partnerId,
+    residual,
+    dueDate,
+    trancheSequence = null,
+  }) => {
+    if (residual < 0.01) return;
+    const baseDate = new Date(dueDate || inv.dueDate || inv.issueDate || asOfDate);
     const ageDays = Math.max(0, Math.floor((asOfDate - baseDate) / MS_PER_DAY));
     const bucket = agingBucket(ageDays);
     buckets[bucket] = round2(buckets[bucket] + residual);
     buckets.total = round2(buckets.total + residual);
-
     rows.push({
       invoiceId: inv._id,
       invoiceNumber: inv.invoiceNumber,
@@ -5357,14 +5673,53 @@ async function buildAgedInvoices(tenantId, { flow, asOf = null } = {}) {
       partnerName: partner?.displayName || partner?.name || partner?.nameAr || '—',
       partnerPhone: partner?.mobile || partner?.phone || '',
       issueDate: inv.issueDate,
-      dueDate: inv.dueDate || null,
+      dueDate: dueDate || inv.dueDate || null,
       grandTotal: round2(inv.grandTotal),
       paidAmount: round2(inv.paidAmount),
       residual,
       ageDays,
       bucket,
       paymentStatus: inv.paymentStatus,
+      trancheSequence,
       followUpLevel: flow === 'sell' ? resolveFollowUpLevel(ageDays, followUpLevels) : null,
+    });
+  };
+
+  for (const inv of invoices) {
+    const grossResidual = round2(Math.max(0, Number(inv.grandTotal || 0) - Number(inv.paidAmount || 0)));
+    if (grossResidual < 0.01) continue;
+
+    const partnerId = flow === 'sell' ? inv.customerId : (inv.supplierId || inv.customerId);
+    const partner = partnerId ? partnerById[String(partnerId)] : null;
+    const schedule = Array.isArray(inv.paymentSchedule)
+      ? inv.paymentSchedule.filter((row) => round2(Number(row.amount || 0)) > 0)
+      : [];
+
+    if (schedule.length > 1) {
+      let remainingPaid = round2(Number(inv.paidAmount || 0));
+      for (const tranche of schedule) {
+        const trancheAmount = round2(Number(tranche.amount || 0));
+        const paidOnTranche = Math.min(remainingPaid, trancheAmount);
+        const trancheResidual = round2(trancheAmount - paidOnTranche);
+        remainingPaid = round2(remainingPaid - paidOnTranche);
+        pushAgingRow({
+          inv,
+          partner,
+          partnerId,
+          residual: trancheResidual,
+          dueDate: tranche.dueDate,
+          trancheSequence: tranche.sequence,
+        });
+      }
+      continue;
+    }
+
+    pushAgingRow({
+      inv,
+      partner,
+      partnerId,
+      residual: grossResidual,
+      dueDate: inv.dueDate,
     });
   }
 
@@ -5624,6 +5979,17 @@ export default {
   setAccountTags,
   getHorizontalGroups,
   setHorizontalGroups,
+  getTaxGroups,
+  setTaxGroups,
+  getReportDefinitions,
+  setReportDefinitions,
+  buildEvaluatedReportLines,
+  evaluateReportFormula,
+  getBankSyncStatus,
+  startBankSyncOAuth,
+  disconnectBankSync,
+  getProductCategoriesAccountingBridge,
+  buildReceivableDebitLines,
   getTaxUnits,
   setTaxUnits,
   getAnalyticDistributionModels,

@@ -53,6 +53,7 @@ import {
   AnalyticDistributionModelsPanel,
   AutomaticTransfersPanel,
   ChartOfAccountsPanel,
+  OnlineSyncPanel,
   PaymentProvidersPanel,
   ReconciliationModelsPanel,
   JournalGroupsPanel,
@@ -1038,16 +1039,7 @@ export default function Accounting() {
 
           {tab === 'online-sync' && (
             <motion.div key="online-sync" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              <SimpleStatusPanel
-                language={language}
-                titleEn="Online bank synchronization"
-                titleAr="مزامنة بنكية عبر الإنترنت"
-                bodyEn="Direct bank feeds are not connected yet. Use CSV/OFX import in Bank reconciliation, then match outstanding payments and receipts."
-                bodyAr="مزامنة البنوك المباشرة غير مفعّلة بعد. استخدم استيراد CSV/OFX في التسوية البنكية ثم طابق المدفوعات والمقبوضات المعلقة."
-                href="/app/dashboard/accounting/bank-recon"
-                ctaEn="Open bank reconciliation"
-                ctaAr="فتح التسوية البنكية"
-              />
+              <OnlineSyncPanel language={language} />
             </motion.div>
           )}
 

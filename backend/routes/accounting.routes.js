@@ -70,6 +70,14 @@ import {
   setAccountTags,
   getHorizontalGroups,
   setHorizontalGroups,
+  getTaxGroups,
+  setTaxGroups,
+  getReportDefinitions,
+  setReportDefinitions,
+  getBankSyncStatus,
+  startBankSyncOAuth,
+  disconnectBankSync,
+  getProductCategoriesAccountingBridge,
   getTaxUnits,
   setTaxUnits,
   getAnalyticDistributionModels,
@@ -169,6 +177,7 @@ router.post('/accounts', checkPermission('finance', 'create'), async (req, res) 
       parentCode: req.body.parentCode || '',
       description: req.body.description || '',
       currency: req.body.currency || req.tenant?.settings?.currency || 'SAR',
+      tags: Array.isArray(req.body.tags) ? req.body.tags.map((t) => String(t || '').trim()).filter(Boolean).slice(0, 10) : [],
       isSystem: false,
       isPostable: req.body.isPostable !== false,
       createdBy: req.user._id,
@@ -185,9 +194,17 @@ router.put('/accounts/:id', checkPermission('finance', 'update'), async (req, re
     const account = await ChartOfAccount.findOne({ _id: req.params.id, tenantId: tenantIdOf(req) });
     if (!account) return res.status(404).json({ error: 'Account not found' });
 
-    const allowed = ['name', 'nameAr', 'subtype', 'parentCode', 'description', 'isActive', 'isPostable'];
+    const allowed = ['name', 'nameAr', 'subtype', 'parentCode', 'description', 'isActive', 'isPostable', 'tags'];
     for (const key of allowed) {
-      if (req.body[key] !== undefined) account[key] = req.body[key];
+      if (req.body[key] !== undefined) {
+        if (key === 'tags') {
+          account.tags = Array.isArray(req.body.tags)
+            ? req.body.tags.map((t) => String(t || '').trim()).filter(Boolean).slice(0, 10)
+            : [];
+        } else {
+          account[key] = req.body[key];
+        }
+      }
     }
     if (!account.isSystem && req.body.type) account.type = req.body.type;
     if (!account.isSystem && req.body.code) account.code = String(req.body.code).trim();
@@ -554,6 +571,70 @@ router.put('/horizontal-groups', checkPermission('finance', 'approve'), async (r
     res.json(await setHorizontalGroups(tenantIdOf(req), req.body?.groups || []));
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/tax-groups', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getTaxGroups(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/tax-groups', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setTaxGroups(tenantIdOf(req), req.body?.groups || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/report-definitions', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getReportDefinitions(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/report-definitions', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setReportDefinitions(tenantIdOf(req), req.body?.definitions || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/bank-sync/status', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getBankSyncStatus(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/bank-sync/connect', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await startBankSyncOAuth(tenantIdOf(req), req.body || {}));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/bank-sync/disconnect', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await disconnectBankSync(tenantIdOf(req), req.body?.provider));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/product-categories-bridge', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getProductCategoriesAccountingBridge(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

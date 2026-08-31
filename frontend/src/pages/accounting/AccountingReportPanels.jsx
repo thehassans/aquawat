@@ -115,6 +115,34 @@ function HorizontalGroupsSection({
   )
 }
 
+function CustomReportLinesSection({ language, lines }) {
+  const isAr = language === 'ar'
+  if (!lines?.length) return null
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+      <div className="border-b border-slate-100 px-5 py-4 dark:border-white/10">
+        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+          {isAr ? 'بنود مخصصة (إعدادات)' : 'Custom lines (configuration)'}
+        </h3>
+      </div>
+      <table className="min-w-full text-sm">
+        <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+          {lines.map((row) => (
+            <tr key={row.code}>
+              <td className="px-5 py-2">
+                <span className="font-mono text-[10px] text-slate-400">{row.code}</span>
+                {' · '}
+                {isAr ? (row.labelAr || row.label) : row.label}
+              </td>
+              <td className="px-5 py-2 text-end font-semibold"><Money value={row.amount} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export function BalanceSheetPanel({ language }) {
   const isAr = language === 'ar'
   const navigate = useNavigate()
@@ -263,6 +291,7 @@ export function BalanceSheetPanel({ language }) {
         showVar={showVar}
         onAccountClick={openGl}
       />
+      <CustomReportLinesSection language={language} lines={data?.customReportLines} />
     </div>
   )
 }
@@ -413,6 +442,7 @@ export function ProfitAndLossPanel({ language }) {
         showVar={showVar}
         onAccountClick={openGl}
       />
+      <CustomReportLinesSection language={language} lines={data?.customReportLines} />
     </div>
   )
 }

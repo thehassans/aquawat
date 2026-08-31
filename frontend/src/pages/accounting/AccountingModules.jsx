@@ -4603,6 +4603,7 @@ const emptyCoaForm = () => ({
   subtype: 'operating',
   parentCode: '',
   description: '',
+  tagsText: '',
   isPostable: true,
   isActive: true,
 })
@@ -4626,8 +4627,19 @@ export function ChartOfAccountsPanel({ language }) {
     return accounts.filter((a) => [a.code, a.name, a.nameAr, a.type].some((v) => String(v || '').toLowerCase().includes(q)))
   }, [accounts, search])
 
+  const { data: tagCatalog } = useQuery({
+    queryKey: ['accounting-account-tags'],
+    queryFn: () => api.get('/accounting/account-tags').then((r) => r.data),
+  })
+  const tagOptions = tagCatalog?.tags || []
+
+  const payloadFromForm = () => ({
+    ...form,
+    tags: String(form.tagsText || '').split(/[,،\n]/).map((t) => t.trim()).filter(Boolean),
+  })
+
   const saveCreate = useMutation({
-    mutationFn: () => api.post('/accounting/accounts', form).then((r) => r.data),
+    mutationFn: () => api.post('/accounting/accounts', payloadFromForm()).then((r) => r.data),
     onSuccess: () => {
       toast.success(isAr ? 'تم إنشاء الحساب' : 'Account created')
       setShowForm(false)
@@ -4639,7 +4651,7 @@ export function ChartOfAccountsPanel({ language }) {
   })
 
   const saveEdit = useMutation({
-    mutationFn: () => api.put(`/accounting/accounts/${editId}`, form).then((r) => r.data),
+    mutationFn: () => api.put(`/accounting/accounts/${editId}`, payloadFromForm()).then((r) => r.data),
     onSuccess: () => {
       toast.success(isAr ? 'تم التحديث' : 'Account updated')
       setEditId(null)
@@ -4661,6 +4673,7 @@ export function ChartOfAccountsPanel({ language }) {
       subtype: row.subtype || 'other_expense',
       parentCode: row.parentCode || '',
       description: row.description || '',
+      tagsText: (row.tags || []).join(', '),
       isPostable: row.isPostable !== false,
       isActive: row.isActive !== false,
     })
@@ -4727,6 +4740,19 @@ export function ChartOfAccountsPanel({ language }) {
               {COA_SUBTYPES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
+          <label className="text-xs font-medium text-slate-500 sm:col-span-2">
+            {isAr ? 'وسوم (تصنيف التدفقات)' : 'Tags (cash-flow classification)'}
+            <input
+              value={form.tagsText || ''}
+              onChange={(e) => setForm((p) => ({ ...p, tagsText: e.target.value }))}
+              list="coa-tag-options"
+              placeholder={tagOptions.slice(0, 4).join(', ')}
+              className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+            />
+            <datalist id="coa-tag-options">
+              {tagOptions.map((tag) => <option key={tag} value={tag} />)}
+            </datalist>
+          </label>
           <div className="flex flex-wrap items-center gap-4 sm:col-span-2 lg:col-span-3">
             <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={form.isPostable} onChange={(e) => setForm((p) => ({ ...p, isPostable: e.target.checked }))} />{isAr ? 'قابل للترحيل' : 'Postable'}</label>
             <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm((p) => ({ ...p, isActive: e.target.checked }))} />{isAr ? 'نشط' : 'Active'}</label>
@@ -4759,6 +4785,7 @@ export function ChartOfAccountsPanel({ language }) {
                 <th className="px-5 py-3.5">{isAr ? 'الرمز' : 'Code'}</th>
                 <th className="px-5 py-3.5">{isAr ? 'الاسم' : 'Name'}</th>
                 <th className="px-5 py-3.5">{isAr ? 'النوع' : 'Type'}</th>
+                <th className="px-5 py-3.5">{isAr ? 'وسوم' : 'Tags'}</th>
                 <th className="px-5 py-3.5 text-end">{isAr ? 'الرصيد' : 'Balance'}</th>
                 <th className="px-5 py-3.5" />
               </tr>
@@ -4772,6 +4799,7 @@ export function ChartOfAccountsPanel({ language }) {
                     {a.isSystem ? <span className="text-[10px] uppercase text-slate-400">{isAr ? 'نظام' : 'System'}</span> : null}
                   </td>
                   <td className="px-5 py-3.5 capitalize text-slate-500">{a.type}{a.subtype ? ` · ${a.subtype}` : ''}</td>
+                  <td className="px-5 py-3.5 text-xs text-slate-500">{(a.tags || []).join(', ') || '—'}</td>
                   <td className="px-5 py-3.5 text-end font-semibold"><Money value={a.balance || 0} /></td>
                   <td className="px-5 py-3.5 text-end">
                     <button type="button" onClick={() => startEdit(a)} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold dark:border-dark-600">
@@ -4781,7 +4809,7 @@ export function ChartOfAccountsPanel({ language }) {
                 </tr>
               ))}
               {!filtered.length && (
-                <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">{isAr ? 'لا حسابات' : 'No accounts'}</td></tr>
+                <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">{isAr ? 'لا حسابات' : 'No accounts'}</td></tr>
               )}
             </tbody>
           </table>
@@ -5413,14 +5441,23 @@ export function AccountTagsPanel({ language }) {
     mutationFn: () => api.put('/accounting/account-tags', {
       tags: text.split(/[,،\n]/).map((t) => t.trim()).filter(Boolean),
     }).then((r) => r.data),
-    onSuccess: () => refetch(),
+    onSuccess: () => { toast.success(isAr ? 'تم الحفظ' : 'Saved'); refetch() },
   })
   return (
-    <div className="space-y-4 rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
-      <p className="text-sm font-semibold">{isAr ? 'وسوم الحسابات' : 'Account tags'}</p>
-      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900" placeholder={isAr ? 'مفصولة بفواصل' : 'Comma-separated'} />
-      <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isAr ? 'حفظ' : 'Save'}</button>
-    </div>
+    <ConfigPanelShell
+      language={language}
+      titleEn="Account tags"
+      titleAr="وسوم الحسابات"
+      purposeEn="Vocabulary for tagging chart-of-accounts lines — drives cash-flow classification and custom reports."
+      purposeAr="قاموس وسوم حسابات الدليل — يتحكم بتصنيف التدفقات النقدية والتقارير."
+      impactEn="Assign tags on each CoA row; cash-flow statement buckets prefer investing/financing/operating tags."
+      impactAr="يُعيَّن الوسم على كل حساب؛ تقرير التدفقات النقدية يفضّل وسوم investing/financing/operating."
+      actions={(
+        <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{save.isPending ? '…' : (isAr ? 'حفظ' : 'Save')}</button>
+      )}
+    >
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900" placeholder={isAr ? 'operating, investing, financing, tax' : 'operating, investing, financing, tax'} />
+    </ConfigPanelShell>
   )
 }
 
@@ -5459,86 +5496,292 @@ export function AccountGroupsPanel({ language }) {
 
 export function TaxGroupsPanel({ language }) {
   const isAr = language === 'ar'
-  const { data: taxes = [], isFetching } = useQuery({
+  const { data: taxes = [] } = useQuery({
     queryKey: ['accounting-taxes'],
     queryFn: () => api.get('/accounting/taxes', { params: { active: 'false' } }).then((r) => r.data || []),
   })
-  const groups = useMemo(() => {
-    const map = new Map()
-    for (const t of (Array.isArray(taxes) ? taxes : [])) {
-      const key = t.type || 'other'
-      if (!map.has(key)) map.set(key, [])
-      map.get(key).push(t)
-    }
-    return [...map.entries()]
-  }, [taxes])
+  const { data, refetch, isFetching } = useQuery({
+    queryKey: ['accounting-tax-groups'],
+    queryFn: () => api.get('/accounting/tax-groups').then((r) => r.data),
+  })
+  const [rows, setRows] = useState([])
+  useEffect(() => {
+    if (data?.groups) setRows(data.groups.map((r) => ({ ...r, taxCodes: (r.taxCodes || []).join(', ') })))
+  }, [data?.groups])
+  const save = useMutation({
+    mutationFn: () => api.put('/accounting/tax-groups', {
+      groups: rows.map((r) => ({
+        ...r,
+        taxCodes: String(r.taxCodes || '').split(/[,،\s]+/).map((c) => c.trim().toUpperCase()).filter(Boolean),
+      })),
+    }).then((r) => r.data),
+    onSuccess: () => { toast.success(isAr ? 'تم الحفظ' : 'Saved'); refetch() },
+  })
+  const taxCodeOptions = (Array.isArray(taxes) ? taxes : []).map((t) => t.code).filter(Boolean)
+
   return (
-    <div className="space-y-4">
-      {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
-      {groups.map(([type, rows]) => (
-        <div key={type} className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-          <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold capitalize dark:border-white/10">{type}</div>
-          <ul className="divide-y divide-slate-100 dark:divide-white/5">
-            {rows.map((t) => (
-              <li key={t._id} className="flex justify-between px-4 py-2 text-sm">
-                <span>{t.code} — {isAr ? (t.nameAr || t.name) : t.name}</span>
-                <span className="tabular-nums text-slate-500">{t.rate}%</span>
-              </li>
+    <ConfigPanelShell
+      language={language}
+      titleEn="Tax groups"
+      titleAr="مجموعات الضريبة"
+      purposeEn="Combine multiple tax rates into one subtotal line on printed invoices (e.g. 15% VAT)."
+      purposeAr="دمج عدة معدلات ضريبة في سطر واحد على PDF الفاتورة."
+      impactEn="Groups reference tax master codes; invoice PDF and ZATCA grids can aggregate by group."
+      impactAr="تشير المجموعات إلى رموز الضرائب؛ PDF وZATCA يمكن أن يجمعا حسب المجموعة."
+      actions={(
+        <>
+          <button type="button" onClick={() => setRows((p) => [...p, { code: '', name: '', nameAr: '', taxCodes: '', sequence: p.length + 1 }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
+          <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{save.isPending ? '…' : (isAr ? 'حفظ' : 'Save')}</button>
+        </>
+      )}
+    >
+      <div className="overflow-x-auto overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
+            <tr>
+              <th className="px-3 py-2">{isAr ? 'الرمز' : 'Code'}</th>
+              <th className="px-3 py-2">{isAr ? 'الاسم' : 'Name'}</th>
+              <th className="px-3 py-2">{isAr ? 'رموز الضرائب' : 'Tax codes'}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+            {rows.map((row, i) => (
+              <tr key={i}>
+                <td className="px-3 py-2"><input value={row.code || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, code: e.target.value.toUpperCase() } : r)))} className="w-24 rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-3 py-2"><input value={row.name || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, name: e.target.value } : r)))} className="w-full rounded-lg border border-slate-200 px-2 py-1 dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-3 py-2">
+                  <input value={row.taxCodes || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, taxCodes: e.target.value } : r)))} list="tax-code-options" placeholder={taxCodeOptions.slice(0, 3).join(', ')} className="w-full rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs dark:border-dark-600 dark:bg-dark-900" />
+                </td>
+              </tr>
             ))}
-          </ul>
-        </div>
-      ))}
-    </div>
+          </tbody>
+        </table>
+        <datalist id="tax-code-options">{taxCodeOptions.map((code) => <option key={code} value={code} />)}</datalist>
+      </div>
+    </ConfigPanelShell>
   )
 }
 
 export function ProductCategoriesBridgePanel({ language }) {
   const isAr = language === 'ar'
   const navigate = useNavigate()
+  const { data, isFetching } = useQuery({
+    queryKey: ['accounting-product-categories-bridge'],
+    queryFn: () => api.get('/accounting/product-categories-bridge').then((r) => r.data),
+  })
+  const rows = data?.rows || []
+  const summary = data?.summary || {}
+
+  const acctLabel = (acct) => (acct ? `${acct.code} — ${isAr ? (acct.nameAr || acct.name) : acct.name}` : '—')
+
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white p-6 dark:border-dark-600 dark:bg-dark-800">
-      <p className="text-sm font-semibold">{isAr ? 'فئات المنتجات' : 'Product categories'}</p>
-      <p className="mt-2 text-sm text-slate-500">
-        {isAr
-          ? 'تُدار فئات المنتجات من وحدة المخزون (حسابات الدخل/المصروف على الفئة).'
-          : 'Product categories are managed in Inventory (income/expense accounts on the category).'}
-      </p>
-      <button type="button" onClick={() => navigate('/app/dashboard/inventory/product-categories')} className="mt-4 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white">
-        {isAr ? 'فتح فئات المنتجات' : 'Open product categories'}
-      </button>
-    </div>
+    <ConfigPanelShell
+      language={language}
+      titleEn="Product categories"
+      titleAr="فئات المنتجات"
+      purposeEn="Bridge between Inventory and Accounting — default income, expense, and valuation accounts per category."
+      purposeAr="جسر بين المخزون والمحاسبة — حسابات الدخل والمصروف والتقييم لكل فئة."
+      impactEn="Stock moves and invoice revenue lines resolve accounts from the product category when not overridden."
+      impactAr="حركات المخزون وإيرادات الفواتير تستخدم حسابات الفئة عند عدم التخصيص."
+      actions={(
+        <button type="button" onClick={() => navigate('/app/dashboard/inventory/product-categories')} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white">
+          {isAr ? 'تحرير في المخزون' : 'Edit in Inventory'}
+        </button>
+      )}
+    >
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+          <p className="text-[11px] uppercase text-slate-400">{isAr ? 'الفئات' : 'Categories'}</p>
+          <p className="mt-1 text-lg font-semibold">{summary.total ?? rows.length}</p>
+        </div>
+        <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/50 p-4 dark:border-emerald-500/20 dark:bg-emerald-950/20">
+          <p className="text-[11px] uppercase text-emerald-700/70">{isAr ? 'مكتملة' : 'Complete'}</p>
+          <p className="mt-1 text-lg font-semibold">{summary.complete ?? 0}</p>
+        </div>
+        <div className="rounded-2xl border border-amber-200/80 bg-amber-50/50 p-4 dark:border-amber-500/20 dark:bg-amber-950/20">
+          <p className="text-[11px] uppercase text-amber-800/70">{isAr ? 'ناقصة' : 'Incomplete'}</p>
+          <p className="mt-1 text-lg font-semibold">{summary.incomplete ?? 0}</p>
+        </div>
+      </div>
+      {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
+      <div className="overflow-x-auto overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
+            <tr>
+              <th className="px-3 py-2 text-start">{isAr ? 'الفئة' : 'Category'}</th>
+              <th className="px-3 py-2 text-start">{isAr ? 'الدخل' : 'Income'}</th>
+              <th className="px-3 py-2 text-start">{isAr ? 'المصروف' : 'Expense'}</th>
+              <th className="px-3 py-2 text-start">{isAr ? 'التقييم' : 'Valuation'}</th>
+              <th className="px-3 py-2 text-end">{isAr ? 'منتجات' : 'Products'}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+            {rows.map((row) => (
+              <tr key={row.id}>
+                <td className="px-3 py-2">
+                  <p className="font-medium">{row.completePath || row.name}</p>
+                  {!row.complete ? (
+                    <span className="text-[10px] font-semibold text-amber-700">{isAr ? 'حسابات ناقصة' : 'Missing accounts'}</span>
+                  ) : null}
+                </td>
+                <td className="px-3 py-2 text-xs text-slate-600">{acctLabel(row.incomeAccount)}</td>
+                <td className="px-3 py-2 text-xs text-slate-600">{acctLabel(row.expenseAccount)}</td>
+                <td className="px-3 py-2 text-xs text-slate-600">{acctLabel(row.stockValuationAccount)}</td>
+                <td className="px-3 py-2 text-end tabular-nums">{row.productCount}</td>
+              </tr>
+            ))}
+            {!rows.length && (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا فئات' : 'No categories'}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </ConfigPanelShell>
   )
 }
 
 export function AccountingReportsConfigPanel({ language }) {
   const isAr = language === 'ar'
   const navigate = useNavigate()
+  const { data, refetch, isFetching } = useQuery({
+    queryKey: ['accounting-report-definitions'],
+    queryFn: () => api.get('/accounting/report-definitions').then((r) => r.data),
+  })
+  const [rows, setRows] = useState([])
+  useEffect(() => {
+    if (data?.definitions) setRows(data.definitions.map((r) => ({ ...r })))
+  }, [data?.definitions])
+  const save = useMutation({
+    mutationFn: () => api.put('/accounting/report-definitions', { definitions: rows }).then((r) => r.data),
+    onSuccess: () => { toast.success(isAr ? 'تم الحفظ' : 'Saved'); refetch() },
+  })
   const links = [
-    ['executive-summary', isAr ? 'الملخص التنفيذي' : 'Executive summary'],
-    ['invoice-analysis', isAr ? 'تحليل الفواتير' : 'Invoice analysis'],
-    ['general-ledger', isAr ? 'دفتر الأستاذ' : 'General ledger'],
-    ['partner-ledger', isAr ? 'دفتر الشريك' : 'Partner ledger'],
-    ['trial', isAr ? 'ميزان المراجعة' : 'Trial balance'],
     ['pnl', isAr ? 'الأرباح والخسائر' : 'Profit & loss'],
     ['balance-sheet', isAr ? 'الميزانية' : 'Balance sheet'],
     ['cash-flow', isAr ? 'التدفقات النقدية' : 'Cash flow'],
-    ['aged-ar', isAr ? 'أعمار المدينين' : 'Aged AR'],
-    ['aged-ap', isAr ? 'أعمار الدائنين' : 'Aged AP'],
-    ['tax-report', isAr ? 'تقرير الضريبة' : 'Tax report'],
   ]
+
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {links.map(([id, label]) => (
-        <button
-          key={id}
-          type="button"
-          onClick={() => navigate(`/app/dashboard/accounting/${id}`)}
-          className="rounded-2xl border border-slate-200/80 bg-white px-4 py-4 text-start text-sm font-semibold hover:border-slate-300 dark:border-dark-600 dark:bg-dark-800"
-        >
-          {label}
+    <ConfigPanelShell
+      language={language}
+      titleEn="Accounting reports"
+      titleAr="تقارير محاسبية"
+      purposeEn="Custom statement lines with formulas referencing account prefixes or other lines."
+      purposeAr="بنود مخصصة بمعادلات تشير إلى بادئات الحسابات أو بنود أخرى."
+      impactEn="Evaluated on P&L and balance sheet as customReportLines; use sum(prefix:4), sum(account:4100), line:CODE."
+      impactAr="تُقيَّم في الأرباح والميزانية؛ استخدم sum(prefix:4) و line:CODE."
+      actions={(
+        <>
+          <button type="button" onClick={() => setRows((p) => [...p, { report: 'pnl', code: '', label: '', labelAr: '', formula: '', sequence: p.length + 1 }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة سطر' : 'Add line'}</button>
+          <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{save.isPending ? '…' : (isAr ? 'حفظ' : 'Save')}</button>
+        </>
+      )}
+    >
+      <div className="overflow-x-auto overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
+            <tr>
+              <th className="px-2 py-2">{isAr ? 'التقرير' : 'Report'}</th>
+              <th className="px-2 py-2">{isAr ? 'الرمز' : 'Code'}</th>
+              <th className="px-2 py-2">{isAr ? 'التسمية' : 'Label'}</th>
+              <th className="px-2 py-2">{isAr ? 'المعادلة' : 'Formula'}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+            {rows.map((row, i) => (
+              <tr key={i}>
+                <td className="px-2 py-2">
+                  <select value={row.report || 'pnl'} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, report: e.target.value } : r)))} className="rounded-lg border border-slate-200 px-2 py-1 text-xs dark:border-dark-600 dark:bg-dark-900">
+                    <option value="pnl">P&L</option>
+                    <option value="bs">BS</option>
+                    <option value="cashflow">{isAr ? 'تدفقات' : 'Cash flow'}</option>
+                  </select>
+                </td>
+                <td className="px-2 py-2"><input value={row.code || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, code: e.target.value.toUpperCase() } : r)))} className="w-28 rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-2 py-2"><input value={row.label || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, label: e.target.value } : r)))} className="w-full min-w-[8rem] rounded-lg border border-slate-200 px-2 py-1 dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-2 py-2"><input value={row.formula || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, formula: e.target.value } : r)))} placeholder="sum(prefix:4) - sum(prefix:5)" className="w-full min-w-[12rem] rounded-lg border border-slate-200 px-2 py-1 font-mono text-[11px] dark:border-dark-600 dark:bg-dark-900" /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {links.map(([id, label]) => (
+          <button key={id} type="button" onClick={() => navigate(`/app/dashboard/accounting/${id}`)} className="rounded-2xl border border-slate-200/80 bg-white px-4 py-4 text-start text-sm font-semibold hover:border-slate-300 dark:border-dark-600 dark:bg-dark-800">
+            {label}
+          </button>
+        ))}
+      </div>
+    </ConfigPanelShell>
+  )
+}
+
+export function OnlineSyncPanel({ language }) {
+  const isAr = language === 'ar'
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { data, refetch, isFetching } = useQuery({
+    queryKey: ['accounting-bank-sync'],
+    queryFn: () => api.get('/accounting/bank-sync/status').then((r) => r.data),
+  })
+  const connect = useMutation({
+    mutationFn: (provider) => api.post('/accounting/bank-sync/connect', { provider }).then((r) => r.data),
+    onSuccess: (payload) => {
+      toast.success(payload?.message || (isAr ? 'تم الربط' : 'Connected'))
+      refetch()
+      queryClient.invalidateQueries({ queryKey: ['accounting-bank-sync'] })
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
+  })
+  const disconnect = useMutation({
+    mutationFn: (provider) => api.post('/accounting/bank-sync/disconnect', { provider }).then((r) => r.data),
+    onSuccess: () => { toast.success(isAr ? 'تم قطع الربط' : 'Disconnected'); refetch() },
+  })
+  const providers = data?.providers || []
+  const connections = data?.connections || []
+  const connectedSet = new Set(connections.filter((c) => c.status === 'connected').map((c) => c.provider))
+
+  return (
+    <ConfigPanelShell
+      language={language}
+      titleEn="Online bank synchronization"
+      titleAr="مزامنة بنكية عبر الإنترنت"
+      purposeEn="OAuth connections to bank aggregators for automatic statement feeds (sandbox stub today)."
+      purposeAr="ربط OAuth مع مجمعات البنوك لسحب كشوف الحساب (تجريبي حالياً)."
+      impactEn="Connected providers store tenant metadata; use Bank reconciliation CSV import until live feeds ship."
+      impactAr="المزودون المتصلون يُخزَّنون للمستأجر؛ استخدم استيراد CSV حتى تفعيل المزامنة المباشرة."
+      actions={(
+        <button type="button" onClick={() => navigate('/app/dashboard/accounting/bank-recon')} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">
+          {isAr ? 'التسوية البنكية' : 'Bank reconciliation'}
         </button>
-      ))}
-    </div>
+      )}
+    >
+      {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {providers.map((provider) => {
+          const connected = connectedSet.has(provider.id)
+          const comingSoon = provider.status === 'coming_soon'
+          return (
+            <div key={provider.id} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+              <p className="font-semibold">{isAr ? (provider.nameAr || provider.name) : provider.name}</p>
+              <p className="mt-1 text-xs text-slate-500">{comingSoon ? (isAr ? 'قريباً' : 'Coming soon') : (connected ? (isAr ? 'متصل' : 'Connected') : (isAr ? 'غير متصل' : 'Not connected'))}</p>
+              <div className="mt-3 flex gap-2">
+                {!comingSoon && !connected ? (
+                  <button type="button" disabled={connect.isPending} onClick={() => connect.mutate(provider.id)} className="rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
+                    {isAr ? 'ربط' : 'Connect'}
+                  </button>
+                ) : null}
+                {connected ? (
+                  <button type="button" disabled={disconnect.isPending} onClick={() => disconnect.mutate(provider.id)} className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold dark:border-dark-600">
+                    {isAr ? 'قطع' : 'Disconnect'}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </ConfigPanelShell>
   )
 }
 

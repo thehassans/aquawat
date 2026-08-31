@@ -28,6 +28,8 @@ const chartOfAccountSchema = new mongoose.Schema({
   isPostable: { type: Boolean, default: true },
   currency: { type: String, default: 'SAR' },
   description: { type: String, default: '' },
+  /** Metadata tags for cash-flow / report classification (see accountTags tenant vocab). */
+  tags: [{ type: String, trim: true }],
   balance: { type: Number, default: 0 },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
