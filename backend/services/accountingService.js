@@ -2517,6 +2517,14 @@ export async function buildPartnerLedger(tenantId, partnerId, { from, to, accoun
     .populate('accountId', 'code name nameAr type subtype')
     .lean();
 
+  const moveIds = [...new Set(items.map((i) => String(i.moveId)).filter(Boolean))];
+  const moves = moveIds.length
+    ? await JournalEntry.find({ tenantId, _id: { $in: moveIds } })
+      .select('sourceModel sourceId sourceNumber reference')
+      .lean()
+    : [];
+  const moveById = Object.fromEntries(moves.map((m) => [String(m._id), m]));
+
   let running = 0;
   let openingBalance = 0;
   const lines = [];
@@ -2539,8 +2547,9 @@ export async function buildPartnerLedger(tenantId, partnerId, { from, to, accoun
       debit,
       credit,
       balance: running,
-      sourceModel: item.sourceModel || '',
-      sourceId: item.sourceId || null,
+      sourceModel: item.sourceModel || moveById[String(item.moveId)]?.sourceModel || '',
+      sourceId: item.sourceId || moveById[String(item.moveId)]?.sourceId || null,
+      sourceNumber: moveById[String(item.moveId)]?.sourceNumber || moveById[String(item.moveId)]?.reference || '',
     });
   }
 
@@ -3692,6 +3701,98 @@ export async function postMonthlyDepreciation(tenantId, userId, { modelCode, asO
   return { entry, created: true, periodKey, lineCount: lines.length / 2 };
 }
 
+/** Depreciation schedule matrix: posted history + projected board per asset. */
+export async function buildDepreciationSchedule(tenantId, { modelCode, accountId = null, horizonMonths = 60 } = {}) {
+  const register = await buildFixedAssetRegister(tenantId, { modelCode });
+  const assets = (register.rows || []).filter((row) => (
+    !accountId || String(row.accountId) === String(accountId)
+  ));
+
+  const postedEntries = await JournalEntry.find({
+    tenantId,
+    sourceModel: 'Depreciation',
+    status: 'posted',
+  }).sort({ entryDate: 1 }).lean();
+
+  const postedByAssetPeriod = new Map();
+  const postedPeriodMeta = new Map();
+  const currentPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
+  for (const entry of postedEntries) {
+    const period = String(entry.sourceNumber || '').replace(/^DEPR-/, '') || '';
+    if (period) {
+      postedPeriodMeta.set(period, {
+        entryId: entry._id,
+        entryNumber: entry.entryNumber,
+        entryDate: entry.entryDate,
+      });
+    }
+    for (const line of entry.lines || []) {
+      const desc = String(line.description || '');
+      const m = desc.match(/(?:Depreciation|Accum\. depreciation)\s+(\d+)/i);
+      if (!m) continue;
+      const code = m[1];
+      const amt = round2(Number(line.debit || line.credit || 0));
+      if (amt <= 0) continue;
+      const key = `${code}:${period}`;
+      postedByAssetPeriod.set(key, round2((postedByAssetPeriod.get(key) || 0) + amt));
+    }
+  }
+
+  const rows = assets.map((asset) => {
+    const months = Math.min(horizonMonths, Number(asset.usefulLifeMonths) || 60);
+    const start = new Date();
+    let previouslyDepreciated = 0;
+    const schedule = [];
+
+    for (let i = 0; i < months; i += 1) {
+      const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
+      const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const postedAmt = postedByAssetPeriod.get(`${asset.code}:${period}`) || 0;
+      const planned = round2(asset.monthlyDepreciation);
+      const amount = postedAmt > 0 ? postedAmt : planned;
+      const posted = postedAmt > 0;
+      if (posted) previouslyDepreciated = round2(previouslyDepreciated + postedAmt);
+
+      let status = 'scheduled';
+      if (posted) status = 'posted';
+      else if (period === currentPeriod) status = 'current';
+
+      schedule.push({
+        period,
+        amount,
+        posted,
+        status,
+        entryId: posted ? postedPeriodMeta.get(period)?.entryId || null : null,
+        entryNumber: posted ? postedPeriodMeta.get(period)?.entryNumber || null : null,
+      });
+    }
+
+    const currentRow = schedule.find((s) => s.period === currentPeriod);
+    return {
+      ...asset,
+      methodLabel: asset.method === 'declining_balance' ? 'Declining balance' : 'Straight line',
+      previouslyDepreciated,
+      currentPeriodDepreciation: currentRow?.posted ? currentRow.amount : (currentRow?.amount || asset.monthlyDepreciation),
+      bookValue: round2(Math.max(0, asset.cost - previouslyDepreciated)),
+      schedule,
+    };
+  });
+
+  return {
+    model: register.model,
+    accumDepreciation: register.accumDepreciation,
+    currentPeriod,
+    rows,
+    totals: {
+      cost: round2(rows.reduce((s, r) => s + r.cost, 0)),
+      previouslyDepreciated: round2(rows.reduce((s, r) => s + r.previouslyDepreciated, 0)),
+      currentPeriodDepreciation: round2(rows.reduce((s, r) => s + r.currentPeriodDepreciation, 0)),
+      bookValue: round2(rows.reduce((s, r) => s + r.bookValue, 0)),
+    },
+  };
+}
+
 export async function getAutomaticTransfers(tenantId) {
   const tenant = await Tenant.findById(tenantId).select('settings.accounting.automaticTransfers').lean();
   const rows = tenant?.settings?.accounting?.automaticTransfers;
@@ -4001,6 +4102,21 @@ export async function buildInvoiceAnalysis(tenantId, { from, to, flow } = {}) {
   const months = [...byMonth.values()].sort((a, b) => String(a.month).localeCompare(String(b.month)));
   const topPartners = [...partnerMap.values()].sort((a, b) => b.total - a.total).slice(0, 15);
   const topProducts = [...productMap.values()].sort((a, b) => b.amount - a.amount).slice(0, 15);
+  const recentInvoices = [...invoices]
+    .sort((a, b) => new Date(b.issueDate || 0) - new Date(a.issueDate || 0))
+    .slice(0, 50)
+    .map((inv) => ({
+      invoiceId: inv._id,
+      invoiceNumber: inv.invoiceNumber,
+      issueDate: inv.issueDate,
+      flow: inv.flow,
+      partnerName: inv.flow === 'purchase' ? (inv.seller?.name || '') : (inv.buyer?.name || ''),
+      grandTotal: Number(inv.grandTotal) || 0,
+      taxableAmount: Number(inv.taxableAmount) || 0,
+      totalTax: Number(inv.totalTax) || 0,
+      paymentStatus: inv.paymentStatus,
+    }));
+  const chartSeries = months.map((m) => ({ label: m.month, value: m.total, count: m.count }));
 
   return {
     from: start,
@@ -4022,6 +4138,8 @@ export async function buildInvoiceAnalysis(tenantId, { from, to, flow } = {}) {
     byMonth: months,
     topPartners,
     topProducts,
+    recentInvoices,
+    chartSeries,
   };
 }
 
@@ -5015,10 +5133,37 @@ export async function buildTaxReport(tenantId, { from, to, taxUnitCode = null } 
   const filteredDebit = round2(rows.reduce((s, r) => s + r.debit, 0));
   const filteredCredit = round2(rows.reduce((s, r) => s + r.credit, 0));
 
+  const outputGrid = [];
+  const inputGrid = [];
+  for (const row of rows) {
+    const taxAmount = round2(Math.abs(row.net));
+    const rate = Number(row.rate) || 0;
+    const baseAmount = rate > 0 ? round2(taxAmount / (rate / 100)) : round2(Math.max(row.debit, row.credit));
+    const gridRow = {
+      code: row.code,
+      name: row.name,
+      nameAr: row.nameAr,
+      rate: row.rate,
+      baseAmount,
+      taxAmount,
+      lineCount: row.lineCount,
+    };
+    const t = String(row.type || '').toLowerCase();
+    if (t.includes('purchase') || t.includes('input') || row.net < 0) inputGrid.push(gridRow);
+    else outputGrid.push(gridRow);
+  }
+  const outputTax = round2(outputGrid.reduce((s, r) => s + r.taxAmount, 0));
+  const inputTax = round2(inputGrid.reduce((s, r) => s + r.taxAmount, 0));
+
   return {
     from: start,
     to: end,
     rows,
+    outputGrid,
+    inputGrid,
+    outputTax,
+    inputTax,
+    netVatDue: round2(outputTax - inputTax),
     totalDebit: allowedCodes ? filteredDebit : totalDebit,
     totalCredit: allowedCodes ? filteredCredit : totalCredit,
     net: round2((allowedCodes ? filteredCredit : totalCredit) - (allowedCodes ? filteredDebit : totalDebit)),
@@ -5130,6 +5275,7 @@ export default {
   applyAnalyticDistributionToAmount,
   pickAnalyticDistributionModel,
   buildFixedAssetRegister,
+  buildDepreciationSchedule,
   postMonthlyDepreciation,
   getAutomaticTransfers,
   setAutomaticTransfers,

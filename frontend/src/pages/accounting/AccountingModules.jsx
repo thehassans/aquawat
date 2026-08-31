@@ -322,6 +322,7 @@ export function AccountReportPanel({ language }) {
 }
 
 export function CustomerAccountPanel({ language }) {
+  const navigate = useNavigate()
   const [customerId, setCustomerId] = useState(new URLSearchParams(window.location.search).get('customerId') || '')
   const [from, setFrom] = useState(yearStartIso())
   const [to, setTo] = useState(todayIso())
@@ -399,10 +400,16 @@ export function CustomerAccountPanel({ language }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-600">
-              {(data?.lines || []).map((line, idx) => (
-                <tr key={`${line.ref || line.entryNumber}-${idx}`}>
+              {(data?.lines || []).map((line, idx) => {
+                const clickable = Boolean(line.sourceId && String(line.sourceModel || '').toLowerCase().includes('invoice'))
+                return (
+                <tr
+                  key={`${line.ref || line.entryNumber}-${idx}`}
+                  className={clickable ? 'cursor-pointer hover:bg-emerald-50/50 dark:hover:bg-white/[0.04]' : ''}
+                  onClick={() => clickable && navigate(`/app/dashboard/accounting/invoices/${line.sourceId}`)}
+                >
                   <td className="px-4 py-2.5">{line.date ? new Date(line.date).toLocaleDateString() : '—'}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs">{line.ref || line.entryNumber || '—'}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs">{line.ref || line.entryNumber || line.sourceNumber || '—'}</td>
                   <td className="px-4 py-2.5">
                     {line.memo || line.description || '—'}
                     {mode === 'gl' && line.accountCode ? (
@@ -413,7 +420,8 @@ export function CustomerAccountPanel({ language }) {
                   <td className="px-4 py-2.5 text-end"><Money value={line.credit} /></td>
                   <td className="px-4 py-2.5 text-end font-semibold"><Money value={line.balance} /></td>
                 </tr>
-              ))}
+                )
+              })}
               {customerId && (!data?.lines || data.lines.length === 0) && (
                 <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">{language === 'ar' ? 'لا توجد حركات' : 'No movements in this period'}</td></tr>
               )}
@@ -537,6 +545,7 @@ export function SupplierSummaryPanel({ language }) {
 }
 
 export function SupplierAccountPanel({ language }) {
+  const navigate = useNavigate()
   const [supplierId, setSupplierId] = useState(new URLSearchParams(window.location.search).get('supplierId') || '')
   const [from, setFrom] = useState(yearStartIso())
   const [to, setTo] = useState(todayIso())
@@ -623,10 +632,16 @@ export function SupplierAccountPanel({ language }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-dark-600">
-              {(data?.lines || []).map((line, idx) => (
-                <tr key={`${line.ref || line.entryNumber}-${idx}`}>
+              {(data?.lines || []).map((line, idx) => {
+                const clickable = Boolean(line.sourceId && String(line.sourceModel || '').toLowerCase().includes('invoice'))
+                return (
+                <tr
+                  key={`${line.ref || line.entryNumber}-${idx}`}
+                  className={clickable ? 'cursor-pointer hover:bg-emerald-50/50 dark:hover:bg-white/[0.04]' : ''}
+                  onClick={() => clickable && navigate(`/app/dashboard/accounting/invoices/${line.sourceId}`)}
+                >
                   <td className="px-4 py-2.5">{line.date ? new Date(line.date).toLocaleDateString() : '—'}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs">{line.ref || line.entryNumber || '—'}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs">{line.ref || line.entryNumber || line.sourceNumber || '—'}</td>
                   {mode === 'docs' ? <td className="px-4 py-2.5 text-slate-500">{line.type}</td> : null}
                   <td className="px-4 py-2.5">
                     {line.memo || line.description || '—'}
@@ -638,7 +653,8 @@ export function SupplierAccountPanel({ language }) {
                   <td className="px-4 py-2.5 text-end"><Money value={line.credit} /></td>
                   <td className="px-4 py-2.5 text-end font-semibold"><Money value={line.balance} /></td>
                 </tr>
-              ))}
+                )
+              })}
               {supplierId && (!data?.lines || data.lines.length === 0) && (
                 <tr><td colSpan={mode === 'docs' ? 7 : 6} className="px-4 py-10 text-center text-slate-400">{language === 'ar' ? 'لا توجد حركات' : 'No movements in this period'}</td></tr>
               )}
@@ -3091,6 +3107,8 @@ export function VatTaxReportPanel({ language }) {
   const [from, setFrom] = useState(yearStartIso())
   const [to, setTo] = useState(todayIso())
   const [taxUnit, setTaxUnit] = useState('')
+  const [comparison, setComparison] = useState('none')
+  const compareParams = compareRange(from, to, comparison)
   const { data: taxUnitsData } = useQuery({
     queryKey: ['accounting-tax-units'],
     queryFn: () => api.get('/accounting/tax-units').then((r) => r.data),
@@ -3100,6 +3118,13 @@ export function VatTaxReportPanel({ language }) {
     queryFn: () => api.get('/accounting/reports/tax', {
       params: { from, to, taxUnit: taxUnit || undefined },
     }).then((r) => r.data),
+  })
+  const { data: priorTax } = useQuery({
+    queryKey: ['accounting-tax-report-prior', compareParams?.from, compareParams?.to, taxUnit],
+    queryFn: () => api.get('/accounting/reports/tax', {
+      params: { from: compareParams.from, to: compareParams.to, taxUnit: taxUnit || undefined },
+    }).then((r) => r.data),
+    enabled: Boolean(compareParams),
   })
   const { data: vatReturn, isFetching: vatLoading, isError: vatError } = useQuery({
     queryKey: ['vat-returns-accounting', from, to],
@@ -3111,15 +3136,60 @@ export function VatTaxReportPanel({ language }) {
 
   const statement = vatReturn?.vatReturn?.statement || vatReturn?.statement || null
   const units = taxUnitsData?.units || []
+  const showVar = comparison !== 'none' && priorTax
+  const netVar = showVar ? variance(glTax?.netVatDue, priorTax?.netVatDue) : null
+
+  const renderTaxGrid = (title, rows, priorRows) => (
+    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+      <div className="border-b border-slate-100 px-4 py-3 dark:border-white/10">
+        <p className="text-sm font-semibold">{title}</p>
+      </div>
+      <table className="min-w-full text-sm">
+        <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-400 dark:bg-dark-900">
+          <tr>
+            <th className="px-4 py-2 text-start">{isAr ? 'الرمز' : 'Code'}</th>
+            <th className="px-4 py-2 text-start">{isAr ? 'الاسم' : 'Name'}</th>
+            <th className="px-4 py-2 text-end">{isAr ? 'الأساس' : 'Base'}</th>
+            <th className="px-4 py-2 text-end">{isAr ? 'الضريبة' : 'Tax'}</th>
+            {showVar ? <th className="px-4 py-2 text-end">{isAr ? 'سابق' : 'Prior'}</th> : null}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+          {(rows || []).map((row) => {
+            const priorRow = (priorRows || []).find((r) => r.code === row.code)
+            return (
+              <tr key={row.code}>
+                <td className="px-4 py-2 font-mono text-xs">{row.code}</td>
+                <td className="px-4 py-2">{isAr ? (row.nameAr || row.name) : row.name}{row.rate != null ? ` (${row.rate}%)` : ''}</td>
+                <td className="px-4 py-2 text-end"><Money value={row.baseAmount} /></td>
+                <td className="px-4 py-2 text-end"><Money value={row.taxAmount} /></td>
+                {showVar ? (
+                  <td className="px-4 py-2 text-end text-slate-500"><Money value={priorRow?.taxAmount} /></td>
+                ) : null}
+              </tr>
+            )
+          })}
+          {!(rows || []).length ? (
+            <tr><td colSpan={showVar ? 5 : 4} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا بيانات' : 'No data'}</td></tr>
+          ) : null}
+        </tbody>
+      </table>
+    </div>
+  )
 
   return (
     <div className="space-y-4">
-      <DateRangeBar
+      <ReportFilterRibbon
+        language={language}
+        mode="range"
         from={from}
         to={to}
         setFrom={setFrom}
         setTo={setTo}
-        language={language}
+        comparison={comparison}
+        setComparison={setComparison}
+        showBasis={false}
+        title={isAr ? 'تقرير الضريبة' : 'Tax report'}
         extra={units.length ? (
           <label className="text-xs font-medium text-slate-500">
             {isAr ? 'وحدة الضريبة' : 'Tax unit'}
@@ -3135,14 +3205,28 @@ export function VatTaxReportPanel({ language }) {
             </select>
           </label>
         ) : null}
+        exportProps={{
+          getRows: async () => [
+            ...(glTax?.outputGrid || []).map((r) => ({ section: isAr ? 'مخرجات' : 'Output', ...r })),
+            ...(glTax?.inputGrid || []).map((r) => ({ section: isAr ? 'مدخلات' : 'Input', ...r })),
+          ],
+          columns: [
+            { key: 'section', label: isAr ? 'القسم' : 'Section' },
+            { key: 'code', label: isAr ? 'الرمز' : 'Code' },
+            { key: 'name', label: isAr ? 'الاسم' : 'Name' },
+            { key: 'baseAmount', label: isAr ? 'الأساس' : 'Base', value: (r) => Number(r.baseAmount || 0).toFixed(2) },
+            { key: 'taxAmount', label: isAr ? 'الضريبة' : 'Tax', value: (r) => Number(r.taxAmount || 0).toFixed(2) },
+          ],
+          fileBaseName: 'maqder-tax-report',
+          title: isAr ? 'تقرير الضريبة' : 'Tax report',
+        }}
       />
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
         <div>
-          <h3 className="text-sm font-semibold">{isAr ? 'تقرير الضريبة' : 'Tax report'}</h3>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="text-xs text-slate-500">
             {isAr
-              ? 'ملخص خطوط الضريبة في الدفتر + رابط إقرار القيمة المضافة.'
-              : 'GL tax-tagged lines summary plus VAT return link.'}
+              ? 'ملخص خطوط الضريبة في الدفتر + شبكة مخرجات/مدخلات + رابط إقرار القيمة المضافة.'
+              : 'GL tax summary, output/input grids, and VAT return link.'}
           </p>
         </div>
         <a
@@ -3153,15 +3237,34 @@ export function VatTaxReportPanel({ language }) {
         </a>
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          [isAr ? 'ضريبة المخرجات' : 'Output VAT', glTax?.outputTax],
+          [isAr ? 'ضريبة المدخلات' : 'Input VAT', glTax?.inputTax],
+          [isAr ? 'صافي الضريبة المستحقة' : 'Net VAT due', glTax?.netVatDue],
+          [isAr ? 'صافي الدفتر' : 'GL net', glTax?.net],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+            <p className="text-[11px] uppercase tracking-widest text-slate-400">{label}</p>
+            <p className="mt-1 text-lg font-semibold"><Money value={value} /></p>
+            {showVar && label === (isAr ? 'صافي الضريبة المستحقة' : 'Net VAT due') && netVar ? (
+              <p className={`mt-1 text-xs ${netVar.amount >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                {netVar.pct}% {isAr ? 'مقارنة بالفترة السابقة' : 'vs prior period'}
+              </p>
+            ) : null}
+          </div>
+        ))}
+      </div>
+
       {!vatError && statement ? (
         <div className="grid gap-3 sm:grid-cols-3">
           {[
             [isAr ? 'المبيعات الخاضعة' : 'Taxable sales', statement.standardRatedSales ?? statement.taxableAmount],
-            [isAr ? 'ضريبة المخرجات' : 'Output VAT', statement.vatOnSales ?? statement.totalTax ?? statement.outputVat],
-            [isAr ? 'صافي الضريبة' : 'Net VAT', statement.netVatPayable ?? statement.netVat],
+            [isAr ? 'ضريبة المخرجات (إقرار)' : 'Output VAT (return)', statement.vatOnSales ?? statement.totalTax ?? statement.outputVat],
+            [isAr ? 'صافي الضريبة (إقرار)' : 'Net VAT (return)', statement.netVatPayable ?? statement.netVat],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
-              <p className="text-[11px] uppercase tracking-widest text-slate-400">{label}</p>
+            <div key={label} className="rounded-2xl border border-emerald-200/60 bg-emerald-50/40 p-4 dark:border-emerald-800 dark:bg-emerald-950/20">
+              <p className="text-[11px] uppercase tracking-widest text-emerald-700/70">{label}</p>
               <p className="mt-1 text-lg font-semibold"><Money value={value} /></p>
             </div>
           ))}
@@ -3173,6 +3276,11 @@ export function VatTaxReportPanel({ language }) {
             : (isAr ? 'إقرار ضريبة القيمة المضافة متاح لمستأجري الريال السعودي.' : 'Statutory VAT return applies to SAR tenants.')}
         </p>
       )}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {renderTaxGrid(isAr ? 'شبكة المخرجات (ZATCA)' : 'Output grid (ZATCA)', glTax?.outputGrid, priorTax?.outputGrid)}
+        {renderTaxGrid(isAr ? 'شبكة المدخلات (ZATCA)' : 'Input grid (ZATCA)', glTax?.inputGrid, priorTax?.inputGrid)}
+      </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
         <div className="border-b border-slate-100 px-4 py-3 dark:border-white/10">
@@ -3710,6 +3818,7 @@ export function FiscalPositionsPanel({ language }) {
 
 export function InvoiceAnalysisPanel({ language }) {
   const isAr = language === 'ar'
+  const navigate = useNavigate()
   const [from, setFrom] = useState(yearStartIso())
   const [to, setTo] = useState(todayIso())
   const [flow, setFlow] = useState('all')
@@ -3720,15 +3829,20 @@ export function InvoiceAnalysisPanel({ language }) {
     }).then((r) => r.data),
   })
   const s = data?.summary || {}
+  const chartMax = Math.max(1, ...(data?.chartSeries || []).map((c) => Number(c.value) || 0))
 
   return (
     <div className="space-y-4">
-      <DateRangeBar
+      <ReportFilterRibbon
+        language={language}
+        mode="range"
         from={from}
         to={to}
         setFrom={setFrom}
         setTo={setTo}
-        language={language}
+        showComparison={false}
+        showBasis={false}
+        title={isAr ? 'تحليل الفواتير' : 'Invoice analysis'}
         extra={(
           <label className="text-xs font-medium text-slate-500">
             {isAr ? 'النوع' : 'Flow'}
@@ -3739,6 +3853,21 @@ export function InvoiceAnalysisPanel({ language }) {
             </select>
           </label>
         )}
+        exportProps={{
+          getRows: async () => [
+            ...(data?.byMonth || []).map((r) => ({ section: isAr ? 'شهري' : 'Monthly', ...r })),
+            ...(data?.recentInvoices || []).map((r) => ({ section: isAr ? 'فواتير' : 'Invoices', ...r })),
+          ],
+          columns: [
+            { key: 'section', label: isAr ? 'القسم' : 'Section' },
+            { key: 'month', label: isAr ? 'الشهر' : 'Month' },
+            { key: 'invoiceNumber', label: isAr ? 'الفاتورة' : 'Invoice' },
+            { key: 'count', label: isAr ? 'العدد' : 'Count' },
+            { key: 'total', label: isAr ? 'الإجمالي' : 'Total', value: (r) => Number(r.total || r.grandTotal || 0).toFixed(2) },
+          ],
+          fileBaseName: 'maqder-invoice-analysis',
+          title: isAr ? 'تحليل الفواتير' : 'Invoice analysis',
+        }}
       />
       {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -3754,6 +3883,24 @@ export function InvoiceAnalysisPanel({ language }) {
           </div>
         ))}
       </div>
+      {(data?.chartSeries || []).length ? (
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+          <p className="mb-4 text-sm font-semibold">{isAr ? 'اتجاه الفواتير (شهري)' : 'Invoice trend (monthly)'}</p>
+          <div className="flex items-end gap-2 overflow-x-auto pb-2">
+            {(data?.chartSeries || []).map((row) => (
+              <div key={row.label} className="flex min-w-[3rem] flex-1 flex-col items-center gap-1">
+                <div
+                  className="w-full rounded-t-md bg-emerald-600/80 dark:bg-emerald-500/70"
+                  style={{ height: `${Math.max(8, (Number(row.value) / chartMax) * 120)}px` }}
+                  title={`${row.label}: ${row.value}`}
+                />
+                <span className="text-[10px] font-mono text-slate-400">{String(row.label).slice(5)}</span>
+                <span className="text-[10px] text-slate-500">{row.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="grid gap-3 lg:grid-cols-2">
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
           <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold dark:border-white/10">{isAr ? 'حسب الشهر' : 'By month'}</div>
@@ -3790,6 +3937,36 @@ export function InvoiceAnalysisPanel({ language }) {
             ))}
           </div>
         </div>
+      </div>
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+        <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold dark:border-white/10">{isAr ? 'أحدث الفواتير' : 'Recent invoices'}</div>
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
+            <tr>
+              <th className="px-4 py-2 text-start">{isAr ? 'التاريخ' : 'Date'}</th>
+              <th className="px-4 py-2 text-start">{isAr ? 'الفاتورة' : 'Invoice'}</th>
+              <th className="px-4 py-2 text-start">{isAr ? 'الشريك' : 'Partner'}</th>
+              <th className="px-4 py-2 text-end">{isAr ? 'الإجمالي' : 'Total'}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+            {(data?.recentInvoices || []).map((row) => (
+              <tr
+                key={row.invoiceId}
+                className="cursor-pointer hover:bg-emerald-50/50 dark:hover:bg-white/[0.04]"
+                onClick={() => navigate(`/app/dashboard/accounting/invoices/${row.invoiceId}`)}
+              >
+                <td className="px-4 py-2">{row.issueDate ? new Date(row.issueDate).toLocaleDateString() : '—'}</td>
+                <td className="px-4 py-2 font-mono text-xs">{row.invoiceNumber || '—'}</td>
+                <td className="px-4 py-2">{row.partnerName || '—'}</td>
+                <td className="px-4 py-2 text-end"><Money value={row.grandTotal} /></td>
+              </tr>
+            ))}
+            {!(data?.recentInvoices || []).length && (
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا فواتير' : 'No invoices'}</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
@@ -4202,6 +4379,7 @@ export function AnalyticItemsPanel({ language }) {
 
 export function FixedAssetsPanel({ language }) {
   const isAr = language === 'ar'
+  const navigate = useNavigate()
   const [modelCode, setModelCode] = useState('')
   const [selectedAsset, setSelectedAsset] = useState(null)
   const { data: modelsData } = useQuery({
@@ -4209,8 +4387,10 @@ export function FixedAssetsPanel({ language }) {
     queryFn: () => api.get('/accounting/asset-models').then((r) => r.data),
   })
   const { data, isFetching, refetch } = useQuery({
-    queryKey: ['accounting-fixed-assets', modelCode],
-    queryFn: () => api.get('/accounting/reports/fixed-assets', { params: { modelCode: modelCode || undefined } }).then((r) => r.data),
+    queryKey: ['accounting-depreciation-schedule', modelCode],
+    queryFn: () => api.get('/accounting/reports/depreciation-schedule', {
+      params: { modelCode: modelCode || undefined },
+    }).then((r) => r.data),
   })
 
   const postDepr = useMutation({
@@ -4224,89 +4404,121 @@ export function FixedAssetsPanel({ language }) {
     onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
   })
 
-  const schedule = useMemo(() => {
-    if (!selectedAsset) return []
-    const months = Math.min(60, Number(selectedAsset.usefulLifeMonths) || 60)
-    const monthly = Number(selectedAsset.monthlyDepreciation) || 0
-    const start = new Date()
-    return Array.from({ length: months }, (_, i) => {
-      const d = new Date(start.getFullYear(), start.getMonth() + i, 1)
-      return {
-        period: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-        amount: monthly,
-        status: i === 0 ? (isAr ? 'الشهر الحالي' : 'Current month') : (isAr ? 'مسودة مجدولة' : 'Scheduled draft'),
-      }
-    })
-  }, [selectedAsset, isAr])
+  const schedule = selectedAsset?.schedule || []
+  const statusLabel = (status, posted) => {
+    if (posted || status === 'posted') return isAr ? 'مرحّل' : 'Posted'
+    if (status === 'current') return isAr ? 'الفترة الحالية' : 'Current period'
+    return isAr ? 'مجدول' : 'Scheduled'
+  }
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <label className="text-xs font-medium text-slate-500">
-          {isAr ? 'نموذج الإهلاك' : 'Depreciation model'}
-          <select value={modelCode} onChange={(e) => setModelCode(e.target.value)} className="mt-1 block rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900">
-            <option value="">{isAr ? 'الافتراضي' : 'Default'}</option>
-            {(modelsData?.models || []).map((m) => (
-              <option key={m.code} value={m.code}>{m.code} — {isAr ? (m.nameAr || m.name) : m.name}</option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          disabled={postDepr.isPending}
-          onClick={() => postDepr.mutate()}
-          className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          {postDepr.isPending ? '…' : (isAr ? 'ترحيل إهلاك هذا الشهر' : 'Post this month’s depreciation')}
-        </button>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <ReportFilterRibbon
+        language={language}
+        hideDates
+        hidePresets
+        showComparison={false}
+        showBasis={false}
+        title={isAr ? 'الأصول الثابتة وجدول الإهلاك' : 'Fixed assets & depreciation schedule'}
+        extra={(
+          <>
+            <label className="text-xs font-medium text-slate-500">
+              {isAr ? 'نموذج الإهلاك' : 'Depreciation model'}
+              <select value={modelCode} onChange={(e) => { setModelCode(e.target.value); setSelectedAsset(null) }} className="mt-1 block rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900">
+                <option value="">{isAr ? 'الافتراضي' : 'Default'}</option>
+                {(modelsData?.models || []).map((m) => (
+                  <option key={m.code} value={m.code}>{m.code} — {isAr ? (m.nameAr || m.name) : m.name}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              disabled={postDepr.isPending}
+              onClick={() => postDepr.mutate()}
+              className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {postDepr.isPending ? '…' : (isAr ? 'ترحيل إهلاك هذا الشهر' : 'Post this month’s depreciation')}
+            </button>
+          </>
+        )}
+        exportProps={{
+          getRows: async () => (data?.rows || []).flatMap((asset) => (
+            (asset.schedule || []).map((row) => ({
+              account: asset.code,
+              name: asset.name,
+              period: row.period,
+              amount: row.amount,
+              status: row.status,
+              entryNumber: row.entryNumber || '',
+            }))
+          )),
+          columns: [
+            { key: 'account', label: isAr ? 'الحساب' : 'Account' },
+            { key: 'name', label: isAr ? 'الاسم' : 'Name' },
+            { key: 'period', label: isAr ? 'الفترة' : 'Period' },
+            { key: 'amount', label: isAr ? 'المبلغ' : 'Amount', value: (r) => Number(r.amount || 0).toFixed(2) },
+            { key: 'status', label: isAr ? 'الحالة' : 'Status' },
+            { key: 'entryNumber', label: isAr ? 'القيد' : 'Entry' },
+          ],
+          fileBaseName: 'maqder-depreciation-schedule',
+          title: isAr ? 'جدول الإهلاك' : 'Depreciation schedule',
+        }}
+      />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
           <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? 'تكلفة الأصول' : 'Asset cost'}</p>
           <p className="mt-1 text-lg font-semibold"><Money value={data?.totals?.cost} /></p>
         </div>
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+          <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? 'إهلاك سابق' : 'Previously depreciated'}</p>
+          <p className="mt-1 text-lg font-semibold"><Money value={data?.totals?.previouslyDepreciated} /></p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+          <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? 'إهلاك الفترة' : 'Current period'}</p>
+          <p className="mt-1 text-lg font-semibold"><Money value={data?.totals?.currentPeriodDepreciation} /></p>
+        </div>
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
           <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? 'صافي القيمة الدفترية' : 'Net book value'}</p>
-          <p className="mt-1 text-lg font-semibold"><Money value={data?.totals?.netBookValue} /></p>
+          <p className="mt-1 text-lg font-semibold"><Money value={data?.totals?.bookValue} /></p>
           <p className="mt-1 text-[11px] text-slate-400">
             {isAr ? 'مجمع الإهلاك' : 'Accum. depr.'} {data?.accumDepreciation?.code || '1650'}: <Money value={data?.accumDepreciation?.balance} />
           </p>
-        </div>
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
-          <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? 'إهلاك شهري' : 'Monthly depreciation'}</p>
-          <p className="mt-1 text-lg font-semibold"><Money value={data?.totals?.monthlyDepreciation} /></p>
-        </div>
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
-          <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? 'إهلاك سنوي' : 'Annual depreciation'}</p>
-          <p className="mt-1 text-lg font-semibold"><Money value={data?.totals?.annualDepreciation} /></p>
         </div>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
           <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold dark:border-white/10">{isAr ? 'سجل الأصول' : 'Asset register'}</div>
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
-              <tr>
-                <th className="px-4 py-2 text-start">{isAr ? 'الحساب' : 'Account'}</th>
-                <th className="px-4 py-2 text-end">{isAr ? 'التكلفة' : 'Cost'}</th>
-                <th className="px-4 py-2 text-end">{isAr ? 'شهري' : 'Monthly'}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-              {(data?.rows || []).map((row) => (
-                <tr
-                  key={row.accountId}
-                  className={`cursor-pointer hover:bg-emerald-50/50 dark:hover:bg-white/[0.04] ${selectedAsset?.accountId === row.accountId ? 'bg-emerald-50/70 dark:bg-emerald-950/20' : ''}`}
-                  onClick={() => setSelectedAsset(row)}
-                >
-                  <td className="px-4 py-2">{row.code} — {isAr ? (row.nameAr || row.name) : row.name}</td>
-                  <td className="px-4 py-2 text-end"><Money value={row.cost} /></td>
-                  <td className="px-4 py-2 text-end"><Money value={row.monthlyDepreciation} /></td>
+          <div className="max-h-[28rem] overflow-x-auto overflow-y-auto">
+            <table className="min-w-full text-sm">
+              <thead className="sticky top-0 bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
+                <tr>
+                  <th className="px-4 py-2 text-start">{isAr ? 'الحساب' : 'Account'}</th>
+                  <th className="px-4 py-2 text-end">{isAr ? 'التكلفة' : 'Cost'}</th>
+                  <th className="px-4 py-2 text-start">{isAr ? 'الطريقة' : 'Method'}</th>
+                  <th className="px-4 py-2 text-end">{isAr ? 'إهلاك سابق' : 'Prev. depr.'}</th>
+                  <th className="px-4 py-2 text-end">{isAr ? 'الفترة' : 'Period'}</th>
+                  <th className="px-4 py-2 text-end">{isAr ? 'القيمة الدفترية' : 'Book value'}</th>
                 </tr>
-              ))}
-              {!(data?.rows || []).length && <tr><td colSpan={3} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا أصول ثابتة في الدليل' : 'No fixed-asset accounts'}</td></tr>}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                {(data?.rows || []).map((row) => (
+                  <tr
+                    key={row.accountId}
+                    className={`cursor-pointer hover:bg-emerald-50/50 dark:hover:bg-white/[0.04] ${selectedAsset?.accountId === row.accountId ? 'bg-emerald-50/70 dark:bg-emerald-950/20' : ''}`}
+                    onClick={() => setSelectedAsset(row)}
+                  >
+                    <td className="px-4 py-2">{row.code} — {isAr ? (row.nameAr || row.name) : row.name}</td>
+                    <td className="px-4 py-2 text-end"><Money value={row.cost} /></td>
+                    <td className="px-4 py-2 text-xs text-slate-500">{row.methodLabel || row.method || '—'}</td>
+                    <td className="px-4 py-2 text-end"><Money value={row.previouslyDepreciated} /></td>
+                    <td className="px-4 py-2 text-end"><Money value={row.currentPeriodDepreciation} /></td>
+                    <td className="px-4 py-2 text-end"><Money value={row.bookValue} /></td>
+                  </tr>
+                ))}
+                {!(data?.rows || []).length && <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا أصول ثابتة في الدليل' : 'No fixed-asset accounts'}</td></tr>}
+              </tbody>
+            </table>
+          </div>
           {isFetching ? <p className="px-4 py-2 text-xs text-slate-400">…</p> : null}
         </div>
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
@@ -4322,14 +4534,26 @@ export function FixedAssetsPanel({ language }) {
                     <th className="px-4 py-2 text-start">{isAr ? 'الفترة' : 'Period'}</th>
                     <th className="px-4 py-2 text-end">{isAr ? 'المبلغ' : 'Amount'}</th>
                     <th className="px-4 py-2 text-start">{isAr ? 'الحالة' : 'Status'}</th>
+                    <th className="px-4 py-2 text-start">{isAr ? 'القيد' : 'Entry'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                   {schedule.map((row) => (
-                    <tr key={row.period}>
+                    <tr key={row.period} className={row.posted ? 'bg-emerald-50/30 dark:bg-emerald-950/10' : ''}>
                       <td className="px-4 py-2 font-mono text-xs">{row.period}</td>
                       <td className="px-4 py-2 text-end"><Money value={row.amount} /></td>
-                      <td className="px-4 py-2 text-xs text-slate-500">{row.status}</td>
+                      <td className="px-4 py-2 text-xs text-slate-500">{statusLabel(row.status, row.posted)}</td>
+                      <td className="px-4 py-2 font-mono text-xs">
+                        {row.entryId ? (
+                          <button
+                            type="button"
+                            className="text-emerald-700 hover:underline dark:text-emerald-400"
+                            onClick={() => navigate(`/app/dashboard/accounting?tab=journals&q=${encodeURIComponent(row.entryNumber || '')}`)}
+                          >
+                            {row.entryNumber || '—'}
+                          </button>
+                        ) : '—'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

@@ -523,6 +523,18 @@ router.get('/reports/fixed-assets', checkPermission('finance', 'read'), async (r
   }
 });
 
+router.get('/reports/depreciation-schedule', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { buildDepreciationSchedule } = await import('../services/accountingService.js');
+    res.json(await buildDepreciationSchedule(tenantIdOf(req), {
+      modelCode: req.query.modelCode,
+      accountId: req.query.accountId || null,
+    }));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/reports/deferred-accounts', checkPermission('finance', 'read'), async (req, res) => {
   try {
     const kind = req.query.kind === 'revenue' ? 'revenue' : 'expense';

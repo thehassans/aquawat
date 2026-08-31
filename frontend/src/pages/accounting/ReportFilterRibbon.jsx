@@ -98,6 +98,8 @@ export function ReportFilterRibbon({
   setBasis,
   showComparison = true,
   showBasis = true,
+  hideDates = false,
+  hidePresets = false,
   extra,
   exportProps,
   title,
@@ -123,6 +125,7 @@ export function ReportFilterRibbon({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           {title ? <p className="text-sm font-semibold text-slate-900 dark:text-white">{title}</p> : null}
+          {!hidePresets ? (
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {Object.entries(presets).map(([key, p]) => (
               <button
@@ -139,6 +142,7 @@ export function ReportFilterRibbon({
               </button>
             ))}
           </div>
+          ) : null}
         </div>
         {exportProps ? (
           <ExportMenu
@@ -153,7 +157,7 @@ export function ReportFilterRibbon({
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        {mode === 'asOf' ? (
+        {!hideDates && mode === 'asOf' ? (
           <label className="text-xs font-medium text-slate-500">
             {isAr ? 'كما في' : 'As of'}
             <input
@@ -166,7 +170,7 @@ export function ReportFilterRibbon({
               className="mt-1 block rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
             />
           </label>
-        ) : (
+        ) : !hideDates ? (
           <>
             <label className="text-xs font-medium text-slate-500">
               {isAr ? 'من' : 'From'}
@@ -193,7 +197,7 @@ export function ReportFilterRibbon({
               />
             </label>
           </>
-        )}
+        ) : null}
 
         {showComparison && setComparison ? (
           <label className="text-xs font-medium text-slate-500">
