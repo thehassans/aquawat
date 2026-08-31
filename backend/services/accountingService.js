@@ -3096,6 +3096,7 @@ export async function buildProfitAndLoss(tenantId, {
   const grossProfit = round2(totalRevenue - totalCogs);
   const netIncome = round2(totalRevenue - totalExpenses);
   const horizontalGroups = await attachHorizontalGroups(tenantId, [...revenue, ...expenses], 'amount');
+  const accountGroups = await attachAccountGroups(tenantId, [...revenue, ...expenses], 'pnl', 'amount');
   const accountTotals = new Map();
   for (const a of [...revenue, ...expenses]) accountTotals.set(String(a.code), a.amount);
   const customReportLines = await buildEvaluatedReportLines(tenantId, 'pnl', accountTotals);
@@ -3116,6 +3117,7 @@ export async function buildProfitAndLoss(tenantId, {
     grossProfit,
     netIncome,
     horizontalGroups,
+    accountGroups,
     customReportLines,
   };
 }
@@ -3186,6 +3188,12 @@ export async function buildBalanceSheet(tenantId, { asOf = null } = {}) {
     [...assets, ...liabilities, ...equity],
     'balance',
   );
+  const accountGroups = await attachAccountGroups(
+    tenantId,
+    [...assets, ...liabilities, ...equity],
+    'bs',
+    'balance',
+  );
   const accountTotals = new Map();
   for (const a of [...assets, ...liabilities, ...equity]) accountTotals.set(String(a.code), a.balance);
   const customReportLines = await buildEvaluatedReportLines(tenantId, 'bs', accountTotals);
@@ -3201,6 +3209,7 @@ export async function buildBalanceSheet(tenantId, { asOf = null } = {}) {
     totalLiabilitiesAndEquity: round2(totalLiabilities + totalEquity),
     balanced: Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 0.05,
     horizontalGroups,
+    accountGroups,
     customReportLines,
   };
 }
@@ -4006,6 +4015,47 @@ export async function setAccountTags(tenantId, tags) {
   return { tags: cleaned };
 }
 
+export const DEFAULT_ACCOUNT_GROUPS = [
+  { code: 'ASSETS', report: 'bs', name: 'Assets', nameAr: 'الأصول', accountPrefixes: ['1'], sequence: 1 },
+  { code: 'LIABILITIES', report: 'bs', name: 'Liabilities', nameAr: 'الخصوم', accountPrefixes: ['2'], sequence: 2 },
+  { code: 'EQUITY', report: 'bs', name: 'Equity', nameAr: 'حقوق الملكية', accountPrefixes: ['3'], sequence: 3 },
+  { code: 'REVENUE', report: 'pnl', name: 'Revenue', nameAr: 'الإيرادات', accountPrefixes: ['4'], sequence: 1 },
+  { code: 'EXPENSES', report: 'pnl', name: 'Expenses', nameAr: 'المصروفات', accountPrefixes: ['5', '6'], sequence: 2 },
+];
+
+export async function getAccountGroups(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.accountGroups').lean();
+  const rows = tenant?.settings?.accounting?.accountGroups;
+  if (Array.isArray(rows) && rows.length) {
+    return {
+      groups: rows
+        .filter((row) => row?.code)
+        .sort((a, b) => (a.sequence || 0) - (b.sequence || 0)),
+    };
+  }
+  return { groups: DEFAULT_ACCOUNT_GROUPS };
+}
+
+export async function setAccountGroups(tenantId, groups) {
+  if (!Array.isArray(groups)) throw new Error('groups array required');
+  const cleaned = groups.slice(0, 40).map((row, idx) => ({
+    code: String(row.code || '').trim().toUpperCase().slice(0, 32),
+    name: String(row.name || '').trim().slice(0, 120),
+    nameAr: String(row.nameAr || '').trim().slice(0, 120),
+    report: ['pnl', 'bs'].includes(String(row.report || '').toLowerCase()) ? String(row.report).toLowerCase() : 'pnl',
+    accountPrefixes: (Array.isArray(row.accountPrefixes) ? row.accountPrefixes : String(row.accountPrefixes || '').split(/[,،\s]+/))
+      .map((p) => String(p || '').trim())
+      .filter(Boolean)
+      .slice(0, 20),
+    sequence: Number(row.sequence) || (idx + 1),
+  })).filter((row) => row.code && row.name);
+  if (!cleaned.length) throw new Error('At least one account group is required');
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.accountGroups': cleaned },
+  });
+  return { groups: cleaned };
+}
+
 export const DEFAULT_HORIZONTAL_GROUPS = [
   { code: 'PL', name: 'Profit & loss', nameAr: 'الأرباح والخسائر', accountPrefixes: ['4', '5', '6'], sequence: 1 },
   { code: 'BS', name: 'Balance sheet', nameAr: 'الميزانية', accountPrefixes: ['1', '2', '3'], sequence: 2 },
@@ -4460,6 +4510,45 @@ async function attachHorizontalGroups(tenantId, accountRows, amountKey = 'amount
     accounts: [],
   }));
   const unmatched = { code: 'OTHER', name: 'Other', nameAr: 'أخرى', accountPrefixes: [], sequence: 999, amount: 0, accounts: [] };
+
+  for (const row of accountRows || []) {
+    const code = String(row.code || '');
+    const amt = Number(row[amountKey] ?? row.balance ?? 0) || 0;
+    const hit = buckets.find((b) => (b.accountPrefixes || []).some((p) => p && code.startsWith(String(p))));
+    const target = hit || unmatched;
+    target.amount = round2(target.amount + amt);
+    target.accounts.push(row);
+  }
+
+  const out = buckets.filter((b) => b.accounts.length || Math.abs(b.amount) > 0.009);
+  if (unmatched.accounts.length) out.push(unmatched);
+  return out.sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+}
+
+async function attachAccountGroups(tenantId, accountRows, reportKey, amountKey = 'amount') {
+  const { groups } = await getAccountGroups(tenantId);
+  const report = String(reportKey || 'pnl').toLowerCase();
+  const scoped = (groups || []).filter((g) => String(g.report || 'pnl').toLowerCase() === report);
+  const buckets = scoped.map((g) => ({
+    code: g.code,
+    name: g.name,
+    nameAr: g.nameAr,
+    report: g.report,
+    accountPrefixes: g.accountPrefixes || [],
+    sequence: g.sequence || 0,
+    amount: 0,
+    accounts: [],
+  }));
+  const unmatched = {
+    code: 'OTHER',
+    name: 'Other',
+    nameAr: 'أخرى',
+    report,
+    accountPrefixes: [],
+    sequence: 999,
+    amount: 0,
+    accounts: [],
+  };
 
   for (const row of accountRows || []) {
     const code = String(row.code || '');
@@ -6368,6 +6457,8 @@ export default {
   setAnalyticPlans,
   getAccountTags,
   setAccountTags,
+  getAccountGroups,
+  setAccountGroups,
   getHorizontalGroups,
   setHorizontalGroups,
   getTaxGroups,

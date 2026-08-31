@@ -1238,16 +1238,15 @@ export function JournalBooksPanel({ language }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-            {isAr ? 'دفاتر القيود' : 'Journal books'}
-          </h3>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {isAr ? 'سلاسل الترقيم وأنواع الدفاتر' : 'Numbering series and book types'}
-          </p>
-        </div>
+    <ConfigPanelShell
+      language={language}
+      titleEn="Journal books"
+      titleAr="دفاتر القيود"
+      purposeEn="Numbering series and book types for sales, purchase, cash, bank, and stock journals."
+      purposeAr="سلاسل الترقيم وأنواع الدفاتر للمبيعات والمشتريات والنقد والبنك والمخزون."
+      impactEn="Each posted journal entry is assigned to a book; defaults drive debit/credit accounts on new entries."
+      impactAr="كل قيد يُسند إلى دفتر؛ الحسابات الافتراضية تُستخدم عند إنشاء القيود."
+      actions={(
         <button
           type="button"
           onClick={() => setCreating((v) => !v)}
@@ -1255,8 +1254,8 @@ export function JournalBooksPanel({ language }) {
         >
           {creating ? (isAr ? 'إلغاء' : 'Cancel') : (isAr ? 'دفتر جديد' : 'New book')}
         </button>
-      </div>
-
+      )}
+    >
       {creating ? (
         <div className="grid gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800 sm:grid-cols-2 lg:grid-cols-3">
           {[
@@ -1424,7 +1423,7 @@ export function JournalBooksPanel({ language }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </ConfigPanelShell>
   )
 }
 
@@ -1465,16 +1464,15 @@ export function TaxesPanel({ language }) {
   })
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-            {isAr ? 'الضرائب' : 'Taxes'}
-          </h3>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {isAr ? 'ربط نسب الضريبة بحسابات الدليل' : 'Link tax rates to chart accounts'}
-          </p>
-        </div>
+    <ConfigPanelShell
+      language={language}
+      titleEn="Taxes"
+      titleAr="الضرائب"
+      purposeEn="Link tax rates to chart accounts for VAT output and input posting."
+      purposeAr="ربط نسب الضريبة بحسابات الدليل لترحيل ضريبة المخرجات والمدخلات."
+      impactEn="Tax codes appear on invoices and feed tax reports, PDF groupings, and GL posting."
+      impactAr="رموز الضريبة تظهر على الفواتير وتغذي تقارير الضريبة وPDF والترحيل."
+      actions={(
         <div className="flex gap-2">
           <button type="button" onClick={() => ensure.mutate()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">
             {ensure.isPending ? '…' : (isAr ? 'تعبئة الافتراضي' : 'Seed defaults')}
@@ -1483,7 +1481,8 @@ export function TaxesPanel({ language }) {
             {creating ? (isAr ? 'إلغاء' : 'Cancel') : (isAr ? 'ضريبة جديدة' : 'New tax')}
           </button>
         </div>
-      </div>
+      )}
+    >
 
       {creating ? (
         <div className="grid gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800 sm:grid-cols-3">
@@ -1567,7 +1566,7 @@ export function TaxesPanel({ language }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </ConfigPanelShell>
   )
 }
 
@@ -5566,40 +5565,88 @@ export function AccountTagsPanel({ language }) {
 
 export function AccountGroupsPanel({ language }) {
   const isAr = language === 'ar'
-  const { data: accounts = [], isFetching } = useQuery({
+  const { data, refetch, isFetching } = useQuery({
+    queryKey: ['accounting-account-groups'],
+    queryFn: () => api.get('/accounting/account-groups').then((r) => r.data),
+  })
+  const { data: accounts = [] } = useQuery({
     queryKey: ['accounting-accounts'],
     queryFn: () => api.get('/accounting/accounts').then((r) => r.data || []),
   })
-  const groups = useMemo(() => {
-    const map = new Map()
-    for (const a of (Array.isArray(accounts) ? accounts : [])) {
-      const key = a.type || 'other'
-      if (!map.has(key)) map.set(key, { type: key, count: 0, balance: 0 })
-      const g = map.get(key)
-      g.count += 1
-      g.balance += Number(a.balance) || 0
+  const [rows, setRows] = useState([])
+  useEffect(() => {
+    if (data?.groups) {
+      setRows(data.groups.map((row) => ({
+        ...row,
+        accountPrefixesText: (row.accountPrefixes || []).join(', '),
+      })))
     }
-    return [...map.values()].sort((a, b) => a.type.localeCompare(b.type))
-  }, [accounts])
+  }, [data?.groups])
+
+  const countFor = (prefixesText) => {
+    const prefixes = String(prefixesText || '').split(/[,،\s]+/).map((p) => p.trim()).filter(Boolean)
+    if (!prefixes.length) return 0
+    return (Array.isArray(accounts) ? accounts : []).filter((a) => prefixes.some((p) => String(a.code || '').startsWith(p))).length
+  }
+
+  const save = useMutation({
+    mutationFn: () => api.put('/accounting/account-groups', {
+      groups: rows.map((row, idx) => ({
+        code: row.code,
+        name: row.name,
+        nameAr: row.nameAr,
+        report: row.report || 'pnl',
+        accountPrefixes: String(row.accountPrefixesText || '').split(/[,،\s]+/).map((p) => p.trim()).filter(Boolean),
+        sequence: row.sequence || (idx + 1),
+      })),
+    }).then((r) => r.data),
+    onSuccess: () => refetch(),
+  })
+
   return (
     <ConfigPanelShell
       language={language}
       titleEn="Account groups"
       titleAr="مجموعات الحسابات"
-      purposeEn="Read-only rollup of chart-of-accounts balances by account type for quick sanity checks."
-      purposeAr="ملخص للأرصدة حسب نوع الحساب للتحقق السريع من الدليل."
-      impactEn="Informational only — P&L/BS horizontal groups drive formal report columns."
-      impactAr="للعرض فقط — المجموعات الأفقية تحكم أعمدة قائمة الدخل والميزانية."
+      purposeEn="Define P&L and balance sheet sections by account code prefix for report rollups."
+      purposeAr="تعريف أقسام قائمة الدخل والميزانية حسب بادئة رمز الحساب."
+      impactEn="Evaluated on P&L and balance sheet as section subtotals alongside horizontal column groups."
+      impactAr="تُعرض في قائمة الدخل والميزانية كمجموعات أقسام بجانب المجموعات الأفقية."
+      actions={(
+        <>
+          <button type="button" onClick={() => setRows((p) => [...p, { code: '', name: '', nameAr: '', report: 'pnl', accountPrefixesText: '', sequence: p.length + 1 }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
+          <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isAr ? 'حفظ' : 'Save'}</button>
+        </>
+      )}
     >
-      {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {groups.map((g) => (
-          <div key={g.type} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
-            <p className="text-[11px] uppercase tracking-widest text-slate-400">{g.type}</p>
-            <p className="mt-1 text-sm text-slate-500">{g.count} {isAr ? 'حساب' : 'accounts'}</p>
-            <p className="mt-1 text-lg font-semibold"><Money value={g.balance} /></p>
-          </div>
-        ))}
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
+            <tr>
+              <th className="px-3 py-2 text-start">{isAr ? 'الرمز' : 'Code'}</th>
+              <th className="px-3 py-2 text-start">{isAr ? 'الاسم' : 'Name'}</th>
+              <th className="px-3 py-2 text-start">{isAr ? 'التقرير' : 'Report'}</th>
+              <th className="px-3 py-2 text-start">{isAr ? 'بادئات الحساب' : 'Account prefixes'}</th>
+              <th className="px-3 py-2 text-end">{isAr ? 'حسابات' : 'Accounts'}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+            {rows.map((row, i) => (
+              <tr key={i}>
+                <td className="px-3 py-2"><input value={row.code || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, code: e.target.value.toUpperCase() } : r)))} className="w-24 rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-3 py-2"><input value={row.name || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, name: e.target.value } : r)))} className="w-full rounded-lg border border-slate-200 px-2 py-1 dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-3 py-2">
+                  <select value={row.report || 'pnl'} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, report: e.target.value } : r)))} className="rounded-lg border border-slate-200 px-2 py-1 text-xs dark:border-dark-600 dark:bg-dark-900">
+                    <option value="pnl">{isAr ? 'قائمة الدخل' : 'P&L'}</option>
+                    <option value="bs">{isAr ? 'الميزانية' : 'Balance sheet'}</option>
+                  </select>
+                </td>
+                <td className="px-3 py-2"><input value={row.accountPrefixesText || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, accountPrefixesText: e.target.value } : r)))} placeholder="4, 5" className="w-full rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-3 py-2 text-end tabular-nums text-slate-500">{countFor(row.accountPrefixesText)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </ConfigPanelShell>
   )

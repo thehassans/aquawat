@@ -5,6 +5,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import logger from './logger.js';
 import { formatProductTypeBilingual } from './productType.js';
+import { getTaxGroups } from '../services/accountingService.js';
+import Tax from '../models/Tax.js';
+
+const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,6 +32,74 @@ const toMoney = (value, currency = 'SAR', options = {}) => {
 const resolveCurrencyPosition = (tenant) => {
   const value = tenant?.settings?.invoiceCurrencyPosition;
   return value === 'before' ? 'before' : 'after';
+};
+
+const resolveLineTaxCode = (line, taxes, flow = 'sell') => {
+  const rate = Number(line?.taxRate) || 0;
+  const type = flow === 'purchase' ? 'purchase' : 'sales';
+  const hit = (taxes || []).find((t) => Number(t.rate) === rate && String(t.type || 'sales') === type)
+    || (taxes || []).find((t) => Number(t.rate) === rate);
+  if (hit?.code) return String(hit.code).toUpperCase();
+  if (rate <= 0) return 'ZERO';
+  return `VAT${Math.round(rate)}`;
+};
+
+const buildInvoiceTaxSummaryRows = async ({ invoice, tenant, currency, currencyPosition }) => {
+  const tenantId = tenant?._id || tenant?.id;
+  const lineItems = Array.isArray(invoice?.lineItems) ? invoice.lineItems : [];
+  const flow = invoice?.flow || 'sell';
+  const moneyOpts = { position: currencyPosition };
+
+  let taxGroups = tenant?.settings?.accounting?.taxGroups;
+  if (!Array.isArray(taxGroups) || !taxGroups.length) {
+    if (tenantId) {
+      const loaded = await getTaxGroups(tenantId);
+      taxGroups = loaded?.groups || [];
+    } else {
+      taxGroups = [];
+    }
+  }
+
+  const hasConfiguredGroups = (taxGroups || []).some((g) => (g.taxCodes || []).length > 0);
+  if (!hasConfiguredGroups) {
+    return [['Tax / الضريبة', toMoney(invoice?.totalTax, currency, moneyOpts)]];
+  }
+
+  let taxes = [];
+  if (tenantId) {
+    taxes = await Tax.find({ tenantId, active: { $ne: false } }).lean();
+  }
+
+  const amountByCode = {};
+  for (const line of lineItems) {
+    const code = resolveLineTaxCode(line, taxes, flow);
+    amountByCode[code] = round2((amountByCode[code] || 0) + (Number(line.taxAmount) || 0));
+  }
+
+  const rows = [];
+  const usedCodes = new Set();
+  for (const group of (taxGroups || []).sort((a, b) => (a.sequence || 0) - (b.sequence || 0))) {
+    const codes = (group.taxCodes || []).map((c) => String(c).toUpperCase());
+    const amt = round2(codes.reduce((sum, code) => sum + (amountByCode[code] || 0), 0));
+    codes.forEach((code) => usedCodes.add(code));
+    if (!codes.length && !amt) continue;
+    const label = group.nameAr && group.name
+      ? `${group.name} / ${group.nameAr}`
+      : (group.name || group.code || 'Tax');
+    rows.push([label, toMoney(amt, currency, moneyOpts)]);
+  }
+
+  const unmapped = round2(Object.entries(amountByCode).reduce((sum, [code, amt]) => (
+    usedCodes.has(code) ? sum : sum + amt
+  ), 0));
+  if (unmapped > 0.009) {
+    rows.push(['Other tax / ضريبة أخرى', toMoney(unmapped, currency, moneyOpts)]);
+  }
+
+  if (!rows.length) {
+    return [['Tax / الضريبة', toMoney(invoice?.totalTax, currency, moneyOpts)]];
+  }
+  return rows;
 };
 
 // On travel invoices the printed/displayed price comes from customerPrice;
@@ -676,15 +748,18 @@ export const buildInvoicePdfBuffer = async ({ invoice, tenant, customerName, lan
 
   const summaryWidth = 226;
   const bd = invoice?.boutiqueDetails || {};
+  const currencyPosition = resolveCurrencyPosition(tenant);
+  const currency = invoice?.currency || tenant?.settings?.currency || 'SAR';
   const summaryRowsBase = [
-    ['Subtotal / الإجمالي الفرعي', toMoney(invoice?.subtotal, invoice?.currency)],
+    ['Subtotal / الإجمالي الفرعي', toMoney(invoice?.subtotal, currency, { position: currencyPosition })],
   ];
-  if (bd?.totalLateFee > 0) summaryRowsBase.push(['Late Fee / رسوم التأخير', toMoney(bd.totalLateFee, invoice?.currency)]);
-  if (bd?.totalDamageFee > 0) summaryRowsBase.push(['Damage Fee / رسوم التلف', toMoney(bd.totalDamageFee, invoice?.currency)]);
-  if (bd?.totalCleaningFee > 0) summaryRowsBase.push(['Cleaning Fee / رسوم التنظيف', toMoney(bd.totalCleaningFee, invoice?.currency)]);
-  if (bd?.totalDeposit > 0) summaryRowsBase.push(['Deposit / التأمين', toMoney(bd.totalDeposit, invoice?.currency)]);
-  summaryRowsBase.push(['Tax / الضريبة', toMoney(invoice?.totalTax, invoice?.currency)]);
-  summaryRowsBase.push(['Grand Total / الإجمالي', toMoney(invoice?.grandTotal, invoice?.currency)]);
+  if (bd?.totalLateFee > 0) summaryRowsBase.push(['Late Fee / رسوم التأخير', toMoney(bd.totalLateFee, currency, { position: currencyPosition })]);
+  if (bd?.totalDamageFee > 0) summaryRowsBase.push(['Damage Fee / رسوم التلف', toMoney(bd.totalDamageFee, currency, { position: currencyPosition })]);
+  if (bd?.totalCleaningFee > 0) summaryRowsBase.push(['Cleaning Fee / رسوم التنظيف', toMoney(bd.totalCleaningFee, currency, { position: currencyPosition })]);
+  if (bd?.totalDeposit > 0) summaryRowsBase.push(['Deposit / التأمين', toMoney(bd.totalDeposit, currency, { position: currencyPosition })]);
+  const taxSummaryRows = await buildInvoiceTaxSummaryRows({ invoice, tenant, currency, currencyPosition });
+  summaryRowsBase.push(...taxSummaryRows);
+  summaryRowsBase.push(['Grand Total / الإجمالي', toMoney(invoice?.grandTotal, currency, { position: currencyPosition })]);
 
   const summaryHeight = 28 + summaryRowsBase.length * 24 + 8;
   drawCard(doc, pageWidth - margin - summaryWidth, footerY, summaryWidth, summaryHeight, [248, 250, 252]);

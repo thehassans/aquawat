@@ -468,6 +468,15 @@ const tenantSchema = new mongoose.Schema({
       }],
       /** Free-form account tags */
       accountTags: [{ type: String, trim: true }],
+      /** P&L / balance sheet section metadata (account code prefixes) */
+      accountGroups: [{
+        code: { type: String, trim: true },
+        name: { type: String, trim: true, default: '' },
+        nameAr: { type: String, trim: true, default: '' },
+        report: { type: String, enum: ['pnl', 'bs'], default: 'pnl' },
+        accountPrefixes: [{ type: String, trim: true }],
+        sequence: { type: Number, default: 0 },
+      }],
       /** Report column groupings (account code prefixes) */
       horizontalGroups: [{
         code: { type: String, trim: true },

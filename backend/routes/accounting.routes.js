@@ -69,6 +69,8 @@ import {
   setAnalyticPlans,
   getAccountTags,
   setAccountTags,
+  getAccountGroups,
+  setAccountGroups,
   getHorizontalGroups,
   setHorizontalGroups,
   getTaxGroups,
@@ -568,6 +570,22 @@ router.get('/account-tags', checkPermission('finance', 'read'), async (req, res)
 router.put('/account-tags', checkPermission('finance', 'approve'), async (req, res) => {
   try {
     res.json(await setAccountTags(tenantIdOf(req), req.body?.tags || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/account-groups', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getAccountGroups(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/account-groups', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setAccountGroups(tenantIdOf(req), req.body?.groups || []));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
