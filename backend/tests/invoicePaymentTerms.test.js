@@ -5,7 +5,7 @@ import {
   computePaymentSchedule,
   ensureInvoiceDueDate,
 } from '../utils/invoicePaymentTerms.js';
-import { buildReceivableDebitLines } from '../services/accountingService.js';
+import { buildReceivableDebitLines, buildPayableCreditLines } from '../services/accountingService.js';
 
 test('installment term uses latest tranche due date', () => {
   const issue = new Date('2026-01-01');
@@ -49,5 +49,21 @@ test('buildReceivableDebitLines splits AR debits by schedule', () => {
   assert.equal(lines.length, 2);
   assert.equal(lines[0].debit, 300);
   assert.equal(lines[1].debit, 700);
+  assert.ok(lines[1].dueDate);
+});
+
+test('buildPayableCreditLines splits AP credits by schedule', () => {
+  const ap = { _id: 'ap1', code: '2100' };
+  const issue = new Date('2026-01-01');
+  const schedule = computePaymentSchedule(issue, '30_now_60_balance', 1000).tranches;
+  const lines = buildPayableCreditLines({
+    ap,
+    gross: 1000,
+    paymentSchedule: schedule,
+    description: 'Bill BILL-1',
+  });
+  assert.equal(lines.length, 2);
+  assert.equal(lines[0].credit, 300);
+  assert.equal(lines[1].credit, 700);
   assert.ok(lines[1].dueDate);
 });

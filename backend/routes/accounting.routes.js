@@ -56,6 +56,7 @@ import {
   setJournalGroups,
   getAccountingPaymentProviders,
   setAccountingPaymentProviders,
+  handleAccountingPaymentProviderWebhook,
   getBankAccountsCatalog,
   createBankAccountSetup,
   getCurrenciesCatalog,
@@ -107,6 +108,20 @@ import {
 import JournalItem from '../models/JournalItem.js';
 
 const router = express.Router();
+
+/** Payment gateway webhook — public, posts customer receipt on capture */
+router.post('/webhooks/payment/:provider', async (req, res) => {
+  try {
+    const secret = req.headers['x-webhook-secret'] || req.body?.webhookSecret || '';
+    const result = await handleAccountingPaymentProviderWebhook(req.params.provider, req.body, {
+      webhookSecret: secret,
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(error.statusCode || 400).json({ error: error.message });
+  }
+});
+
 router.use(protect);
 router.use(tenantFilter);
 router.use(requireTenantFilter);

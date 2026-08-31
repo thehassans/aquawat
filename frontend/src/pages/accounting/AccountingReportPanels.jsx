@@ -115,7 +115,7 @@ function HorizontalGroupsSection({
   )
 }
 
-function CustomReportLinesSection({ language, lines }) {
+export function CustomReportLinesSection({ language, lines }) {
   const isAr = language === 'ar'
   if (!lines?.length) return null
   return (

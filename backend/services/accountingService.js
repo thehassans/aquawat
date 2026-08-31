@@ -1064,6 +1064,70 @@ export function buildReceivableDebitLines({
 }
 
 /**
+ * Split AP credit into payment-term tranches when bill has a multi-line schedule.
+ */
+export function buildPayableCreditLines({
+  ap,
+  gross,
+  paymentSchedule = null,
+  description = '',
+  partnerId = null,
+}) {
+  const amount = round2(Math.abs(Number(gross) || 0));
+  if (amount <= 0 || !ap) return [];
+
+  const schedule = (Array.isArray(paymentSchedule) ? paymentSchedule : [])
+    .filter((row) => round2(Number(row.amount || 0)) > 0)
+    .map((row, index) => ({
+      sequence: Number(row.sequence) || index + 1,
+      amount: round2(Number(row.amount || 0)),
+      dueDate: row.dueDate ? new Date(row.dueDate) : null,
+      labelEn: row.labelEn || '',
+      labelAr: row.labelAr || '',
+    }));
+
+  if (schedule.length <= 1) {
+    return [{
+      accountId: ap._id,
+      accountCode: ap.code,
+      debit: 0,
+      credit: amount,
+      description: description || 'Accounts payable',
+      partnerId: partnerId || null,
+      dueDate: schedule[0]?.dueDate || null,
+      trancheSequence: schedule[0]?.sequence || null,
+    }];
+  }
+
+  const scheduleTotal = round2(schedule.reduce((s, row) => s + row.amount, 0));
+  return schedule.map((row, index) => {
+    let credit = row.amount;
+    if (scheduleTotal > 0 && Math.abs(scheduleTotal - amount) > 0.02) {
+      credit = round2((row.amount / scheduleTotal) * amount);
+    }
+    if (index === schedule.length - 1) {
+      const prior = schedule.slice(0, -1).reduce((s, r, i) => {
+        const part = scheduleTotal > 0 && Math.abs(scheduleTotal - amount) > 0.02
+          ? round2((r.amount / scheduleTotal) * amount)
+          : r.amount;
+        return round2(s + part);
+      }, 0);
+      credit = round2(amount - prior);
+    }
+    return {
+      accountId: ap._id,
+      accountCode: ap.code,
+      debit: 0,
+      credit,
+      description: `${description || 'Accounts payable'} — ${row.labelEn || row.labelAr || `Tranche ${row.sequence}`}`.trim(),
+      partnerId: partnerId || null,
+      dueDate: row.dueDate,
+      trancheSequence: row.sequence,
+    };
+  });
+}
+
+/**
  * Sales invoice journal lines: AR Dr, revenue Cr (optionally split), VAT Cr.
  * @param {{ account: {_id, code}, amount: number }[]} [revenueCredits]
  */
@@ -1379,22 +1443,37 @@ export async function previewPurchaseInvoiceJournal({ tenantId, invoice = {} }) 
       role: 'vat_in',
     });
   }
-  lines.push({
-    accountId: ap._id,
-    accountCode: ap.code,
-    accountName: ap.name,
-    accountNameAr: ap.nameAr || '',
-    debit: 0,
-    credit: tax > 0 && vatIn ? gross : round2(net + (vatIn ? 0 : tax)),
-    description: 'Accounts payable',
-    role: 'ap',
-  });
 
-  // If no VAT account, fold tax into expense debit already handled by credit = gross above
+  const apGross = tax > 0 && vatIn ? gross : round2(net + (vatIn ? 0 : tax));
   if (tax > 0 && !vatIn) {
     const firstExpense = lines.find((l) => l.role === 'expense' || l.role === 'stock');
     if (firstExpense) firstExpense.debit = round2(firstExpense.debit + tax);
-    lines[lines.length - 1].credit = gross;
+  }
+
+  const { computePaymentSchedule } = await import('../utils/invoicePaymentTerms.js');
+  const paymentSchedule = invoice.paymentSchedule?.length
+    ? invoice.paymentSchedule
+    : computePaymentSchedule(invoice.issueDate, invoice.paymentTerms, apGross).tranches;
+
+  for (const apLine of buildPayableCreditLines({
+    ap,
+    gross: apGross,
+    paymentSchedule,
+    description: 'Accounts payable',
+    partnerId: invoice.supplierId || null,
+  })) {
+    lines.push({
+      accountId: apLine.accountId,
+      accountCode: apLine.accountCode,
+      accountName: ap.name,
+      accountNameAr: ap.nameAr || '',
+      debit: apLine.debit,
+      credit: apLine.credit,
+      description: apLine.description,
+      role: 'ap',
+      dueDate: apLine.dueDate,
+      trancheSequence: apLine.trancheSequence,
+    });
   }
 
   const debit = round2(lines.reduce((s, l) => s + l.debit, 0));
@@ -1592,6 +1671,7 @@ export async function postInvoicePaymentJournal({
   paymentDate = new Date(),
   reference = '',
   currency = 'SAR',
+  bankJournalCode = null,
 }) {
   const payAmt = round2(amount);
   if (!invoice?._id || payAmt <= 0) return null;
@@ -1612,6 +1692,31 @@ export async function postInvoicePaymentJournal({
   const useOutstanding = !method.includes('cash') && method !== 'card';
   let debitAccount = cash;
   let debitDescription = 'Customer payment';
+  let journalId = await resolveJournalBookId(
+    tenantId,
+    userId,
+    liqRole === 'cash' ? 'ensureDefaultCashJournal' : 'ensureDefaultBankJournal',
+  );
+
+  if (bankJournalCode) {
+    const Journal = (await import('../models/Journal.js')).default;
+    const book = await Journal.findOne({
+      tenantId,
+      code: String(bankJournalCode).trim().toUpperCase(),
+      type: 'bank',
+      active: { $ne: false },
+    }).lean();
+    if (book?.defaultDebitAccountId) {
+      const bankAcct = byId[String(book.defaultDebitAccountId)]
+        || await ChartOfAccount.findOne({ _id: book.defaultDebitAccountId, tenantId, isActive: true }).lean();
+      if (bankAcct) {
+        debitAccount = bankAcct;
+        debitDescription = `Gateway payment (${bankJournalCode})`;
+        journalId = book._id;
+      }
+    }
+  }
+
   if (useOutstanding) {
     const tenant = await Tenant.findById(tenantId).select('settings.accounting.useOutstandingReceipts').lean();
     const outstandingEnabled = tenant?.settings?.accounting?.useOutstandingReceipts !== false;
@@ -1633,12 +1738,6 @@ export async function postInvoicePaymentJournal({
     status: { $ne: 'void' },
   });
   if (dup) return dup;
-
-  const journalId = await resolveJournalBookId(
-    tenantId,
-    userId,
-    liqRole === 'cash' ? 'ensureDefaultCashJournal' : 'ensureDefaultBankJournal',
-  );
 
   return createJournalEntry({
     tenantId,
@@ -3384,6 +3483,92 @@ export async function setAccountingPaymentProviders(tenantId, providers) {
   return { providers: cleaned };
 }
 
+/**
+ * Public webhook: record gateway capture against a sales invoice and post receipt journal.
+ */
+export async function handleAccountingPaymentProviderWebhook(providerSlug, body = {}, { webhookSecret = '' } = {}) {
+  const slug = String(providerSlug || '').trim().toLowerCase();
+  if (!slug) throw Object.assign(new Error('Provider slug required'), { statusCode: 400 });
+
+  const tenant = await Tenant.findOne({
+    'settings.accounting.paymentProviders': {
+      $elemMatch: { provider: slug, active: { $ne: false } },
+    },
+  }).select('_id settings.accounting.paymentProviders').lean();
+
+  if (!tenant) throw Object.assign(new Error('Provider not found'), { statusCode: 404 });
+
+  const providers = tenant.settings?.accounting?.paymentProviders || [];
+  const cfg = providers.find((row) => String(row.provider || '').toLowerCase() === slug && row.active !== false);
+  if (!cfg) throw Object.assign(new Error('Provider not found'), { statusCode: 404 });
+
+  if (cfg.webhookSecret && cfg.webhookSecret !== String(webhookSecret || '')) {
+    throw Object.assign(new Error('Invalid webhook secret'), { statusCode: 401 });
+  }
+
+  const status = String(body.status || body.event || 'captured').toLowerCase();
+  if (['failed', 'failure', 'declined', 'cancelled', 'canceled'].includes(status)) {
+    return { received: true, skipped: true, reason: status };
+  }
+
+  const invoiceId = body.invoiceId || body.invoice_id || body.metadata?.invoiceId;
+  if (!invoiceId) throw Object.assign(new Error('invoiceId is required'), { statusCode: 400 });
+
+  const Invoice = (await import('../models/Invoice.js')).default;
+  const invoice = await Invoice.findOne({ _id: invoiceId, tenantId: tenant._id, flow: 'sell' });
+  if (!invoice) throw Object.assign(new Error('Invoice not found'), { statusCode: 404 });
+
+  const payAmt = round2(Number(body.amount ?? body.captured_amount ?? body.paid_amount ?? 0));
+  if (payAmt <= 0) throw Object.assign(new Error('Payment amount must be greater than zero'), { statusCode: 400 });
+
+  const externalId = String(body.externalId || body.external_id || body.id || body.payment_id || '').trim();
+  const reference = externalId ? `WebhookPayment:${slug}:${externalId}` : `WebhookPayment:${slug}:${invoiceId}:${payAmt}`;
+
+  const dup = await JournalEntry.findOne({
+    tenantId: tenant._id,
+    sourceModel: 'InvoicePayment',
+    sourceId: invoice._id,
+    reference,
+    status: { $ne: 'void' },
+  });
+  if (dup) return { received: true, duplicate: true, journalEntryId: dup._id };
+
+  const remaining = round2(Math.max(0, Number(invoice.grandTotal || 0) - Number(invoice.paidAmount || 0)));
+  if (payAmt > remaining + 0.005) {
+    throw Object.assign(new Error('Amount exceeds remaining balance'), { statusCode: 400 });
+  }
+
+  invoice.paidAmount = round2(Number(invoice.paidAmount || 0) + payAmt);
+  invoice.payments = [...(invoice.payments || []), {
+    method: 'card',
+    amount: payAmt,
+    externalId: externalId || undefined,
+    provider: slug,
+  }];
+  applyPaidAmountStatus(invoice);
+  await invoice.save();
+
+  const entry = await postInvoicePaymentJournal({
+    tenantId: tenant._id,
+    userId: null,
+    invoice,
+    amount: payAmt,
+    paymentMethod: 'card',
+    paymentDate: body.paymentDate ? new Date(body.paymentDate) : new Date(),
+    reference,
+    currency: invoice.currency || 'SAR',
+    bankJournalCode: cfg.journalCode || null,
+  });
+
+  return {
+    received: true,
+    invoiceId: invoice._id,
+    paidAmount: invoice.paidAmount,
+    paymentStatus: invoice.paymentStatus,
+    journalEntryId: entry?._id || null,
+  };
+}
+
 export async function getBankAccountsCatalog(tenantId) {
   await ensureDefaultChartOfAccounts(tenantId);
   const tenant = await Tenant.findById(tenantId).select('settings.accounting.bankAccounts settings.accounting.sepa').lean();
@@ -3793,10 +3978,10 @@ export async function setReportDefinitions(tenantId, definitions) {
   return { definitions: cleaned };
 }
 
-export async function buildEvaluatedReportLines(tenantId, reportKey, accountTotals = new Map()) {
+export async function buildEvaluatedReportLines(tenantId, reportKey, accountTotals = new Map(), initialLineTotals = new Map()) {
   const { definitions } = await getReportDefinitions(tenantId);
   const scoped = definitions.filter((row) => String(row.report || 'pnl') === reportKey);
-  const lineTotals = new Map();
+  const lineTotals = new Map(initialLineTotals);
   const ctx = { accountTotals, lineTotals };
   const out = [];
   for (const row of scoped) {
@@ -5573,6 +5758,16 @@ export async function buildCashFlowStatement(tenantId, { from, to } = {}) {
     noteAr: 'جسر غير مباشر: صافي الدخل مع تسوية واحدة لرأس المال العامل/البنود غير النقدية لتطابق التغير النقدي. التفصيل في الأقسام المباشرة أعلاه.',
   };
 
+  const cashflowLineTotals = new Map([
+    ['OPERATING', operating.net],
+    ['INVESTING', investing.net],
+    ['FINANCING', financing.net],
+    ['NET_CHANGE', netChange],
+    ['OPENING_CASH', round2(openingCash)],
+    ['CLOSING_CASH', round2(closingCash)],
+  ]);
+  const customReportLines = await buildEvaluatedReportLines(tenantId, 'cashflow', new Map(), cashflowLineTotals);
+
   const notes = [
     {
       en: 'Direct method: cash and bank journal lines classified by counterpart account (operating / investing / financing).',
@@ -5602,6 +5797,7 @@ export async function buildCashFlowStatement(tenantId, { from, to } = {}) {
     reconciled,
     indirect,
     notes,
+    customReportLines,
   };
 }
 
@@ -5990,6 +6186,8 @@ export default {
   disconnectBankSync,
   getProductCategoriesAccountingBridge,
   buildReceivableDebitLines,
+  buildPayableCreditLines,
+  handleAccountingPaymentProviderWebhook,
   getTaxUnits,
   setTaxUnits,
   getAnalyticDistributionModels,

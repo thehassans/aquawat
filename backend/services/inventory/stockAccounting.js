@@ -8,6 +8,7 @@ import {
   ensureDefaultChartOfAccounts,
   getAccountByCode,
   normalizeAccountingOverrideLines,
+  buildPayableCreditLines,
 } from '../accountingService.js';
 import { D, decIsZero } from '../../utils/decimal.js';
 import { toObjectId } from '../../models/inventory/common.js';
@@ -650,6 +651,8 @@ export function buildPurchaseBillClearingLines({
    * negative amount = credit (bill < expected).
    */
   priceDiffLines = null,
+  paymentSchedule = null,
+  partnerId = null,
 }) {
   const net = round2(Math.abs(Number(netAmount) || 0));
   const tax = round2(Math.max(0, Number(taxAmount) || 0));
@@ -733,13 +736,26 @@ export function buildPurchaseBillClearingLines({
     const firstDebit = lines.find((l) => l.debit > 0);
     if (firstDebit) firstDebit.debit = round2(firstDebit.debit + tax);
   }
-  lines.push({
-    accountId: ap._id,
-    accountCode: ap.code,
-    debit: 0,
-    credit: gross,
+
+  const apCredits = buildPayableCreditLines({
+    ap,
+    gross,
+    paymentSchedule,
     description: description || 'Accounts payable',
+    partnerId,
   });
+  for (const apLine of apCredits) {
+    lines.push({
+      accountId: apLine.accountId,
+      accountCode: apLine.accountCode,
+      debit: apLine.debit,
+      credit: apLine.credit,
+      description: apLine.description,
+      partnerId: apLine.partnerId,
+      dueDate: apLine.dueDate,
+      trancheSequence: apLine.trancheSequence,
+    });
+  }
   return lines;
 }
 
@@ -1112,6 +1128,14 @@ export async function postPurchaseInvoiceJournal({
     goodsDebits: goodsDebits.length ? goodsDebits : null,
     priceDiffLines: priceDiffLines.length ? priceDiffLines : null,
     description: `Vendor bill ${invoice.invoiceNumber || ''}`,
+    partnerId: invoice.supplierId || null,
+    paymentSchedule: invoice.paymentSchedule?.length
+      ? invoice.paymentSchedule
+      : (await import('../../utils/invoicePaymentTerms.js')).computePaymentSchedule(
+        invoice.issueDate,
+        invoice.paymentTerms,
+        gross,
+      ).tranches,
   });
   if (lines.length < 2) return null;
 

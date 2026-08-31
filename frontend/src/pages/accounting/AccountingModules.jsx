@@ -8,6 +8,7 @@ import Money from '../../components/ui/Money'
 import VirtualTableBody from '../../components/ui/VirtualTableBody'
 import { ReportFilterRibbon, compareRange, variance } from './ReportFilterRibbon'
 import { ConfigPanelShell } from './ConfigPanelShell'
+import { CustomReportLinesSection } from './AccountingReportPanels'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 const yearStartIso = () => new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10)
@@ -977,6 +978,15 @@ export function AccountingDefaultsPanel({ language }) {
   const postable = (Array.isArray(accounts) ? accounts : []).filter((a) => a.isPostable !== false)
 
   return (
+    <ConfigPanelShell
+      language={language}
+      titleEn="Accounting defaults"
+      titleAr="الإعدادات الافتراضية للمحاسبة"
+      purposeEn="Default GL roles, vendor payment (SEPA/checks), and customer receipt behaviour when posting invoices and payments."
+      purposeAr="أدوار الدليل الافتراضية ومدفوعات الموردين وقبض العملاء عند ترحيل الفواتير والمدفوعات."
+      impactEn="Missing per-line accounts fall back to these roles; outstanding receipts/payments defer bank clearance until reconciliation."
+      impactAr="تُستخدم هذه الأدوار عند غياب حساب محدد؛ المقبوضات/المدفوعات المعلقة تؤجل المقاصة البنكية."
+    >
     <div className="space-y-4">
     <div className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
       <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
@@ -1161,6 +1171,7 @@ export function AccountingDefaultsPanel({ language }) {
       </div>
     </div>
     </div>
+    </ConfigPanelShell>
   )
 }
 
@@ -2338,6 +2349,10 @@ const AGING_LABELS = {
   d90_plus: { en: '90+ days', ar: '٩٠+ يوم' },
 }
 
+function agedRowKey(row) {
+  return `${row.invoiceId}-${row.trancheSequence ?? 0}`
+}
+
 function AgedReportPanel({ language, kind }) {
   const isAr = language === 'ar'
   const navigate = useNavigate()
@@ -2370,14 +2385,22 @@ function AgedReportPanel({ language, kind }) {
     },
   })
 
-  const toggle = (id) => {
+  const toggle = (rowKey) => {
     setSelected((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(rowKey)) next.delete(rowKey)
+      else next.add(rowKey)
       return next
     })
   }
+
+  const selectedInvoiceIds = useMemo(() => {
+    const ids = new Set()
+    for (const row of data?.rows || []) {
+      if (selected.has(agedRowKey(row))) ids.add(row.invoiceId)
+    }
+    return [...ids]
+  }, [data?.rows, selected])
 
   const title = kind === 'ap'
     ? (isAr ? 'أعمار الذمم الدائنة' : 'Aged payables')
@@ -2396,19 +2419,20 @@ function AgedReportPanel({ language, kind }) {
         extra={kind === 'ar' ? (
           <button
             type="button"
-            disabled={!selected.size || remind.isPending}
-            onClick={() => remind.mutate([...selected])}
+            disabled={!selectedInvoiceIds.length || remind.isPending}
+            onClick={() => remind.mutate(selectedInvoiceIds)}
             className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
           >
             {remind.isPending
               ? '…'
-              : (isAr ? `تذكير واتساب (${selected.size})` : `WhatsApp remind (${selected.size})`)}
+              : (isAr ? `تذكير واتساب (${selectedInvoiceIds.length})` : `WhatsApp remind (${selectedInvoiceIds.length})`)}
           </button>
         ) : null}
         exportProps={{
           getRows: async () => (data?.rows || []).map((row) => ({
             partnerName: row.partnerName,
             invoiceNumber: row.invoiceNumber,
+            trancheSequence: row.trancheSequence,
             dueDate: row.dueDate || row.issueDate,
             residual: row.residual,
             ageDays: row.ageDays,
@@ -2417,6 +2441,7 @@ function AgedReportPanel({ language, kind }) {
           columns: [
             { key: 'partnerName', label: isAr ? 'الشريك' : 'Partner' },
             { key: 'invoiceNumber', label: isAr ? 'الفاتورة' : 'Invoice' },
+            { key: 'trancheSequence', label: isAr ? 'الدفعة' : 'Tranche', value: (r) => (r.trancheSequence ? `#${r.trancheSequence}` : '—') },
             { key: 'dueDate', label: isAr ? 'الاستحقاق' : 'Due', value: (r) => r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '' },
             { key: 'residual', label: isAr ? 'المتبقي' : 'Residual', value: (r) => Number(r.residual || 0).toFixed(2) },
             { key: 'ageDays', label: isAr ? 'العمر' : 'Age' },
@@ -2449,6 +2474,7 @@ function AgedReportPanel({ language, kind }) {
               {kind === 'ar' ? <th className="px-3 py-2 text-start" /> : null}
               <th className="px-4 py-2 text-start">{isAr ? 'الشريك' : 'Partner'}</th>
               <th className="px-4 py-2 text-start">{isAr ? 'الفاتورة' : 'Invoice'}</th>
+              <th className="px-4 py-2 text-start">{isAr ? 'الدفعة' : 'Tranche'}</th>
               <th className="px-4 py-2 text-start">{isAr ? 'الاستحقاق' : 'Due'}</th>
               <th className="px-4 py-2 text-end">{isAr ? 'المتبقي' : 'Residual'}</th>
               <th className="px-4 py-2 text-end">{isAr ? 'العمر' : 'Age'}</th>
@@ -2457,14 +2483,16 @@ function AgedReportPanel({ language, kind }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-            {(data?.rows || []).map((row) => (
-              <tr key={row.invoiceId}>
+            {(data?.rows || []).map((row) => {
+              const rowKey = agedRowKey(row)
+              return (
+              <tr key={rowKey}>
                 {kind === 'ar' ? (
                   <td className="px-3 py-2">
                     <input
                       type="checkbox"
-                      checked={selected.has(row.invoiceId)}
-                      onChange={() => toggle(row.invoiceId)}
+                      checked={selected.has(rowKey)}
+                      onChange={() => toggle(rowKey)}
                     />
                   </td>
                 ) : null}
@@ -2493,6 +2521,9 @@ function AgedReportPanel({ language, kind }) {
                     {row.invoiceNumber}
                   </button>
                 </td>
+                <td className="px-4 py-2 text-xs text-slate-500">
+                  {row.trancheSequence ? `#${row.trancheSequence}` : '—'}
+                </td>
                 <td className="px-4 py-2">{row.dueDate ? new Date(row.dueDate).toLocaleDateString() : (row.issueDate ? new Date(row.issueDate).toLocaleDateString() : '—')}</td>
                 <td className="px-4 py-2 text-end"><Money value={row.residual} /></td>
                 <td className="px-4 py-2 text-end tabular-nums">{row.ageDays}</td>
@@ -2510,9 +2541,10 @@ function AgedReportPanel({ language, kind }) {
                   </td>
                 ) : null}
               </tr>
-            ))}
+              )
+            })}
             {!(data?.rows || []).length && (
-              <tr><td colSpan={kind === 'ar' ? 8 : 6} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا أرصدة مفتوحة' : 'No open balances'}</td></tr>
+              <tr><td colSpan={kind === 'ar' ? 9 : 7} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا أرصدة مفتوحة' : 'No open balances'}</td></tr>
             )}
           </tbody>
         </table>
@@ -2931,6 +2963,7 @@ export function CashFlowPanel({ language }) {
           ))}
         </ul>
       ) : null}
+      <CustomReportLinesSection language={language} lines={data?.customReportLines} />
     </div>
   )
 }
@@ -3999,17 +4032,21 @@ export function FiscalPositionsPanel({ language }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold">{isAr ? 'المراكز الضريبية' : 'Fiscal positions'}</p>
-          <p className="text-xs text-slate-500">{isAr ? 'تُستخدم في فواتير المبيعات (Other info).' : 'Used on sales invoices (Other info tab).'}</p>
-        </div>
-        <div className="flex gap-2">
+    <ConfigPanelShell
+      language={language}
+      titleEn="Fiscal positions"
+      titleAr="المراكز الضريبية"
+      purposeEn="Tax context labels applied on sales invoices (Other info tab) for reporting and analytic matching."
+      purposeAr="سياق ضريبي يُطبّق على فواتير المبيعات (تبويب معلومات أخرى) للتقارير والتوزيع التحليلي."
+      impactEn="Partner tag on analytic distribution models can match fiscal position codes."
+      impactAr="وسم الشريك في نماذج التوزيع التحليلي قد يطابق رموز المراكز الضريبية."
+      actions={(
+        <>
           <button type="button" onClick={addRow} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
           <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{save.isPending ? '…' : (isAr ? 'حفظ' : 'Save')}</button>
-        </div>
-      </div>
+        </>
+      )}
+    >
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-400 dark:bg-dark-900">
@@ -4032,7 +4069,7 @@ export function FiscalPositionsPanel({ language }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </ConfigPanelShell>
   )
 }
 
@@ -5300,18 +5337,21 @@ export function DeferredModelsPanel({ language, kind = 'expense' }) {
     onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
   })
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-semibold">
-          {kind === 'revenue'
-            ? (isAr ? 'نماذج الإيرادات المؤجلة' : 'Deferred revenue models')
-            : (isAr ? 'نماذج المصروفات المؤجلة' : 'Deferred expense models')}
-        </p>
-        <div className="flex gap-2">
+    <ConfigPanelShell
+      language={language}
+      titleEn={kind === 'revenue' ? 'Deferred revenue models' : 'Deferred expense models'}
+      titleAr={kind === 'revenue' ? 'نماذج الإيرادات المؤجلة' : 'نماذج المصروفات المؤجلة'}
+      purposeEn="Amortization templates (months) for prepaid revenue or deferred expenses."
+      purposeAr="قوالب الإطفاء (بالأشهر) للإيرادات أو المصروفات المؤجلة."
+      impactEn="Monthly amortization jobs post journal entries using these model durations."
+      impactAr="مهام الإطفاء الشهرية ترحّل القيود وفق مدة النموذج."
+      actions={(
+        <>
           <button type="button" onClick={() => setRows((p) => [...p, { code: '', name: '', nameAr: '', months: 12, kind }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
           <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isAr ? 'حفظ' : 'Save'}</button>
-        </div>
-      </div>
+        </>
+      )}
+    >
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
@@ -5332,7 +5372,7 @@ export function DeferredModelsPanel({ language, kind = 'expense' }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </ConfigPanelShell>
   )
 }
 
@@ -5349,14 +5389,21 @@ export function AssetModelsPanel({ language }) {
     onSuccess: () => refetch(),
   })
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-semibold">{isAr ? 'نماذج الأصول' : 'Asset models'}</p>
-        <div className="flex gap-2">
+    <ConfigPanelShell
+      language={language}
+      titleEn="Asset models"
+      titleAr="نماذج الأصول"
+      purposeEn="Fixed-asset depreciation templates (method, useful life, salvage)."
+      purposeAr="قوالب إهلاك الأصول الثابتة (الطريقة، العمر، قيمة الخردة)."
+      impactEn="Depreciation schedule and monthly posting use these parameters."
+      impactAr="جدول الإهلاك والترحيل الشهري يستخدمان هذه المعاملات."
+      actions={(
+        <>
           <button type="button" onClick={() => setRows((p) => [...p, { code: '', name: '', nameAr: '', usefulLifeMonths: 60, salvagePct: 0, method: 'straight_line' }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
           <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isAr ? 'حفظ' : 'Save'}</button>
-        </div>
-      </div>
+        </>
+      )}
+    >
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
@@ -5386,7 +5433,7 @@ export function AssetModelsPanel({ language }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </ConfigPanelShell>
   )
 }
 
@@ -5403,14 +5450,21 @@ export function AnalyticPlansPanel({ language }) {
     onSuccess: () => refetch(),
   })
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-semibold">{isAr ? 'الخطط التحليلية' : 'Analytic plans'}</p>
-        <div className="flex gap-2">
+    <ConfigPanelShell
+      language={language}
+      titleEn="Analytic plans"
+      titleAr="الخطط التحليلية"
+      purposeEn="Dimensions (departments, projects) that group analytic accounts for cost tracking."
+      purposeAr="أبعاد (أقسام، مشاريع) تجمع الحسابات التحليلية لتتبع التكاليف."
+      impactEn="Analytic accounts belong to a plan; distribution models reference plan codes."
+      impactAr="الحسابات التحليلية تنتمي لخطة؛ نماذج التوزيع تشير إلى رموز الخطط."
+      actions={(
+        <>
           <button type="button" onClick={() => setRows((p) => [...p, { code: '', name: '', nameAr: '', active: true }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
           <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isAr ? 'حفظ' : 'Save'}</button>
-        </div>
-      </div>
+        </>
+      )}
+    >
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
         <table className="min-w-full text-sm">
           <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -5425,7 +5479,7 @@ export function AnalyticPlansPanel({ language }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </ConfigPanelShell>
   )
 }
 
@@ -5479,7 +5533,15 @@ export function AccountGroupsPanel({ language }) {
     return [...map.values()].sort((a, b) => a.type.localeCompare(b.type))
   }, [accounts])
   return (
-    <div className="space-y-4">
+    <ConfigPanelShell
+      language={language}
+      titleEn="Account groups"
+      titleAr="مجموعات الحسابات"
+      purposeEn="Read-only rollup of chart-of-accounts balances by account type for quick sanity checks."
+      purposeAr="ملخص للأرصدة حسب نوع الحساب للتحقق السريع من الدليل."
+      impactEn="Informational only — P&L/BS horizontal groups drive formal report columns."
+      impactAr="للعرض فقط — المجموعات الأفقية تحكم أعمدة قائمة الدخل والميزانية."
+    >
       {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {groups.map((g) => (
@@ -5490,7 +5552,7 @@ export function AccountGroupsPanel({ language }) {
           </div>
         ))}
       </div>
-    </div>
+    </ConfigPanelShell>
   )
 }
 
@@ -5825,17 +5887,21 @@ export function HorizontalGroupsPanel({ language }) {
   })
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold">{isAr ? 'مجموعات أفقية' : 'Horizontal groups'}</p>
-          <p className="text-xs text-slate-500">{isAr ? 'تجميع أعمدة التقارير حسب بادئة رمز الحساب.' : 'Group report columns by account code prefix.'}</p>
-        </div>
-        <div className="flex gap-2">
+    <ConfigPanelShell
+      language={language}
+      titleEn="Horizontal groups"
+      titleAr="مجموعات أفقية"
+      purposeEn="Group P&L and balance sheet columns by account code prefix for multi-column reporting."
+      purposeAr="تجميع أعمدة قائمة الدخل والميزانية حسب بادئة رمز الحساب."
+      impactEn="Evaluated on P&L and balance sheet reports as extra column groups alongside account rows."
+      impactAr="تُعرض في تقارير قائمة الدخل والميزانية كمجموعات أعمدة إضافية."
+      actions={(
+        <>
           <button type="button" onClick={() => setRows((p) => [...p, { code: '', name: '', nameAr: '', accountPrefixesText: '', sequence: p.length + 1 }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
           <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isAr ? 'حفظ' : 'Save'}</button>
-        </div>
-      </div>
+        </>
+      )}
+    >
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
@@ -5858,7 +5924,7 @@ export function HorizontalGroupsPanel({ language }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </ConfigPanelShell>
   )
 }
 
@@ -5904,17 +5970,21 @@ export function TaxUnitsPanel({ language }) {
   const taxHint = (Array.isArray(taxes) ? taxes : []).map((t) => t.code).filter(Boolean).join(', ')
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold">{isAr ? 'وحدات الضريبة' : 'Tax units'}</p>
-          <p className="text-xs text-slate-500">{isAr ? 'كيانات قانونية/فروع لإقرارات ضريبة مجمّعة.' : 'Legal entities/branches for consolidated tax filing.'}</p>
-        </div>
-        <div className="flex gap-2">
+    <ConfigPanelShell
+      language={language}
+      titleEn="Tax units"
+      titleAr="وحدات الضريبة"
+      purposeEn="Legal entities or branches for consolidated VAT filing and multi-unit tax reports."
+      purposeAr="كيانات قانونية أو فروع لإقرارات ضريبة القيمة المضافة المجمّعة."
+      impactEn="Tax unit codes scope tax report rows when multiple VAT registrations exist."
+      impactAr="رموز الوحدات تحدد نطاق صفوف تقرير الضريبة عند وجود أكثر من تسجيل."
+      actions={(
+        <>
           <button type="button" onClick={() => setRows((p) => [...p, { code: '', name: '', nameAr: '', vatNumber: '', country: 'SA', taxCodesText: '', isDefault: p.length === 0 }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
           <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isAr ? 'حفظ' : 'Save'}</button>
-        </div>
-      </div>
+        </>
+      )}
+    >
       {taxHint ? <p className="text-xs text-slate-400">{isAr ? 'رموز الضريبة المتاحة:' : 'Available tax codes:'} {taxHint}</p> : null}
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
         <table className="min-w-full text-sm">
@@ -5940,7 +6010,7 @@ export function TaxUnitsPanel({ language }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </ConfigPanelShell>
   )
 }
 
@@ -5986,17 +6056,21 @@ export function AnalyticDistributionModelsPanel({ language }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold">{isAr ? 'نماذج التوزيع التحليلي' : 'Analytic distribution models'}</p>
-          <p className="text-xs text-slate-500">{isAr ? 'قواعد توزيع تلقائي للحسابات التحليلية على بنود الفواتير.' : 'Rules to auto-split analytic accounts on invoice lines.'}</p>
-        </div>
-        <div className="flex gap-2">
+    <ConfigPanelShell
+      language={language}
+      titleEn="Analytic distribution models"
+      titleAr="نماذج التوزيع التحليلي"
+      purposeEn="Rules to auto-split invoice line amounts across analytic accounts by prefix, category, or partner tag."
+      purposeAr="قواعد توزيع تلقائي لمبالغ بنود الفواتير على الحسابات التحليلية."
+      impactEn="Applied when building sales/purchase journal previews and posted invoice lines."
+      impactAr="تُطبّق عند بناء معاينة القيود وترحيل بنود الفواتير."
+      actions={(
+        <>
           <button type="button" onClick={addModel} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
           <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isAr ? 'حفظ' : 'Save'}</button>
-        </div>
-      </div>
+        </>
+      )}
+    >
       <div className="space-y-4">
         {rows.map((model, mi) => (
           <div key={mi} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
@@ -6035,7 +6109,7 @@ export function AnalyticDistributionModelsPanel({ language }) {
           </div>
         ))}
       </div>
-    </div>
+    </ConfigPanelShell>
   )
 }
 
@@ -6068,18 +6142,22 @@ export function AutomaticTransfersPanel({ language }) {
   const postable = (Array.isArray(accounts) ? accounts : []).filter((a) => a.isPostable !== false)
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold">{isAr ? 'تحويلات تلقائية' : 'Automatic transfers'}</p>
-          <p className="text-xs text-slate-500">{isAr ? 'مسح / إعادة توزيع أرصدة الحسابات بنسبة ودورية.' : 'Sweep or reallocate account balances by percent on a schedule.'}</p>
-        </div>
-        <div className="flex gap-2">
+    <ConfigPanelShell
+      language={language}
+      titleEn="Automatic transfers"
+      titleAr="تحويلات تلقائية"
+      purposeEn="Scheduled sweeps that reallocate account balances by percent (monthly/quarterly/yearly)."
+      purposeAr="مسح مجدول يعيد توزيع أرصدة الحسابات بنسبة (شهري/ربعي/سنوي)."
+      impactEn="Run now or period close creates balanced journal entries between source and destination accounts."
+      impactAr="التشغيل اليدوي أو إقفال الفترة ينشئ قيوداً متوازنة بين المصدر والوجهة."
+      actions={(
+        <>
           <button type="button" onClick={() => setRows((p) => [...p, { name: '', nameAr: '', sourceAccountId: '', destinationAccountId: '', frequency: 'monthly', percent: 100, active: true }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
           <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isAr ? 'حفظ' : 'Save'}</button>
           <button type="button" disabled={run.isPending} onClick={() => run.mutate()} className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/30 dark:text-emerald-200">{isAr ? 'تشغيل الآن' : 'Run now'}</button>
-        </div>
-      </div>
+        </>
+      )}
+    >
       <div className="space-y-3">
         {rows.map((row, i) => (
           <div key={i} className="grid gap-2 rounded-2xl border border-slate-200/80 bg-white p-4 sm:grid-cols-2 lg:grid-cols-6 dark:border-dark-600 dark:bg-dark-800">
@@ -6106,7 +6184,7 @@ export function AutomaticTransfersPanel({ language }) {
         ))}
         {!rows.length ? <p className="text-sm text-slate-400">{isAr ? 'لا قواعد بعد — أضف قاعدة أو استخدم إقفال الفترة.' : 'No rules yet — add one, or use Period close for P&L sweeps.'}</p> : null}
       </div>
-    </div>
+    </ConfigPanelShell>
   )
 }
 
@@ -6254,6 +6332,7 @@ export function PaymentProvidersPanel({ language }) {
     onSuccess: () => { toast.success(isAr ? 'تم الحفظ' : 'Saved'); refetch() },
   })
   const bankJournals = (Array.isArray(journals) ? journals : []).filter((j) => j.type === 'bank')
+  const webhookBase = typeof window !== 'undefined' ? `${window.location.origin}/api/accounting/webhooks/payment` : '/api/accounting/webhooks/payment'
 
   return (
     <ConfigPanelShell
@@ -6279,7 +6358,8 @@ export function PaymentProvidersPanel({ language }) {
               <th className="px-3 py-2">{isAr ? 'المزود' : 'Provider'}</th>
               <th className="px-3 py-2">{isAr ? 'الاسم' : 'Name'}</th>
               <th className="px-3 py-2">{isAr ? 'دفتر البنك' : 'Bank journal'}</th>
-              <th className="px-3 py-2">{isAr ? 'Webhook' : 'Webhook secret'}</th>
+              <th className="px-3 py-2">{isAr ? 'Webhook URL' : 'Webhook URL'}</th>
+              <th className="px-3 py-2">{isAr ? 'السر' : 'Secret'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -6294,10 +6374,15 @@ export function PaymentProvidersPanel({ language }) {
                     {bankJournals.map((j) => <option key={j._id} value={j.code}>{j.code}</option>)}
                   </select>
                 </td>
-                <td className="px-3 py-2"><input value={row.webhookSecret || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, webhookSecret: e.target.value } : r)))} className="w-full rounded-lg border border-slate-200 px-2 py-1 font-mono text-[10px] dark:border-dark-600 dark:bg-dark-900" /></td>
+                <td className="px-3 py-2">
+                  <code className="block max-w-[220px] truncate rounded bg-slate-50 px-2 py-1 font-mono text-[10px] text-slate-600 dark:bg-dark-900 dark:text-slate-300" title={row.provider ? `${webhookBase}/${row.provider}` : ''}>
+                    {row.provider ? `${webhookBase}/${row.provider}` : '—'}
+                  </code>
+                </td>
+                <td className="px-3 py-2"><input value={row.webhookSecret || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, webhookSecret: e.target.value } : r)))} className="w-full rounded-lg border border-slate-200 px-2 py-1 font-mono text-[10px] dark:border-dark-600 dark:bg-dark-900" placeholder="X-Webhook-Secret" /></td>
               </tr>
             ))}
-            {!rows.length && <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">{isAr ? 'أضف مزود دفع' : 'Add a payment provider'}</td></tr>}
+            {!rows.length && <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">{isAr ? 'أضف مزود دفع' : 'Add a payment provider'}</td></tr>}
           </tbody>
         </table>
       </div>
