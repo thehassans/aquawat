@@ -19,6 +19,7 @@ import { tenantHasEmailAddon } from '../../lib/emailAddon'
 import { isAppAccessValid } from '../../lib/appStoreTrial'
 import { getGovChildren } from '../../lib/saudiTenant'
 import { HighlightText } from '../ui/highlight-text'
+import { pushRecentApp } from '../../lib/recentApps'
 
 /** Core trading apps pinned first in the launcher grid. */
 const CORE_LAUNCHER_PATHS = [
@@ -463,8 +464,9 @@ export default function AppLauncher() {
     dispatch(setAppLauncherOpen(false))
     dispatch(setMobileMenuOpen(false))
     setNavigatingTo(null)
-    
+
     if (path) {
+      pushRecentApp(tenant?._id, { path })
       if (location.pathname !== path) {
         navigate(path)
       }

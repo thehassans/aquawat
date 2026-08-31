@@ -15,6 +15,7 @@ import { useOfflineSync } from '../hooks/useOfflineSync'
 import { preloadCriticalRoutes } from '../lib/routePreloader'
 import { ErrorBoundary } from '../lib/errorBoundary'
 import { lazyRetry } from '../lib/lazyRetry'
+import { pushRecentApp } from '../lib/recentApps'
 
 const AppLauncher = lazyRetry(() => import('../components/layout/AppLauncher'))
 
@@ -29,6 +30,12 @@ export default function MainLayout() {
   useEffect(() => {
     preloadCriticalRoutes(tenant)
   }, [tenant?._id])
+
+  // Track module visits for the header recent-apps dropdown
+  useEffect(() => {
+    if (!location.pathname?.startsWith('/app/dashboard')) return
+    pushRecentApp(tenant?._id, { path: location.pathname })
+  }, [location.pathname, tenant?._id])
 
   const businessTypes = getTenantBusinessTypes(tenant)
 

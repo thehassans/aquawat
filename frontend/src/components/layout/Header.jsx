@@ -12,6 +12,7 @@ import DemoBanner from './DemoBanner'
 import TrialLimitModal from './TrialLimitModal'
 import GlobalSearch from './GlobalSearch'
 import SubscriptionBadge from './SubscriptionBadge'
+import RecentAppsMenu from './RecentAppsMenu'
 import { showArabicUi } from '../../lib/saudiTenant'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import useMaqderWebAppInstall from '../../lib/useMaqderWebAppInstall'
@@ -158,18 +159,7 @@ export default function Header() {
             <Menu className="w-5 h-5 text-gray-600 dark:text-gray-400" />
           </button>
           
-          <button
-            onClick={() => {
-              dispatch(setNavigationStyle({ tenantId: tenant?._id, style: 'launcher' }))
-              dispatch(setHideSidebar(true))
-              dispatch(setMobileMenuOpen(false))
-              dispatch(setAppLauncherOpen(true))
-            }}
-            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors"
-            title={language === 'ar' ? 'قائمة التطبيقات (إخفاء الشريط الجانبي)' : 'App Menu (Hide Sidebar)'}
-          >
-            <LayoutGrid className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-          </button>
+          <RecentAppsMenu />
 
           {/* Search */}
           <div className="hidden sm:flex items-center">
