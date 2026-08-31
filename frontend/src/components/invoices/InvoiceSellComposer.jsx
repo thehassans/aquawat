@@ -2280,6 +2280,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             })}
           />
 
+          </fieldset>
           </>
           )}
 
@@ -2726,7 +2727,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
 
             {/* Optional warehouse metadata only — stock moves via delivery notes */}
             <input type="hidden" {...register('warehouseId')} />
-          </fieldset>
 
             <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 dark:border-white/5 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-slate-400">
