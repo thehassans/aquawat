@@ -48,7 +48,7 @@ import {
 const denseControlClass =
   'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-900/10 dark:border-dark-500 dark:bg-dark-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-400'
 const lineGhostInputClass =
-  'w-full rounded-md border-0 bg-transparent px-1.5 py-1.5 text-[13px] font-medium text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:bg-slate-50 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-white/5'
+  'w-full min-w-0 rounded-md border-0 bg-transparent px-1 py-1.5 text-[12px] font-medium text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:bg-slate-50 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-white/5'
 const compactFieldClass = `mt-0.5 ${denseControlClass}`
 const lineSelectStyles = {
   control: (base, state) => ({
@@ -1520,7 +1520,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 </button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="min-w-0 rounded-lg border border-slate-100 dark:border-white/5">
                 <div
                   className="hidden gap-1 border-y border-slate-100 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5 lg:grid lg:grid-cols-[repeat(14,minmax(0,1fr))]"
                   dir="ltr"
@@ -1555,7 +1555,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                       <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} />
                       <input type="hidden" {...register(`lineItems.${index}.productType`)} />
                       <div className="grid grid-cols-2 items-center gap-1.5 lg:grid-cols-[repeat(14,minmax(0,1fr))]" dir="ltr">
-                        <div className={`col-span-2 ${showArabicFields ? 'lg:col-span-3' : 'lg:col-span-3'}`}>
+                        <div className={`col-span-2 min-w-0 ${showArabicFields ? 'lg:col-span-3' : 'lg:col-span-3'}`}>
                           {isTradingContext ? (
                             <div className="flex min-h-[36px] items-center gap-1 rounded-lg bg-slate-50/80 pe-0.5 ps-1 dark:bg-white/[0.03]">
                               <ProductTypeToggle
@@ -1694,7 +1694,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                         ) : (
                           <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
                         )}
-                        <div className="col-span-2 lg:col-span-2">
+                        <div className="col-span-2 min-w-0 lg:col-span-2">
                           <select
                             {...register(`lineItems.${index}.expenseAccountId`)}
                             disabled={isBillPosted}
@@ -1708,7 +1708,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                             ))}
                           </select>
                         </div>
-                        <div className="col-span-2 lg:col-span-2">
+                        <div className="col-span-2 min-w-0 lg:col-span-2">
                           <select
                             {...register(`lineItems.${index}.analyticAccountId`)}
                             disabled={isBillPosted}

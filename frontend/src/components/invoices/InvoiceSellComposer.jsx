@@ -167,7 +167,9 @@ const bilingualPairGridClass = 'grid grid-cols-1 gap-x-3 gap-y-1.5 md:grid-cols-
 const denseControlClass =
   'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-900/10 dark:border-dark-500 dark:bg-dark-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-400'
 const lineGhostInputClass =
-  'w-full rounded-md border-0 bg-transparent px-1.5 py-1.5 text-[13px] font-medium text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:bg-slate-50 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-white/5'
+  'w-full min-w-0 rounded-md border-0 bg-transparent px-1 py-1.5 text-[12px] font-medium text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:bg-slate-50 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-white/5'
+/** Fluid 12-col grid — all columns stay on screen (no horizontal scroll). */
+const sellStandardLineGridClass = 'lg:grid-cols-12'
 const compactFieldClass = `mt-0.5 ${denseControlClass}`
 const denseSelectStyles = {
   control: (base, state) => ({
@@ -1908,24 +1910,22 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 </button>
               </div>
             ) : (
-              <div className="w-full overflow-x-auto rounded-lg border border-slate-100 dark:border-white/5">
+              <div className="w-full min-w-0 rounded-lg border border-slate-100 dark:border-white/5">
                 <div
-                  className={`hidden min-w-[980px] gap-2 border-b border-slate-100 px-4 py-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5 lg:grid ${
-                    isTravelContext
-                      ? 'lg:grid-cols-12'
-                      : 'lg:grid-cols-[minmax(260px,2fr)_minmax(180px,1fr)_minmax(140px,0.8fr)_5rem_5rem_7rem_6rem_7rem_auto]'
+                  className={`hidden gap-1 border-b border-slate-100 px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5 lg:grid ${
+                    isTravelContext ? 'lg:grid-cols-12' : sellStandardLineGridClass
                   }`}
                   dir="ltr"
                 >
-                  <div>{language === 'ar' ? 'المنتج / الوصف' : 'Product / description'}</div>
+                  <div className="lg:col-span-3">{language === 'ar' ? 'المنتج / الوصف' : 'Product / description'}</div>
                   {!isTravelContext ? (
                     <>
-                      <div>{language === 'ar' ? 'الحساب' : 'Account'}</div>
-                      <div>{language === 'ar' ? 'تحليلي' : 'Analytic'}</div>
-                      <div className="text-center">{language === 'ar' ? 'وحدة' : 'UoM'}</div>
-                      <div className="text-end">{t('quantity')}</div>
-                      <div className="text-end">{t('unitPrice')}</div>
-                      <div className="text-center">{t('tax')} %</div>
+                      <div className="lg:col-span-2">{language === 'ar' ? 'الحساب' : 'Account'}</div>
+                      <div className="lg:col-span-2">{language === 'ar' ? 'تحليلي' : 'Analytic'}</div>
+                      <div className="text-center lg:col-span-1">{language === 'ar' ? 'وحدة' : 'UoM'}</div>
+                      <div className="text-end lg:col-span-1">{t('quantity')}</div>
+                      <div className="text-end lg:col-span-1">{t('unitPrice')}</div>
+                      <div className="text-center lg:col-span-1">{t('tax')} %</div>
                     </>
                   ) : (
                     <>
@@ -1934,11 +1934,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       <div className="lg:col-span-1">{language === 'ar' ? 'عميل' : 'Customer'}</div>
                     </>
                   )}
-                  <div className="text-end font-semibold">{t('total')}</div>
-                  {!isTravelContext ? <div className="text-center">{language === 'ar' ? 'إجراءات' : 'Actions'}</div> : null}
+                  <div className="text-end lg:col-span-1">{t('total')}</div>
                 </div>
 
-                <div className="min-w-[980px] divide-y divide-slate-100 dark:divide-white/5">
+                <div className="min-w-0 divide-y divide-slate-100 dark:divide-white/5">
                   {fields.map((field, index) => (
                 <div key={field.fieldId || field.id || `line-${index}`} className="group px-3 py-2.5 transition hover:bg-slate-50/70 dark:hover:bg-white/[0.02] sm:px-4">
                   <LineItemTranslator
@@ -1954,14 +1953,12 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <input type="hidden" {...register(`lineItems.${index}.isTravelMargin`)} />
                   <input type="hidden" {...register(`lineItems.${index}.productType`)} />
                   <div
-                    className={`grid grid-cols-2 items-start gap-2 ${
-                      isTravelContext
-                        ? 'lg:grid-cols-12'
-                        : 'lg:grid-cols-[minmax(260px,2fr)_minmax(180px,1fr)_minmax(140px,0.8fr)_5rem_5rem_7rem_6rem_7rem_auto]'
+                    className={`grid grid-cols-2 items-start gap-1.5 ${
+                      isTravelContext ? 'lg:grid-cols-12' : sellStandardLineGridClass
                     }`}
                     dir="ltr"
                   >
-                    <div className="col-span-2 min-w-[260px] lg:col-span-1">
+                    <div className="col-span-2 min-w-0 lg:col-span-3">
                       {isTradingContext ? (
                         <div className="space-y-1">
                           <CreatableSelect
@@ -2088,11 +2085,11 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     </div>
                     {!isTravelContext ? (
                       <>
-                        <div className="col-span-2 min-w-[180px] lg:col-auto">
+                        <div className="col-span-2 min-w-0 lg:col-span-2">
                           <select
                             {...register(`lineItems.${index}.incomeAccountId`)}
                             disabled={isInvoicePosted}
-                            className={`${lineGhostInputClass} cursor-pointer disabled:opacity-60`}
+                            className={`${lineGhostInputClass} cursor-pointer truncate disabled:opacity-60`}
                           >
                             <option value="">{language === 'ar' ? 'حساب…' : 'Account…'}</option>
                             {incomeAccounts.map((a) => (
@@ -2102,11 +2099,11 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                             ))}
                           </select>
                         </div>
-                        <div className="col-span-2 min-w-[140px] lg:col-auto">
+                        <div className="col-span-2 min-w-0 lg:col-span-2">
                           <select
                             {...register(`lineItems.${index}.analyticAccountId`)}
                             disabled={isInvoicePosted}
-                            className={`${lineGhostInputClass} cursor-pointer disabled:opacity-60`}
+                            className={`${lineGhostInputClass} cursor-pointer truncate disabled:opacity-60`}
                           >
                             <option value="">{language === 'ar' ? 'تحليلي…' : 'Analytic…'}</option>
                             {analyticAccounts.map((a) => (
@@ -2119,7 +2116,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       </>
                     ) : null}
                     {!isTravelContext ? (
-                      <div className="col-span-1 min-w-[4.5rem] lg:col-span-1">
+                      <div className="col-span-1 min-w-0 lg:col-span-1">
                         <select
                           {...register(`lineItems.${index}.unitCode`)}
                           className={`${lineGhostInputClass} cursor-pointer tabular-nums`}
@@ -2144,7 +2141,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         })}
                       />
                     ) : (
-                      <div className="col-span-1 lg:col-span-1">
+                      <div className="col-span-1 min-w-0 lg:col-span-1">
                         <input
                           id={`qty-${index}`}
                           type="number"
@@ -2159,7 +2156,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         />
                       </div>
                     )}
-                    <div className={`col-span-1 ${isTravelContext ? 'lg:col-span-2' : 'lg:col-span-1'}`}>
+                    <div className={`col-span-1 min-w-0 ${isTravelContext ? 'lg:col-span-2' : 'lg:col-span-1'}`}>
                       <input
                         id={`price-${index}`}
                         type="number"
@@ -2198,7 +2195,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         </div>
                       </>
                     ) : (
-                      <div className="col-span-1 lg:col-span-1">
+                      <div className="col-span-1 min-w-0 lg:col-span-1">
                         {(() => {
                           const isPkTax = String(tenant?.settings?.currency || '').toUpperCase() === 'PKR' || (tenant?.business?.address?.country || '').toUpperCase() === 'PK'
                           const pkRate = Number(tenant?.fbr?.defaultSalesTaxRate || 18)
@@ -2222,8 +2219,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         })()}
                       </div>
                     )}
-                    <div className="col-span-2 flex items-center justify-end gap-1 lg:col-span-2">
-                      <p className="text-[13px] font-semibold tabular-nums text-slate-900 dark:text-white">
+                    <div className="col-span-2 flex min-w-0 items-center justify-end gap-1 lg:col-span-1">
+                      <p className="truncate text-[12px] font-semibold tabular-nums text-slate-900 dark:text-white">
                         <Money value={calculateLineTotal(index).total} />
                       </p>
                       {fields.length > 1 ? (
