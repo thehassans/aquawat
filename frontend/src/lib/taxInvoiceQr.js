@@ -32,13 +32,14 @@ export function resolveTaxInvoiceQr({
 
   try {
     if (cur === 'SAR') {
-      return invoice?.zatca?.qrCodeData || generateZatcaQrValue({
+      return generateZatcaQrValue({
         sellerName: name,
         vatNumber: vat,
         timestamp,
+        issueTime: invoice?.issueTime,
         totalWithVat: total,
         vatTotal: tax,
-      })
+      }) || invoice?.zatca?.qrCodeData || null
     }
 
     if (cur === 'AED') {

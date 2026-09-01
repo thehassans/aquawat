@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import Handlebars from 'handlebars';
 import momentHijri from 'moment-hijri';
 import { consumeRateLimit } from '../zatcaRateLimiter.js';
+import { formatRiyadhParts, formatZatcaQrTimestamp, RIYADH_TZ } from '../zatcaTimestamp.js';
 
 class ZatcaService {
   constructor(config = {}) {
@@ -26,7 +27,7 @@ class ZatcaService {
       uuid: invoice.zatca?.uuid || uuidv4(),
       invoiceNumber: invoice.invoiceNumber,
       issueDate: this.formatDate(invoice.issueDate),
-      issueTime: invoice.issueTime || this.formatTime(invoice.issueDate),
+      issueTime: invoice.issueTime || this.formatTime(invoice.issueDate, invoice.issueTime),
       invoiceTypeCode: invoice.invoiceTypeCode,
       invoiceType: invoice.invoiceType || '388',
       currencyCode: invoice.currency || 'SAR',
@@ -272,7 +273,7 @@ class ZatcaService {
       const tlvData = this.generateTLV({
         sellerName: seller.legalNameAr || seller.legalNameEn,
         vatNumber: seller.vatNumber,
-        timestamp: new Date(invoice.issueDate).toISOString(),
+        timestamp: formatZatcaQrTimestamp(invoice.issueDate, invoice.issueTime),
         totalWithVat: invoice.grandTotal.toFixed(2),
         vatTotal: invoice.totalTax.toFixed(2),
         invoiceHash: hashResult.chainedHash,
@@ -403,9 +404,15 @@ class ZatcaService {
     return d.toISOString().split('T')[0];
   }
 
-  formatTime(date) {
-    const d = new Date(date);
-    return d.toISOString().split('T')[1].split('.')[0];
+  formatTime(date, issueTime) {
+    const time = String(issueTime || '').trim();
+    if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(time)) {
+      const [hh, mm, ss = '00'] = time.split(':');
+      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+    }
+    const parts = formatRiyadhParts(date, RIYADH_TZ);
+    if (!parts) return '00:00:00';
+    return `${parts.hour}:${parts.minute}:${parts.second}`;
   }
 
   formatAmount(amount) {

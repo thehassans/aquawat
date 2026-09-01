@@ -372,6 +372,8 @@ const tenantSchema = new mongoose.Schema({
     fiscalYearStart: { type: Number, default: 1 },
     dateFormat: { type: String, default: 'DD/MM/YYYY' },
     useHijriDates: { type: Boolean, default: true },
+    /** gregorian | hijri | both — how invoice/quotation dates print on PDF */
+    invoiceDateCalendar: { type: String, enum: ['gregorian', 'hijri', 'both'], default: 'both' },
     /** Accounting period locks + tenant default GL accounts */
     accounting: {
       /** Soft lock: no new posts on/before this date (managers may still reverse with reason) */

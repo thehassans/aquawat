@@ -648,6 +648,7 @@ async function attachDraftQr(invoice, seller, tenant) {
     const qr = await buildDraftInvoiceQr({
       seller,
       issueDate: invoice.issueDate,
+      issueTime: invoice.issueTime,
       grandTotal: invoice.grandTotal,
       totalTax: invoice.totalTax,
     });
@@ -2558,6 +2559,9 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
 
     Object.assign(invoice, req.body);
     await invoice.save();
+    if (isZatcaCurrency(tenant) && !invoice.zatca?.signedXml) {
+      await attachDraftQr(invoice, invoice.seller || tenant.business, tenant);
+    }
     afterInvoiceWrite(invoice, { userId: req.user._id });
 
     // Post GL when leaving draft (standard invoice or credit note)

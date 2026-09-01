@@ -1,3 +1,5 @@
+import { formatZatcaQrTimestamp } from './zatcaTimestamp'
+
 const encoder = new TextEncoder()
 
 const toNumber = (value, fallback = 0) => {
@@ -49,7 +51,7 @@ export const validateZatcaQrFields = ({ sellerName, vatNumber, totalWithVat, vat
   return { valid: errors.length === 0, errors }
 }
 
-export const generateZatcaQrValue = ({ sellerName, vatNumber, timestamp, totalWithVat, vatTotal }) => {
+export const generateZatcaQrValue = ({ sellerName, vatNumber, timestamp, issueTime, totalWithVat, vatTotal }) => {
   try {
     const validation = validateZatcaQrFields({ sellerName, vatNumber, totalWithVat, vatTotal })
     if (!validation.valid) {
@@ -59,8 +61,7 @@ export const generateZatcaQrValue = ({ sellerName, vatNumber, timestamp, totalWi
       return null
     }
 
-    const ts = timestamp || new Date().toISOString()
-    const isoTimestamp = ts instanceof Date ? ts.toISOString() : new Date(ts).toISOString()
+    const isoTimestamp = formatZatcaQrTimestamp(timestamp || new Date(), issueTime)
 
     const fields = [
       encodeTlvField(1, sellerName || ''),

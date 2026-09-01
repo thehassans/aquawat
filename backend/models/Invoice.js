@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import momentHijri from 'moment-hijri';
 import { statsRead } from '../utils/mongoReadPreference.js';
+import { syncIssueTimeFromDate } from '../utils/zatcaTimestamp.js';
 import { roundMoney } from '../utils/money.js';
 
 const travelSegmentSchema = new mongoose.Schema({
@@ -404,6 +405,8 @@ invoiceSchema.index({ paymentStatus: 1, dueDate: 1, status: 1, flow: 1 });
 invoiceSchema.pre('validate', function(next) {
   if (this.isModified('issueDate') && this.issueDate) {
     this.issueDateHijri = momentHijri(this.issueDate).format('iYYYY/iMM/iDD');
+    const synced = syncIssueTimeFromDate(this.issueDate, this.issueTime);
+    this.issueTime = synced.issueTime;
   }
   if (this.isModified('supplyDate') && this.supplyDate) {
     this.supplyDateHijri = momentHijri(this.supplyDate).format('iYYYY/iMM/iDD');

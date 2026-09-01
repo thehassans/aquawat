@@ -10,6 +10,7 @@ import { getAmountInWords } from '../../lib/amountInWords'
 import { formatCurrency, formatCurrencyAmount, isSarCurrency } from '../../lib/currency'
 import { getTravelInvoiceLabelMeta, isTravelAgencyInvoice } from '../../lib/travelInvoiceStatus'
 import { setActiveInvoiceSecondaryLanguage, localizeSecondaryText } from '../../lib/invoiceLanguage'
+import { formatInvoiceDateDisplay, resolveInvoiceDateCalendar } from '../../lib/invoiceDateFormat'
 import SarIcon from '../ui/SarIcon'
 import ModernZatcaTemplate from './ModernZatcaTemplate'
 import ClassicElegantTemplate from './ClassicElegantTemplate'
@@ -238,16 +239,14 @@ const getPartyDetailLinesBilingual = (party = {}, role = 'party', isPk = false) 
   return lines.length > 0 ? lines : [{ label: '', value: '—' }]
 }
 
-const formatDate = (value, language = 'en') => {
+const formatDate = (value, language = 'en', tenant, invoice) => {
   if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
-  return date.toLocaleString(language === 'ar' ? 'ar-SA' : 'en-US', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
+  return formatInvoiceDateDisplay(value, {
+    mode: resolveInvoiceDateCalendar(tenant),
+    language,
+    hijriValue: invoice?.issueDateHijri,
+    includeTime: true,
+    timeZone: tenant?.settings?.timezone || 'Asia/Riyadh',
   })
 }
 
@@ -919,7 +918,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
               </div>
             </div>
             <p className={`mt-4 text-center text-base font-semibold ${titleText}`}>{documentNumber}</p>
-            <p className={`mt-1 text-center text-xs ${mutedText}`}>{formatDate(invoice?.issueDate || new Date(), language)}</p>
+            <p className={`mt-1 text-center text-xs ${mutedText}`}>{formatDate(invoice?.issueDate || new Date(), language, tenant, invoice)}</p>
             <div className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center">
               <p className={`text-[11px] font-medium uppercase tracking-[0.2em] ${mutedText}`}>{language === 'ar' ? 'الحالة' : 'Status'}</p>
               <p className={`mt-2 text-sm font-semibold ${titleText}`} style={headingStyle}>{zatcaStatusMeta.label}</p>
@@ -934,7 +933,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
           </div>
           <div>
             <p className={`text-xs ${mutedText}`}>{isQuotation ? (language === 'ar' ? 'صالح حتى' : 'Valid Until') : (language === 'ar' ? 'التاريخ' : 'Date')}</p>
-            <p className={`mt-1 text-sm font-semibold ${titleText}`}>{formatDate((isQuotation ? invoice?.validUntil : invoice?.issueDate) || new Date(), language)}</p>
+            <p className={`mt-1 text-sm font-semibold ${titleText}`}>{formatDate((isQuotation ? invoice?.validUntil : invoice?.issueDate) || new Date(), language, tenant, isQuotation ? null : invoice)}</p>
           </div>
           <div>
             <p className={`text-xs ${mutedText}`}>{isPurchaseOrder || isQuotation || isSalesOrder ? (language === 'ar' ? 'نوع المستند' : 'Document Type') : (language === 'ar' ? 'التدفق' : 'Flow')}</p>

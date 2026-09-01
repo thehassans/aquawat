@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { formatZatcaQrTimestamp } from '../utils/zatcaTimestamp.js';
 
 /**
  * ZATCA Phase 2 QR Code Helper
@@ -81,12 +82,13 @@ function encodeTLVField(tag, value) {
  * @param {object} params
  * @param {string}  params.sellerName        - Arabic or English seller name
  * @param {string}  params.vatNumber         - 15-digit Saudi VAT registration number
- * @param {Date|string} params.invoiceDate   - Invoice timestamp
+ * @param {Date|string} params.invoiceDate   - Invoice date/time
+ * @param {string}  [params.issueTime]       - HH:mm:ss in Saudi local time
  * @param {number}  params.totalAmount       - Grand total including VAT
  * @param {number}  params.vatAmount         - VAT portion of the total
  * @returns {string} Base64-encoded TLMV payload suitable for a QR code
  */
-export function generateZatcaQr({ sellerName, vatNumber, invoiceDate, totalAmount, vatAmount }) {
+export function generateZatcaQr({ sellerName, vatNumber, invoiceDate, issueTime, totalAmount, vatAmount }) {
   if (!sellerName || !vatNumber || !invoiceDate || totalAmount == null || vatAmount == null) {
     throw new Error('generateZatcaQr: all parameters are required');
   }
@@ -96,10 +98,7 @@ export function generateZatcaQr({ sellerName, vatNumber, invoiceDate, totalAmoun
     throw new Error(`generateZatcaQr validation failed: ${validation.errors.join(', ')}`);
   }
 
-  // Format timestamp as ISO 8601 (ZATCA spec)
-  const timestamp = invoiceDate instanceof Date
-    ? invoiceDate.toISOString()
-    : new Date(invoiceDate).toISOString();
+  const timestamp = formatZatcaQrTimestamp(invoiceDate, issueTime);
 
   // Format amounts to 2 decimal places as strings (ZATCA spec)
   const totalStr = Number(totalAmount).toFixed(2);

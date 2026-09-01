@@ -16,6 +16,7 @@ import {
   sectionCardClass,
   sectionEyebrowClass,
 } from '../sales/salesUi'
+import { INVOICE_DATE_CALENDAR_OPTIONS, resolveInvoiceDateCalendar } from '../../lib/invoiceDateFormat'
 
 const saveBtnClass =
   'inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-40 dark:border-white/10 dark:bg-dark-800 dark:text-slate-100 dark:hover:bg-dark-700'
@@ -49,8 +50,13 @@ export default function InvoiceSettingsPage() {
   })
 
   useEffect(() => {
-    if (data) setForm(data)
-  }, [data])
+    if (!data && !tenantFresh) return
+    setForm((prev) => ({
+      ...prev,
+      ...(data || {}),
+      invoiceDateCalendar: resolveInvoiceDateCalendar(tenantFresh || tenant),
+    }))
+  }, [data, tenantFresh, tenant])
 
   useEffect(() => {
     if (!tenantFresh) return
@@ -111,6 +117,8 @@ export default function InvoiceSettingsPage() {
         }),
         api.put('/tenants/current', {
           settings: {
+            invoiceDateCalendar: form.invoiceDateCalendar || 'both',
+            useHijriDates: form.invoiceDateCalendar !== 'gregorian',
             termsAndConditions: form.invoiceDefaultTerms ?? '',
             notes: form.invoiceDefaultNotes ?? '',
             invoiceBranding: {
@@ -184,6 +192,23 @@ export default function InvoiceSettingsPage() {
             <option value="ordered">{isAr ? 'فوترة المطلوب' : 'Invoice what is ordered'}</option>
             <option value="delivered">{isAr ? 'فوترة المسلّم' : 'Invoice what is delivered'}</option>
           </select>
+        </div>
+        <div>
+          <label className={fieldLabelClass}>{isAr ? 'تقويم التاريخ على الفاتورة' : 'Invoice date calendar'}</label>
+          <select
+            className={fieldControlClass}
+            value={form.invoiceDateCalendar || resolveInvoiceDateCalendar(tenantFresh || tenant)}
+            onChange={(e) => set('invoiceDateCalendar', e.target.value)}
+          >
+            {INVOICE_DATE_CALENDAR_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{isAr ? opt.labelAr : opt.labelEn}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11px] text-slate-500">
+            {isAr
+              ? 'يظهر على PDF والمعاينة: ميلادي، هجري، أو كلاهما.'
+              : 'Shown on PDF and preview: Gregorian, Hijri, or both.'}
+          </p>
         </div>
         <div className="sm:col-span-2">
           <label className={fieldLabelClass}>{isAr ? 'الشروط والأحكام الافتراضية' : 'Default terms & conditions'}</label>

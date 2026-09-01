@@ -10,6 +10,7 @@ import { Calendar, Hash, User, Phone, MapPin, CreditCard, FileText, Mail, Info }
 import { getAmountInWords } from '../../lib/amountInWords'
 import { localizeSecondaryText, setActiveInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 import { getTaxIdLabel, getTaxQrLabel } from '../../lib/saudiTenant'
+import { formatInvoiceDateDisplay, resolveInvoiceDateCalendar } from '../../lib/invoiceDateFormat'
 import {
   getCommercialCounterpartyLabel,
   getCounterpartyFallbackName,
@@ -131,10 +132,12 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
   
   const formatDate = (dateString, locale = 'en-SA') => {
     if (!dateString) return '—'
-    return new Date(dateString).toLocaleDateString(locale, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
+    return formatInvoiceDateDisplay(dateString, {
+      mode: resolveInvoiceDateCalendar(tenant),
+      language: locale.startsWith('ar') ? 'ar' : 'en',
+      hijriValue: invoice?.issueDateHijri,
+      includeTime: false,
+      timeZone: tenant?.settings?.timezone || 'Asia/Riyadh',
     })
   }
 

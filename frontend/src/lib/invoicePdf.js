@@ -14,6 +14,7 @@ import { LETTERHEAD_TEMPLATE_ID, resolveQuotationTemplateId } from './invoiceTem
 import { formatProductTypeBilingual } from './productType'
 import { autoTranslateText } from './builtInTranslator'
 import { stripRichMarkup } from './formatRichText'
+import { formatInvoiceDateDisplay, resolveInvoiceDateCalendar } from './invoiceDateFormat'
 
 const sanitizeFileName = (value) => {
   return String(value || 'invoice')
@@ -770,8 +771,17 @@ const formatDateTime = (value, language) => {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'Asia/Riyadh',
   })
 }
+
+const formatInvoiceIssueDate = (invoice, tenant, language) => formatInvoiceDateDisplay(invoice?.issueDate, {
+  mode: resolveInvoiceDateCalendar(tenant),
+  language,
+  hijriValue: invoice?.issueDateHijri,
+  includeTime: true,
+  timeZone: tenant?.settings?.timezone || 'Asia/Riyadh',
+})
 
 const formatAddress = (address = {}) => {
   return [address?.street, address?.district, address?.city, address?.postalCode, address?.country]
@@ -1356,7 +1366,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
           : (isRtl ? 'رقم الفاتورة' : 'Invoice #'),
       v: resolveDocumentNumber(invoice, documentType),
     },
-    { k: isRtl ? 'التاريخ' : 'Date', v: formatDateTime(invoice.issueDate, language) },
+    { k: isRtl ? 'التاريخ' : 'Date', v: formatInvoiceIssueDate(invoice, tenant, language) },
     { k: isRtl ? 'المستند' : 'Document', v: invoiceEyebrow },
     {
       k: isRtl ? 'النوع / التدفق' : 'Type / Flow',

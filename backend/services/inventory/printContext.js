@@ -58,6 +58,7 @@ export async function getTransferPrintContext(tenantId, transferId) {
         sellerName,
         vatNumber,
         invoiceDate: invoice.issueDate || transfer.scheduledDate || new Date(),
+        issueTime: invoice.issueTime,
         totalAmount: invoice.grandTotal,
         vatAmount: invoice.totalTax,
       });
