@@ -92,46 +92,6 @@ async function applyResolvedPayment(invoice) {
   return invoice;
 }
 
-/** Prevent duplicate vendor bill references (supplier invoice numbers) per vendor. */
-async function assertUniquePurchaseBillReference({
-  tenantId,
-  supplierId,
-  contractNumber,
-  excludeId,
-  status,
-}) {
-  const ref = String(contractNumber || '').trim();
-  const vendorId = cleanObjectId(supplierId);
-  const st = String(status || '').toLowerCase();
-  const isDraftLike = ['draft', 'pending'].includes(st);
-  if (!ref) {
-    if (!isDraftLike) {
-      const err = new Error('Bill reference is required before posting a vendor bill');
-      err.code = 'BILL_REFERENCE_REQUIRED';
-      throw err;
-    }
-    return;
-  }
-  if (!vendorId) return;
-  const query = {
-    tenantId,
-    flow: 'purchase',
-    supplierId: vendorId,
-    contractNumber: ref,
-    status: { $ne: 'cancelled' },
-  };
-  if (excludeId) query._id = { $ne: excludeId };
-  const existing = await Invoice.findOne(query).select('_id invoiceNumber').lean();
-  if (existing) {
-    const err = new Error(
-      `Duplicate bill reference "${ref}" for this vendor (already on ${existing.invoiceNumber || existing._id})`
-    );
-    err.code = 'DUPLICATE_BILL_REFERENCE';
-    err.existingId = existing._id;
-    throw err;
-  }
-}
-
 async function postSellInvoiceLedgers(invoice, req, tenant) {
   if (
     invoice.flow === 'purchase' ||
@@ -1043,7 +1003,6 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
    const findQuery = Invoice.find(query)
         .select('-zatca.signedXml -zatca.qrCodeData -travelDetails.passengers -travelDetails.segments -searchText')
         .populate('createdBy', 'firstName lastName firstNameAr lastNameAr email')
-        .populate('originalInvoiceId', 'invoiceNumber flow invoiceType status')
         .sort({ issueDate: -1, _id: -1 })
         .limit(pageSize)
         .lean();
@@ -2432,19 +2391,6 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
       invoiceData.status = ['approved', 'pending', 'sent'].includes(String(invoiceData.status || '').toLowerCase())
         ? invoiceData.status
         : 'approved';
-      try {
-        await assertUniquePurchaseBillReference({
-          tenantId: req.user.tenantId,
-          supplierId: invoiceData.supplierId,
-          contractNumber: invoiceData.contractNumber,
-          status: invoiceData.status,
-        });
-      } catch (refErr) {
-        if (refErr.code === 'BILL_REFERENCE_REQUIRED' || refErr.code === 'DUPLICATE_BILL_REFERENCE') {
-          return res.status(409).json({ error: refErr.message, code: refErr.code });
-        }
-        throw refErr;
-      }
     }
 
     resolvePaymentStatus(invoiceData);
@@ -2597,20 +2543,6 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
           }
           throw matchErr;
         }
-      }
-      try {
-        await assertUniquePurchaseBillReference({
-          tenantId: req.user.tenantId,
-          supplierId: req.body.supplierId || invoice.supplierId,
-          contractNumber: req.body.contractNumber ?? invoice.contractNumber,
-          excludeId: invoice._id,
-          status: req.body.status || invoice.status,
-        });
-      } catch (refErr) {
-        if (refErr.code === 'BILL_REFERENCE_REQUIRED' || refErr.code === 'DUPLICATE_BILL_REFERENCE') {
-          return res.status(409).json({ error: refErr.message, code: refErr.code });
-        }
-        throw refErr;
       }
     }
     

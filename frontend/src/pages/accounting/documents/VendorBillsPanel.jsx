@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, Eye, Download } from 'lucide-react'
+import { Plus, Search, Eye, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../../lib/api'
 import Money from '../../../components/ui/Money'
@@ -22,7 +22,6 @@ import {
   emptyStateClass,
   fieldControlClass,
   filterBarClass,
-  filterControlClass,
   listShellClass,
   rowActionBtnClass,
   rowActionsWrapClass,
@@ -191,6 +190,12 @@ export default function VendorBillsPanel({ language = 'en' }) {
           </h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <ExportMenu
+            columns={exportColumns}
+            filename="vendor-bills"
+            getRows={() => Promise.resolve(selectedRows.length ? selectedRows : rows)}
+            label={isAr ? 'تصدير' : 'Export'}
+          />
           <button
             type="button"
             className="btn btn-secondary btn-sm"
@@ -198,39 +203,41 @@ export default function VendorBillsPanel({ language = 'en' }) {
             disabled={!selectedIds.size}
           >
             <Download className="h-4 w-4" />
-            {isAr ? 'تصدير SEPA' : 'SEPA export'}
+            {isAr ? 'SEPA' : 'SEPA export'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => navigate('/app/dashboard/accounting/invoices/new/purchase')}
+          >
+            <Plus className="h-4 w-4" />
+            {isAr ? 'فاتورة جديدة' : 'New bill'}
           </button>
         </div>
       </div>
 
       <div className={filterBarClass}>
-        <div className="relative min-w-[180px] flex-1">
+        <div className="relative min-w-[200px] flex-1">
           <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={isAr ? 'بحث…' : 'Search…'}
-            className={`${fieldControlClass} !py-2 ps-10`}
+            className={`${fieldControlClass} ps-10`}
           />
         </div>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={filterControlClass}>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={fieldControlClass}>
           <option value="">{isAr ? 'كل الحالات' : 'All statuses'}</option>
           <option value="draft">{isAr ? 'مسودة' : 'Draft'}</option>
           <option value="issued">{isAr ? 'مرحّلة' : 'Posted'}</option>
           <option value="cancelled">{isAr ? 'ملغاة' : 'Cancelled'}</option>
         </select>
-        <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} className={filterControlClass}>
+        <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} className={fieldControlClass}>
           <option value="">{isAr ? 'كل المدفوعات' : 'All payments'}</option>
           <option value="pending">{isAr ? 'غير مدفوعة' : 'Unpaid'}</option>
           <option value="partial">{isAr ? 'جزئي' : 'Partial'}</option>
           <option value="paid">{isAr ? 'مدفوعة' : 'Paid'}</option>
         </select>
-        <ExportMenu
-          columns={exportColumns}
-          filename="vendor-bills"
-          getRows={() => Promise.resolve(selectedRows.length ? selectedRows : rows)}
-          label={isAr ? 'تصدير' : 'Export'}
-        />
         {(productIdFilter || supplierIdFilter) ? (
           <button
             type="button"

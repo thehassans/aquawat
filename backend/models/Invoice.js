@@ -399,20 +399,6 @@ invoiceSchema.index({ tenantId: 1, flow: 1, status: 1, issueDate: -1 });
 invoiceSchema.index({ tenantId: 1, searchText: 1 });
 // Overdue job is platform-wide (no tenantId in the filter).
 invoiceSchema.index({ paymentStatus: 1, dueDate: 1, status: 1, flow: 1 });
-/** Unique vendor bill reference per supplier (AP duplicate-payment guard). */
-invoiceSchema.index(
-  { tenantId: 1, supplierId: 1, contractNumber: 1 },
-  {
-    unique: true,
-    name: 'uniq_purchase_bill_reference',
-    partialFilterExpression: {
-      flow: 'purchase',
-      status: { $ne: 'cancelled' },
-      contractNumber: { $type: 'string' },
-      supplierId: { $exists: true },
-    },
-  }
-);
 
 // Pre-save hook for Hijri dates
 invoiceSchema.pre('validate', function(next) {
