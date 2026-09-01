@@ -120,6 +120,7 @@ export const ACCOUNTING_MENU = [
       { href: `${A}/taxes`, labelEn: 'Taxes', labelAr: 'الضريبة' },
       { href: `${A}/journals-board`, labelEn: 'Journals', labelAr: 'دفاتر القيود' },
       { href: `${A}/payment-terms`, labelEn: 'Payment Terms', labelAr: 'شروط الدفع' },
+      { href: ACCOUNTING_PATH.invoiceSettings, labelEn: 'Invoice Settings', labelAr: 'إعدادات الفاتورة', end: true },
       { href: `${A}/follow-up-levels`, labelEn: 'Follow-up Levels', labelAr: 'مستويات المتابعة' },
       { href: `${A}/incoterms`, labelEn: 'Incoterms', labelAr: 'شروط التجارة الدولية' },
 
