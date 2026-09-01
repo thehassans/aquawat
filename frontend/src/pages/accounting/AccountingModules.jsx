@@ -8,6 +8,7 @@ import Money from '../../components/ui/Money'
 import VirtualTableBody from '../../components/ui/VirtualTableBody'
 import { ReportFilterRibbon, compareRange, variance } from './ReportFilterRibbon'
 import { ConfigPanelShell } from './ConfigPanelShell'
+import TaxConfigurationForm from './TaxConfigurationForm'
 import { CustomReportLinesSection } from './AccountingReportPanels'
 import { openPlaidLink } from './plaidLink'
 import { openSaltEdgeConnect } from './saltEdgeConnect'
@@ -1429,105 +1430,113 @@ export function JournalBooksPanel({ language }) {
 
 export function TaxesPanel({ language }) {
   const isAr = language === 'ar'
+  const queryClient = useQueryClient()
+  const [editingId, setEditingId] = useState(null)
   const [creating, setCreating] = useState(false)
-  const [draft, setDraft] = useState({
-    code: '', name: '', nameAr: '', rate: '15', type: 'sales', accountId: '',
-  })
+
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounting-accounts'],
     queryFn: () => api.get('/accounting/accounts').then((r) => r.data || []),
   })
-  const { data: taxes = [], refetch } = useQuery({
+  const { data: taxes = [], refetch, isFetching } = useQuery({
     queryKey: ['accounting-taxes'],
     queryFn: () => api.get('/accounting/taxes', { params: { active: 'false' } }).then((r) => r.data || []),
   })
-  const postable = (Array.isArray(accounts) ? accounts : []).filter((a) => a.isPostable !== false)
-
-  const create = useMutation({
-    mutationFn: () => api.post('/accounting/taxes', {
-      ...draft,
-      rate: Number(draft.rate),
-    }).then((r) => r.data),
-    onSuccess: () => {
-      setCreating(false)
-      setDraft({ code: '', name: '', nameAr: '', rate: '15', type: 'sales', accountId: '' })
-      refetch()
-    },
+  const { data: taxGroupsData } = useQuery({
+    queryKey: ['accounting-tax-groups'],
+    queryFn: () => api.get('/accounting/tax-groups').then((r) => r.data),
   })
+  const { data: editingTax, isFetching: loadingTax } = useQuery({
+    queryKey: ['accounting-tax', editingId],
+    queryFn: () => api.get(`/accounting/taxes/${editingId}`).then((r) => r.data),
+    enabled: Boolean(editingId),
+  })
+
   const ensure = useMutation({
     mutationFn: () => api.post('/accounting/taxes/ensure').then((r) => r.data),
-    onSuccess: () => refetch(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounting-taxes'] })
+      refetch()
+      toast.success(isAr ? 'تمت التعبئة' : 'Defaults seeded')
+    },
+  })
+  const create = useMutation({
+    mutationFn: (payload) => api.post('/accounting/taxes', payload).then((r) => r.data),
+    onSuccess: () => {
+      setCreating(false)
+      queryClient.invalidateQueries({ queryKey: ['accounting-taxes'] })
+      refetch()
+      toast.success(isAr ? 'تم إنشاء الضريبة' : 'Tax created')
+    },
+  })
+  const update = useMutation({
+    mutationFn: ({ id, payload }) => api.put(`/accounting/taxes/${id}`, payload).then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounting-taxes'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-tax', editingId] })
+      refetch()
+      toast.success(isAr ? 'تم الحفظ' : 'Saved')
+    },
   })
   const toggle = useMutation({
     mutationFn: ({ id, active }) => api.put(`/accounting/taxes/${id}`, { active }).then((r) => r.data),
     onSuccess: () => refetch(),
   })
 
+  const showForm = creating || editingId
+  const formTax = creating ? null : editingTax
+  const saveError = create.error?.response?.data?.error || update.error?.response?.data?.error
+
+  const computationShort = (m) => {
+    if (m === 'percent_included') return isAr ? 'شامل' : 'Incl.'
+    if (m === 'fixed') return isAr ? 'ثابت' : 'Fixed'
+    if (m === 'group') return isAr ? 'مجموعة' : 'Group'
+    return isAr ? 'نسبة' : '%'
+  }
+
   return (
     <ConfigPanelShell
       language={language}
       titleEn="Taxes"
       titleAr="الضرائب"
-      purposeEn="Link tax rates to chart accounts for VAT output and input posting."
-      purposeAr="ربط نسب الضريبة بحسابات الدليل لترحيل ضريبة المخرجات والمدخلات."
-      impactEn="Tax codes appear on invoices and feed tax reports, PDF groupings, and GL posting."
-      impactAr="رموز الضريبة تظهر على الفواتير وتغذي تقارير الضريبة وPDF والترحيل."
+      purposeEn="Configure tax rates, computation rules, GL distribution, and VAT return grid mapping."
+      purposeAr="إعداد نسب الضريبة وقواعد الحساب وتوزيع GL وربط شبكة الإقرار الضريبي."
+      impactEn="Tax codes drive invoice posting, PDF labels, POS lookup, and ZATCA VAT return grids."
+      impactAr="رموز الضريبة تحكم الترحيل والتسميات على PDF ونقاط البيع وشبكات ZATCA."
       actions={(
         <div className="flex gap-2">
           <button type="button" onClick={() => ensure.mutate()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">
             {ensure.isPending ? '…' : (isAr ? 'تعبئة الافتراضي' : 'Seed defaults')}
           </button>
-          <button type="button" onClick={() => setCreating((v) => !v)} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white">
+          <button
+            type="button"
+            onClick={() => { setCreating((v) => !v); setEditingId(null) }}
+            className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white"
+          >
             {creating ? (isAr ? 'إلغاء' : 'Cancel') : (isAr ? 'ضريبة جديدة' : 'New tax')}
           </button>
         </div>
       )}
     >
-
-      {creating ? (
-        <div className="grid gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800 sm:grid-cols-3">
-          {[
-            ['code', isAr ? 'الرمز' : 'Code'],
-            ['name', isAr ? 'الاسم' : 'Name'],
-            ['nameAr', isAr ? 'عربي' : 'Arabic'],
-            ['rate', isAr ? 'النسبة %' : 'Rate %'],
-          ].map(([key, label]) => (
-            <label key={key} className="text-xs font-medium text-slate-500">
-              {label}
-              <input
-                value={draft[key]}
-                onChange={(e) => setDraft((p) => ({ ...p, [key]: e.target.value }))}
-                className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
-              />
-            </label>
-          ))}
-          <label className="text-xs font-medium text-slate-500">
-            {isAr ? 'النوع' : 'Type'}
-            <select value={draft.type} onChange={(e) => setDraft((p) => ({ ...p, type: e.target.value }))} className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900">
-              <option value="sales">{isAr ? 'مبيعات' : 'Sales'}</option>
-              <option value="purchase">{isAr ? 'مشتريات' : 'Purchase'}</option>
-            </select>
-          </label>
-          <label className="text-xs font-medium text-slate-500">
-            {isAr ? 'الحساب' : 'Account'}
-            <select value={draft.accountId} onChange={(e) => setDraft((p) => ({ ...p, accountId: e.target.value }))} className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900">
-              <option value="">—</option>
-              {postable.map((a) => (
-                <option key={a._id} value={a._id}>{a.code} — {isAr ? (a.nameAr || a.name) : a.name}</option>
-              ))}
-            </select>
-          </label>
-          <div className="flex items-end">
-            <button
-              type="button"
-              disabled={!draft.code || !draft.name || !draft.accountId || create.isPending}
-              onClick={() => create.mutate()}
-              className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-            >
-              {create.isPending ? '…' : (isAr ? 'إنشاء' : 'Create')}
-            </button>
-          </div>
-        </div>
+      {showForm ? (
+        loadingTax && editingId ? (
+          <p className="text-xs text-slate-400">…</p>
+        ) : (
+          <TaxConfigurationForm
+            language={language}
+            tax={formTax}
+            accounts={accounts}
+            taxGroups={taxGroupsData?.groups || []}
+            allTaxes={taxes}
+            saving={create.isPending || update.isPending}
+            error={saveError}
+            onCancel={() => { setCreating(false); setEditingId(null) }}
+            onSave={(payload) => {
+              if (creating) create.mutate(payload)
+              else update.mutate({ id: editingId, payload })
+            }}
+          />
+        )
       ) : null}
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
@@ -1537,22 +1546,33 @@ export function TaxesPanel({ language }) {
               <th className="px-4 py-3 text-start">{isAr ? 'الرمز' : 'Code'}</th>
               <th className="px-4 py-3 text-start">{isAr ? 'الاسم' : 'Name'}</th>
               <th className="px-4 py-3 text-start">{isAr ? 'النوع' : 'Type'}</th>
+              <th className="px-4 py-3 text-start">{isAr ? 'طريقة الحساب' : 'Computation'}</th>
               <th className="px-4 py-3 text-end">{isAr ? 'النسبة' : 'Rate'}</th>
-              <th className="px-4 py-3 text-start">{isAr ? 'الحساب' : 'Account'}</th>
+              <th className="px-4 py-3 text-start">{isAr ? 'حساب GL' : 'Account'}</th>
               <th className="px-4 py-3 text-start">{isAr ? 'نشط' : 'Active'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-white/5">
             {(Array.isArray(taxes) ? taxes : []).map((tax) => (
-              <tr key={tax._id}>
-                <td className="px-4 py-3 font-semibold">{tax.code}</td>
-                <td className="px-4 py-3">{isAr ? (tax.nameAr || tax.name) : tax.name}</td>
-                <td className="px-4 py-3 text-slate-500">{tax.type}</td>
-                <td className="px-4 py-3 text-end tabular-nums">{tax.rate}%</td>
+              <tr
+                key={tax._id}
+                className={`cursor-pointer transition hover:bg-slate-50/80 dark:hover:bg-dark-900/40 ${editingId === tax._id ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : ''}`}
+                onClick={() => { setEditingId(tax._id); setCreating(false) }}
+              >
+                <td className="px-4 py-3 font-mono text-xs font-semibold">{tax.code}</td>
+                <td className="px-4 py-3">
+                  <p>{isAr ? (tax.nameAr || tax.name) : tax.name}</p>
+                  {tax.invoiceLabel ? <p className="text-[11px] text-slate-400">{tax.invoiceLabel}</p> : null}
+                </td>
+                <td className="px-4 py-3 text-slate-500">{tax.type}{tax.scope && tax.scope !== 'all' ? ` · ${tax.scope}` : ''}</td>
+                <td className="px-4 py-3 text-xs text-slate-500">{computationShort(tax.computationMethod)}{tax.includedInPrice ? ' · incl' : ''}</td>
+                <td className="px-4 py-3 text-end tabular-nums">
+                  {tax.computationMethod === 'fixed' ? `—` : `${tax.rate}%`}
+                </td>
                 <td className="px-4 py-3 text-xs text-slate-500">
                   {tax.accountId?.code || '—'} {tax.accountId?.name ? `— ${isAr ? (tax.accountId.nameAr || tax.accountId.name) : tax.accountId.name}` : ''}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <button
                     type="button"
                     className={`text-xs font-semibold ${tax.active !== false ? 'text-emerald-600' : 'text-slate-400'}`}
@@ -1565,6 +1585,7 @@ export function TaxesPanel({ language }) {
             ))}
           </tbody>
         </table>
+        {isFetching ? <p className="px-4 py-2 text-xs text-slate-400">…</p> : null}
       </div>
     </ConfigPanelShell>
   )
@@ -3169,6 +3190,7 @@ export function JournalsBoardPanel({ language }) {
 
 export function FirmClientsPanel({ language }) {
   const isAr = language === 'ar'
+  const queryClient = useQueryClient()
   const [searchQ, setSearchQ] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
   const { data, refetch } = useQuery({
@@ -3189,7 +3211,22 @@ export function FirmClientsPanel({ language }) {
 
   const enable = useMutation({
     mutationFn: () => api.post('/accounting/firm/enable').then((r) => r.data),
-    onSuccess: () => refetch(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounting-firm-clients'] })
+      refetch()
+    },
+  })
+  const disable = useMutation({
+    mutationFn: () => api.post('/accounting/firm/disable').then((r) => r.data),
+    onSuccess: (payload) => {
+      if (payload?.token) {
+        localStorage.setItem('token', payload.token)
+        window.location.reload()
+        return
+      }
+      queryClient.invalidateQueries({ queryKey: ['accounting-firm-clients'] })
+      refetch()
+    },
   })
   const link = useMutation({
     mutationFn: (clientTenantId) => api.post('/accounting/firm/clients', { clientTenantId }).then((r) => r.data),
@@ -3229,10 +3266,30 @@ export function FirmClientsPanel({ language }) {
               {enable.isPending ? '…' : (isAr ? 'تفعيل وضع المكتب' : 'Enable firm mode')}
             </button>
           ) : (
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-              {isAr ? 'مفعّل' : 'Enabled'}
-              {data?.home?.name ? ` · ${data.home.name}` : ''}
-            </span>
+            <button
+              type="button"
+              onClick={() => {
+                if ((data?.clients || []).length > 0) {
+                  const msg = isAr
+                    ? 'سيتم إلغاء ربط جميع عملاء المكتب. هل تريد المتابعة؟'
+                    : 'All linked firm clients will be unlinked. Continue?'
+                  if (!window.confirm(msg)) return
+                }
+                disable.mutate()
+              }}
+              disabled={disable.isPending}
+              className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
+              title={isAr ? 'انقر لإيقاف وضع المكتب' : 'Click to disable firm mode'}
+            >
+              {disable.isPending
+                ? (isAr ? 'جاري الإيقاف…' : 'Disabling…')
+                : (
+                  <>
+                    {isAr ? 'مفعّل' : 'Enabled'}
+                    {data?.home?.name ? ` · ${data.home.name}` : ''}
+                  </>
+                )}
+            </button>
           )}
           {data?.home && String(data.activeTenantId) !== String(data.home._id) ? (
             <button type="button" onClick={() => switchTo.mutate(data.home._id)} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">
@@ -3281,9 +3338,9 @@ export function FirmClientsPanel({ language }) {
             </div>
           ) : null}
         </div>
-        {(enable.isError || link.isError || switchTo.isError) ? (
+        {(enable.isError || disable.isError || link.isError || switchTo.isError) ? (
           <p className="mt-2 text-xs text-rose-600">
-            {enable.error?.response?.data?.error || link.error?.response?.data?.error || switchTo.error?.response?.data?.error}
+            {enable.error?.response?.data?.error || disable.error?.response?.data?.error || link.error?.response?.data?.error || switchTo.error?.response?.data?.error}
           </p>
         ) : null}
       </div>

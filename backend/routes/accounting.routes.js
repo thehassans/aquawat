@@ -19,6 +19,7 @@ import {
   ensureAccountingDefaults,
   DEFAULT_ACCOUNT_KEYS,
   listTaxes,
+  getTaxById,
   createTax,
   updateTax,
   ensureDefaultTaxes,
@@ -103,6 +104,7 @@ import {
 } from '../services/accountingService.js';
 import {
   enableAccountingFirmMode,
+  disableAccountingFirmMode,
   listFirmClients,
   linkFirmClient,
   unlinkFirmClient,
@@ -1248,6 +1250,14 @@ router.get('/taxes', checkPermission('finance', 'read'), async (req, res) => {
   }
 });
 
+router.get('/taxes/:id', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getTaxById(tenantIdOf(req), req.params.id));
+  } catch (error) {
+    res.status(error.message === 'Tax not found' ? 404 : 500).json({ error: error.message });
+  }
+});
+
 router.post('/taxes', checkPermission('finance', 'create'), async (req, res) => {
   try {
     const tax = await createTax(tenantIdOf(req), req.user._id, req.body);
@@ -1616,6 +1626,14 @@ router.get('/firm/tenants/search', checkPermission('finance', 'approve'), async 
 router.post('/firm/enable', checkPermission('finance', 'approve'), async (req, res) => {
   try {
     res.json(await enableAccountingFirmMode(tenantIdOf(req), req.user._id));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/firm/disable', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await disableAccountingFirmMode(tenantIdOf(req), req.user._id));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

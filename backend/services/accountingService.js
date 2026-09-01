@@ -311,6 +311,17 @@ export async function ensureDefaultTaxes(tenantId, userId = null) {
       rate: 15,
       type: 'sales',
       accountId: salesAcct?._id,
+      scope: 'all',
+      computationMethod: 'percent_excluded',
+      invoiceLabel: 'VAT 15%',
+      taxGroupCode: 'VAT_STD',
+      country: 'SA',
+      distributionInvoices: {
+        taxLine: { percentOfTax: 100, taxGrid: 'sales_standard_rated' },
+      },
+      distributionRefunds: {
+        taxLine: { percentOfTax: 100, taxGrid: 'sales_standard_rated' },
+      },
     },
     {
       code: 'VAT15-IN',
@@ -319,6 +330,17 @@ export async function ensureDefaultTaxes(tenantId, userId = null) {
       rate: 15,
       type: 'purchase',
       accountId: purchaseAcct?._id,
+      scope: 'all',
+      computationMethod: 'percent_excluded',
+      invoiceLabel: 'VAT 15%',
+      taxGroupCode: 'VAT_STD',
+      country: 'SA',
+      distributionInvoices: {
+        taxLine: { percentOfTax: 100, taxGrid: 'purchases_standard_rated' },
+      },
+      distributionRefunds: {
+        taxLine: { percentOfTax: 100, taxGrid: 'purchases_standard_rated' },
+      },
     },
   ];
 
@@ -351,15 +373,108 @@ export async function listTaxes(tenantId, { type = null, activeOnly = true } = {
   if (activeOnly) filter.active = { $ne: false };
   return Tax.find(filter)
     .populate('accountId', 'code name nameAr')
+    .populate('childTaxIds', 'code name nameAr rate type')
+    .populate('distributionInvoices.baseLine.accountId', 'code name nameAr')
+    .populate('distributionInvoices.taxLine.accountId', 'code name nameAr')
+    .populate('distributionRefunds.baseLine.accountId', 'code name nameAr')
+    .populate('distributionRefunds.taxLine.accountId', 'code name nameAr')
     .sort({ type: 1, rate: 1, code: 1 })
     .lean();
+}
+
+export async function getTaxById(tenantId, taxId) {
+  await ensureDefaultTaxes(tenantId);
+  const Tax = (await import('../models/Tax.js')).default;
+  const tax = await Tax.findOne({ _id: taxId, tenantId })
+    .populate('accountId', 'code name nameAr')
+    .populate('childTaxIds', 'code name nameAr rate type active')
+    .populate('distributionInvoices.baseLine.accountId', 'code name nameAr')
+    .populate('distributionInvoices.taxLine.accountId', 'code name nameAr')
+    .populate('distributionRefunds.baseLine.accountId', 'code name nameAr')
+    .populate('distributionRefunds.taxLine.accountId', 'code name nameAr')
+    .lean();
+  if (!tax) throw new Error('Tax not found');
+  return tax;
+}
+
+function normalizeTaxType(value) {
+  if (value === 'purchase') return 'purchase';
+  if (value === 'none') return 'none';
+  return 'sales';
+}
+
+function normalizeDistributionLine(line = {}, defaults = {}) {
+  const out = {
+    percentOfBase: defaults.percentOfBase ?? 100,
+    percentOfTax: defaults.percentOfTax ?? 100,
+    accountId: defaults.accountId ?? null,
+    taxGrid: '',
+  };
+  if (line.percentOfBase !== undefined && line.percentOfBase !== null) {
+    out.percentOfBase = Number(line.percentOfBase);
+  }
+  if (line.percentOfTax !== undefined && line.percentOfTax !== null) {
+    out.percentOfTax = Number(line.percentOfTax);
+  }
+  if (line.accountId !== undefined) {
+    out.accountId = line.accountId || null;
+  }
+  if (line.taxGrid !== undefined) {
+    out.taxGrid = String(line.taxGrid || '').trim();
+  }
+  return out;
+}
+
+function normalizeDistributionBlock(block = {}, accountId = null) {
+  return {
+    baseLine: normalizeDistributionLine(block.baseLine, { percentOfBase: 100, percentOfTax: 0, accountId: null }),
+    taxLine: normalizeDistributionLine(block.taxLine, { percentOfBase: 0, percentOfTax: 100, accountId }),
+  };
+}
+
+function applyTaxPayloadFields(tax, payload = {}, { isCreate = false } = {}) {
+  if (isCreate || payload.code !== undefined) {
+    tax.code = String(payload.code || tax.code || '').trim().toUpperCase();
+  }
+  if (payload.name !== undefined) tax.name = String(payload.name).trim();
+  if (payload.nameAr !== undefined) tax.nameAr = String(payload.nameAr || '').trim();
+  if (payload.rate !== undefined) tax.rate = Number(payload.rate);
+  if (payload.amount !== undefined) {
+    tax.amount = payload.amount === null || payload.amount === '' ? null : Number(payload.amount);
+  }
+  if (payload.scope !== undefined) {
+    tax.scope = ['goods', 'services'].includes(payload.scope) ? payload.scope : 'all';
+  }
+  if (payload.computationMethod !== undefined) {
+    const allowed = ['percent_excluded', 'percent_included', 'fixed', 'group'];
+    tax.computationMethod = allowed.includes(payload.computationMethod)
+      ? payload.computationMethod
+      : 'percent_excluded';
+  }
+  if (payload.includedInPrice !== undefined) tax.includedInPrice = Boolean(payload.includedInPrice);
+  if (payload.invoiceLabel !== undefined) tax.invoiceLabel = String(payload.invoiceLabel || '').trim();
+  if (payload.taxGroupCode !== undefined) tax.taxGroupCode = String(payload.taxGroupCode || '').trim().toUpperCase();
+  if (payload.subsequentTaxBase !== undefined) tax.subsequentTaxBase = Boolean(payload.subsequentTaxBase);
+  if (payload.country !== undefined) tax.country = String(payload.country || 'SA').trim().toUpperCase();
+  if (payload.childTaxIds !== undefined) tax.childTaxIds = Array.isArray(payload.childTaxIds) ? payload.childTaxIds : [];
+  if (payload.active !== undefined) tax.active = Boolean(payload.active);
+  if (payload.accountId !== undefined) tax.accountId = payload.accountId;
+  if (payload.distributionInvoices !== undefined) {
+    tax.distributionInvoices = normalizeDistributionBlock(payload.distributionInvoices, tax.accountId);
+  }
+  if (payload.distributionRefunds !== undefined) {
+    tax.distributionRefunds = normalizeDistributionBlock(payload.distributionRefunds, tax.accountId);
+  }
+  if (payload.type !== undefined && (!tax.isSystem || isCreate)) {
+    tax.type = normalizeTaxType(payload.type);
+  }
 }
 
 export async function createTax(tenantId, userId, payload = {}) {
   const Tax = (await import('../models/Tax.js')).default;
   const code = String(payload.code || '').trim().toUpperCase();
   const name = String(payload.name || '').trim();
-  const type = payload.type === 'purchase' ? 'purchase' : 'sales';
+  const type = normalizeTaxType(payload.type);
   const rate = Number(payload.rate);
   const accountId = payload.accountId;
   if (!code || !name) throw new Error('code and name required');
@@ -367,7 +482,8 @@ export async function createTax(tenantId, userId, payload = {}) {
   if (!accountId) throw new Error('accountId required');
   const existing = await Tax.findOne({ tenantId, code });
   if (existing) throw new Error('Tax code already exists');
-  return Tax.create({
+
+  const tax = new Tax({
     tenantId,
     code,
     name,
@@ -378,23 +494,19 @@ export async function createTax(tenantId, userId, payload = {}) {
     active: payload.active !== false,
     createdBy: userId || undefined,
   });
+  applyTaxPayloadFields(tax, payload, { isCreate: true });
+  await tax.save();
+  return getTaxById(tenantId, tax._id);
 }
 
 export async function updateTax(tenantId, userId, taxId, patch = {}) {
   const Tax = (await import('../models/Tax.js')).default;
   const tax = await Tax.findOne({ _id: taxId, tenantId });
   if (!tax) throw new Error('Tax not found');
-  if (patch.name !== undefined) tax.name = String(patch.name).trim();
-  if (patch.nameAr !== undefined) tax.nameAr = String(patch.nameAr || '').trim();
-  if (patch.rate !== undefined) tax.rate = Number(patch.rate);
-  if (patch.accountId !== undefined) tax.accountId = patch.accountId;
-  if (patch.active !== undefined) tax.active = Boolean(patch.active);
-  if (patch.type !== undefined && !tax.isSystem) {
-    tax.type = patch.type === 'purchase' ? 'purchase' : 'sales';
-  }
+  applyTaxPayloadFields(tax, patch);
   tax.updatedBy = userId || undefined;
   await tax.save();
-  return tax;
+  return getTaxById(tenantId, tax._id);
 }
 
 /** Default tax ObjectId for sales or purchase (system VAT 15% preferred). */
@@ -6728,6 +6840,7 @@ export default {
   ensureDefaultChartOfAccounts,
   ensureDefaultTaxes,
   listTaxes,
+  getTaxById,
   createTax,
   updateTax,
   resolveDefaultTaxId,

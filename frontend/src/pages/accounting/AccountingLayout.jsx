@@ -218,7 +218,7 @@ export default function AccountingLayout() {
                 {isAr ? 'عملاء وموردون ودفتر وتقارير' : 'Customers, vendors, ledger, and reports'}
               </p>
             </div>
-            {(firmData?.firmMode || (firmData?.clients || []).length > 0) ? (
+            {firmData?.firmMode ? (
               <label className="ms-2 hidden text-[10px] font-medium uppercase tracking-wide text-slate-400 sm:block">
                 {isAr ? 'دفاتر العميل' : 'Client books'}
                 <select

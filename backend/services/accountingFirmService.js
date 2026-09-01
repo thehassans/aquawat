@@ -59,6 +59,46 @@ export async function enableAccountingFirmMode(tenantId, userId) {
   };
 }
 
+/** Disable Accounting Firms Mode on the home tenant and unlink all clients. */
+export async function disableAccountingFirmMode(tenantId, userId) {
+  const homeId = toId(tenantId);
+  const tenant = await Tenant.findById(homeId);
+  if (!tenant) throw new Error('Tenant not found');
+
+  await Tenant.updateMany(
+    { accountingFirmTenantId: homeId },
+    { $set: { accountingFirmTenantId: null } },
+  );
+
+  tenant.accountingFirmMode = false;
+  await tenant.save();
+
+  let token = null;
+  const user = await User.findById(userId);
+  if (user) {
+    user.accessibleTenantIds = [homeId];
+    const switchedBack = String(user.tenantId) !== String(homeId);
+    if (switchedBack) {
+      user.tenantId = homeId;
+    }
+    await user.save();
+    await invalidateAuthCache(user._id, homeId);
+
+    if (switchedBack && process.env.JWT_SECRET) {
+      token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+        expiresIn: process.env.JWT_EXPIRE || '7d',
+      });
+    }
+  }
+
+  return {
+    tenantId: tenant._id,
+    accountingFirmMode: false,
+    name: tenant.name,
+    token,
+  };
+}
+
 export async function listFirmClients(user) {
   const homeId = firmHomeOf(user);
   if (!homeId) return { firmMode: false, home: null, clients: [] };
@@ -293,6 +333,7 @@ export async function switchFirmClient(user, targetTenantId) {
 
 export default {
   enableAccountingFirmMode,
+  disableAccountingFirmMode,
   listFirmClients,
   linkFirmClient,
   unlinkFirmClient,
