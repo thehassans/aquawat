@@ -337,6 +337,7 @@ export default function InvoiceSettingsPage() {
         appearance={appearance}
         onChange={onAppearanceChange}
         previewTenant={previewTenant}
+        showTaglines
         titleEn="Invoice appearance"
         titleAr="مظهر الفاتورة"
       />
