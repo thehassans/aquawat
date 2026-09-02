@@ -773,6 +773,34 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   }, [incotermsCatalog])
 
   const isInvoicePosted = isEdit && initialInvoice && !['draft', 'pending'].includes(String(initialInvoice.status || ''))
+  const originalTransactionType = initialInvoice?.transactionType === 'B2C' ? 'B2C' : 'B2B'
+  const transactionTypeDirty = isEdit && invoiceType !== originalTransactionType
+
+  const saveTransactionTypeOnly = () => {
+    if (invoiceType === 'B2B' && invoiceSubtype !== 'travel_ticket') {
+      const buyerErrs = {}
+      if (!String(getValues('buyer.name') || '').trim()) buyerErrs.name = { type: 'required' }
+      if (!String(getValues('buyer.vatNumber') || '').trim()) buyerErrs.vatNumber = { type: 'required' }
+      if (!String(getValues('buyer.crNumber') || '').trim()) buyerErrs.crNumber = { type: 'required' }
+      if (Object.keys(buyerErrs).length) {
+        toast.error(describeSellFormErrors({ buyer: buyerErrs }, language, selectedCustomer))
+        return
+      }
+    }
+    if (invoiceType === 'B2C' && !String(getValues('buyer.name') || '').trim()) {
+      setValue(
+        'buyer.name',
+        selectedCustomer?.name || selectedCustomer?.nameEn || 'Cash Customer',
+        { shouldValidate: false },
+      )
+    }
+    saveMutation.mutate({
+      transactionType: invoiceType,
+      invoiceTypeCode: invoiceType === 'B2C' ? '0200000' : '0100000',
+      buyer: getValues('buyer'),
+      customerId: getValues('customerId') || undefined,
+    })
+  }
 
   const { data: sellOrdersRaw = [] } = useQuery({
     queryKey: ['sell-orders', 'invoice-fill'],
@@ -1602,6 +1630,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   <Save className="h-3.5 w-3.5" />
                   {language === 'ar' ? 'تأكيد / ترحيل' : 'Confirm / Post'}
                 </button>
+              ) : transactionTypeDirty ? (
+                <button
+                  type="button"
+                  className={primaryActionClass}
+                  onClick={saveTransactionTypeOnly}
+                  disabled={saveMutation.isPending}
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  {language === 'ar' ? 'حفظ B2B / B2C' : 'Save B2B / B2C'}
+                </button>
               ) : null}
               {isInvoicePosted && canRegisterPaymentOnInvoice(initialInvoice) ? (
                 <button
@@ -1652,7 +1690,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           onSubmit={(e) => {
             e.preventDefault()
             if (isInvoicePosted) {
-              toast.error(language === 'ar' ? 'الفاتورة مرحّلة — للعرض فقط' : 'Posted invoice is read-only')
+              saveTransactionTypeOnly()
               return
             }
             const lines = getValues('lineItems') || []
@@ -1697,7 +1735,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         >
           {isInvoicePosted ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
-              {language === 'ar' ? 'فاتورة مرحّلة — التعديل مقفل (عرض وبنود القيد فقط).' : 'Posted invoice — editing is locked (view and journal items only).'}
+              {language === 'ar'
+                ? 'فاتورة مرحّلة — البنود مقفلة، ويمكنك تغيير B2B / B2C ثم الحفظ.'
+                : 'Posted invoice — lines are locked; you can still switch B2B / B2C and save.'}
             </div>
           ) : null}
           <div className={`${sectionCardClass} !p-3 space-y-2`}>
@@ -1725,10 +1765,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               </div>
 
               <div className={segmentWrapClass}>
-                <button type="button" disabled={isInvoicePosted} onClick={() => applyTransactionType('B2B')} className={segmentBtnClass(invoiceType === 'B2B')}>
+                <button type="button" onClick={() => applyTransactionType('B2B')} className={segmentBtnClass(invoiceType === 'B2B')}>
                   B2B
                 </button>
-                <button type="button" disabled={isInvoicePosted} onClick={() => applyTransactionType('B2C')} className={segmentBtnClass(invoiceType === 'B2C')}>
+                <button type="button" onClick={() => applyTransactionType('B2C')} className={segmentBtnClass(invoiceType === 'B2C')}>
                   B2C
                 </button>
               </div>
@@ -1800,6 +1840,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               <input type="datetime-local" {...register('issueDate')} className={`mt-1 max-w-sm ${fieldControlClass}`} />
             </div>
           )}
+          </fieldset>
 
           <div className={`${sectionCardClass} space-y-2.5 !p-3.5`}>
             <div className="flex items-center justify-between gap-3">
@@ -1819,8 +1860,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               ar={language === 'ar'}
               language={language}
               onChange={onSelectCustomer}
-              showNewButton={!isInvoicePosted}
-              disabled={isInvoicePosted}
+              showNewButton
             />
             {selectedCustomer?._id ? (
               <CustomerSummaryCard
@@ -1830,7 +1870,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   const returnTo = `${window.location.pathname}${window.location.search}`
                   navigate(`/app/dashboard/customers/${selectedCustomer._id}?returnTo=${encodeURIComponent(returnTo)}`)
                 }}
-                onClear={isInvoicePosted ? undefined : () => onSelectCustomer('', null)}
+                onClear={() => onSelectCustomer('', null)}
               />
             ) : (
               <p className="text-[11px] text-slate-400">
@@ -1884,6 +1924,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 </div>
               </div>
             ) : null}
+          </div>
+
+          <fieldset disabled={isInvoicePosted} className="min-w-0 space-y-2.5 border-0 p-0 m-0 disabled:opacity-60">
+            <div className={`${sectionCardClass} space-y-2.5 !p-3.5 !pt-0`}>
             <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2 dark:border-white/5 dark:bg-white/[0.02]">
               <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
                 {language === 'ar' ? 'أمر البيع' : 'Sales order'}

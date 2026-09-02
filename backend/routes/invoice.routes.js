@@ -2507,9 +2507,50 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
     
     const tenant = await Tenant.findById(req.user.tenantId);
     const isPhase1 = tenant?.zatca?.phase === 1;
-    
-    if (!isPhase1 && (!['draft', 'pending'].includes(invoice.status) || invoice.zatca?.signedXml)) {
-      return res.status(400).json({ error: 'Only unsigned draft or pending invoices can be modified' });
+    const isFullyEditable = isPhase1
+      || (['draft', 'pending'].includes(invoice.status) && !invoice.zatca?.signedXml);
+
+    // Posted / signed invoices: allow B2B ↔ B2C (+ buyer identity) only
+    if (!isFullyEditable) {
+      const nextType = req.body.transactionType === 'B2B' ? 'B2B' : (req.body.transactionType === 'B2C' ? 'B2C' : null);
+      if (!nextType) {
+        return res.status(400).json({ error: 'Only unsigned draft or pending invoices can be modified' });
+      }
+
+      invoice.transactionType = nextType;
+      invoice.invoiceTypeCode = req.body.invoiceTypeCode
+        || (nextType === 'B2C' ? '0200000' : '0100000');
+
+      if (req.body.buyer && typeof req.body.buyer === 'object') {
+        invoice.buyer = { ...(invoice.buyer?.toObject?.() || invoice.buyer || {}), ...req.body.buyer };
+      }
+      if (req.body.customerId !== undefined) {
+        invoice.customerId = cleanObjectId(req.body.customerId) || null;
+      }
+
+      if (invoice.flow === 'sell' && nextType === 'B2B') {
+        const buyer = invoice.buyer || {};
+        const { assertB2bInvoiceReady } = await import('../services/sales/creditLimit.js');
+        const b2b = assertB2bInvoiceReady({
+          ...buyer,
+          isCompany: true,
+          entityType: 'business',
+          name: buyer.name || buyer.nameEn,
+          address: buyer.address,
+          vatNumber: buyer.vatNumber,
+          crNumber: buyer.crNumber,
+        });
+        if (!b2b.ok) {
+          return res.status(400).json({ error: b2b.error, code: b2b.code, missing: b2b.missing });
+        }
+      }
+
+      await invoice.save();
+      if (isZatcaCurrency(tenant) && !invoice.zatca?.signedXml) {
+        await attachDraftQr(invoice, invoice.seller || tenant.business, tenant);
+      }
+      afterInvoiceWrite(invoice, { userId: req.user._id });
+      return res.json(invoice);
     }
     
     if (req.body.lineItems) {
