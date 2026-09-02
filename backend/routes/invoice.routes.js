@@ -2558,6 +2558,29 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
     }
 
     Object.assign(invoice, req.body);
+
+    // Allow B2B ↔ B2C while draft/pending; enforce identity only when saving as B2B
+    if (
+      invoice.flow === 'sell'
+      && String(invoice.transactionType || req.body.transactionType || '') === 'B2B'
+      && ['draft', 'pending'].includes(String(invoice.status || ''))
+    ) {
+      const buyer = invoice.buyer || {};
+      const { assertB2bInvoiceReady } = await import('../services/sales/creditLimit.js');
+      const b2b = assertB2bInvoiceReady({
+        ...buyer,
+        isCompany: true,
+        entityType: 'business',
+        name: buyer.name || buyer.nameEn,
+        address: buyer.address,
+        vatNumber: buyer.vatNumber,
+        crNumber: buyer.crNumber,
+      });
+      if (!b2b.ok) {
+        return res.status(400).json({ error: b2b.error, code: b2b.code, missing: b2b.missing });
+      }
+    }
+
     await invoice.save();
     if (isZatcaCurrency(tenant) && !invoice.zatca?.signedXml) {
       await attachDraftQr(invoice, invoice.seller || tenant.business, tenant);

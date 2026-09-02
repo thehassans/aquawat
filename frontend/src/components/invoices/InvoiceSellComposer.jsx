@@ -649,10 +649,27 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     replace(mapSellLineItems(initialInvoice))
   }, [fields.length, initialInvoice, isEdit, replace])
 
+  const applyTransactionType = (nextType) => {
+    const type = nextType === 'B2C' ? 'B2C' : 'B2B'
+    setInvoiceType(type)
+    setValue('transactionType', type, { shouldDirty: true })
+    setValue('invoiceTypeCode', type === 'B2B' ? '0100000' : '0200000', { shouldDirty: true })
+    if (type === 'B2C') {
+      clearErrors(['buyer.name', 'buyer.vatNumber', 'buyer.crNumber'])
+      if (!String(getValues('buyer.name') || '').trim()) {
+        setValue(
+          'buyer.name',
+          selectedCustomer?.name || selectedCustomer?.nameEn || 'Cash Customer',
+          { shouldValidate: false },
+        )
+      }
+    }
+  }
+
   useEffect(() => {
+    setValue('transactionType', invoiceType)
+    setValue('invoiceTypeCode', invoiceType === 'B2B' ? '0100000' : '0200000')
     if (isTravelContext) {
-      setValue('transactionType', invoiceType)
-      setValue('invoiceTypeCode', invoiceType === 'B2B' ? '0100000' : '0200000')
       if (invoiceSubtype !== 'travel_ticket') {
         setValue('invoiceSubtype', 'travel_ticket')
       }
@@ -1645,16 +1662,23 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               return
             }
             const runSubmit = () => {
+              clearErrors(['buyer.name', 'buyer.vatNumber', 'buyer.crNumber'])
               if (invoiceType === 'B2C') {
-                clearErrors('buyer.vatNumber')
-                clearErrors('buyer.crNumber')
-                clearErrors('buyer.name')
                 if (!String(getValues('buyer.name') || '').trim()) {
                   setValue(
                     'buyer.name',
                     selectedCustomer?.name || selectedCustomer?.nameEn || 'Cash Customer',
                     { shouldValidate: false },
                   )
+                }
+              } else if (invoiceSubtype !== 'travel_ticket') {
+                const buyerErrs = {}
+                if (!String(getValues('buyer.name') || '').trim()) buyerErrs.name = { type: 'required' }
+                if (!String(getValues('buyer.vatNumber') || '').trim()) buyerErrs.vatNumber = { type: 'required' }
+                if (!String(getValues('buyer.crNumber') || '').trim()) buyerErrs.crNumber = { type: 'required' }
+                if (Object.keys(buyerErrs).length) {
+                  toast.error(describeSellFormErrors({ buyer: buyerErrs }, language, selectedCustomer))
+                  return
                 }
               }
               handleSubmit(
@@ -1701,10 +1725,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               </div>
 
               <div className={segmentWrapClass}>
-                <button type="button" disabled={isInvoicePosted} onClick={() => setInvoiceType('B2B')} className={segmentBtnClass(invoiceType === 'B2B')}>
+                <button type="button" disabled={isInvoicePosted} onClick={() => applyTransactionType('B2B')} className={segmentBtnClass(invoiceType === 'B2B')}>
                   B2B
                 </button>
-                <button type="button" disabled={isInvoicePosted} onClick={() => setInvoiceType('B2C')} className={segmentBtnClass(invoiceType === 'B2C')}>
+                <button type="button" disabled={isInvoicePosted} onClick={() => applyTransactionType('B2C')} className={segmentBtnClass(invoiceType === 'B2C')}>
                   B2C
                 </button>
               </div>
@@ -1817,10 +1841,12 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             )}
             <input type="hidden" {...register('customerId')} />
             {/* Party data lives on the contact — kept as hidden for submit/ZATCA */}
-            <input type="hidden" {...register('buyer.name', { required: invoiceType === 'B2B' && invoiceSubtype !== 'travel_ticket' })} />
+            <input type="hidden" {...register('buyer.name')} />
             <input type="hidden" {...register('buyer.nameAr')} />
-            <input type="hidden" {...register('buyer.vatNumber', { required: invoiceType === 'B2B' && invoiceSubtype !== 'travel_ticket' })} />
-            <input type="hidden" {...register('buyer.crNumber', { required: invoiceType === 'B2B' && invoiceSubtype !== 'travel_ticket' })} />
+            <input type="hidden" {...register('buyer.vatNumber')} />
+            <input type="hidden" {...register('buyer.crNumber')} />
+            <input type="hidden" {...register('transactionType')} />
+            <input type="hidden" {...register('invoiceTypeCode')} />
             <input type="hidden" {...register('buyer.contactPhone')} />
             <input type="hidden" {...register('buyer.contactEmail')} />
             <input type="hidden" {...register('buyer.address.city')} />
