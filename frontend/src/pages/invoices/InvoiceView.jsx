@@ -25,6 +25,7 @@ import AccountingDocumentShell from '../../components/accounting/AccountingDocum
 import RegisterPaymentModal from '../../components/accounting/RegisterPaymentModal'
 import CreditNoteFromInvoiceModal from '../../components/accounting/CreditNoteFromInvoiceModal'
 import VendorRefundFromBillModal from '../../components/accounting/VendorRefundFromBillModal'
+import CancelInvoiceModal from '../../components/accounting/CancelInvoiceModal'
 import {
   BILL_STATUS_STEPS,
   canCancelInvoice,
@@ -91,6 +92,7 @@ export default function InvoiceView() {
   const [printModalOpen, setPrintModalOpen] = useState(false)
   const [payOpen, setPayOpen] = useState(false)
   const [cnModalOpen, setCnModalOpen] = useState(false)
+  const [cancelOpen, setCancelOpen] = useState(false)
   const invoicePreviewRef = useRef(null)
   const printModalRef = useRef(null)
 
@@ -253,9 +255,11 @@ export default function InvoiceView() {
     mutationFn: (reason) => api.post(`/invoices/${id}/cancel`, { reason }),
     onSuccess: () => {
       toast.success(language === 'ar' ? 'تم إلغاء الفاتورة' : 'Invoice cancelled')
+      setCancelOpen(false)
       queryClient.invalidateQueries(['invoices'])
       queryClient.invalidateQueries(['invoice', id])
       queryClient.invalidateQueries(['customers'])
+      queryClient.invalidateQueries(['vendor-bills'])
     },
     onError: (error) => {
       toast.error(error.response?.data?.error || (language === 'ar' ? 'فشل الإلغاء' : 'Cancel failed'))
@@ -275,24 +279,6 @@ export default function InvoiceView() {
     ? VENDOR_REFUND_STATUS_STEPS
     : (isCreditNote ? CREDIT_NOTE_STATUS_STEPS : (isPurchaseBill ? BILL_STATUS_STEPS : INVOICE_STATUS_STEPS))
   const paymentCount = Array.isArray(invoice?.payments) ? invoice.payments.length : 0
-
-  const requestCancelInvoice = () => {
-    const promptMsg = language === 'ar'
-      ? 'سبب إلغاء الفاتورة (مطلوب):'
-      : 'Reason for cancelling this invoice (required):'
-    const reason = window.prompt(promptMsg, '')
-    if (reason == null) return
-    const trimmed = String(reason).trim()
-    if (!trimmed) {
-      toast.error(language === 'ar' ? 'يجب إدخال سبب الإلغاء' : 'A cancellation reason is required')
-      return
-    }
-    const confirmMsg = language === 'ar'
-      ? 'إلغاء هذه الفاتورة؟ سيتم عكس القيود المحاسبية المرتبطة إن وُجدت.'
-      : 'Cancel this invoice? Linked accounting journals will be reversed if posted.'
-    if (!window.confirm(confirmMsg)) return
-    cancelMutation.mutate(trimmed)
-  }
 
   const recordPaymentMutation = useMutation({
     mutationFn: (payload) => api.post(`/invoices/${id}/payments`, {
@@ -492,7 +478,7 @@ export default function InvoiceView() {
             {canCancel && (
               <button
                 type="button"
-                onClick={requestCancelInvoice}
+                onClick={() => setCancelOpen(true)}
                 disabled={cancelMutation.isPending}
                 className={dangerActionClass}
               >
@@ -916,6 +902,14 @@ export default function InvoiceView() {
         language={language}
         isPending={creditNoteMutation.isPending}
         onSubmit={(payload) => creditNoteMutation.mutate(payload)}
+      />
+      <CancelInvoiceModal
+        isOpen={cancelOpen}
+        onClose={() => { if (!cancelMutation.isPending) setCancelOpen(false) }}
+        invoice={invoice}
+        language={language}
+        isPending={cancelMutation.isPending}
+        onConfirm={(reason) => cancelMutation.mutate(reason)}
       />
       <VendorRefundFromBillModal
         isOpen={cnModalOpen && isPurchaseBill}

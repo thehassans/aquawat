@@ -51,6 +51,7 @@ import { useSalesSettings } from '../../context/SalesSettingsContext'
 import { resolveInvoiceLineColumnSettings, sellLineProductColSpan, SELL_PRODUCT_COL_CLASS } from '../../lib/invoiceLineColumns'
 import InvoiceJournalItemsPanel, { InvoiceDocumentReferencesBar } from './InvoiceJournalItemsPanel'
 import AccountingDocumentShell from '../accounting/AccountingDocumentShell'
+import CancelInvoiceModal from '../accounting/CancelInvoiceModal'
 import {
   CREDIT_NOTE_STATUS_STEPS,
   INVOICE_STATUS_STEPS,
@@ -1336,6 +1337,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [formTab, setFormTab] = useState('lines')
   const [pendingPayload, setPendingPayload] = useState(null)
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [cancelPending, setCancelPending] = useState(false)
 
   const buildPayload = (data) => {
     const namedLines = (data.lineItems || []).filter((line) => String(line?.productName || '').trim())
@@ -1673,30 +1676,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 <button
                   type="button"
                   className={ghostActionClass}
-                  onClick={async () => {
-                    const promptMsg = language === 'ar'
-                      ? 'سبب إلغاء الفاتورة (مطلوب):'
-                      : 'Reason for cancelling this invoice (required):'
-                    const reason = window.prompt(promptMsg, '')
-                    if (reason == null) return
-                    const trimmed = String(reason).trim()
-                    if (!trimmed) {
-                      toast.error(language === 'ar' ? 'يجب إدخال سبب الإلغاء' : 'A cancellation reason is required')
-                      return
-                    }
-                    if (!window.confirm(language === 'ar'
-                      ? 'إلغاء هذه الفاتورة؟ سيتم عكس القيود المحاسبية المرتبطة إن وُجدت.'
-                      : 'Cancel this invoice? Linked accounting journals will be reversed if posted.')) return
-                    try {
-                      await api.post(`/invoices/${invoiceId}/cancel`, { reason: trimmed })
-                      toast.success(language === 'ar' ? 'تم إلغاء الفاتورة' : 'Invoice cancelled')
-                      queryClient.invalidateQueries(['invoices'])
-                      queryClient.invalidateQueries(['invoice', invoiceId])
-                      navigate(`/app/dashboard/accounting/invoices/${invoiceId}`)
-                    } catch (error) {
-                      toast.error(error?.response?.data?.error || (language === 'ar' ? 'فشل الإلغاء' : 'Cancel failed'))
-                    }
-                  }}
+                  onClick={() => setCancelOpen(true)}
                 >
                   {language === 'ar' ? 'إلغاء الفاتورة' : 'Cancel invoice'}
                 </button>
@@ -2939,6 +2919,28 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         documentType="invoice"
         templateId={selectedTemplateId}
         title={language === 'ar' ? 'معاينة الفاتورة قبل الحفظ' : 'Invoice Live Preview'}
+      />
+      <CancelInvoiceModal
+        isOpen={cancelOpen}
+        onClose={() => { if (!cancelPending) setCancelOpen(false) }}
+        invoice={initialInvoice}
+        language={language}
+        isPending={cancelPending}
+        onConfirm={async (reason) => {
+          setCancelPending(true)
+          try {
+            await api.post(`/invoices/${invoiceId}/cancel`, { reason })
+            toast.success(language === 'ar' ? 'تم إلغاء الفاتورة' : 'Invoice cancelled')
+            setCancelOpen(false)
+            queryClient.invalidateQueries(['invoices'])
+            queryClient.invalidateQueries(['invoice', invoiceId])
+            navigate(`/app/dashboard/accounting/invoices/${invoiceId}`)
+          } catch (error) {
+            toast.error(error?.response?.data?.error || (language === 'ar' ? 'فشل الإلغاء' : 'Cancel failed'))
+          } finally {
+            setCancelPending(false)
+          }
+        }}
       />
     </div>
   )

@@ -38,6 +38,7 @@ import {
 import { normalizeGrnList } from '../../lib/grnApi'
 import InvoiceJournalItemsPanel, { InvoiceDocumentReferencesBar } from './InvoiceJournalItemsPanel'
 import AccountingDocumentShell from '../accounting/AccountingDocumentShell'
+import CancelInvoiceModal from '../accounting/CancelInvoiceModal'
 import { useSalesSettings } from '../../context/SalesSettingsContext'
 import { PURCHASE_PRODUCT_COL_CLASS, purchaseLineProductColSpan, resolveInvoiceLineColumnSettings } from '../../lib/invoiceLineColumns'
 import VendorBillOcrPanel from '../accounting/VendorBillOcrPanel'
@@ -833,6 +834,8 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const [pendingPayload, setPendingPayload] = useState(null)
   const [showOcrPanel, setShowOcrPanel] = useState(false)
   const [ocrAttachment, setOcrAttachment] = useState(null)
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [cancelPending, setCancelPending] = useState(false)
 
   const buildPayload = (data) => {
     const namedLines = (data.lineItems || []).filter((line) => String(line?.productName || '').trim() || toNumber(line?.unitPrice, 0) > 0)
@@ -1100,31 +1103,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 <button
                   type="button"
                   className={ghostActionClass}
-                  onClick={async () => {
-                    const promptMsg = language === 'ar'
-                      ? 'سبب إلغاء الفاتورة (مطلوب):'
-                      : 'Reason for cancelling this bill (required):'
-                    const reason = window.prompt(promptMsg, '')
-                    if (reason == null) return
-                    const trimmed = String(reason).trim()
-                    if (!trimmed) {
-                      toast.error(language === 'ar' ? 'يجب إدخال سبب الإلغاء' : 'A cancellation reason is required')
-                      return
-                    }
-                    if (!window.confirm(language === 'ar'
-                      ? 'إلغاء هذه الفاتورة؟ سيتم عكس القيود المحاسبية المرتبطة إن وُجدت.'
-                      : 'Cancel this bill? Linked accounting journals will be reversed if posted.')) return
-                    try {
-                      await api.post(`/invoices/${invoiceId}/cancel`, { reason: trimmed })
-                      toast.success(language === 'ar' ? 'تم الإلغاء' : 'Cancelled')
-                      queryClient.invalidateQueries(['invoices'])
-                      queryClient.invalidateQueries(['invoice', invoiceId])
-                      queryClient.invalidateQueries(['vendor-bills'])
-                      navigate(`/app/dashboard/accounting/invoices/${invoiceId}`)
-                    } catch (error) {
-                      toast.error(error?.response?.data?.error || (language === 'ar' ? 'فشل الإلغاء' : 'Cancel failed'))
-                    }
-                  }}
+                  onClick={() => setCancelOpen(true)}
                 >
                   {language === 'ar' ? 'إلغاء' : 'Cancel bill'}
                 </button>
@@ -2309,6 +2288,29 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         documentType="purchase_invoice"
         templateId={selectedTemplateId}
         title={language === 'ar' ? 'معاينة فاتورة الشراء قبل الحفظ' : 'Purchase Invoice Live Preview'}
+      />
+      <CancelInvoiceModal
+        isOpen={cancelOpen}
+        onClose={() => { if (!cancelPending) setCancelOpen(false) }}
+        invoice={initialInvoice}
+        language={language}
+        isPending={cancelPending}
+        onConfirm={async (reason) => {
+          setCancelPending(true)
+          try {
+            await api.post(`/invoices/${invoiceId}/cancel`, { reason })
+            toast.success(language === 'ar' ? 'تم الإلغاء' : 'Cancelled')
+            setCancelOpen(false)
+            queryClient.invalidateQueries(['invoices'])
+            queryClient.invalidateQueries(['invoice', invoiceId])
+            queryClient.invalidateQueries(['vendor-bills'])
+            navigate(`/app/dashboard/accounting/invoices/${invoiceId}`)
+          } catch (error) {
+            toast.error(error?.response?.data?.error || (language === 'ar' ? 'فشل الإلغاء' : 'Cancel failed'))
+          } finally {
+            setCancelPending(false)
+          }
+        }}
       />
     </div>
   )
