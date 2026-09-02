@@ -12,6 +12,8 @@ export function contactToCustomer(c) {
     email: c.email,
     vatNumber: c.vatNumber,
     taxNumber: c.vatNumber,
+    crNumber: c.crNumber || '',
+    address: c.address || null,
     isActive: c.isActive !== false,
     type: c.partnerType === 'individual' ? 'individual' : 'business',
   }

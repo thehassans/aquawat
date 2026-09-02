@@ -110,11 +110,20 @@ function sellLineHasContent(line) {
   return false
 }
 
-function describeSellFormErrors(errs, language = 'en') {
+function describeSellFormErrors(errs, language = 'en', selectedCustomer = null) {
   if (!errs || typeof errs !== 'object') {
     return language === 'ar' ? 'أكمل الحقول المطلوبة قبل الحفظ' : 'Complete the required fields before saving'
   }
   if (errs.buyer?.vatNumber || errs.buyer?.crNumber || errs.buyer?.name) {
+    if (selectedCustomer?._id) {
+      const missing = []
+      if (errs.buyer?.name) missing.push(language === 'ar' ? 'الاسم' : 'name')
+      if (errs.buyer?.vatNumber) missing.push(language === 'ar' ? 'الضريبة' : 'VAT')
+      if (errs.buyer?.crNumber) missing.push(language === 'ar' ? 'السجل التجاري' : 'CR')
+      return language === 'ar'
+        ? `بيانات العميل ناقصة (${missing.join('، ')}) — حدّث ملف العميل أو استخدم B2C`
+        : `Customer profile is missing ${missing.join(', ')} — update the customer record or switch to B2C`
+    }
     return language === 'ar'
       ? 'فاتورة B2B تتطلب اسم العميل ورقم الضريبة والسجل التجاري'
       : 'B2B invoices require customer name, VAT, and CR — switch to B2C for walk-in sales'
@@ -872,25 +881,27 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
 
   const fillBuyerFromParty = (customer) => {
     if (!customer) return
-    setValue('customerId', customer._id)
-    setValue('buyer.name', customer.name || customer.nameEn || '')
-    setValue('buyer.nameAr', customer.nameAr || customer.name || customer.nameEn || '')
-    setValue('buyer.vatNumber', customer.vatNumber || '')
-    setValue('buyer.crNumber', customer.crNumber || '')
-    setValue('buyer.address.city', customer.address?.city || '')
-    setValue('buyer.address.cityAr', customer.address?.cityAr || '')
-    setValue('buyer.address.district', customer.address?.district || '')
-    setValue('buyer.address.districtAr', customer.address?.districtAr || '')
-    setValue('buyer.address.street', customer.address?.street || '')
-    setValue('buyer.address.streetAr', customer.address?.streetAr || '')
-    setValue('buyer.address.postalCode', customer.address?.postalCode || '')
-    setValue('buyer.address.country', customer.address?.country || getTenantCountryCode(tenant))
-    setValue('buyer.address.buildingNumber', customer.address?.buildingNumber || '')
-    setValue('buyer.address.additionalNumber', customer.address?.additionalNumber || '')
-    setValue('buyer.address.shortAddress', customer.address?.shortAddress || '')
-    setValue('buyer.contactPhone', customer.phone || customer.mobile || getValues('buyer.contactPhone') || '')
-    setValue('buyer.contactEmail', customer.email || getValues('buyer.contactEmail') || '')
+    const buyerOpts = { shouldDirty: true, shouldValidate: invoiceType === 'B2B' }
+    setValue('customerId', customer._id, buyerOpts)
+    setValue('buyer.name', customer.name || customer.nameEn || '', buyerOpts)
+    setValue('buyer.nameAr', customer.nameAr || customer.name || customer.nameEn || '', buyerOpts)
+    setValue('buyer.vatNumber', customer.vatNumber || customer.taxNumber || '', buyerOpts)
+    setValue('buyer.crNumber', customer.crNumber || '', buyerOpts)
+    setValue('buyer.address.city', customer.address?.city || '', buyerOpts)
+    setValue('buyer.address.cityAr', customer.address?.cityAr || '', buyerOpts)
+    setValue('buyer.address.district', customer.address?.district || '', buyerOpts)
+    setValue('buyer.address.districtAr', customer.address?.districtAr || '', buyerOpts)
+    setValue('buyer.address.street', customer.address?.street || '', buyerOpts)
+    setValue('buyer.address.streetAr', customer.address?.streetAr || '', buyerOpts)
+    setValue('buyer.address.postalCode', customer.address?.postalCode || '', buyerOpts)
+    setValue('buyer.address.country', customer.address?.country || getTenantCountryCode(tenant), buyerOpts)
+    setValue('buyer.address.buildingNumber', customer.address?.buildingNumber || '', buyerOpts)
+    setValue('buyer.address.additionalNumber', customer.address?.additionalNumber || '', buyerOpts)
+    setValue('buyer.address.shortAddress', customer.address?.shortAddress || '', buyerOpts)
+    setValue('buyer.contactPhone', customer.phone || customer.mobile || getValues('buyer.contactPhone') || '', buyerOpts)
+    setValue('buyer.contactEmail', customer.email || getValues('buyer.contactEmail') || '', buyerOpts)
     setSelectedCustomer(customer)
+    clearErrors(['buyer.name', 'buyer.vatNumber', 'buyer.crNumber'])
   }
 
   const applySalesOrder = (so) => {
@@ -995,14 +1006,25 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       setSelectedCustomer(null)
       return
     }
-    if (opt) {
-      fillBuyerFromParty(opt)
-      return
-    }
+    if (opt) setSelectedCustomer(opt)
     api.get(`/customers/${customerId}`).then((res) => {
       if (res.data) fillBuyerFromParty(res.data)
-    }).catch(() => {})
+    }).catch(() => {
+      if (opt) fillBuyerFromParty(opt)
+    })
   }
+
+  useEffect(() => {
+    if (invoiceType !== 'B2B') return
+    const cid = getValues('customerId')
+    if (!cid) return
+    let cancelled = false
+    api.get(`/customers/${cid}`).then((res) => {
+      if (!cancelled && res.data) fillBuyerFromParty(res.data)
+    }).catch(() => {})
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoiceType])
 
   const { data: restaurantOrders } = useQuery({
     queryKey: ['restaurant-orders-lookup'],
@@ -1637,7 +1659,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               }
               handleSubmit(
                 onSubmit,
-                (errs) => toast.error(describeSellFormErrors(errs, language)),
+                (errs) => toast.error(describeSellFormErrors(errs, language, selectedCustomer)),
               )()
             }
             if (kept.length !== lines.length) {

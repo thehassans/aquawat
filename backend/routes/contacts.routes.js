@@ -41,6 +41,7 @@ const partnerSearchOr = (q) => [
   { phone: { $regex: q, $options: 'i' } },
   { mobile: { $regex: q, $options: 'i' } },
   { vatNumber: { $regex: q, $options: 'i' } },
+  { crNumber: { $regex: q, $options: 'i' } },
   { customerCode: { $regex: q, $options: 'i' } },
   { supplierCode: { $regex: q, $options: 'i' } }
 ];
@@ -71,6 +72,8 @@ const mapPartner = (doc, { wantCustomers, wantSuppliers, wantEmployees }) => {
     email: doc.email,
     phone: doc.phone || doc.mobile,
     vatNumber: doc.vatNumber,
+    crNumber: doc.crNumber || '',
+    address: doc.address || null,
     customerCode: doc.customerCode || null,
     supplierCode: doc.supplierCode || null,
     internalRef: doc.customerCode || doc.supplierCode || null,
@@ -188,7 +191,7 @@ router.get('/', async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
     const fetchCap = Math.min(500, skip + limitNum + 100);
 
-    const cacheKey = `contacts:v5:${req.user.tenantId}:${pageNum}:${limitNum}:${q}:${types || ''}:${isActive || ''}:${sortBy || ''}:${sortDir || ''}`;
+    const cacheKey = `contacts:v6:${req.user.tenantId}:${pageNum}:${limitNum}:${q}:${types || ''}:${isActive || ''}:${sortBy || ''}:${sortDir || ''}`;
 
     const payload = await cacheAside(cacheKey, 45, async () => {
     const wantPartners = (wantCustomers && access.customers)
@@ -201,7 +204,7 @@ router.get('/', async (req, res) => {
     const [partnerDocs, employeeDocs, partnerTotal, employeeTotal] = await Promise.all([
       wantPartners
         ? Partner.find(partnerMatch)
-          .select('name nameEn nameAr email phone mobile vatNumber customerCode supplierCode isActive isCustomer isVendor isEmployee type createdAt updatedAt')
+          .select('name nameEn nameAr email phone mobile vatNumber crNumber address customerCode supplierCode isActive isCustomer isVendor isEmployee type createdAt updatedAt')
           .sort({ name: 1 })
           .limit(fetchCap)
           .lean()
