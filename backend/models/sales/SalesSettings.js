@@ -52,6 +52,10 @@ const salesSettingsSchema = new mongoose.Schema({
   invoiceDefaultTerms: { type: String, default: '' },
   invoiceDefaultNotes: { type: String, default: '' },
   invoiceShowCrVatOnLetterhead: { type: Boolean, default: true },
+  /** Show GL account picker on invoice/bill line grids */
+  invoiceShowAccountColumn: { type: Boolean, default: true },
+  /** Show analytic account picker on invoice/bill line grids */
+  invoiceShowAnalyticColumn: { type: Boolean, default: true },
 
   /** Quotation document defaults */
   quotationDefaultTerms: { type: String, default: '' },

@@ -114,6 +114,8 @@ export default function InvoiceSettingsPage() {
           defaultInvoicingPolicy: form.defaultInvoicingPolicy || 'ordered',
           invoiceDefaultTerms: form.invoiceDefaultTerms ?? '',
           invoiceDefaultNotes: form.invoiceDefaultNotes ?? '',
+          invoiceShowAccountColumn: form.invoiceShowAccountColumn !== false,
+          invoiceShowAnalyticColumn: form.invoiceShowAnalyticColumn !== false,
         }),
         api.put('/tenants/current', {
           settings: {
@@ -143,6 +145,7 @@ export default function InvoiceSettingsPage() {
     onSuccess: ({ tenant: nextTenant }) => {
       toast.success(isAr ? 'تم حفظ إعدادات الفاتورة' : 'Invoice settings saved')
       qc.invalidateQueries({ queryKey: ['sales-settings'] })
+      qc.invalidateQueries({ queryKey: ['sales-configuration'] })
       qc.invalidateQueries({ queryKey: ['tenant-current-invoice-settings'] })
       qc.invalidateQueries({ queryKey: ['tenant-current-sales-settings'] })
       if (nextTenant) {
@@ -153,6 +156,8 @@ export default function InvoiceSettingsPage() {
     },
     onError: (e) => toast.error(e?.response?.data?.error || e.message),
   })
+
+  const checkClass = 'flex items-center gap-2.5 rounded-xl border border-slate-200/90 bg-slate-50/60 px-3.5 py-3 text-sm font-medium text-slate-700 dark:border-dark-600 dark:bg-dark-800/60 dark:text-slate-200'
 
   return (
     <div className="space-y-6">
@@ -228,6 +233,22 @@ export default function InvoiceSettingsPage() {
             onChange={(e) => set('invoiceDefaultNotes', e.target.value)}
           />
         </div>
+        <label className={`${checkClass} sm:col-span-1`}>
+          <input
+            type="checkbox"
+            checked={form.invoiceShowAccountColumn !== false}
+            onChange={(e) => set('invoiceShowAccountColumn', e.target.checked)}
+          />
+          {isAr ? 'عمود الحساب على بنود الفاتورة' : 'Account column on invoice lines'}
+        </label>
+        <label className={`${checkClass} sm:col-span-1`}>
+          <input
+            type="checkbox"
+            checked={form.invoiceShowAnalyticColumn !== false}
+            onChange={(e) => set('invoiceShowAnalyticColumn', e.target.checked)}
+          />
+          {isAr ? 'عمود التحليلي على بنود الفاتورة' : 'Analytic column on invoice lines'}
+        </label>
       </div>
 
       <div className={`${sectionCardClass} grid gap-4 sm:grid-cols-2`}>

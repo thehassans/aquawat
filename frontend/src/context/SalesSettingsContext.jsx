@@ -34,6 +34,8 @@ export function SalesSettingsProvider({ children }) {
           show_compute_shipping: !!raw.showComputeShipping,
           show_promo_codes: !!raw.showPromoCodes,
           show_crm_tags_on_documents: !!raw.showCrmTagsOnDocuments,
+          invoice_show_account_column: raw.invoiceShowAccountColumn !== false,
+          invoice_show_analytic_column: raw.invoiceShowAnalyticColumn !== false,
           raw,
         }
       }
@@ -60,6 +62,8 @@ export function SalesSettingsProvider({ children }) {
       showComputeShipping: data?.show_compute_shipping === true || raw?.showComputeShipping === true,
       showPromoCodes: data?.show_promo_codes === true || raw?.showPromoCodes === true,
       showCrmTagsOnDocuments: data?.show_crm_tags_on_documents === true || raw?.showCrmTagsOnDocuments === true,
+      showAccountOnInvoices: data?.invoice_show_account_column !== false && raw?.invoiceShowAccountColumn !== false,
+      showAnalyticOnInvoices: data?.invoice_show_analytic_column !== false && raw?.invoiceShowAnalyticColumn !== false,
       defaultInvoicingPolicy: String(
         data?.invoicing_policy || raw?.defaultInvoicingPolicy || 'ordered',
       ).toLowerCase(),

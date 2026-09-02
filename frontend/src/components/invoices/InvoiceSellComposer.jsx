@@ -48,6 +48,7 @@ import {
 import SalesEnhancementBar from '../sales/SalesEnhancementBar'
 import { canViewSalesMargin } from '../../lib/salesPermissions'
 import { useSalesSettings } from '../../context/SalesSettingsContext'
+import { resolveInvoiceLineColumnSettings, sellLineProductColSpan, SELL_PRODUCT_COL_CLASS } from '../../lib/invoiceLineColumns'
 import InvoiceJournalItemsPanel, { InvoiceDocumentReferencesBar } from './InvoiceJournalItemsPanel'
 import AccountingDocumentShell from '../accounting/AccountingDocumentShell'
 import {
@@ -360,6 +361,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const { language } = useSelector((state) => state.ui)
   const { tenant, user } = useSelector((state) => state.auth)
   const { settings: salesSettings } = useSalesSettings()
+  const { showAccount: showAccountColumn, showAnalytic: showAnalyticColumn } = resolveInvoiceLineColumnSettings(salesSettings)
+  const sellProductColSpan = sellLineProductColSpan({ showAccount: showAccountColumn, showAnalytic: showAnalyticColumn })
+  const sellProductColClass = SELL_PRODUCT_COL_CLASS[sellProductColSpan] || SELL_PRODUCT_COL_CLASS[3]
   const { t } = useTranslation(language)
   const showArabicFields = isArabicTenantMarket(tenant)
   const isPk = isPakistanTenant(tenant)
@@ -690,12 +694,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     queryKey: ['accounting-accounts-active'],
     queryFn: () => api.get('/accounting/accounts').then((r) => r.data || []),
     staleTime: 60_000,
+    enabled: showAccountColumn,
   })
 
   const { data: analyticAccounts = [] } = useQuery({
     queryKey: ['accounting-analytic-accounts'],
     queryFn: () => api.get('/accounting/analytic-accounts').then((r) => r.data || []),
     staleTime: 60_000,
+    enabled: showAnalyticColumn,
   })
 
   const { data: salesUsers = [] } = useQuery({
@@ -1917,11 +1923,15 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   }`}
                   dir="ltr"
                 >
-                  <div className="lg:col-span-3">{language === 'ar' ? 'المنتج / الوصف' : 'Product / description'}</div>
+                  <div className={sellProductColClass}>{language === 'ar' ? 'المنتج / الوصف' : 'Product / description'}</div>
                   {!isTravelContext ? (
                     <>
-                      <div className="lg:col-span-2">{language === 'ar' ? 'الحساب' : 'Account'}</div>
-                      <div className="lg:col-span-2">{language === 'ar' ? 'تحليلي' : 'Analytic'}</div>
+                      {showAccountColumn ? (
+                        <div className="lg:col-span-2">{language === 'ar' ? 'الحساب' : 'Account'}</div>
+                      ) : null}
+                      {showAnalyticColumn ? (
+                        <div className="lg:col-span-2">{language === 'ar' ? 'تحليلي' : 'Analytic'}</div>
+                      ) : null}
                       <div className="text-center lg:col-span-1">{language === 'ar' ? 'وحدة' : 'UoM'}</div>
                       <div className="text-end lg:col-span-1">{t('quantity')}</div>
                       <div className="text-end lg:col-span-1">{t('unitPrice')}</div>
@@ -1958,7 +1968,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     }`}
                     dir="ltr"
                   >
-                    <div className="col-span-2 min-w-0 lg:col-span-3">
+                    <div className={`col-span-2 min-w-0 ${sellProductColClass}`}>
                       {isTradingContext ? (
                         <div className="space-y-1">
                           <CreatableSelect
@@ -2085,34 +2095,38 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     </div>
                     {!isTravelContext ? (
                       <>
-                        <div className="col-span-2 min-w-0 lg:col-span-2">
-                          <select
-                            {...register(`lineItems.${index}.incomeAccountId`)}
-                            disabled={isInvoicePosted}
-                            className={`${lineGhostInputClass} cursor-pointer truncate disabled:opacity-60`}
-                          >
-                            <option value="">{language === 'ar' ? 'حساب…' : 'Account…'}</option>
-                            {incomeAccounts.map((a) => (
-                              <option key={a._id} value={a._id}>
-                                {a.code} — {language === 'ar' ? (a.nameAr || a.name) : a.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="col-span-2 min-w-0 lg:col-span-2">
-                          <select
-                            {...register(`lineItems.${index}.analyticAccountId`)}
-                            disabled={isInvoicePosted}
-                            className={`${lineGhostInputClass} cursor-pointer truncate disabled:opacity-60`}
-                          >
-                            <option value="">{language === 'ar' ? 'تحليلي…' : 'Analytic…'}</option>
-                            {analyticAccounts.map((a) => (
-                              <option key={a._id} value={a._id}>
-                                {a.code ? `${a.code} — ` : ''}{language === 'ar' ? (a.nameAr || a.name) : a.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                        {showAccountColumn ? (
+                          <div className="col-span-2 min-w-0 lg:col-span-2">
+                            <select
+                              {...register(`lineItems.${index}.incomeAccountId`)}
+                              disabled={isInvoicePosted}
+                              className={`${lineGhostInputClass} cursor-pointer truncate disabled:opacity-60`}
+                            >
+                              <option value="">{language === 'ar' ? 'حساب…' : 'Account…'}</option>
+                              {incomeAccounts.map((a) => (
+                                <option key={a._id} value={a._id}>
+                                  {a.code} — {language === 'ar' ? (a.nameAr || a.name) : a.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : null}
+                        {showAnalyticColumn ? (
+                          <div className="col-span-2 min-w-0 lg:col-span-2">
+                            <select
+                              {...register(`lineItems.${index}.analyticAccountId`)}
+                              disabled={isInvoicePosted}
+                              className={`${lineGhostInputClass} cursor-pointer truncate disabled:opacity-60`}
+                            >
+                              <option value="">{language === 'ar' ? 'تحليلي…' : 'Analytic…'}</option>
+                              {analyticAccounts.map((a) => (
+                                <option key={a._id} value={a._id}>
+                                  {a.code ? `${a.code} — ` : ''}{language === 'ar' ? (a.nameAr || a.name) : a.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : null}
                       </>
                     ) : null}
                     {!isTravelContext ? (

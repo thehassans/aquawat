@@ -109,6 +109,8 @@ router.get('/configuration', checkPermission('sales', 'read'), async (req, res) 
       show_compute_shipping: !!s.showComputeShipping,
       show_promo_codes: !!s.showPromoCodes,
       show_crm_tags_on_documents: !!s.showCrmTagsOnDocuments,
+      invoice_show_account_column: s.invoiceShowAccountColumn !== false,
+      invoice_show_analytic_column: s.invoiceShowAnalyticColumn !== false,
       raw: s,
     });
   } catch (e) {

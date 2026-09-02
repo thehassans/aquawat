@@ -37,6 +37,8 @@ import {
 import { normalizeGrnList } from '../../lib/grnApi'
 import InvoiceJournalItemsPanel, { InvoiceDocumentReferencesBar } from './InvoiceJournalItemsPanel'
 import AccountingDocumentShell from '../accounting/AccountingDocumentShell'
+import { useSalesSettings } from '../../context/SalesSettingsContext'
+import { PURCHASE_PRODUCT_COL_CLASS, purchaseLineProductColSpan, resolveInvoiceLineColumnSettings } from '../../lib/invoiceLineColumns'
 import VendorBillOcrPanel from '../accounting/VendorBillOcrPanel'
 import {
   BILL_STATUS_STEPS,
@@ -201,6 +203,10 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
   const { tenant, user } = useSelector((state) => state.auth)
+  const { settings: salesSettings } = useSalesSettings()
+  const { showAccount: showAccountColumn, showAnalytic: showAnalyticColumn } = resolveInvoiceLineColumnSettings(salesSettings)
+  const purchaseProductColSpan = purchaseLineProductColSpan({ showAccount: showAccountColumn, showAnalytic: showAnalyticColumn })
+  const purchaseProductColClass = PURCHASE_PRODUCT_COL_CLASS[purchaseProductColSpan] || PURCHASE_PRODUCT_COL_CLASS[3]
   const { t } = useTranslation(language)
   const [transactionType, setTransactionType] = useState('B2B')
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
@@ -608,12 +614,14 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     queryKey: ['accounting-accounts-active'],
     queryFn: () => api.get('/accounting/accounts').then((r) => r.data || []),
     staleTime: 60_000,
+    enabled: showAccountColumn,
   })
 
   const { data: analyticAccounts = [] } = useQuery({
     queryKey: ['accounting-analytic-accounts'],
     queryFn: () => api.get('/accounting/analytic-accounts').then((r) => r.data || []),
     staleTime: 60_000,
+    enabled: showAnalyticColumn,
   })
 
   const isBillPosted = isEdit && initialInvoice && !['draft', 'pending'].includes(String(initialInvoice.status || ''))
@@ -1525,12 +1533,16 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                   className="hidden gap-1 border-y border-slate-100 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:border-white/5 lg:grid lg:grid-cols-[repeat(14,minmax(0,1fr))]"
                   dir="ltr"
                 >
-                  <div className="col-span-3">
+                  <div className={purchaseProductColClass}>
                     {language === 'ar' ? 'المنتج' : 'Product'}
                   </div>
                   {showArabicFields ? <div className="col-span-2">عربي</div> : null}
-                  <div className="col-span-2">{language === 'ar' ? 'الحساب' : 'Account'}</div>
-                  <div className="col-span-2">{language === 'ar' ? 'تحليلي' : 'Analytic'}</div>
+                  {showAccountColumn ? (
+                    <div className="col-span-2">{language === 'ar' ? 'الحساب' : 'Account'}</div>
+                  ) : null}
+                  {showAnalyticColumn ? (
+                    <div className="col-span-2">{language === 'ar' ? 'تحليلي' : 'Analytic'}</div>
+                  ) : null}
                   <div className="col-span-1">{language === 'ar' ? 'وحدة' : 'UOM'}</div>
                   <div className="col-span-1">{t('quantity')}</div>
                   <div className="col-span-1">{t('unitPrice')}</div>
@@ -1555,7 +1567,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                       <LineItemTranslator index={index} control={control} watch={watch} setValue={setValue} />
                       <input type="hidden" {...register(`lineItems.${index}.productType`)} />
                       <div className="grid grid-cols-2 items-center gap-1.5 lg:grid-cols-[repeat(14,minmax(0,1fr))]" dir="ltr">
-                        <div className={`col-span-2 min-w-0 ${showArabicFields ? 'lg:col-span-3' : 'lg:col-span-3'}`}>
+                        <div className={`col-span-2 min-w-0 ${purchaseProductColClass}`}>
                           {isTradingContext ? (
                             <div className="flex min-h-[36px] items-center gap-1 rounded-lg bg-slate-50/80 pe-0.5 ps-1 dark:bg-white/[0.03]">
                               <ProductTypeToggle
@@ -1694,34 +1706,38 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                         ) : (
                           <input type="hidden" {...register(`lineItems.${index}.productNameAr`)} />
                         )}
-                        <div className="col-span-2 min-w-0 lg:col-span-2">
-                          <select
-                            {...register(`lineItems.${index}.expenseAccountId`)}
-                            disabled={isBillPosted}
-                            className={`${lineGhostInputClass} cursor-pointer disabled:opacity-60`}
-                          >
-                            <option value="">{language === 'ar' ? 'حساب…' : 'Account…'}</option>
-                            {expenseAccounts.map((a) => (
-                              <option key={a._id} value={a._id}>
-                                {a.code} — {language === 'ar' ? (a.nameAr || a.name) : a.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="col-span-2 min-w-0 lg:col-span-2">
-                          <select
-                            {...register(`lineItems.${index}.analyticAccountId`)}
-                            disabled={isBillPosted}
-                            className={`${lineGhostInputClass} cursor-pointer disabled:opacity-60`}
-                          >
-                            <option value="">{language === 'ar' ? 'تحليلي…' : 'Analytic…'}</option>
-                            {analyticAccounts.map((a) => (
-                              <option key={a._id} value={a._id}>
-                                {a.code ? `${a.code} — ` : ''}{language === 'ar' ? (a.nameAr || a.name) : a.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                        {showAccountColumn ? (
+                          <div className="col-span-2 min-w-0 lg:col-span-2">
+                            <select
+                              {...register(`lineItems.${index}.expenseAccountId`)}
+                              disabled={isBillPosted}
+                              className={`${lineGhostInputClass} cursor-pointer disabled:opacity-60`}
+                            >
+                              <option value="">{language === 'ar' ? 'حساب…' : 'Account…'}</option>
+                              {expenseAccounts.map((a) => (
+                                <option key={a._id} value={a._id}>
+                                  {a.code} — {language === 'ar' ? (a.nameAr || a.name) : a.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : null}
+                        {showAnalyticColumn ? (
+                          <div className="col-span-2 min-w-0 lg:col-span-2">
+                            <select
+                              {...register(`lineItems.${index}.analyticAccountId`)}
+                              disabled={isBillPosted}
+                              className={`${lineGhostInputClass} cursor-pointer disabled:opacity-60`}
+                            >
+                              <option value="">{language === 'ar' ? 'تحليلي…' : 'Analytic…'}</option>
+                              {analyticAccounts.map((a) => (
+                                <option key={a._id} value={a._id}>
+                                  {a.code ? `${a.code} — ` : ''}{language === 'ar' ? (a.nameAr || a.name) : a.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : null}
                         <div className="col-span-1 lg:col-span-1">
                           <Select
                             className="react-select-container"
