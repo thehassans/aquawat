@@ -3538,6 +3538,51 @@ router.post('/tenants/:id/finalise-import', async (req, res) => {
   }
 });
 
+// @route   POST /api/super-admin/ops/import-golden-touch-legacy
+// Idempotent import of Golden Touch historical POS sales (journals + customers).
+router.post('/ops/import-golden-touch-legacy', async (req, res) => {
+  try {
+    const { spawn } = await import('child_process');
+    const pathMod = await import('path');
+    const { fileURLToPath } = await import('url');
+    const scriptDir = pathMod.dirname(fileURLToPath(import.meta.url));
+    const script = pathMod.join(scriptDir, '../scripts/import-golden-touch-invoices.mjs');
+
+    const child = spawn(process.execPath, [script], {
+      cwd: pathMod.join(scriptDir, '..'),
+      env: { ...process.env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += String(chunk); });
+    child.stderr.on('data', (chunk) => { stderr += String(chunk); });
+
+    const result = await new Promise((resolve) => {
+      child.on('close', (code) => resolve({ code }));
+    });
+
+    if (result.code !== 0) {
+      return res.status(500).json({
+        error: 'Golden Touch import failed',
+        code: result.code,
+        stdout: stdout.slice(-4000),
+        stderr: stderr.slice(-4000),
+      });
+    }
+
+    res.json({
+      success: true,
+      stdout: stdout.slice(-6000),
+      stderr: stderr.slice(-2000),
+    });
+  } catch (error) {
+    console.error('[import-golden-touch-legacy]', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- Super Admin Mailbox ---
 router.get('/mailbox/messages', async (req, res) => {
   try {

@@ -42,11 +42,17 @@ if [ -n "$COMPOSE" ]; then
 
   echo "Running containers:"
   $COMPOSE ps
+
+  # Idempotent legacy Golden Touch POS import (skips existing invoice numbers).
+  echo "Importing Golden Touch legacy invoices (idempotent)..."
+  $COMPOSE exec -T backend node scripts/import-golden-touch-invoices.mjs \
+    >> "$DEPLOY_PATH/logs/golden-touch-import.log" 2>&1 \
+    || echo "Golden Touch import skipped/failed (see logs/golden-touch-import.log)"
 fi
 
 echo "Updating Node modules and restarting app..."
 if [ -d "$DEPLOY_PATH/backend" ]; then
-  mkdir -p "$DEPLOY_PATH/backend/tmp" "$DEPLOY_PATH/tmp"
+  mkdir -p "$DEPLOY_PATH/backend/tmp" "$DEPLOY_PATH/tmp" "$DEPLOY_PATH/logs"
   touch "$DEPLOY_PATH/backend/tmp/restart.txt" "$DEPLOY_PATH/tmp/restart.txt"
 fi
 
