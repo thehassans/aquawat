@@ -743,8 +743,11 @@ export default function InvoiceView() {
 
         {/* Sidebar */}
         <div className="space-y-6">
-          {/* QR Code — hidden on travel agency invoices */}
-          {(invoice?.zatca?.qrCodeData || invoice?.fbr?.qrCode) && invoice?.invoiceSubtype !== 'travel_ticket' && invoice?.businessContext !== 'travel_agency' && (
+          {/* QR Code — hidden on travel agency invoices; voided when cancelled */}
+          {(invoice?.zatca?.qrCodeData || invoice?.fbr?.qrCode || invoice?.countryCompliance?.qrCode)
+            && invoice?.invoiceSubtype !== 'travel_ticket'
+            && invoice?.businessContext !== 'travel_agency'
+            && String(invoice?.status || '').toLowerCase() !== 'cancelled' && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -761,6 +764,31 @@ export default function InvoiceView() {
               <p className="text-xs text-gray-500 text-center mt-3">
                 {getTaxQrLabel(tenant, invoice?.currency || tenant?.settings?.currency, language === 'ar')}
               </p>
+            </motion.div>
+          )}
+          {String(invoice?.status || '').toLowerCase() === 'cancelled'
+            && invoice?.invoiceSubtype !== 'travel_ticket'
+            && invoice?.businessContext !== 'travel_agency' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className={sectionCardClass}
+            >
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                <QrCode className="w-5 h-5" />
+                {t('viewQr')}
+              </h3>
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-5 text-center dark:border-rose-900/40 dark:bg-rose-950/30">
+                <p className="text-sm font-semibold text-rose-700 dark:text-rose-300">
+                  {language === 'ar' ? 'رمز QR ملغى' : 'QR code voided'}
+                </p>
+                <p className="mt-1 text-xs text-rose-600/90 dark:text-rose-400">
+                  {language === 'ar'
+                    ? 'الفاتورة ملغاة — لا يوجد رمز ضريبي صالح للمسح.'
+                    : 'This invoice is cancelled — no valid tax QR to scan.'}
+                </p>
+              </div>
             </motion.div>
           )}
 

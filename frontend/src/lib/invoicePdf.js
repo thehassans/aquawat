@@ -1155,7 +1155,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   const isPurchaseOrderPdf = documentType === 'purchase_order'
   const isSalesOrderPdf = documentType === 'sales_order'
   const isTravelInvoicePdf = !isQuotationPdf && !isPurchaseOrderPdf && !isSalesOrderPdf && (invoice?.invoiceSubtype === 'travel_ticket' || invoice?.businessContext === 'travel_agency')
-  const skipDocumentQr = isTravelInvoicePdf || isQuotationPdf || isPurchaseOrderPdf || isSalesOrderPdf || documentType === 'vendor_bill'
+  const skipDocumentQr = isTravelInvoicePdf || isQuotationPdf || isPurchaseOrderPdf || isSalesOrderPdf || documentType === 'vendor_bill' || ['cancelled'].includes(String(invoice?.status || '').toLowerCase())
   const isZatcaApplicablePdf = String(invoice?.currency || tenant?.settings?.currency || 'SAR').toUpperCase() === 'SAR'
   const qrValue = skipDocumentQr
     ? null

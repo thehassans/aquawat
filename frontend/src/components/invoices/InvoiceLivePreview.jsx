@@ -455,6 +455,10 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
   const isNbrApplicable = cur === 'BDT'
   const qrValue = (() => {
     try {
+      // Cancelled docs must not keep a scannable tax QR (amounts would look valid).
+      if (['cancelled'].includes(String(invoice?.status || '').toLowerCase())) {
+        return null
+      }
       if (cur === 'SAR') {
         return invoice?.zatca?.qrCodeData || generateZatcaQrValue({
           sellerName: companyNameEn || companyNameAr,
@@ -833,6 +837,16 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
             </div>
             <div className="flex min-w-[148px] flex-col items-center gap-3 self-start text-center">
               {!isTravelInvoice && !isQuotation && !isPurchaseOrder && !isSalesOrder && (isZatcaApplicable || isFbrApplicable || isNbrApplicable || isGccTenant(tenant)) && (
+                String(invoice?.status || '').toLowerCase() === 'cancelled' ? (
+                  <div className="flex h-[104px] w-[104px] flex-col items-center justify-center rounded-[1.5rem] border border-rose-200 bg-rose-50 px-2 text-center shadow-sm">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600">
+                      {language === 'ar' ? 'ملغاة' : 'Cancelled'}
+                    </span>
+                    <span className="mt-1 text-[9px] leading-tight text-rose-500/90">
+                      {language === 'ar' ? 'رمز QR غير صالح' : 'QR void'}
+                    </span>
+                  </div>
+                ) : (
                 <div className="rounded-[1.5rem] border border-slate-200 bg-white p-2 shadow-sm">
                   {qrValue ? (
                     <QRCodeSVG value={qrValue} size={88} bgColor="transparent" fgColor="#0F172A" />
@@ -851,6 +865,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
                     </div>
                   )}
                 </div>
+                )
               )}
               <div className="w-full max-w-[132px] space-y-1 text-[11px] leading-4 text-slate-600 text-center">
                 {isPk ? (

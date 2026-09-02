@@ -22,6 +22,9 @@ export function resolveTaxInvoiceQr({
   sellerName,
   vatNumber,
 }) {
+  if (['cancelled'].includes(String(invoice?.status || '').toLowerCase())) {
+    return null
+  }
   const cur = String(currency || invoice?.currency || tenant?.settings?.currency || 'SAR').toUpperCase()
   const name = sellerName || invoice?.seller?.name || tenant?.business?.legalNameEn || tenant?.name || ''
   const vat = vatNumber || invoice?.seller?.vatNumber || tenant?.business?.vatNumber || ''

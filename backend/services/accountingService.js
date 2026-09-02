@@ -6965,6 +6965,20 @@ export async function cancelInvoiceDocument({
   invoice.internalNotes = previousNotes ? `${previousNotes}\n${stamp}` : stamp;
   if (invoice.journalEntryId) invoice.journalEntryId = undefined;
 
+  // Draft / non-cleared tax QR must not keep scanning as a valid invoice.
+  // Cleared ZATCA XML is blocked above (credit note path); never wipe signed payloads.
+  if (!invoice.zatca?.signedXml) {
+    if (!invoice.zatca) invoice.zatca = {};
+    invoice.zatca.qrCodeData = undefined;
+    invoice.zatca.qrCodeImage = undefined;
+    if (invoice.countryCompliance) {
+      invoice.countryCompliance.qrCode = undefined;
+    }
+    if (invoice.fbr) {
+      invoice.fbr.qrCode = undefined;
+    }
+  }
+
   await invoice.save();
   return invoice;
 }
