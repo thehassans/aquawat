@@ -54,6 +54,7 @@ import AccountingDocumentShell from '../accounting/AccountingDocumentShell'
 import {
   CREDIT_NOTE_STATUS_STEPS,
   INVOICE_STATUS_STEPS,
+  canCancelInvoice,
   canRegisterPaymentOnInvoice,
   invoiceRemainingBalance,
   resolveInvoiceRibbonStep,
@@ -1668,13 +1669,36 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   ? (language === 'ar' ? 'طباعة / QR' : 'Print / Generate QR')
                   : (language === 'ar' ? 'إرسال وطباعة' : 'Send & print')}
               </button>
-              {isInvoicePosted ? (
+              {isEdit && canCancelInvoice(initialInvoice, tenant?.zatca?.phase || 2) ? (
                 <button
                   type="button"
                   className={ghostActionClass}
-                  onClick={() => toast(language === 'ar' ? 'أعد فتح المسودة من قائمة الفاتورة' : 'Use invoice actions to reset or cancel')}
+                  onClick={async () => {
+                    const promptMsg = language === 'ar'
+                      ? 'سبب إلغاء الفاتورة (مطلوب):'
+                      : 'Reason for cancelling this invoice (required):'
+                    const reason = window.prompt(promptMsg, '')
+                    if (reason == null) return
+                    const trimmed = String(reason).trim()
+                    if (!trimmed) {
+                      toast.error(language === 'ar' ? 'يجب إدخال سبب الإلغاء' : 'A cancellation reason is required')
+                      return
+                    }
+                    if (!window.confirm(language === 'ar'
+                      ? 'إلغاء هذه الفاتورة؟ سيتم عكس القيود المحاسبية المرتبطة إن وُجدت.'
+                      : 'Cancel this invoice? Linked accounting journals will be reversed if posted.')) return
+                    try {
+                      await api.post(`/invoices/${invoiceId}/cancel`, { reason: trimmed })
+                      toast.success(language === 'ar' ? 'تم إلغاء الفاتورة' : 'Invoice cancelled')
+                      queryClient.invalidateQueries(['invoices'])
+                      queryClient.invalidateQueries(['invoice', invoiceId])
+                      navigate(`/app/dashboard/accounting/invoices/${invoiceId}`)
+                    } catch (error) {
+                      toast.error(error?.response?.data?.error || (language === 'ar' ? 'فشل الإلغاء' : 'Cancel failed'))
+                    }
+                  }}
                 >
-                  {language === 'ar' ? 'إعادة لمسودة / إلغاء' : 'Reset / Cancel'}
+                  {language === 'ar' ? 'إلغاء الفاتورة' : 'Cancel invoice'}
                 </button>
               ) : null}
               {isInvoicePosted && invoiceRemainingBalance(initialInvoice) > 0 ? (

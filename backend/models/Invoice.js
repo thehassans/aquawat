@@ -368,6 +368,9 @@ const invoiceSchema = new mongoose.Schema({
     iban: { type: String, default: '' },
   },
   internalNotes: { type: String },
+  cancelReason: { type: String, default: '' },
+  cancelledAt: { type: Date, default: null },
+  cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   attachments: [{
     name: { type: String },
     url: { type: String },

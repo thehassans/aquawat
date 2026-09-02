@@ -2986,25 +2986,34 @@ router.get('/:id/xml', checkPermission('invoicing', 'read'), async (req, res) =>
 // @route   POST /api/invoices/:id/cancel
 router.post('/:id/cancel', checkPermission('invoicing', 'update'), async (req, res) => {
   try {
-    const { reason } = req.body;
-    
-    const invoice = await Invoice.findOneAndUpdate(
-      { _id: req.params.id, ...req.tenantFilter, status: { $nin: ['cancelled', 'credited'] } },
-      { status: 'cancelled', internalNotes: `Cancelled: ${reason}` },
-      { new: true }
-    );
-    
+    const reason = String(req.body?.reason || req.body?.cancelReason || '').trim();
+    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!invoice) {
-      return res.status(404).json({ error: 'Invoice not found or cannot be cancelled' });
+      return res.status(404).json({ error: 'Invoice not found' });
     }
 
-    if (invoice.customerId) {
-      await syncCustomerStats(invoice.tenantId, invoice.customerId);
+    const { cancelInvoiceDocument } = await import('../services/accountingService.js');
+    const cancelled = await cancelInvoiceDocument({
+      tenantId: invoice.tenantId,
+      userId: req.user?._id,
+      invoice,
+      reason,
+      zatcaPhase: req.tenant?.zatca?.phase || 2,
+    });
+
+    afterInvoiceWrite(cancelled, { userId: req.user?._id });
+
+    if (cancelled.customerId) {
+      await syncCustomerStats(cancelled.tenantId, cancelled.customerId);
     }
-    
-    res.json(invoice);
+
+    res.json(cancelled);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    const status = error.status || 500;
+    res.status(status).json({
+      error: error.message || 'Failed to cancel invoice',
+      code: error.code || undefined,
+    });
   }
 });
 

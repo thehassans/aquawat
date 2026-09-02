@@ -115,3 +115,29 @@ export function canRegisterPaymentOnBill(invoice = {}) {
 export function canRegisterPaymentOnDocument(invoice = {}) {
   return canRegisterPaymentOnInvoice(invoice) || canRegisterPaymentOnBill(invoice)
 }
+
+/**
+ * Whether the document can be cancelled from the UI.
+ * ZATCA-cleared sales invoices should use a credit note instead (backend enforces).
+ */
+export function canCancelInvoice(invoice = {}, zatcaPhase = 2) {
+  const status = String(invoice?.status || '').toLowerCase()
+  if (['cancelled', 'credited'].includes(status)) return false
+  if (String(invoice?.invoiceSubtype || '') === 'proforma' && status === 'sent') return false
+
+  const isDraft = ['draft', 'pending'].includes(status)
+  if (isDraft) return true
+
+  const phase = Number(zatcaPhase) || 2
+  const isPurchase = String(invoice?.flow || '') === 'purchase'
+  const isCreditNote = String(invoice?.invoiceType || '') === '381'
+  if (
+    !isPurchase
+    && !isCreditNote
+    && phase >= 2
+    && Boolean(invoice?.zatca?.signedXml)
+  ) {
+    return false
+  }
+  return true
+}

@@ -6836,6 +6836,139 @@ export async function getJournalBoard(tenantId, { journalId = null, limit = 40 }
   return { journalId: journalId || null, columns, counts, limit: cap };
 }
 
+/** Journal source models posted against an Invoice / PurchaseInvoice document id. */
+const INVOICE_LINKED_JOURNAL_MODELS = [
+  'Invoice',
+  'PurchaseInvoice',
+  'InvoicePayment',
+  'InvoicePaymentDifference',
+  'VendorBillPayment',
+  'CreditNote',
+  'CreditNoteRefund',
+  'VendorRefund',
+];
+
+/**
+ * Void draft / reverse posted journals linked to an invoice document.
+ */
+export async function reverseInvoiceLinkedJournals(tenantId, invoiceId, userId, reason = '') {
+  if (!tenantId || !invoiceId) return [];
+  const entries = await JournalEntry.find({
+    tenantId,
+    sourceId: invoiceId,
+    sourceModel: { $in: INVOICE_LINKED_JOURNAL_MODELS },
+    status: { $nin: ['void', 'reversed'] },
+  }).sort({ entryDate: 1, createdAt: 1 });
+
+  const results = [];
+  for (const entry of entries) {
+    if (entry.status === 'draft') {
+      results.push(await voidJournalEntry(tenantId, entry._id, userId, reason || 'Invoice cancelled'));
+    } else if (entry.status === 'posted') {
+      results.push(await reverseJournalEntry(tenantId, entry._id, userId, reason || 'Invoice cancelled'));
+    }
+  }
+  return results;
+}
+
+/**
+ * Cancel an invoice/bill with GL reversal when posted.
+ * ZATCA phase-2 cleared tax invoices must use a credit note instead.
+ */
+export async function cancelInvoiceDocument({
+  tenantId,
+  userId,
+  invoice,
+  reason = '',
+  zatcaPhase = 2,
+}) {
+  if (!invoice?._id) {
+    const err = new Error('Invoice not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const status = String(invoice.status || '').toLowerCase();
+  if (status === 'cancelled') {
+    const err = new Error('Invoice is already cancelled');
+    err.status = 400;
+    throw err;
+  }
+  if (status === 'credited') {
+    const err = new Error('This invoice was already reversed with a credit note and cannot be cancelled');
+    err.status = 400;
+    throw err;
+  }
+
+  const cancelReason = String(reason || '').trim().slice(0, 500);
+  if (!cancelReason) {
+    const err = new Error('A cancellation reason is required');
+    err.status = 400;
+    throw err;
+  }
+
+  const isCreditOrRefund = String(invoice.invoiceType || '') === '381';
+  const isDraftLike = ['draft', 'pending'].includes(status);
+
+  // Posted tax invoices that were ZATCA-cleared must be reversed via credit note.
+  const phase = Number(zatcaPhase) || 2;
+  const hasSignedXml = Boolean(invoice.zatca?.signedXml);
+  if (
+    !isDraftLike
+    && !isCreditOrRefund
+    && phase >= 2
+    && hasSignedXml
+    && String(invoice.flow || 'sell') !== 'purchase'
+  ) {
+    const err = new Error(
+      'This invoice was cleared with ZATCA. Issue a credit note to reverse it instead of cancelling.',
+    );
+    err.status = 400;
+    err.code = 'USE_CREDIT_NOTE';
+    throw err;
+  }
+
+  if (!isCreditOrRefund && String(invoice.invoiceType || '388') === '388') {
+    const linkedCn = await Invoice.findOne({
+      tenantId,
+      originalInvoiceId: invoice._id,
+      invoiceType: '381',
+      status: { $ne: 'cancelled' },
+    }).select('_id invoiceNumber').lean();
+    if (linkedCn) {
+      const err = new Error(
+        `Cannot cancel: credit note ${linkedCn.invoiceNumber || linkedCn._id} exists. Cancel or reverse that document first.`,
+      );
+      err.status = 400;
+      err.code = 'HAS_CREDIT_NOTE';
+      throw err;
+    }
+  }
+
+  const stamp = `[cancelled ${new Date().toISOString()}] ${cancelReason}`;
+  const previousNotes = String(invoice.internalNotes || '').trim();
+
+  if (!isDraftLike) {
+    await reverseInvoiceLinkedJournals(
+      tenantId,
+      invoice._id,
+      userId,
+      `Cancel ${invoice.invoiceNumber || invoice._id}: ${cancelReason}`,
+    );
+  }
+
+  invoice.status = 'cancelled';
+  invoice.paymentStatus = 'cancelled';
+  invoice.cancelReason = cancelReason;
+  invoice.cancelledAt = new Date();
+  invoice.cancelledBy = userId || null;
+  invoice.internalNotes = previousNotes ? `${previousNotes}\n${stamp}` : stamp;
+  if (invoice.journalEntryId) invoice.journalEntryId = undefined;
+
+  await invoice.save();
+  return invoice;
+}
+
 export default {
   ensureDefaultChartOfAccounts,
   ensureDefaultTaxes,
@@ -6864,6 +6997,8 @@ export default {
   postJournalEntry,
   voidJournalEntry,
   reverseJournalEntry,
+  reverseInvoiceLinkedJournals,
+  cancelInvoiceDocument,
   getAccountingLockDates,
   setAccountingLockDates,
   assertAccountingPeriodOpen,

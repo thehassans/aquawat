@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion } from 'framer-motion'
-import { FileText, Download, Send, CheckCircle, Clock, QrCode, Printer, Mail, Edit, RefreshCw, Undo2, Trash2, Banknote, MessageCircle } from 'lucide-react'
+import { FileText, Download, Send, CheckCircle, Clock, QrCode, Printer, Mail, Edit, RefreshCw, Undo2, Trash2, Banknote, MessageCircle, Ban } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
@@ -27,6 +27,7 @@ import CreditNoteFromInvoiceModal from '../../components/accounting/CreditNoteFr
 import VendorRefundFromBillModal from '../../components/accounting/VendorRefundFromBillModal'
 import {
   BILL_STATUS_STEPS,
+  canCancelInvoice,
   canRegisterPaymentOnBill,
   canRegisterPaymentOnInvoice,
   CREDIT_NOTE_STATUS_STEPS,
@@ -248,18 +249,50 @@ export default function InvoiceView() {
     }
   })
 
+  const cancelMutation = useMutation({
+    mutationFn: (reason) => api.post(`/invoices/${id}/cancel`, { reason }),
+    onSuccess: () => {
+      toast.success(language === 'ar' ? 'تم إلغاء الفاتورة' : 'Invoice cancelled')
+      queryClient.invalidateQueries(['invoices'])
+      queryClient.invalidateQueries(['invoice', id])
+      queryClient.invalidateQueries(['customers'])
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || (language === 'ar' ? 'فشل الإلغاء' : 'Cancel failed'))
+    },
+  })
+
   const remainingBalance = invoiceRemainingBalance(invoice)
   const isPurchaseBill = isVendorBill(invoice)
   const isPurchaseRefund = isVendorRefund(invoice)
   const canRecordPayment = isPurchaseBill
     ? canRegisterPaymentOnBill(invoice)
     : canRegisterPaymentOnInvoice(invoice)
+  const canCancel = canCancelInvoice(invoice, tenant?.zatca?.phase || 2)
   const isCreditNote = String(invoice?.invoiceType || '') === '381' && !isPurchaseBill
   const ribbonStep = resolveInvoiceRibbonStep(invoice)
   const statusSteps = isPurchaseRefund
     ? VENDOR_REFUND_STATUS_STEPS
     : (isCreditNote ? CREDIT_NOTE_STATUS_STEPS : (isPurchaseBill ? BILL_STATUS_STEPS : INVOICE_STATUS_STEPS))
   const paymentCount = Array.isArray(invoice?.payments) ? invoice.payments.length : 0
+
+  const requestCancelInvoice = () => {
+    const promptMsg = language === 'ar'
+      ? 'سبب إلغاء الفاتورة (مطلوب):'
+      : 'Reason for cancelling this invoice (required):'
+    const reason = window.prompt(promptMsg, '')
+    if (reason == null) return
+    const trimmed = String(reason).trim()
+    if (!trimmed) {
+      toast.error(language === 'ar' ? 'يجب إدخال سبب الإلغاء' : 'A cancellation reason is required')
+      return
+    }
+    const confirmMsg = language === 'ar'
+      ? 'إلغاء هذه الفاتورة؟ سيتم عكس القيود المحاسبية المرتبطة إن وُجدت.'
+      : 'Cancel this invoice? Linked accounting journals will be reversed if posted.'
+    if (!window.confirm(confirmMsg)) return
+    cancelMutation.mutate(trimmed)
+  }
 
   const recordPaymentMutation = useMutation({
     mutationFn: (payload) => api.post(`/invoices/${id}/payments`, {
@@ -456,6 +489,17 @@ export default function InvoiceView() {
                 {language === 'ar' ? 'تحويل لفاتورة' : 'Convert to Invoice'}
               </button>
             )}
+            {canCancel && (
+              <button
+                type="button"
+                onClick={requestCancelInvoice}
+                disabled={cancelMutation.isPending}
+                className={dangerActionClass}
+              >
+                {cancelMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
+                {language === 'ar' ? 'إلغاء' : 'Cancel'}
+              </button>
+            )}
             <button
               type="button"
               onClick={async () => {
@@ -547,6 +591,12 @@ export default function InvoiceView() {
             animate={{ opacity: 1, y: 0 }}
             className={sectionCardClass}
           >
+            {String(invoice?.status || '').toLowerCase() === 'cancelled' && invoice?.cancelReason ? (
+              <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-200">
+                <p className="font-semibold">{language === 'ar' ? 'فاتورة ملغاة' : 'Cancelled invoice'}</p>
+                <p className="mt-1 opacity-90">{invoice.cancelReason}</p>
+              </div>
+            ) : null}
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-200">

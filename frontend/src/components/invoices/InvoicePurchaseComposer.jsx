@@ -32,6 +32,7 @@ import { PURCHASES_PATH, formatDay, ghostBtn, primaryBtn } from '../../pages/pur
 import {
   fieldControlClass,
   fieldLabelClass,
+  ghostActionClass,
   sectionCardClass,
 } from '../../pages/sales/salesUi'
 import { normalizeGrnList } from '../../lib/grnApi'
@@ -42,6 +43,7 @@ import { PURCHASE_PRODUCT_COL_CLASS, purchaseLineProductColSpan, resolveInvoiceL
 import VendorBillOcrPanel from '../accounting/VendorBillOcrPanel'
 import {
   BILL_STATUS_STEPS,
+  canCancelInvoice,
   isVendorRefund,
   resolveInvoiceRibbonStep,
   VENDOR_REFUND_STATUS_STEPS,
@@ -1092,6 +1094,43 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           ]}
           activeTab={formTab}
           onTabChange={setFormTab}
+          actionBar={(
+            <>
+              {isEdit && canCancelInvoice(initialInvoice, tenant?.zatca?.phase || 2) ? (
+                <button
+                  type="button"
+                  className={ghostActionClass}
+                  onClick={async () => {
+                    const promptMsg = language === 'ar'
+                      ? 'سبب إلغاء الفاتورة (مطلوب):'
+                      : 'Reason for cancelling this bill (required):'
+                    const reason = window.prompt(promptMsg, '')
+                    if (reason == null) return
+                    const trimmed = String(reason).trim()
+                    if (!trimmed) {
+                      toast.error(language === 'ar' ? 'يجب إدخال سبب الإلغاء' : 'A cancellation reason is required')
+                      return
+                    }
+                    if (!window.confirm(language === 'ar'
+                      ? 'إلغاء هذه الفاتورة؟ سيتم عكس القيود المحاسبية المرتبطة إن وُجدت.'
+                      : 'Cancel this bill? Linked accounting journals will be reversed if posted.')) return
+                    try {
+                      await api.post(`/invoices/${invoiceId}/cancel`, { reason: trimmed })
+                      toast.success(language === 'ar' ? 'تم الإلغاء' : 'Cancelled')
+                      queryClient.invalidateQueries(['invoices'])
+                      queryClient.invalidateQueries(['invoice', invoiceId])
+                      queryClient.invalidateQueries(['vendor-bills'])
+                      navigate(`/app/dashboard/accounting/invoices/${invoiceId}`)
+                    } catch (error) {
+                      toast.error(error?.response?.data?.error || (language === 'ar' ? 'فشل الإلغاء' : 'Cancel failed'))
+                    }
+                  }}
+                >
+                  {language === 'ar' ? 'إلغاء' : 'Cancel bill'}
+                </button>
+              ) : null}
+            </>
+          )}
         />
         <form
           onSubmit={(e) => {

@@ -61,6 +61,7 @@ export async function buildInternalAuditReport({ tenantId, startDate, endDate })
     .sort({ issueDate: -1, createdAt: -1 })
     .limit(100)
     .populate('createdBy', 'name email')
+    .populate('cancelledBy', 'name email')
     .lean();
 
   // 3. High Discount Invoices (> 15% discount or discountAmount > 100 SAR)
@@ -378,7 +379,7 @@ export async function buildInternalAuditReport({ tenantId, startDate, endDate })
       amount: num(inv.totalAmount),
       taxAmount: num(inv.taxAmount),
       cancelReason: inv.cancelReason || 'Customer requested / Entry correction',
-      cancelledBy: inv.createdBy?.name || 'System / Admin',
+      cancelledBy: inv.cancelledBy?.name || inv.createdBy?.name || 'System / Admin',
     })),
     highDiscountsList: highDiscountInvoices.map((inv) => ({
       invoiceNumber: inv.invoiceNumber,
