@@ -113,12 +113,12 @@ async function syncSaleTaxFromMaster(tenantId, productData) {
   if (!productData?.saleTaxId) return productData;
   const Tax = (await import('../models/Tax.js')).default;
   const tax = await Tax.findOne({ _id: productData.saleTaxId, tenantId, active: { $ne: false } })
-    .select('rate code name taxGroupCode')
+    .select('rate code name')
     .lean();
   if (!tax) return productData;
   productData.saleTaxRate = Number(tax.rate) || 0;
   productData.taxRate = productData.saleTaxRate;
-  const code = String(tax.code || tax.taxGroupCode || '').toUpperCase();
+  const code = String(tax.code || '').toUpperCase();
   if (code.includes('Z') || Number(tax.rate) === 0) productData.taxCategory = 'Z';
   else if (code.includes('E')) productData.taxCategory = 'E';
   else if (code.includes('O')) productData.taxCategory = 'O';
