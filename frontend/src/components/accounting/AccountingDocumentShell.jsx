@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { backBtnClass, ghostActionClass, pageSubtitleClass, pageTitleClass, sectionEyebrowClass } from '../../pages/sales/salesUi'
+import { ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-react'
+import { ghostActionClass, pageSubtitleClass, pageTitleClass, sectionEyebrowClass } from '../../pages/sales/salesUi'
 
 export function DocumentStatusRibbon({ steps = [], activeStep, language = 'en', cancelled = false }) {
   const isAr = language === 'ar'
@@ -116,6 +116,51 @@ export function DocumentFormTabs({ tabs = [], activeTab, onChange, language = 'e
 }
 
 /**
+ * Prev/next navigator pill — shown inline below the title when adjacentInvoices are provided.
+ * Premium feel: label + number on each side, greyed-out when no adjacent.
+ */
+function InvoiceNavigator({ prevHref, nextHref, prevLabel, nextLabel, isAr }) {
+  const baseBtn = 'group flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition select-none'
+  const activeBtn = `${baseBtn} text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white`
+  const disabledSpan = `${baseBtn} cursor-not-allowed text-slate-300 dark:text-slate-600`
+
+  return (
+    <div className="flex items-center divide-x divide-slate-200/80 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_2px_8px_-4px_rgba(15,23,42,0.12)] dark:divide-white/10 dark:border-white/10 dark:bg-dark-800 dark:shadow-none">
+      {/* Prev */}
+      {prevHref ? (
+        <Link to={prevHref} className={activeBtn} title={isAr ? 'الفاتورة السابقة' : 'Previous invoice'}>
+          <ChevronLeft className="h-3.5 w-3.5 shrink-0 transition group-hover:-translate-x-0.5" />
+          <span className="hidden sm:inline leading-none">{prevLabel || (isAr ? 'السابقة' : 'Prev')}</span>
+        </Link>
+      ) : (
+        <span className={disabledSpan}>
+          <ChevronLeft className="h-3.5 w-3.5 shrink-0 opacity-40" />
+          <span className="hidden sm:inline leading-none opacity-40">{isAr ? 'السابقة' : 'Prev'}</span>
+        </span>
+      )}
+
+      {/* Divider label */}
+      <span className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 select-none">
+        {isAr ? 'التنقل' : 'Nav'}
+      </span>
+
+      {/* Next */}
+      {nextHref ? (
+        <Link to={nextHref} className={activeBtn} title={isAr ? 'الفاتورة التالية' : 'Next invoice'}>
+          <span className="hidden sm:inline leading-none">{nextLabel || (isAr ? 'التالية' : 'Next')}</span>
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 transition group-hover:translate-x-0.5" />
+        </Link>
+      ) : (
+        <span className={disabledSpan}>
+          <span className="hidden sm:inline leading-none opacity-40">{isAr ? 'التالية' : 'Next'}</span>
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-40" />
+        </span>
+      )}
+    </div>
+  )
+}
+
+/**
  * Unified Odoo-style document chrome: breadcrumb, title, status ribbon (top-right),
  * frozen action bar, smart buttons, and optional tab strip.
  */
@@ -128,6 +173,8 @@ export default function AccountingDocumentShell({
   onBack,
   prevHref,
   nextHref,
+  prevLabel,
+  nextLabel,
   statusSteps = [],
   activeStatusStep,
   statusCancelled = false,
@@ -139,60 +186,58 @@ export default function AccountingDocumentShell({
   children,
 }) {
   const isAr = language === 'ar'
+  const hasNav = prevHref !== undefined || nextHref !== undefined
 
   return (
     <div className="space-y-3">
+      {/* ── Top row: back + title block + status ribbon ── */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 items-start gap-3">
+          {/* Back button — always rendered on invoice pages */}
           {onBack || backTo ? (
-            backTo ? (
-              <Link to={backTo} className={backBtnClass} aria-label={isAr ? 'رجوع' : 'Back'}>
-                ←
-              </Link>
-            ) : (
-              <button type="button" onClick={onBack} className={backBtnClass} aria-label={isAr ? 'رجوع' : 'Back'}>
-                ←
-              </button>
-            )
-          ) : null}
-          <div className="min-w-0 flex-1">
-            {eyebrow ? <p className={sectionEyebrowClass}>{eyebrow}</p> : null}
-            <div className="flex items-center gap-1.5">
-              <h1 className={`${pageTitleClass} min-w-0 truncate`}>{title}</h1>
-              {(prevHref || nextHref) && (
-                <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-slate-200/80 bg-white p-0.5 dark:border-white/10 dark:bg-dark-800">
-                  {prevHref ? (
-                    <Link
-                      to={prevHref}
-                      className="rounded p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/10 dark:hover:text-slate-200"
-                      title={isAr ? 'الفاتورة السابقة' : 'Previous invoice'}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Link>
-                  ) : (
-                    <span className="rounded p-1 text-slate-300 dark:text-slate-600 cursor-not-allowed">
-                      <ChevronLeft className="h-4 w-4" />
-                    </span>
-                  )}
-                  {nextHref ? (
-                    <Link
-                      to={nextHref}
-                      className="rounded p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/10 dark:hover:text-slate-200"
-                      title={isAr ? 'الفاتورة التالية' : 'Next invoice'}
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Link>
-                  ) : (
-                    <span className="rounded p-1 text-slate-300 dark:text-slate-600 cursor-not-allowed">
-                      <ChevronRight className="h-4 w-4" />
-                    </span>
-                  )}
-                </div>
+            <div className="shrink-0">
+              {backTo ? (
+                <Link
+                  to={backTo}
+                  aria-label={isAr ? 'رجوع' : 'Back'}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200/90 bg-white text-slate-600 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300 dark:hover:bg-dark-700 dark:hover:text-white"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  aria-label={isAr ? 'رجوع' : 'Back'}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200/90 bg-white text-slate-600 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-dark-800 dark:text-slate-300 dark:hover:bg-dark-700 dark:hover:text-white"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
               )}
             </div>
+          ) : null}
+
+          {/* Title + optional nav pill */}
+          <div className="min-w-0 flex-1">
+            {eyebrow ? <p className={sectionEyebrowClass}>{eyebrow}</p> : null}
+            <h1 className={`${pageTitleClass} min-w-0 truncate`}>{title}</h1>
             {subtitle ? <p className={pageSubtitleClass}>{subtitle}</p> : null}
+
+            {/* Prev / Next navigator — below title, aligned left */}
+            {hasNav && (
+              <div className="mt-3">
+                <InvoiceNavigator
+                  prevHref={prevHref}
+                  nextHref={nextHref}
+                  prevLabel={prevLabel}
+                  nextLabel={nextLabel}
+                  isAr={isAr}
+                />
+              </div>
+            )}
           </div>
         </div>
+
         {statusSteps.length ? (
           <div className="w-full max-w-md shrink-0 lg:w-72">
             <DocumentStatusRibbon
