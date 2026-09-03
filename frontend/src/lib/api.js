@@ -33,7 +33,13 @@ const getApiErrorMessage = (error) => {
   }
 
   if (error.response?.status === 429) {
-    return 'The server is temporarily busy. Automatically retrying in a moment...'
+    const retryAfter = Number(error.response?.data?.retryAfterSeconds)
+      || parseInt(error.response?.headers?.['retry-after'] || '0', 10)
+      || 0
+    if (retryAfter > 0) {
+      return `Too many requests. Please retry in about ${retryAfter}s.`
+    }
+    return 'Too many requests. Automatically retrying in a moment...'
   }
 
   if (error.response?.status === 503) {

@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { Plus, Search, ShieldCheck, AlertTriangle } from 'lucide-react'
 import api from '../../../lib/api'
 import Money from '../../../components/ui/Money'
 import ResponsiveDataList from '../../../components/ui/ResponsiveDataList'
 import { contactToCustomer, fetchContactsList } from '../../../lib/contactMappers'
+import { useAccountingQuery } from '../../../hooks/useAccountingQuery'
+import AccountingQueryState from '../AccountingQueryState'
 import {
   emptyStateClass,
   fieldControlClass,
@@ -27,7 +28,7 @@ export default function AccountingCustomersPanel({ language = 'en' }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useAccountingQuery({
     queryKey: ['accounting-customers-directory', search],
     queryFn: async () => {
       const { contacts } = await fetchContactsList(api, {
@@ -41,9 +42,9 @@ export default function AccountingCustomersPanel({ language = 'en' }) {
     },
   })
 
-  const { data: arSummary } = useQuery({
+  const { data: arSummary, isError: arError, error: arErr, refetch: refetchAr } = useAccountingQuery({
     queryKey: ['accounting-customer-summary-live'],
-    queryFn: () => api.get('/accounting/reports/customer-summary').then((r) => r.data).catch(() => ({ rows: [] })),
+    queryFn: () => api.get('/accounting/reports/customer-summary').then((r) => r.data),
   })
 
   const balanceById = useMemo(() => {
@@ -94,6 +95,16 @@ export default function AccountingCustomersPanel({ language = 'en' }) {
         </div>
       </div>
 
+      {arError ? (
+        <AccountingQueryState
+          language={language}
+          isLoading={false}
+          isError
+          error={arErr}
+          onRetry={() => refetchAr()}
+        />
+      ) : null}
+
       <div className={listShellClass}>
         {isLoading ? (
           <p className={emptyStateClass}>{isAr ? 'جارٍ التحميل…' : 'Loading…'}</p>
@@ -102,9 +113,13 @@ export default function AccountingCustomersPanel({ language = 'en' }) {
             items={rows}
             empty={<p className={emptyStateClass}>{isAr ? 'لا يوجد عملاء' : 'No customers yet'}</p>}
             renderCard={(row) => {
-              const owed = balanceById.get(String(row._id)) || Number(row.outstandingBalance || 0)
+              const owed = arError
+                ? (row.outstandingBalance != null ? Number(row.outstandingBalance) : null)
+                : (balanceById.has(String(row._id))
+                  ? balanceById.get(String(row._id))
+                  : (row.outstandingBalance != null ? Number(row.outstandingBalance) : null))
               const limit = Number(row.creditLimit || 0)
-              const over = limit > 0 && owed > limit
+              const over = limit > 0 && owed != null && owed > limit
               return (
                 <div key={row._id} className="space-y-2 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-dark-800">
                   <Link to={`/app/dashboard/customers/${row._id}`} className="text-base font-semibold text-emerald-700">
@@ -139,9 +154,13 @@ export default function AccountingCustomersPanel({ language = 'en' }) {
               </thead>
               <tbody>
                 {rows.map((row) => {
-                  const owed = balanceById.get(String(row._id)) || Number(row.outstandingBalance || 0)
+                  const owed = arError
+                    ? (row.outstandingBalance != null ? Number(row.outstandingBalance) : null)
+                    : (balanceById.has(String(row._id))
+                      ? balanceById.get(String(row._id))
+                      : (row.outstandingBalance != null ? Number(row.outstandingBalance) : null))
                   const limit = Number(row.creditLimit || 0)
-                  const over = limit > 0 && owed > limit
+                  const over = limit > 0 && owed != null && owed > limit
                   return (
                     <tr key={row._id} className={salesTrClass}>
                       <td className={salesTdClass}>

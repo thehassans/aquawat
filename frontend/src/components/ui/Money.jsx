@@ -1,5 +1,6 @@
 import { useSelector } from 'react-redux'
 import { formatCurrency, formatCurrencyAmount, isSarCurrency, CURRENCY_CODE } from '../../lib/currency'
+import { isMissingMoney } from '../../lib/fmtMoney'
 import { getInvoiceCurrencyDisplay } from '../../lib/invoiceBranding'
 import SarIcon from './SarIcon'
 
@@ -58,6 +59,11 @@ export default function Money({
   const resolved = getInvoiceCurrencyDisplay(tenant)
   const effectiveDisplay = display || resolved.display
   const effectivePosition = position || resolved.position
+
+  // Missing / failed loads must never render as 0.00
+  if (isMissingMoney(value)) {
+    return <span className={joinClasses('tabular-nums text-slate-400', className)}>—</span>
+  }
 
   const isSar = isSarCurrency(currency)
 

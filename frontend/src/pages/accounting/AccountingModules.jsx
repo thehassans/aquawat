@@ -6,10 +6,12 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import Money from '../../components/ui/Money'
 import VirtualTableBody from '../../components/ui/VirtualTableBody'
+import { useAccountingQuery } from '../../hooks/useAccountingQuery'
 import { ReportFilterRibbon, compareRange, variance } from './ReportFilterRibbon'
 import { ConfigPanelShell } from './ConfigPanelShell'
 import TaxConfigurationForm from './TaxConfigurationForm'
 import { CustomReportLinesSection } from './AccountingReportPanels'
+import AccountingQueryState from './AccountingQueryState'
 import { openPlaidLink } from './plaidLink'
 import { openSaltEdgeConnect } from './saltEdgeConnect'
 
@@ -611,7 +613,7 @@ export function CustomerSummaryPanel({ language }) {
   const [from, setFrom] = useState(yearStartIso())
   const [to, setTo] = useState(todayIso())
   const [search, setSearch] = useState('')
-  const { data } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useAccountingQuery({
     queryKey: ['accounting-customer-summary', from, to],
     queryFn: () => api.get('/accounting/reports/customer-summary', { params: { from, to } }).then((r) => r.data),
   })
@@ -630,7 +632,9 @@ export function CustomerSummaryPanel({ language }) {
           </label>
         )}
       />
-      <SummaryTable rows={data?.rows} totals={data?.totals} language={language} kind="customer" search={search} onOpen={(id) => navigate(`/app/dashboard/accounting/customer-account?customerId=${id}`)} />
+      <AccountingQueryState language={language} isLoading={isLoading && !data} isError={isError} error={error} onRetry={() => refetch()}>
+        <SummaryTable rows={data?.rows} totals={data?.totals} language={language} kind="customer" search={search} onOpen={(id) => navigate(`/app/dashboard/accounting/customer-account?customerId=${id}`)} />
+      </AccountingQueryState>
     </div>
   )
 }
@@ -640,7 +644,7 @@ export function SupplierSummaryPanel({ language }) {
   const [from, setFrom] = useState(yearStartIso())
   const [to, setTo] = useState(todayIso())
   const [search, setSearch] = useState('')
-  const { data } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useAccountingQuery({
     queryKey: ['accounting-supplier-summary', from, to],
     queryFn: () => api.get('/accounting/reports/supplier-summary', { params: { from, to } }).then((r) => r.data),
   })
@@ -659,7 +663,9 @@ export function SupplierSummaryPanel({ language }) {
           </label>
         )}
       />
-      <SummaryTable rows={data?.rows} totals={data?.totals} language={language} kind="supplier" search={search} onOpen={(id) => navigate(`/app/dashboard/accounting/supplier-account?supplierId=${id}`)} />
+      <AccountingQueryState language={language} isLoading={isLoading && !data} isError={isError} error={error} onRetry={() => refetch()}>
+        <SummaryTable rows={data?.rows} totals={data?.totals} language={language} kind="supplier" search={search} onOpen={(id) => navigate(`/app/dashboard/accounting/supplier-account?supplierId=${id}`)} />
+      </AccountingQueryState>
     </div>
   )
 }
@@ -2407,7 +2413,7 @@ function AgedReportPanel({ language, kind }) {
   const [asOf, setAsOf] = useState(todayIso())
   const [selected, setSelected] = useState(() => new Set())
   const endpoint = kind === 'ap' ? '/accounting/reports/aged-ap' : '/accounting/reports/aged-ar'
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isLoading, isError, error, refetch } = useAccountingQuery({
     queryKey: ['accounting-aged', kind, asOf],
     queryFn: () => api.get(endpoint, { params: { asOf } }).then((r) => r.data),
   })
@@ -2502,17 +2508,25 @@ function AgedReportPanel({ language, kind }) {
       {remind.isError ? (
         <p className="text-xs text-rose-600">{remind.error?.response?.data?.error || remind.error?.message}</p>
       ) : null}
-      {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
+      <AccountingQueryState
+        language={language}
+        isLoading={isLoading && !data}
+        isError={isError}
+        error={error}
+        onRetry={() => refetch()}
+        skeletonRows={6}
+      >
+      {isFetching && data ? <p className="text-xs text-slate-400">…</p> : null}
       <div className="grid gap-3 sm:grid-cols-5">
         {['d0_30', 'd31_60', 'd61_90', 'd90_plus'].map((key) => (
           <div key={key} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
             <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? AGING_LABELS[key].ar : AGING_LABELS[key].en}</p>
-            <p className="mt-1 text-lg font-semibold"><Money value={buckets[key]} /></p>
+            <p className="mt-1 text-lg font-semibold"><Money value={isError ? null : buckets[key]} /></p>
           </div>
         ))}
         <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/50 p-4 dark:border-emerald-500/20 dark:bg-emerald-950/20">
           <p className="text-[11px] uppercase tracking-widest text-emerald-700/70">{isAr ? 'الإجمالي' : 'Total'}</p>
-          <p className="mt-1 text-lg font-semibold"><Money value={buckets.total} /></p>
+          <p className="mt-1 text-lg font-semibold"><Money value={isError ? null : buckets.total} /></p>
         </div>
       </div>
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
@@ -2597,6 +2611,7 @@ function AgedReportPanel({ language, kind }) {
           </tbody>
         </table>
       </div>
+      </AccountingQueryState>
     </div>
   )
 }

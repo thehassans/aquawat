@@ -11,6 +11,7 @@ import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
+import AccountingQueryState from './AccountingQueryState'
 import Vouchers from '../finance/Vouchers'
 import {
   AccountReportPanel,
@@ -311,7 +312,7 @@ export default function Accounting() {
     [tab, isAr, navigate],
   )
 
-  const { data: dashboard, isLoading: dashLoading, refetch: refetchDash } = useQuery({
+  const { data: dashboard, isLoading: dashLoading, isError: dashError, error: dashErr, refetch: refetchDash } = useQuery({
     queryKey: ['accounting-dashboard'],
     queryFn: () => api.get('/accounting/dashboard').then((r) => r.data),
   })
@@ -525,11 +526,11 @@ export default function Accounting() {
       }))
     }
     if (tab === 'customer-summary') {
-      const data = await api.get('/accounting/reports/customer-summary').then((r) => r.data).catch(() => null)
+      const data = await api.get('/accounting/reports/customer-summary').then((r) => r.data)
       return data?.rows || data || []
     }
     if (tab === 'supplier-summary') {
-      const data = await api.get('/accounting/reports/supplier-summary').then((r) => r.data).catch(() => null)
+      const data = await api.get('/accounting/reports/supplier-summary').then((r) => r.data)
       return data?.rows || data || []
     }
     if (tab === 'customer-account' || tab === 'account-report') {
@@ -585,6 +586,15 @@ export default function Accounting() {
       <AnimatePresence mode="wait">
         {tab === 'overview' && (
           <motion.div key="overview" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
+            {dashError ? (
+              <AccountingQueryState
+                language={language}
+                isLoading={false}
+                isError
+                error={dashErr}
+                onRetry={() => refetchDash()}
+              />
+            ) : null}
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
               {kpis.map((k) => {
                 const Icon = k.icon
@@ -600,7 +610,7 @@ export default function Accounting() {
                       <Icon className="h-4 w-4 text-slate-400" />
                     </div>
                     <p className="mt-3 text-xl font-semibold tracking-tight tabular-nums text-slate-900 dark:text-white">
-                      {dashLoading ? '—' : <Money value={k.value || 0} />}
+                      {dashLoading || dashError ? '—' : <Money value={k.value} />}
                     </p>
                   </div>
                 )

@@ -637,7 +637,22 @@ const getClientIp = (req) => {
 
 // Redis HybridRateLimitStore is shared across cluster workers (see hybridRateLimitStore.js).
 
-// 1. Auth endpoints — 40 req / 15 min (override via AUTH_RATE_LIMIT_MAX)
+/** Shared 429 body + Retry-After so clients can backoff intelligently. */
+const sendRateLimitResponse = (req, res, _next, options) => {
+  const resetTime = req.rateLimit?.resetTime;
+  const resetMs = resetTime
+    ? Math.max(0, new Date(resetTime).getTime() - Date.now())
+    : (options?.windowMs || 60_000);
+  const retryAfterSeconds = Math.max(1, Math.ceil(resetMs / 1000));
+  res.setHeader('Retry-After', String(retryAfterSeconds));
+  const message = options?.message;
+  const errorText = (message && typeof message === 'object' && message.error)
+    ? message.error
+    : (typeof message === 'string' ? message : 'Too many requests, please try again later.');
+  res.status(options?.statusCode || 429).json({ error: errorText, retryAfterSeconds });
+};
+
+// 1. Auth endpoints — override via AUTH_RATE_LIMIT_MAX
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: () => getRateLimitConfig().authMaxRequests,
@@ -646,6 +661,7 @@ const authLimiter = rateLimit({
   store: makeRateLimitStore('auth'),
   keyGenerator: (req) => getClientIp(req),
   message: { error: 'Too many auth requests. Please wait and try again.' },
+  handler: sendRateLimitResponse,
 });
 
 // 2. Public endpoints — lenient (10 000 req / 15 min)
@@ -657,6 +673,7 @@ const publicLimiter = rateLimit({
   store: makeRateLimitStore('public'),
   keyGenerator: (req) => getClientIp(req),
   message: { error: 'Too many requests. Please try again later.' },
+  handler: sendRateLimitResponse,
 });
 
 // Key by authenticated tenantId when protect already ran (req.user set).
@@ -668,6 +685,18 @@ const getTenantOrIpKey = (req) => {
   return getClientIp(req);
 };
 
+// 3a. Accounting GET — dedicated higher cap so report browsing never shares the global burst budget.
+const accountingReadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: Number(process.env.ACCOUNTING_READ_RATE_LIMIT_MAX || 600),
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: makeRateLimitStore('accounting-read'),
+  keyGenerator: getTenantOrIpKey,
+  message: { error: 'Too many accounting reads. Please wait a moment and try again.' },
+  handler: sendRateLimitResponse,
+});
+
 // 3. General API — configurable (default 15 000 req / 15 min)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -678,6 +707,8 @@ const limiter = rateLimit({
   keyGenerator: getTenantOrIpKey,
   skip: (req) => {
     const p = req.path || '';
+    // Accounting GETs use accountingReadLimiter instead.
+    if ((req.method === 'GET' || req.method === 'HEAD') && p.startsWith('/accounting')) return true;
     return p.startsWith('/health') ||
       p.startsWith('/desktop-sync/ping') ||
       p.startsWith('/sync/status') ||
@@ -686,6 +717,7 @@ const limiter = rateLimit({
       p.startsWith('/zatca-compliance/health');
   },
   message: { error: 'Too many requests, please try again later.' },
+  handler: sendRateLimitResponse,
 });
 
 // 4. AI/OCR endpoints — expensive (external model calls, image/document processing).
@@ -699,11 +731,18 @@ const aiLimiter = rateLimit({
   store: makeRateLimitStore('ai'),
   keyGenerator: getTenantOrIpKey,
   message: { error: 'Too many AI requests. Please wait a few minutes and try again.' },
+  handler: sendRateLimitResponse,
 });
 
 app.use('/api/auth/', authLimiter);
 app.use('/api/public/', publicLimiter);
 app.use('/api/ai/', aiLimiter);
+app.use('/api/accounting', (req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    return accountingReadLimiter(req, res, next);
+  }
+  return next();
+});
 app.use('/api/', limiter);
 app.use('/api/', etag());
 

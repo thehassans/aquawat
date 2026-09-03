@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../../lib/api'
 import Money from '../../components/ui/Money'
+import { useAccountingQuery } from '../../hooks/useAccountingQuery'
 import { ReportFilterRibbon, compareRange, variance } from './ReportFilterRibbon'
+import AccountingQueryState from './AccountingQueryState'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 const yearStartIso = () => new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10)
@@ -159,11 +160,11 @@ export function BalanceSheetPanel({ language }) {
     return compareRange(asOf, asOf, comparison === 'previous_year' ? 'previous_year' : 'previous_period')
   }, [asOf, comparison])
 
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isLoading, isError, error, refetch } = useAccountingQuery({
     queryKey: ['accounting-balance', asOf],
     queryFn: () => api.get('/accounting/reports/balance-sheet', { params: { asOf } }).then((r) => r.data),
   })
-  const { data: prior } = useQuery({
+  const { data: prior } = useAccountingQuery({
     queryKey: ['accounting-balance-prior', compare?.asOf],
     queryFn: () => api.get('/accounting/reports/balance-sheet', { params: { asOf: compare.asOf } }).then((r) => r.data),
     enabled: Boolean(compare?.asOf),
@@ -278,36 +279,44 @@ export function BalanceSheetPanel({ language }) {
           title: isAr ? 'الميزانية العمومية' : 'Balance sheet',
         }}
       />
-      {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
-      <div className={`rounded-full px-3 py-1 text-xs font-bold w-fit ${data?.balanced ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-        {data?.balanced ? (isAr ? 'معادلة الميزانية متوازنة' : 'Accounting equation balanced') : (isAr ? 'غير متوازن' : 'Out of balance')}
-      </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Section id="assets" title={isAr ? 'الأصول' : 'Assets'} rows={data?.assets} total={data?.totalAssets} tone="text-emerald-800" />
-        <Section id="liabilities" title={isAr ? 'الالتزامات' : 'Liabilities'} rows={data?.liabilities} total={data?.totalLiabilities} tone="text-amber-800" />
-        <Section id="equity" title={isAr ? 'حقوق الملكية' : 'Equity'} rows={data?.equity} total={data?.totalEquity} tone="text-sky-800" />
-      </div>
-      <HorizontalGroupsSection
+      <AccountingQueryState
         language={language}
-        groups={data?.horizontalGroups}
-        amountKey="balance"
-        priorMap={priorMap}
-        showVar={showVar}
-        onAccountClick={openGl}
-      />
-      <HorizontalGroupsSection
-        language={language}
-        groups={data?.accountGroups}
-        amountKey="balance"
-        priorMap={priorMap}
-        showVar={showVar}
-        onAccountClick={openGl}
-        titleEn="Account groups"
-        titleAr="مجموعات الحسابات"
-        purposeEn="P&L and balance sheet sections by account prefix from Configuration."
-        purposeAr="أقسام قائمة الدخل والميزانية حسب بادئة الحساب من الإعدادات."
-      />
-      <CustomReportLinesSection language={language} lines={data?.customReportLines} />
+        isLoading={isLoading && !data}
+        isError={isError}
+        error={error}
+        onRetry={() => refetch()}
+      >
+        {isFetching && data ? <p className="text-xs text-slate-400">…</p> : null}
+        <div className={`rounded-full px-3 py-1 text-xs font-bold w-fit ${data?.balanced ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+          {data?.balanced ? (isAr ? 'معادلة الميزانية متوازنة' : 'Accounting equation balanced') : (isAr ? 'غير متوازن' : 'Out of balance')}
+        </div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Section id="assets" title={isAr ? 'الأصول' : 'Assets'} rows={data?.assets} total={data?.totalAssets} tone="text-emerald-800" />
+          <Section id="liabilities" title={isAr ? 'الالتزامات' : 'Liabilities'} rows={data?.liabilities} total={data?.totalLiabilities} tone="text-amber-800" />
+          <Section id="equity" title={isAr ? 'حقوق الملكية' : 'Equity'} rows={data?.equity} total={data?.totalEquity} tone="text-sky-800" />
+        </div>
+        <HorizontalGroupsSection
+          language={language}
+          groups={data?.horizontalGroups}
+          amountKey="balance"
+          priorMap={priorMap}
+          showVar={showVar}
+          onAccountClick={openGl}
+        />
+        <HorizontalGroupsSection
+          language={language}
+          groups={data?.accountGroups}
+          amountKey="balance"
+          priorMap={priorMap}
+          showVar={showVar}
+          onAccountClick={openGl}
+          titleEn="Account groups"
+          titleAr="مجموعات الحسابات"
+          purposeEn="P&L and balance sheet sections by account prefix from Configuration."
+          purposeAr="أقسام قائمة الدخل والميزانية حسب بادئة الحساب من الإعدادات."
+        />
+        <CustomReportLinesSection language={language} lines={data?.customReportLines} />
+      </AccountingQueryState>
     </div>
   )
 }
@@ -321,14 +330,14 @@ export function ProfitAndLossPanel({ language }) {
   const [basis, setBasis] = useState('accrual')
   const [analyticAccountId, setAnalyticAccountId] = useState('')
 
-  const { data: analytics = [] } = useQuery({
+  const { data: analytics = [] } = useAccountingQuery({
     queryKey: ['accounting-analytic-accounts'],
     queryFn: () => api.get('/accounting/analytic-accounts').then((r) => r.data || []),
   })
 
   const compare = useMemo(() => compareRange(from, to, comparison), [from, to, comparison])
 
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isLoading, isError, error, refetch } = useAccountingQuery({
     queryKey: ['accounting-pnl', from, to, basis, analyticAccountId],
     queryFn: () => api.get('/accounting/reports/profit-and-loss', {
       params: {
@@ -339,7 +348,7 @@ export function ProfitAndLossPanel({ language }) {
       },
     }).then((r) => r.data),
   })
-  const { data: prior } = useQuery({
+  const { data: prior } = useAccountingQuery({
     queryKey: ['accounting-pnl-prior', compare?.from, compare?.to, basis, analyticAccountId],
     queryFn: () => api.get('/accounting/reports/profit-and-loss', {
       params: {
@@ -432,45 +441,53 @@ export function ProfitAndLossPanel({ language }) {
           title: isAr ? 'الأرباح والخسائر' : 'Profit & loss',
         }}
       />
-      {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
-      <div className="grid gap-3 sm:grid-cols-4">
-        {[
-          [isAr ? 'الإيرادات' : 'Revenue', data?.totalRevenue],
-          [isAr ? 'مجمل الربح' : 'Gross profit', data?.grossProfit],
-          [isAr ? 'المصروفات' : 'Expenses', data?.totalExpenses],
-          [isAr ? 'صافي الدخل' : 'Net income', data?.netIncome],
-        ].map(([label, value]) => (
-          <div key={label} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
-            <p className="text-[11px] uppercase tracking-widest text-slate-400">{label}</p>
-            <p className="mt-1 text-lg font-semibold"><Money value={value} /></p>
-          </div>
-        ))}
-      </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <LineBlock title={isAr ? 'الإيرادات' : 'Revenue'} rows={data?.revenue} total={data?.totalRevenue} tone="text-emerald-800" />
-        <LineBlock title={isAr ? 'المصروفات' : 'Expenses'} rows={data?.expenses} total={data?.totalExpenses} tone="text-rose-700" />
-      </div>
-      <HorizontalGroupsSection
+      <AccountingQueryState
         language={language}
-        groups={data?.horizontalGroups}
-        amountKey="amount"
-        priorMap={priorMap}
-        showVar={showVar}
-        onAccountClick={openGl}
-      />
-      <HorizontalGroupsSection
-        language={language}
-        groups={data?.accountGroups}
-        amountKey="amount"
-        priorMap={priorMap}
-        showVar={showVar}
-        onAccountClick={openGl}
-        titleEn="Account groups"
-        titleAr="مجموعات الحسابات"
-        purposeEn="P&L sections by account prefix from Configuration."
-        purposeAr="أقسام قائمة الدخل حسب بادئة الحساب من الإعدادات."
-      />
-      <CustomReportLinesSection language={language} lines={data?.customReportLines} />
+        isLoading={isLoading && !data}
+        isError={isError}
+        error={error}
+        onRetry={() => refetch()}
+      >
+        {isFetching && data ? <p className="text-xs text-slate-400">…</p> : null}
+        <div className="grid gap-3 sm:grid-cols-4">
+          {[
+            [isAr ? 'الإيرادات' : 'Revenue', data?.totalRevenue],
+            [isAr ? 'مجمل الربح' : 'Gross profit', data?.grossProfit],
+            [isAr ? 'المصروفات' : 'Expenses', data?.totalExpenses],
+            [isAr ? 'صافي الدخل' : 'Net income', data?.netIncome],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+              <p className="text-[11px] uppercase tracking-widest text-slate-400">{label}</p>
+              <p className="mt-1 text-lg font-semibold"><Money value={value} /></p>
+            </div>
+          ))}
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <LineBlock title={isAr ? 'الإيرادات' : 'Revenue'} rows={data?.revenue} total={data?.totalRevenue} tone="text-emerald-800" />
+          <LineBlock title={isAr ? 'المصروفات' : 'Expenses'} rows={data?.expenses} total={data?.totalExpenses} tone="text-rose-700" />
+        </div>
+        <HorizontalGroupsSection
+          language={language}
+          groups={data?.horizontalGroups}
+          amountKey="amount"
+          priorMap={priorMap}
+          showVar={showVar}
+          onAccountClick={openGl}
+        />
+        <HorizontalGroupsSection
+          language={language}
+          groups={data?.accountGroups}
+          amountKey="amount"
+          priorMap={priorMap}
+          showVar={showVar}
+          onAccountClick={openGl}
+          titleEn="Account groups"
+          titleAr="مجموعات الحسابات"
+          purposeEn="P&L sections by account prefix from Configuration."
+          purposeAr="أقسام قائمة الدخل حسب بادئة الحساب من الإعدادات."
+        />
+        <CustomReportLinesSection language={language} lines={data?.customReportLines} />
+      </AccountingQueryState>
     </div>
   )
 }
@@ -482,13 +499,13 @@ export function TrialBalancePanel({ language }) {
   const [to, setTo] = useState(todayIso())
   const [comparison, setComparison] = useState('none')
 
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isLoading, isError, error, refetch } = useAccountingQuery({
     queryKey: ['accounting-trial', from, to],
     queryFn: () => api.get('/accounting/reports/trial-balance', { params: { from, to } }).then((r) => r.data),
   })
 
   const compare = useMemo(() => compareRange(from, to, comparison), [from, to, comparison])
-  const { data: prior } = useQuery({
+  const { data: prior } = useAccountingQuery({
     queryKey: ['accounting-trial-prior', compare?.from, compare?.to],
     queryFn: () => api.get('/accounting/reports/trial-balance', {
       params: { from: compare.from, to: compare.to },
@@ -536,63 +553,72 @@ export function TrialBalancePanel({ language }) {
           title: isAr ? 'ميزان المراجعة' : 'Trial balance',
         }}
       />
-      {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
-          <h3 className="font-semibold">{isAr ? 'ميزان المراجعة' : 'Trial balance'}</h3>
-          <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${data?.balanced ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-            {data?.balanced ? (isAr ? 'متوازن' : 'Balanced') : (isAr ? 'غير متوازن' : 'Out of balance')}
-          </span>
+      <AccountingQueryState
+        language={language}
+        isLoading={isLoading && !data}
+        isError={isError}
+        error={error}
+        onRetry={() => refetch()}
+        skeletonRows={8}
+      >
+        {isFetching && data ? <p className="text-xs text-slate-400">…</p> : null}
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
+            <h3 className="font-semibold">{isAr ? 'ميزان المراجعة' : 'Trial balance'}</h3>
+            <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${data?.balanced ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+              {data?.balanced ? (isAr ? 'متوازن' : 'Balanced') : (isAr ? 'غير متوازن' : 'Out of balance')}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="sticky top-[7.5rem] bg-slate-50 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:bg-dark-900">
+                <tr>
+                  <th className="px-4 py-3 text-start">{isAr ? 'الرمز' : 'Code'}</th>
+                  <th className="px-4 py-3 text-start">{isAr ? 'الحساب' : 'Account'}</th>
+                  <th className="px-3 py-3 text-end">{isAr ? 'افتتاحي' : 'Initial'}</th>
+                  <th className="px-3 py-3 text-end">{isAr ? 'مدين' : 'Debit'}</th>
+                  <th className="px-3 py-3 text-end">{isAr ? 'دائن' : 'Credit'}</th>
+                  <th className="px-3 py-3 text-end">{isAr ? 'ختامي' : 'Ending'}</th>
+                  {showVar ? <th className="px-3 py-3 text-end">{isAr ? 'فرق' : 'Var'}</th> : null}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                {(data?.rows || []).map((r) => {
+                  const ending = r.endingBalance ?? r.balance
+                  const v = variance(ending, priorMap.get(r.code))
+                  return (
+                    <tr
+                      key={r.code}
+                      className="cursor-pointer hover:bg-emerald-50/50 dark:hover:bg-white/[0.04]"
+                      onClick={() => r.accountId && navigate(`/app/dashboard/accounting/general-ledger?accountId=${r.accountId}&from=${from}&to=${to}`)}
+                    >
+                      <td className="px-4 py-2.5 font-mono text-xs text-emerald-800">{r.code}</td>
+                      <td className="px-4 py-2.5">{isAr ? (r.nameAr || r.name) : r.name}</td>
+                      <td className="px-3 py-2.5 text-end"><Money value={r.initialBalance} /></td>
+                      <td className="px-3 py-2.5 text-end"><Money value={r.debit} /></td>
+                      <td className="px-3 py-2.5 text-end"><Money value={r.credit} /></td>
+                      <td className="px-3 py-2.5 text-end font-semibold"><Money value={ending} /></td>
+                      {showVar ? (
+                        <td className={`px-3 py-2.5 text-end text-xs ${v.amount >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                          <Money value={v.amount} />
+                        </td>
+                      ) : null}
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot className="border-t border-slate-200 font-semibold dark:border-white/10">
+                <tr>
+                  <td className="px-4 py-3" colSpan={3}>{isAr ? 'الإجمالي' : 'Total'}</td>
+                  <td className="px-3 py-3 text-end"><Money value={data?.totalDebit} /></td>
+                  <td className="px-3 py-3 text-end"><Money value={data?.totalCredit} /></td>
+                  <td className="px-3 py-3" colSpan={showVar ? 2 : 1} />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="sticky top-[7.5rem] bg-slate-50 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:bg-dark-900">
-              <tr>
-                <th className="px-4 py-3 text-start">{isAr ? 'الرمز' : 'Code'}</th>
-                <th className="px-4 py-3 text-start">{isAr ? 'الحساب' : 'Account'}</th>
-                <th className="px-3 py-3 text-end">{isAr ? 'افتتاحي' : 'Initial'}</th>
-                <th className="px-3 py-3 text-end">{isAr ? 'مدين' : 'Debit'}</th>
-                <th className="px-3 py-3 text-end">{isAr ? 'دائن' : 'Credit'}</th>
-                <th className="px-3 py-3 text-end">{isAr ? 'ختامي' : 'Ending'}</th>
-                {showVar ? <th className="px-3 py-3 text-end">{isAr ? 'فرق' : 'Var'}</th> : null}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-              {(data?.rows || []).map((r) => {
-                const ending = r.endingBalance ?? r.balance
-                const v = variance(ending, priorMap.get(r.code))
-                return (
-                  <tr
-                    key={r.code}
-                    className="cursor-pointer hover:bg-emerald-50/50 dark:hover:bg-white/[0.04]"
-                    onClick={() => r.accountId && navigate(`/app/dashboard/accounting/general-ledger?accountId=${r.accountId}&from=${from}&to=${to}`)}
-                  >
-                    <td className="px-4 py-2.5 font-mono text-xs text-emerald-800">{r.code}</td>
-                    <td className="px-4 py-2.5">{isAr ? (r.nameAr || r.name) : r.name}</td>
-                    <td className="px-3 py-2.5 text-end"><Money value={r.initialBalance} /></td>
-                    <td className="px-3 py-2.5 text-end"><Money value={r.debit} /></td>
-                    <td className="px-3 py-2.5 text-end"><Money value={r.credit} /></td>
-                    <td className="px-3 py-2.5 text-end font-semibold"><Money value={ending} /></td>
-                    {showVar ? (
-                      <td className={`px-3 py-2.5 text-end text-xs ${v.amount >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                        <Money value={v.amount} />
-                      </td>
-                    ) : null}
-                  </tr>
-                )
-              })}
-            </tbody>
-            <tfoot className="border-t border-slate-200 font-semibold dark:border-white/10">
-              <tr>
-                <td className="px-4 py-3" colSpan={3}>{isAr ? 'الإجمالي' : 'Total'}</td>
-                <td className="px-3 py-3 text-end"><Money value={data?.totalDebit} /></td>
-                <td className="px-3 py-3 text-end"><Money value={data?.totalCredit} /></td>
-                <td className="px-3 py-3" colSpan={showVar ? 2 : 1} />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
+      </AccountingQueryState>
     </div>
   )
 }
@@ -604,11 +630,11 @@ export function JournalAuditReportPanel({ language }) {
   const [to, setTo] = useState(todayIso())
   const [journalId, setJournalId] = useState('')
 
-  const { data: books = [] } = useQuery({
+  const { data: books = [] } = useAccountingQuery({
     queryKey: ['accounting-journal-books'],
     queryFn: () => api.get('/accounting/journal-books').then((r) => r.data || []),
   })
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isLoading, isError, error, refetch } = useAccountingQuery({
     queryKey: ['accounting-journal-report', from, to, journalId],
     queryFn: () => api.get('/accounting/reports/journal-report', {
       params: { from, to, journalId: journalId || undefined },
@@ -665,51 +691,60 @@ export function JournalAuditReportPanel({ language }) {
           title: isAr ? 'تقرير اليومية' : 'Journal report',
         }}
       />
-      {(data?.gaps || []).length ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
-          <p className="font-semibold">{isAr ? 'فجوات في التسلسل (تنبيه زاتكا)' : 'Sequence gaps (ZATCA warning)'}</p>
-          <ul className="mt-1 list-disc ps-5 text-xs">
-            {data.gaps.slice(0, 8).map((g, i) => <li key={i}>{g.message}</li>)}
-          </ul>
+      <AccountingQueryState
+        language={language}
+        isLoading={isLoading && !data}
+        isError={isError}
+        error={error}
+        onRetry={() => refetch()}
+        skeletonRows={6}
+      >
+        {(data?.gaps || []).length ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+            <p className="font-semibold">{isAr ? 'فجوات في التسلسل (تنبيه زاتكا)' : 'Sequence gaps (ZATCA warning)'}</p>
+            <ul className="mt-1 list-disc ps-5 text-xs">
+              {data.gaps.slice(0, 8).map((g, i) => <li key={i}>{g.message}</li>)}
+            </ul>
+          </div>
+        ) : null}
+        {isFetching && data ? <p className="text-xs text-slate-400">…</p> : null}
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
+              <tr>
+                <th className="px-4 py-2 text-start">{isAr ? 'التاريخ' : 'Date'}</th>
+                <th className="px-4 py-2 text-start">{isAr ? 'الرقم' : 'Number'}</th>
+                <th className="px-4 py-2 text-start">{isAr ? 'اليومية' : 'Journal'}</th>
+                <th className="px-4 py-2 text-start">{isAr ? 'البيان' : 'Memo'}</th>
+                <th className="px-3 py-2 text-end">{isAr ? 'مدين' : 'Debit'}</th>
+                <th className="px-3 py-2 text-end">{isAr ? 'دائن' : 'Credit'}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {(data?.rows || []).map((r) => {
+                const href = sourceHref(r)
+                return (
+                  <tr
+                    key={r.entryId}
+                    className={href ? 'cursor-pointer hover:bg-emerald-50/50' : ''}
+                    onClick={() => href && navigate(href)}
+                  >
+                    <td className="px-4 py-2">{r.entryDate ? new Date(r.entryDate).toLocaleDateString() : '—'}</td>
+                    <td className="px-4 py-2 font-mono text-xs">{r.entryNumber}</td>
+                    <td className="px-4 py-2">{r.journalCode || '—'}</td>
+                    <td className="px-4 py-2">{r.memo || r.reference || '—'}</td>
+                    <td className="px-3 py-2 text-end"><Money value={r.totalDebit} /></td>
+                    <td className="px-3 py-2 text-end"><Money value={r.totalCredit} /></td>
+                  </tr>
+                )
+              })}
+              {!(data?.rows || []).length && (
+                <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">{isAr ? 'لا قيود' : 'No entries'}</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
-      ) : null}
-      {isFetching ? <p className="text-xs text-slate-400">…</p> : null}
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
-            <tr>
-              <th className="px-4 py-2 text-start">{isAr ? 'التاريخ' : 'Date'}</th>
-              <th className="px-4 py-2 text-start">{isAr ? 'الرقم' : 'Number'}</th>
-              <th className="px-4 py-2 text-start">{isAr ? 'اليومية' : 'Journal'}</th>
-              <th className="px-4 py-2 text-start">{isAr ? 'البيان' : 'Memo'}</th>
-              <th className="px-3 py-2 text-end">{isAr ? 'مدين' : 'Debit'}</th>
-              <th className="px-3 py-2 text-end">{isAr ? 'دائن' : 'Credit'}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-            {(data?.rows || []).map((r) => {
-              const href = sourceHref(r)
-              return (
-                <tr
-                  key={r.entryId}
-                  className={href ? 'cursor-pointer hover:bg-emerald-50/50' : ''}
-                  onClick={() => href && navigate(href)}
-                >
-                  <td className="px-4 py-2">{r.entryDate ? new Date(r.entryDate).toLocaleDateString() : '—'}</td>
-                  <td className="px-4 py-2 font-mono text-xs">{r.entryNumber}</td>
-                  <td className="px-4 py-2">{r.journalCode || '—'}</td>
-                  <td className="px-4 py-2">{r.memo || r.reference || '—'}</td>
-                  <td className="px-3 py-2 text-end"><Money value={r.totalDebit} /></td>
-                  <td className="px-3 py-2 text-end"><Money value={r.totalCredit} /></td>
-                </tr>
-              )
-            })}
-            {!(data?.rows || []).length && (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">{isAr ? 'لا قيود' : 'No entries'}</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      </AccountingQueryState>
     </div>
   )
 }

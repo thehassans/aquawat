@@ -330,10 +330,11 @@ const systemSettingsSchema = new mongoose.Schema({
     },
   },
   rateLimiting: {
-    authMaxRequests: { type: Number, default: 20 },
+    authMaxRequests: { type: Number, default: 300 },
     authWindowMinutes: { type: Number, default: 15 },
-    apiMaxRequests: { type: Number, default: 200 },
-    apiWindowMinutes: { type: Number, default: 1 },
+    // Must stay high enough for ERP report browsing (many GETs per page).
+    apiMaxRequests: { type: Number, default: 15000 },
+    apiWindowMinutes: { type: Number, default: 15 },
   },
   sessionConfig: {
     accessTokenExpiryMinutes: { type: Number, default: 60 },
