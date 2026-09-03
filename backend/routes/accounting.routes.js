@@ -165,8 +165,28 @@ router.get('/accounts', checkPermission('finance', 'read'), async (req, res) => 
         { nameAr: new RegExp(q, 'i') },
       ];
     }
-    const accounts = await ChartOfAccount.find(filter).sort({ code: 1 });
-    res.json(accounts);
+    const accounts = await ChartOfAccount.find(filter).sort({ code: 1 }).lean();
+    // Overlay live balances from shared ledger (excludes reversed pairs)
+    const { getAccountBalances } = await import('../services/ledger/balances.js');
+    const live = await getAccountBalances({
+      tenantId,
+      accountIds: accounts.map((a) => a._id),
+      activeOnly: false,
+      includeReversed: false,
+    });
+    const byId = Object.fromEntries((live.rows || []).map((r) => [String(r.accountId), r]));
+    const enriched = accounts.map((a) => {
+      const row = byId[String(a._id)];
+      const natural = row ? Number(row.naturalBalance) : Number(a.balance || 0);
+      return {
+        ...a,
+        balance: natural,
+        naturalBalance: natural,
+        rawDebitMinusCredit: row?.rawDebitMinusCredit ?? null,
+        storedBalance: Number(a.balance || 0),
+      };
+    });
+    res.json(enriched);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1182,8 +1202,41 @@ router.get('/reports/customer-summary', checkPermission('finance', 'read'), asyn
     const data = await buildCustomerSummaryReport(tenantIdOf(req), {
       from: req.query.from,
       to: req.query.to,
+      asOf: req.query.asOf || null,
     });
     res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/reports/receivable-consistency', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { assertReceivableConsistency, buildTrialBalance, buildBalanceSheet, buildAgedReceivables } = await import('../services/accountingService.js');
+    const tenantId = tenantIdOf(req);
+    const asOf = req.query.asOf || null;
+    const [core, tb, bs, aged] = await Promise.all([
+      assertReceivableConsistency(tenantId, { asOf }),
+      buildTrialBalance(tenantId, { asOf }),
+      buildBalanceSheet(tenantId, { asOf }),
+      buildAgedReceivables(tenantId, { asOf }),
+    ]);
+    const tbAr = (tb.rows || []).find((r) => String(r.code) === '1200');
+    const bsAr = (bs.assets || []).find((r) => String(r.code) === '1200');
+    const report = {
+      ...core,
+      trialBalance1200: tbAr?.balance ?? null,
+      balanceSheet1200: bsAr?.balance ?? null,
+      agedArTotal: aged?.buckets?.total ?? null,
+      equal: {
+        glVsTb: Math.abs((core.glAr || 0) - (tbAr?.balance || 0)) < 0.05,
+        glVsBs: Math.abs((core.glAr || 0) - (bsAr?.balance || 0)) < 0.05,
+        glVsAged: Math.abs((core.glAr || 0) - (aged?.buckets?.total || 0)) < 0.05,
+        glVsPartners: core.ok,
+      },
+    };
+    report.allEqual = Object.values(report.equal).every(Boolean);
+    res.json(report);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

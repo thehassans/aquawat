@@ -11,6 +11,14 @@ import Voucher from '../models/Voucher.js';
 import Expense from '../models/Expense.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import { applyPaidAmountStatus } from '../utils/invoicePaymentStatus.js';
+import {
+  getAccountBalances,
+  getPartnerBalances,
+  assertReceivableConsistency,
+  isDebitNature,
+  emptyAgingBuckets,
+  agingBucket,
+} from './ledger/balances.js';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -3024,65 +3032,44 @@ export async function buildPartnerLedger(tenantId, partnerId, { from, to, accoun
 
 export async function buildTrialBalance(tenantId, { asOf = null, from = null, to = null } = {}) {
   await ensureDefaultChartOfAccounts(tenantId);
-  const accounts = await ChartOfAccount.find({ tenantId, isActive: true }).sort({ code: 1 }).lean();
+
+  const hideZeroRow = (r) => {
+    // Hide only when initial, debit, credit AND ending are all zero
+    const z = (n) => Math.abs(Number(n) || 0) < 0.005;
+    return !(z(r.initialBalance) && z(r.debit) && z(r.credit) && z(r.endingBalance ?? r.balance));
+  };
 
   // Period trial: opening + period movement + ending
   if (from && to) {
-    const start = new Date(from);
-    const end = new Date(to);
-    end.setHours(23, 59, 59, 999);
-    const openingEnd = new Date(start.getTime() - 1);
-
-    const [openingTb, periodEntries] = await Promise.all([
-      buildTrialBalance(tenantId, { asOf: openingEnd }),
-      JournalEntry.find({
-        tenantId,
-        status: 'posted',
-        entryDate: { $gte: start, $lte: end },
-      }).lean(),
-    ]);
-
-    const map = {};
-    for (const a of accounts) {
-      map[String(a._id)] = {
-        accountId: a._id,
-        code: a.code,
-        name: a.name,
-        nameAr: a.nameAr,
-        type: a.type,
-        initialBalance: 0,
-        debit: 0,
-        credit: 0,
-        endingBalance: 0,
-      };
-    }
-    for (const row of openingTb.rows || []) {
-      const key = String(row.accountId);
-      if (!map[key]) continue;
-      map[key].initialBalance = round2(row.balance);
-    }
-    for (const entry of periodEntries) {
-      for (const line of entry.lines || []) {
-        const key = String(line.accountId);
-        if (!map[key]) continue;
-        map[key].debit = round2(map[key].debit + Number(line.debit || 0));
-        map[key].credit = round2(map[key].credit + Number(line.credit || 0));
-      }
-    }
-    const rows = Object.values(map).map((row) => {
-      const isDebitNature = ['asset', 'expense'].includes(row.type);
-      const ending = isDebitNature
-        ? round2(row.initialBalance + row.debit - row.credit)
-        : round2(row.initialBalance + row.credit - row.debit);
-      return { ...row, endingBalance: ending, balance: ending };
-    }).filter((r) => r.initialBalance || r.debit || r.credit || r.endingBalance);
+    const bal = await getAccountBalances({
+      tenantId,
+      from,
+      to,
+      withOpening: true,
+      includeReversed: false,
+    });
+    const rows = (bal.rows || []).map((r) => ({
+      accountId: r.accountId,
+      code: r.code,
+      name: r.name,
+      nameAr: r.nameAr,
+      type: r.type,
+      subtype: r.subtype,
+      initialBalance: r.initialBalance,
+      debit: r.debit,
+      credit: r.credit,
+      endingBalance: r.endingBalance,
+      balance: r.endingBalance,
+      naturalBalance: r.naturalBalance,
+      rawDebitMinusCredit: r.rawDebitMinusCredit,
+    })).filter(hideZeroRow);
 
     const totalDebit = round2(rows.reduce((s, r) => s + r.debit, 0));
     const totalCredit = round2(rows.reduce((s, r) => s + r.credit, 0));
     return {
-      from: start,
-      to: end,
-      asOf: end,
+      from: bal.from,
+      to: bal.to,
+      asOf: bal.to,
       rows,
       totalDebit,
       totalCredit,
@@ -3091,77 +3078,50 @@ export async function buildTrialBalance(tenantId, { asOf = null, from = null, to
     };
   }
 
-  if (!asOf) {
-    const rows = accounts.map((a) => {
-      const bal = round2(a.balance || 0);
-      const isDebitNature = ['asset', 'expense'].includes(a.type);
-      let debit = 0;
-      let credit = 0;
-      if (bal >= 0) {
-        if (isDebitNature) debit = bal;
-        else credit = bal;
-      } else if (isDebitNature) credit = Math.abs(bal);
-      else debit = Math.abs(bal);
-      return {
-        accountId: a._id,
-        code: a.code,
-        name: a.name,
-        nameAr: a.nameAr,
-        type: a.type,
-        debit: round2(debit),
-        credit: round2(credit),
-        balance: bal,
-        initialBalance: bal,
-        endingBalance: bal,
-      };
-    });
-
-    const totalDebit = round2(rows.reduce((s, r) => s + r.debit, 0));
-    const totalCredit = round2(rows.reduce((s, r) => s + r.credit, 0));
-    return { asOf: asOf || new Date(), rows, totalDebit, totalCredit, balanced: Math.abs(totalDebit - totalCredit) < 0.02, mode: 'snapshot' };
-  }
-
-  // Rebuild from posted journals up to asOf
-  const entries = await JournalEntry.find({
+  // Snapshot / as-of: single shared rebuild (excludes reversed pairs)
+  const bal = await getAccountBalances({
     tenantId,
-    status: 'posted',
-    entryDate: { $lte: new Date(asOf) },
-  }).lean();
-
-  const map = {};
-  for (const a of accounts) {
-    map[String(a._id)] = {
-      accountId: a._id,
-      code: a.code,
-      name: a.name,
-      nameAr: a.nameAr,
-      type: a.type,
-      debit: 0,
-      credit: 0,
-      balance: 0,
-    };
-  }
-  for (const entry of entries) {
-    for (const line of entry.lines || []) {
-      const key = String(line.accountId);
-      if (!map[key]) continue;
-      map[key].debit = round2(map[key].debit + Number(line.debit || 0));
-      map[key].credit = round2(map[key].credit + Number(line.credit || 0));
-    }
-  }
-  const rows = Object.values(map).map((row) => {
-    const isDebitNature = ['asset', 'expense'].includes(row.type);
-    const raw = isDebitNature ? row.debit - row.credit : row.credit - row.debit;
-    return {
-      ...row,
-      balance: round2(raw),
-      initialBalance: 0,
-      endingBalance: round2(raw),
-    };
+    to: asOf || null,
+    includeReversed: false,
   });
+  const rows = (bal.rows || []).map((r) => {
+    const natural = round2(r.naturalBalance ?? r.balance);
+    // Present debit/credit columns for TB display from natural side
+    let debit = 0;
+    let credit = 0;
+    if (natural >= 0) {
+      if (isDebitNature(r.type)) debit = natural;
+      else credit = natural;
+    } else if (isDebitNature(r.type)) credit = Math.abs(natural);
+    else debit = Math.abs(natural);
+    return {
+      accountId: r.accountId,
+      code: r.code,
+      name: r.name,
+      nameAr: r.nameAr,
+      type: r.type,
+      subtype: r.subtype,
+      debit: round2(debit),
+      credit: round2(credit),
+      balance: natural,
+      initialBalance: natural,
+      endingBalance: natural,
+      naturalBalance: natural,
+      rawDebitMinusCredit: r.rawDebitMinusCredit,
+      storedBalance: r.storedBalance,
+    };
+  }).filter(hideZeroRow);
+
   const totalDebit = round2(rows.reduce((s, r) => s + r.debit, 0));
   const totalCredit = round2(rows.reduce((s, r) => s + r.credit, 0));
-  return { asOf: new Date(asOf), rows, totalDebit, totalCredit, balanced: Math.abs(totalDebit - totalCredit) < 0.02, mode: 'asOf' };
+  return {
+    asOf: bal.asOf,
+    rows,
+    totalDebit,
+    totalCredit,
+    balanced: Math.abs(totalDebit - totalCredit) < 0.02,
+    mode: asOf ? 'asOf' : 'allTime',
+  };
 }
 
 async function cashAccountIdSet(tenantId) {
@@ -3187,48 +3147,99 @@ export async function buildProfitAndLoss(tenantId, {
   const end = to ? new Date(to) : new Date();
   end.setHours(23, 59, 59, 999);
 
-  const accounts = await ChartOfAccount.find({
-    tenantId,
-    isActive: true,
-    type: { $in: ['revenue', 'expense'] },
-  }).sort({ code: 1 }).lean();
+  // Analytic filter still needs line-level walk; cash basis too.
+  if (analyticAccountId || basis === 'cash') {
+    const accounts = await ChartOfAccount.find({
+      tenantId,
+      isActive: true,
+      type: { $in: ['revenue', 'expense'] },
+    }).sort({ code: 1 }).lean();
 
-  let entries = await JournalEntry.find({
-    tenantId,
-    status: 'posted',
-    entryDate: { $gte: start, $lte: end },
-  }).lean();
+    let entries = await JournalEntry.find({
+      tenantId,
+      status: 'posted',
+      type: { $ne: 'reversal' },
+      entryDate: { $gte: start, $lte: end },
+      $or: [{ reversalOfId: null }, { reversalOfId: { $exists: false } }],
+    }).lean();
 
-  if (basis === 'cash') {
-    const cashIds = await cashAccountIdSet(tenantId);
-    entries = entries.filter((e) => (
-      ['payment', 'expense', 'voucher'].includes(e.type)
-      || /payment|receipt|voucher/i.test(String(e.sourceModel || ''))
-      || entryTouchesCash(e, cashIds)
-    ));
-  }
+    if (basis === 'cash') {
+      const cashIds = await cashAccountIdSet(tenantId);
+      entries = entries.filter((e) => (
+        ['payment', 'expense', 'voucher'].includes(e.type)
+        || /payment|receipt|voucher/i.test(String(e.sourceModel || ''))
+        || entryTouchesCash(e, cashIds)
+      ));
+    }
 
-  const totals = {};
-  for (const a of accounts) {
-    totals[String(a._id)] = { ...a, amount: 0 };
-  }
+    const totals = {};
+    for (const a of accounts) {
+      totals[String(a._id)] = { ...a, amount: 0 };
+    }
 
-  for (const entry of entries) {
-    for (const line of entry.lines || []) {
-      if (analyticAccountId && String(line.analyticAccountId || '') !== String(analyticAccountId)) continue;
-      const key = String(line.accountId);
-      if (!totals[key]) continue;
-      const a = totals[key];
-      if (a.type === 'revenue') {
-        a.amount = round2(a.amount + Number(line.credit || 0) - Number(line.debit || 0));
-      } else {
-        a.amount = round2(a.amount + Number(line.debit || 0) - Number(line.credit || 0));
+    for (const entry of entries) {
+      for (const line of entry.lines || []) {
+        if (analyticAccountId && String(line.analyticAccountId || '') !== String(analyticAccountId)) continue;
+        const key = String(line.accountId);
+        if (!totals[key]) continue;
+        const a = totals[key];
+        if (a.type === 'revenue') {
+          a.amount = round2(a.amount + Number(line.credit || 0) - Number(line.debit || 0));
+        } else {
+          a.amount = round2(a.amount + Number(line.debit || 0) - Number(line.credit || 0));
+        }
       }
     }
+
+    const revenue = Object.values(totals).filter((a) => a.type === 'revenue');
+    const expenses = Object.values(totals).filter((a) => a.type === 'expense');
+    return finalizePnL(tenantId, {
+      start, end, basis, analyticAccountId, revenue, expenses,
+    });
   }
 
-  const revenue = Object.values(totals).filter((a) => a.type === 'revenue');
-  const expenses = Object.values(totals).filter((a) => a.type === 'expense');
+  const bal = await getAccountBalances({
+    tenantId,
+    from: start,
+    to: end,
+    includeReversed: false,
+  });
+  const pnlRows = (bal.rows || []).filter((r) => r.type === 'revenue' || r.type === 'expense');
+  const revenue = pnlRows
+    .filter((r) => r.type === 'revenue')
+    .map((r) => ({
+      _id: r.accountId,
+      code: r.code,
+      name: r.name,
+      nameAr: r.nameAr,
+      type: r.type,
+      subtype: r.subtype,
+      amount: r.naturalBalance,
+      naturalBalance: r.naturalBalance,
+      rawDebitMinusCredit: r.rawDebitMinusCredit,
+    }));
+  const expenses = pnlRows
+    .filter((r) => r.type === 'expense')
+    .map((r) => ({
+      _id: r.accountId,
+      code: r.code,
+      name: r.name,
+      nameAr: r.nameAr,
+      type: r.type,
+      subtype: r.subtype,
+      amount: r.naturalBalance,
+      naturalBalance: r.naturalBalance,
+      rawDebitMinusCredit: r.rawDebitMinusCredit,
+    }));
+
+  return finalizePnL(tenantId, {
+    start, end, basis: 'accrual', analyticAccountId: null, revenue, expenses,
+  });
+}
+
+async function finalizePnL(tenantId, {
+  start, end, basis, analyticAccountId, revenue, expenses,
+}) {
   const cogs = expenses.filter((a) => a.subtype === 'cogs' || String(a.code).startsWith('50'));
   const opex = expenses.filter((a) => !(a.subtype === 'cogs' || String(a.code).startsWith('50')));
   const totalRevenue = round2(revenue.reduce((s, a) => s + a.amount, 0));
@@ -3364,29 +3375,22 @@ export async function buildGeneralLedger(tenantId, accountId, { from, to } = {})
   const end = to ? new Date(to) : new Date();
   end.setHours(23, 59, 59, 999);
 
-  // Opening balance before period
-  const prior = await JournalEntry.find({
+  // Opening balance before period (shared ledger — excludes reversed pairs)
+  const priorBal = await getAccountBalances({
     tenantId,
-    status: 'posted',
-    entryDate: { $lt: start },
-    'lines.accountId': account._id,
-  }).lean();
-  let opening = 0;
-  for (const entry of prior) {
-    for (const line of entry.lines || []) {
-      if (String(line.accountId) !== String(account._id)) continue;
-      const debit = Number(line.debit || 0);
-      const credit = Number(line.credit || 0);
-      if (['asset', 'expense'].includes(account.type)) opening = round2(opening + debit - credit);
-      else opening = round2(opening + credit - debit);
-    }
-  }
+    accountIds: [account._id],
+    to: new Date(start.getTime() - 1),
+    includeReversed: false,
+  });
+  let opening = round2(priorBal.rows?.[0]?.naturalBalance || 0);
 
   const entries = await JournalEntry.find({
     tenantId,
     status: 'posted',
+    type: { $ne: 'reversal' },
     entryDate: { $gte: start, $lte: end },
     'lines.accountId': account._id,
+    $or: [{ reversalOfId: null }, { reversalOfId: { $exists: false } }],
   }).sort({ entryDate: 1, entryNumber: 1 }).lean();
 
   let running = opening;
@@ -5702,10 +5706,12 @@ export async function getAccountingDashboard(tenantId) {
     agedAr: {
       buckets: agedAr.buckets,
       openCount: (agedAr.rows || []).length,
+      total: agedAr.buckets?.total || 0,
     },
     agedAp: {
       buckets: agedAp.buckets,
       openCount: (agedAp.rows || []).length,
+      total: agedAp.buckets?.total || 0,
     },
   };
 }
@@ -5799,7 +5805,14 @@ export async function buildCustomerAccountReport(tenantId, customerId, { from, t
   };
 }
 
-export async function buildCustomerSummaryReport(tenantId, { from, to } = {}) {
+export async function buildCustomerSummaryReport(tenantId, { from, to, asOf = null } = {}) {
+  // Open AR by partner from shared service (matches aged AR / COA when residuals align)
+  const open = await getPartnerBalances({
+    tenantId,
+    partnerType: 'customer',
+    asOf: asOf || to || null,
+  });
+
   const { start, end } = periodRange({ from, to });
   const [invoices, receipts] = await Promise.all([
     Invoice.find({
@@ -5817,34 +5830,61 @@ export async function buildCustomerSummaryReport(tenantId, { from, to } = {}) {
   ]);
 
   const map = new Map();
+  for (const p of open.partners || []) {
+    map.set(String(p.partnerId), {
+      partyId: p.partnerId,
+      partnerId: p.partnerId,
+      name: p.partnerName,
+      invoices: p.invoiceCount || 0,
+      invoiced: p.totalInvoiced || 0,
+      paid: p.totalPaid || 0,
+      receipts: 0,
+      outstanding: p.openResidual || 0,
+      balance: p.openResidual || 0,
+      aging: p.aging,
+    });
+  }
+
   const bump = (id, name, patch) => {
     const key = String(id || name || 'unknown');
     if (!map.has(key)) {
       map.set(key, {
         partyId: id || null,
+        partnerId: id || null,
         name: name || 'Unknown',
         invoices: 0,
         invoiced: 0,
         paid: 0,
         receipts: 0,
         outstanding: 0,
+        balance: 0,
       });
     }
     const row = map.get(key);
     if (name && row.name === 'Unknown') row.name = name;
-    row.invoices += patch.invoices || 0;
-    row.invoiced = round2(row.invoiced + (patch.invoiced || 0));
-    row.paid = round2(row.paid + (patch.paid || 0));
-    row.receipts = round2(row.receipts + (patch.receipts || 0));
-    row.outstanding = round2(row.invoiced - row.paid);
+    // Period activity counters (do not overwrite open residual from getPartnerBalances)
+    if (patch.periodInvoices) row.invoices = (row.invoices || 0) + patch.periodInvoices;
+    if (patch.periodInvoiced) row.invoiced = round2((row.invoiced || 0) + patch.periodInvoiced);
+    if (patch.periodPaid) row.paid = round2((row.paid || 0) + patch.periodPaid);
+    if (patch.receipts) row.receipts = round2((row.receipts || 0) + patch.receipts);
   };
 
   for (const invoice of invoices) {
-    bump(invoice.customerId, invoice.buyer?.name, {
-      invoices: 1,
-      invoiced: Number(invoice.grandTotal) || 0,
-      paid: Number(invoice.paidAmount) || 0,
-    });
+    const key = String(invoice.customerId || '');
+    if (map.has(key)) {
+      // already have open residual; optionally refresh period stats only when not set from open
+    } else {
+      bump(invoice.customerId, invoice.buyer?.name, {
+        periodInvoices: 1,
+        periodInvoiced: Number(invoice.grandTotal) || 0,
+        periodPaid: Number(invoice.paidAmount) || 0,
+      });
+      const row = map.get(key || String(invoice.buyer?.name || 'unknown'));
+      if (row && row.outstanding === 0) {
+        row.outstanding = round2(Math.max(0, (Number(invoice.grandTotal) || 0) - (Number(invoice.paidAmount) || 0)));
+        row.balance = row.outstanding;
+      }
+    }
   }
   for (const receipt of receipts) {
     bump(receipt.partyId, receipt.partyName, { receipts: Number(receipt.amount) || 0 });
@@ -5854,7 +5894,9 @@ export async function buildCustomerSummaryReport(tenantId, { from, to } = {}) {
   return {
     from: start,
     to: end,
+    asOf: open.asOf,
     rows,
+    buckets: open.buckets,
     totals: rows.reduce((sum, row) => ({
       invoices: sum.invoices + row.invoices,
       invoiced: round2(sum.invoiced + row.invoiced),
@@ -5865,7 +5907,12 @@ export async function buildCustomerSummaryReport(tenantId, { from, to } = {}) {
   };
 }
 
-export async function buildSupplierSummaryReport(tenantId, { from, to } = {}) {
+export async function buildSupplierSummaryReport(tenantId, { from, to, asOf = null } = {}) {
+  const open = await getPartnerBalances({
+    tenantId,
+    partnerType: 'vendor',
+    asOf: asOf || to || null,
+  });
   const { start, end } = periodRange({ from, to });
   const [invoices, payments, suppliers] = await Promise.all([
     Invoice.find({
@@ -5885,35 +5932,56 @@ export async function buildSupplierSummaryReport(tenantId, { from, to } = {}) {
 
   const supplierNames = new Map(suppliers.map((s) => [String(s._id), s.nameEn || s.nameAr || s.code]));
   const map = new Map();
+  for (const p of open.partners || []) {
+    map.set(String(p.partnerId), {
+      partyId: p.partnerId,
+      partnerId: p.partnerId,
+      name: p.partnerName || supplierNames.get(String(p.partnerId)) || '—',
+      invoices: p.invoiceCount || 0,
+      invoiced: p.totalInvoiced || 0,
+      paid: p.totalPaid || 0,
+      payments: 0,
+      outstanding: p.openResidual || 0,
+      balance: p.openResidual || 0,
+      aging: p.aging,
+    });
+  }
   const bump = (id, name, patch) => {
     const key = String(id || name || 'unknown');
     if (!map.has(key)) {
       map.set(key, {
         partyId: id || null,
+        partnerId: id || null,
         name: name || 'Unknown',
         invoices: 0,
         invoiced: 0,
         paid: 0,
         payments: 0,
         outstanding: 0,
+        balance: 0,
       });
     }
     const row = map.get(key);
     if (name && row.name === 'Unknown') row.name = name;
-    row.invoices += patch.invoices || 0;
-    row.invoiced = round2(row.invoiced + (patch.invoiced || 0));
-    row.paid = round2(row.paid + (patch.paid || 0));
-    row.payments = round2(row.payments + (patch.payments || 0));
-    row.outstanding = round2(row.invoiced - row.paid);
+    if (patch.invoices) row.invoices += patch.invoices;
+    if (patch.invoiced) row.invoiced = round2(row.invoiced + patch.invoiced);
+    if (patch.paid) row.paid = round2(row.paid + patch.paid);
+    if (patch.payments) row.payments = round2(row.payments + patch.payments);
+    if (row.outstanding === 0 && (patch.invoiced || patch.paid)) {
+      row.outstanding = round2(row.invoiced - row.paid);
+      row.balance = row.outstanding;
+    }
   };
 
   for (const invoice of invoices) {
     const name = supplierNames.get(String(invoice.supplierId)) || invoice.seller?.name || invoice.buyer?.name;
-    bump(invoice.supplierId, name, {
-      invoices: 1,
-      invoiced: Number(invoice.grandTotal) || 0,
-      paid: Number(invoice.paidAmount) || 0,
-    });
+    if (!map.has(String(invoice.supplierId || ''))) {
+      bump(invoice.supplierId, name, {
+        invoices: 1,
+        invoiced: Number(invoice.grandTotal) || 0,
+        paid: Number(invoice.paidAmount) || 0,
+      });
+    }
   }
   for (const payment of payments) {
     bump(payment.partyId, payment.partyName, { payments: Number(payment.amount) || 0 });
@@ -5923,7 +5991,9 @@ export async function buildSupplierSummaryReport(tenantId, { from, to } = {}) {
   return {
     from: start,
     to: end,
+    asOf: open.asOf,
     rows,
+    buckets: open.buckets,
     totals: rows.reduce((sum, row) => ({
       invoices: sum.invoices + row.invoices,
       invoiced: round2(sum.invoiced + row.invoiced),
@@ -6380,24 +6450,18 @@ export async function buildCashFlowStatement(tenantId, { from, to } = {}) {
 
   const accounts = await ChartOfAccount.find({ tenantId, isActive: true }).lean();
   const byId = Object.fromEntries(accounts.map((a) => [String(a._id), a]));
-  const cashIds = new Set(
-    accounts.filter((a) => a.subtype === 'cash' || a.subtype === 'bank').map((a) => String(a._id)),
-  );
+  const cashAccounts = accounts.filter((a) => a.subtype === 'cash' || a.subtype === 'bank');
+  const cashIds = new Set(cashAccounts.map((a) => String(a._id)));
+  const cashAccountIds = cashAccounts.map((a) => a._id);
 
   const balanceAt = async (asOfEnd) => {
-    const entries = await JournalEntry.find({
+    const bal = await getAccountBalances({
       tenantId,
-      status: 'posted',
-      entryDate: { $lte: asOfEnd },
-    }).select('lines').lean();
-    let total = 0;
-    for (const entry of entries) {
-      for (const line of entry.lines || []) {
-        if (!cashIds.has(String(line.accountId))) continue;
-        total = round2(total + Number(line.debit || 0) - Number(line.credit || 0));
-      }
-    }
-    return total;
+      to: asOfEnd,
+      accountIds: cashAccountIds,
+      includeReversed: false,
+    });
+    return round2((bal.rows || []).reduce((s, r) => s + Number(r.rawDebitMinusCredit || 0), 0));
   };
 
   const dayBefore = new Date(start);
@@ -6407,7 +6471,9 @@ export async function buildCashFlowStatement(tenantId, { from, to } = {}) {
   const entries = await JournalEntry.find({
     tenantId,
     status: 'posted',
+    type: { $ne: 'reversal' },
     entryDate: { $gte: start, $lte: end },
+    $or: [{ reversalOfId: null }, { reversalOfId: { $exists: false } }],
   }).sort({ entryDate: 1, entryNumber: 1 }).lean();
 
   const operating = cashFlowSection();
@@ -6523,131 +6589,32 @@ export async function buildCashFlowStatement(tenantId, { from, to } = {}) {
   };
 }
 
-function agingBucket(ageDays) {
-  if (ageDays <= 30) return 'd0_30';
-  if (ageDays <= 60) return 'd31_60';
-  if (ageDays <= 90) return 'd61_90';
-  return 'd90_plus';
-}
-
-const EMPTY_AGING_BUCKETS = () => ({
-  d0_30: 0,
-  d31_60: 0,
-  d61_90: 0,
-  d90_plus: 0,
-  total: 0,
-});
-
 async function buildAgedInvoices(tenantId, { flow, asOf = null } = {}) {
-  const asOfDate = asOf ? new Date(asOf) : new Date();
-  asOfDate.setHours(23, 59, 59, 999);
-
-  const invoices = await Invoice.find({
-    tenantId,
-    flow,
-    status: { $nin: ['draft', 'cancelled'] },
-    paymentStatus: { $nin: ['paid', 'cancelled'] },
-    issueDate: { $lte: asOfDate },
-  })
-    .select('invoiceNumber invoiceType issueDate dueDate grandTotal paidAmount customerId supplierId paymentStatus paymentSchedule')
-    .lean();
-
-  const partnerIds = [
-    ...new Set(
-      invoices
-        .map((inv) => String(flow === 'sell' ? inv.customerId : inv.supplierId || inv.customerId || ''))
-        .filter((id) => id && id !== 'undefined' && id !== 'null'),
-    ),
-  ];
-  const partners = partnerIds.length
-    ? await Customer.find({ _id: { $in: partnerIds }, tenantId }).select('name nameAr displayName phone mobile').lean()
-    : [];
-  const partnerById = Object.fromEntries(partners.map((p) => [String(p._id), p]));
-
+  const partnerType = flow === 'purchase' ? 'vendor' : 'customer';
+  const data = await getPartnerBalances({ tenantId, partnerType, asOf });
   const followUpLevels = flow === 'sell' ? (await getFollowUpLevels(tenantId)).levels : [];
 
-  const buckets = EMPTY_AGING_BUCKETS();
-  const rows = [];
+  const rows = (data.invoices || []).map((inv) => ({
+    ...inv,
+    followUpLevel: flow === 'sell' ? resolveFollowUpLevel(inv.ageDays, followUpLevels) : null,
+    trancheSequence: null,
+    partnerPhone: '',
+  }));
 
-  const pushAgingRow = ({
-    inv,
-    partner,
-    partnerId,
-    residual,
-    dueDate,
-    trancheSequence = null,
-  }) => {
-    if (residual < 0.01) return;
-    const baseDate = new Date(dueDate || inv.dueDate || inv.issueDate || asOfDate);
-    const ageDays = Math.max(0, Math.floor((asOfDate - baseDate) / MS_PER_DAY));
-    const bucket = agingBucket(ageDays);
-    buckets[bucket] = round2(buckets[bucket] + residual);
-    buckets.total = round2(buckets.total + residual);
-    rows.push({
-      invoiceId: inv._id,
-      invoiceNumber: inv.invoiceNumber,
-      invoiceType: inv.invoiceType,
-      partnerId: partnerId || null,
-      partnerName: partner?.displayName || partner?.name || partner?.nameAr || '—',
-      partnerPhone: partner?.mobile || partner?.phone || '',
-      issueDate: inv.issueDate,
-      dueDate: dueDate || inv.dueDate || null,
-      grandTotal: round2(inv.grandTotal),
-      paidAmount: round2(inv.paidAmount),
-      residual,
-      ageDays,
-      bucket,
-      paymentStatus: inv.paymentStatus,
-      trancheSequence,
-      followUpLevel: flow === 'sell' ? resolveFollowUpLevel(ageDays, followUpLevels) : null,
-    });
-  };
-
-  for (const inv of invoices) {
-    const grossResidual = round2(Math.max(0, Number(inv.grandTotal || 0) - Number(inv.paidAmount || 0)));
-    if (grossResidual < 0.01) continue;
-
-    const partnerId = flow === 'sell' ? inv.customerId : (inv.supplierId || inv.customerId);
-    const partner = partnerId ? partnerById[String(partnerId)] : null;
-    const schedule = Array.isArray(inv.paymentSchedule)
-      ? inv.paymentSchedule.filter((row) => round2(Number(row.amount || 0)) > 0)
-      : [];
-
-    if (schedule.length > 1) {
-      let remainingPaid = round2(Number(inv.paidAmount || 0));
-      for (const tranche of schedule) {
-        const trancheAmount = round2(Number(tranche.amount || 0));
-        const paidOnTranche = Math.min(remainingPaid, trancheAmount);
-        const trancheResidual = round2(trancheAmount - paidOnTranche);
-        remainingPaid = round2(remainingPaid - paidOnTranche);
-        pushAgingRow({
-          inv,
-          partner,
-          partnerId,
-          residual: trancheResidual,
-          dueDate: tranche.dueDate,
-          trancheSequence: tranche.sequence,
-        });
-      }
-      continue;
-    }
-
-    pushAgingRow({
-      inv,
-      partner,
-      partnerId,
-      residual: grossResidual,
-      dueDate: inv.dueDate,
-    });
+  const phoneById = Object.fromEntries(
+    (data.partners || []).map((p) => [String(p.partnerId), p.phone || '']),
+  );
+  for (const row of rows) {
+    row.partnerPhone = phoneById[String(row.partnerId)] || '';
   }
 
-  rows.sort((a, b) => b.ageDays - a.ageDays || b.residual - a.residual);
-
   return {
-    asOf: asOfDate,
+    asOf: data.asOf,
     flow,
-    buckets,
+    buckets: data.buckets || emptyAgingBuckets(),
     rows,
+    partners: data.partners || [],
+    totals: data.totals || { openResidual: 0 },
   };
 }
 
@@ -7107,4 +7074,7 @@ export default {
   buildCustomerSummaryReport,
   buildSupplierSummaryReport,
   buildSupplierAccountReport,
+  assertReceivableConsistency,
+  getAccountBalances,
+  getPartnerBalances,
 };
