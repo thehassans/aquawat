@@ -382,11 +382,32 @@ export default function PartnerForm() {
     },
   })
 
-  const onSubmit = (data) => {
+  const onSubmit = async (data) => {
     if (!data.isCustomer && !data.isVendor && !data.isEmployee) {
       toast.error(ar ? 'اختر دورًا واحدًا على الأقل' : 'Select at least one role')
       setTab('sales')
       return
+    }
+    if (data.isCustomer) {
+      try {
+        const { data: dup } = await api.post('/accounting/customers/check-duplicate', {
+          name: data.nameEn,
+          nameEn: data.nameEn,
+          nameAr: data.nameAr,
+          vatNumber: data.vatNumber,
+          phone: data.mobile || data.phone,
+          excludeId: isEditing ? id : undefined,
+        })
+        if (dup?.hasDuplicates && dup.warnings?.length) {
+          const first = dup.warnings[0]
+          const msg = ar
+            ? (`هذا العميل قد يكون موجوداً — ${first.customer?.nameAr || first.customer?.name || ''} — المتابعة؟`)
+            : (`This customer may already exist — ${first.customer?.nameEn || first.customer?.name || ''} — continue anyway?`)
+          if (!window.confirm(msg)) return
+        }
+      } catch {
+        // non-blocking if check fails
+      }
     }
     mutation.mutate(data)
   }
