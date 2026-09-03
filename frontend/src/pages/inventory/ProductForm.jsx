@@ -203,6 +203,7 @@ export default function ProductForm() {
       ? Number(payload.purchaseTaxRate)
       : payload.saleTaxRate
     payload.taxRate = payload.saleTaxRate
+    payload.requireAccountingAccounts = true
 
     return payload
   }
@@ -801,11 +802,14 @@ export default function ProductForm() {
             </div>
             {showArabicFields ? (
               <div className="md:col-span-1 lg:col-span-2">
-                <label className="label">{t('productName')} (AR)</label>
-                <input {...register('nameAr')} className="input" dir="rtl" />
+                <label className="label">{t('productName')} (AR) *</label>
+                <input {...register('nameAr', { required: true })} className="input" dir="rtl" />
               </div>
             ) : (
-              <input type="hidden" {...register('nameAr')} />
+              <div className="md:col-span-1 lg:col-span-2">
+                <label className="label">{t('productName')} (AR) *</label>
+                <input {...register('nameAr', { required: true })} className="input" dir="rtl" />
+              </div>
             )}
             <div>
               <label className="label">{t('sku')} *</label>
@@ -1830,7 +1834,7 @@ export default function ProductForm() {
               <div>
                 <label className="label">
                   {language === 'ar' ? 'حساب الإيراد' : 'Income Account'}
-                  {canBeSold ? ` (${language === 'ar' ? 'مستحسن للبيع' : 'recommended for sales'})` : ''}
+                  {canBeSold ? ` (${language === 'ar' ? 'مطلوب للبيع' : 'required for sales'})` : ''}
                 </label>
                 <select {...register('incomeAccountId')} className="select">
                   <option value="">{language === 'ar' ? '— من الفئة / افتراضي —' : '— From category / default —'}</option>
@@ -1841,8 +1845,12 @@ export default function ProductForm() {
               </div>
               <div>
                 <label className="label">
-                  {language === 'ar' ? 'حساب المصروف' : 'Expense Account'}
-                  {(canBePurchased || canBeExpensed) ? ` (${language === 'ar' ? 'مستحسن' : 'recommended'})` : ''}
+                  {isService
+                    ? (language === 'ar' ? 'حساب المصروف' : 'Expense Account')
+                    : (language === 'ar' ? 'حساب تكلفة البضاعة (COGS)' : 'COGS Account')}
+                  {(canBePurchased || canBeExpensed || (!isService && canBeSold))
+                    ? ` (${language === 'ar' ? 'مطلوب' : 'required'})`
+                    : ''}
                 </label>
                 <select {...register('expenseAccountId')} className="select">
                   <option value="">{language === 'ar' ? '— من الفئة / افتراضي —' : '— From category / default —'}</option>
@@ -1862,7 +1870,7 @@ export default function ProductForm() {
                   <div><dt className="text-slate-400">{language === 'ar' ? 'التكلفة' : 'Costing'}</dt><dd>{cat.costingMethod}</dd></div>
                   <div><dt className="text-slate-400">{language === 'ar' ? 'التقييم' : 'Valuation'}</dt><dd>{cat.valuationMode}</dd></div>
                   <div><dt className="text-slate-400">{language === 'ar' ? 'حساب الإيراد الموروث' : 'Inherited Income Account'}</dt><dd>{cat.incomeAccountId?.code || cat.incomeAccountId?.name || '—'}</dd></div>
-                  <div><dt className="text-slate-400">{language === 'ar' ? 'حساب المصروف الموروث' : 'Inherited Expense Account'}</dt><dd>{cat.expenseAccountId?.code || cat.expenseAccountId?.name || '—'}</dd></div>
+                  <div><dt className="text-slate-400">{language === 'ar' ? 'حساب تكلفة البضاعة الموروث' : 'Inherited COGS Account'}</dt><dd>{cat.expenseAccountId?.code || cat.expenseAccountId?.name || '—'}</dd></div>
                 </dl>
               ) : (
                 <p className="text-sm text-slate-400">{language === 'ar' ? 'لا فئة محددة' : 'No category selected'}</p>

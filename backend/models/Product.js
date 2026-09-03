@@ -80,6 +80,8 @@ const productSchema = new mongoose.Schema({
   
   // Tax
   taxCategory: { type: String, enum: ['S', 'Z', 'E', 'O'], default: 'S' },
+  /** Preferred sales tax master (Standard / Zero / Exempt). Rate synced from Tax when set. */
+  saleTaxId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tax', default: null },
   /** @deprecated Use saleTaxRate — kept for legacy clients */
   taxRate: { type: Number, default: 15 },
   saleTaxRate: { type: Number, default: 15 },
@@ -127,7 +129,10 @@ const productSchema = new mongoose.Schema({
   allowNegativeStock: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
   incomeAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+  /** COGS for goods / expense for services */
   expenseAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+  /** Inventory asset account (alias of stock valuation) */
+  inventoryAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
   stockValuationAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
   stockInputAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
   stockOutputAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },

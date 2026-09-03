@@ -1728,6 +1728,13 @@ async function loadActiveCoa(tenantId, id) {
  */
 export async function resolveSalesIncomeAccount(tenantId, productId, fallbackSales = null) {
   if (!productId) return fallbackSales;
+  try {
+    const { resolveProductGlAccounts } = await import('./inventory/productAccounting.js');
+    const resolved = await resolveProductGlAccounts(tenantId, { _id: productId });
+    if (resolved.income) return resolved.income;
+  } catch {
+    // fall through to legacy path
+  }
   const Product = (await import('../models/Product.js')).default;
   const product = await Product.findOne({ _id: productId, tenantId })
     .select('incomeAccountId categoryId productType')
@@ -1889,6 +1896,126 @@ export async function postSalesInvoiceJournal({
     currency,
     lines,
     sourceModel: 'Invoice',
+    sourceId: invoice._id,
+    sourceNumber: invoice.invoiceNumber,
+    status: 'posted',
+    journalId,
+  });
+}
+
+/**
+ * Post COGS for sold goods when stock was not already valued via a delivery note.
+ * Dr COGS / Cr Inventory using product cost (costPrice → averageLandedCost).
+ * Separate sourceModel so it does not collide with the AR/revenue Invoice journal.
+ */
+export async function postSalesInvoiceCogsJournal({
+  tenantId,
+  userId,
+  invoice,
+  currency = 'SAR',
+}) {
+  if (!invoice?._id) return null;
+  if (String(invoice.flow || 'sell') === 'purchase') return null;
+  if (String(invoice.invoiceType) === '381') return null;
+
+  // Delivery notes already post stock valuation / COGS — avoid double-posting.
+  const hasDelivery = Boolean(invoice.sourceDeliveryNoteId)
+    || (Array.isArray(invoice.deliveryNoteIds) && invoice.deliveryNoteIds.length > 0)
+    || (Array.isArray(invoice.documentReferences)
+      && invoice.documentReferences.some((r) => /delivery/i.test(String(r?.model || r?.type || ''))));
+  if (hasDelivery) return null;
+
+  const existing = await findExistingSourceEntry(tenantId, 'InvoiceCogs', invoice._id);
+  if (existing) return existing;
+
+  const lineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
+  if (!lineItems.length) return null;
+
+  const Product = (await import('../models/Product.js')).default;
+  const { resolveProductGlAccounts } = await import('./inventory/productAccounting.js');
+
+  const cogsByAccount = new Map(); // key: `${cogsId}|${invId}` → { cogs, inventory, amount }
+  let totalCogs = 0;
+
+  for (const li of lineItems) {
+    const productType = String(li.productType || '').toLowerCase();
+    if (productType === 'service') continue;
+    const qty = Math.abs(Number(li.quantity) || 0);
+    if (qty <= 0) continue;
+
+    let unitCost = Number(li.costPrice ?? li.unitCost ?? NaN);
+    let product = null;
+    if (li.productId) {
+      product = await Product.findOne({ _id: li.productId, tenantId })
+        .select('costPrice averageLandedCost productType trackInventory incomeAccountId expenseAccountId stockValuationAccountId categoryId')
+        .lean();
+      if (product) {
+        if (String(product.productType || '').toLowerCase() === 'service') continue;
+        if (product.trackInventory === false) continue;
+        if (!Number.isFinite(unitCost) || unitCost <= 0) {
+          unitCost = Number(product.averageLandedCost) || Number(product.costPrice) || 0;
+        }
+      }
+    }
+    if (!Number.isFinite(unitCost) || unitCost <= 0) continue;
+
+    const amount = round2(qty * unitCost);
+    if (amount <= 0) continue;
+
+    const resolved = await resolveProductGlAccounts(tenantId, product || {
+      expenseAccountId: li.expenseAccountId || li.cogsAccountId,
+      stockValuationAccountId: li.inventoryAccountId,
+      productType: 'goods',
+    });
+    if (!resolved.cogs || !resolved.inventory) continue;
+    if (String(resolved.cogs._id) === String(resolved.inventory._id)) continue;
+
+    const key = `${resolved.cogs._id}|${resolved.inventory._id}`;
+    const prev = cogsByAccount.get(key) || {
+      cogs: resolved.cogs,
+      inventory: resolved.inventory,
+      amount: 0,
+    };
+    prev.amount = round2(prev.amount + amount);
+    cogsByAccount.set(key, prev);
+    totalCogs = round2(totalCogs + amount);
+  }
+
+  if (!cogsByAccount.size || totalCogs <= 0) return null;
+
+  const lines = [];
+  const desc = `COGS for invoice ${invoice.invoiceNumber || ''}`;
+  for (const group of cogsByAccount.values()) {
+    lines.push({
+      accountId: group.cogs._id,
+      accountCode: group.cogs.code,
+      debit: group.amount,
+      credit: 0,
+      description: desc,
+    });
+    lines.push({
+      accountId: group.inventory._id,
+      accountCode: group.inventory.code,
+      debit: 0,
+      credit: group.amount,
+      description: desc,
+    });
+  }
+
+  const journalId = await resolveJournalBookId(tenantId, userId, 'ensureDefaultStockJournal')
+    || await resolveJournalBookId(tenantId, userId, 'ensureDefaultMiscJournal');
+
+  return createJournalEntry({
+    tenantId,
+    userId,
+    entryDate: invoice.issueDate || new Date(),
+    type: 'stock',
+    memo: desc,
+    memoAr: `تكلفة البضاعة للفاتورة ${invoice.invoiceNumber || ''}`,
+    reference: `COGS-${invoice.invoiceNumber || invoice._id}`,
+    currency,
+    lines,
+    sourceModel: 'InvoiceCogs',
     sourceId: invoice._id,
     sourceNumber: invoice.invoiceNumber,
     status: 'posted',
@@ -6986,6 +7113,7 @@ export default {
   listJournalItems,
   backfillJournalItems,
   postSalesInvoiceJournal,
+  postSalesInvoiceCogsJournal,
   postInvoicePaymentJournal,
   postEarlyPaymentDiscountJournal,
   postInvoicePaymentDifferenceJournal,

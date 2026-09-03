@@ -76,6 +76,18 @@ const normalizeProductForClient = (product) => {
   p.taxRate = p.saleTaxRate;
   p.unitOfMeasure = p.unitOfMeasure ?? 'PCE';
   p.productType = normalizeProductType(p.productType);
+  // Populated account refs for accounting UI
+  if (p.incomeAccountId && typeof p.incomeAccountId === 'object') {
+    p.incomeAccount = p.incomeAccountId;
+    p.incomeAccountCode = p.incomeAccountId.code;
+  }
+  if (p.expenseAccountId && typeof p.expenseAccountId === 'object') {
+    p.expenseAccount = p.expenseAccountId;
+    p.cogsAccount = p.expenseAccountId;
+  }
+  if (!p.inventoryAccountId && p.stockValuationAccountId) {
+    p.inventoryAccountId = p.stockValuationAccountId;
+  }
   return p;
 };
 
@@ -87,7 +99,31 @@ function syncProductTaxFields(data) {
   data.saleTaxRate = sale;
   data.purchaseTaxRate = purchase;
   data.taxRate = sale;
+  // Keep inventoryAccountId aligned with stock valuation
+  if (data.inventoryAccountId && !data.stockValuationAccountId) {
+    data.stockValuationAccountId = data.inventoryAccountId;
+  }
+  if (data.stockValuationAccountId && !data.inventoryAccountId) {
+    data.inventoryAccountId = data.stockValuationAccountId;
+  }
   return data;
+}
+
+async function syncSaleTaxFromMaster(tenantId, productData) {
+  if (!productData?.saleTaxId) return productData;
+  const Tax = (await import('../models/Tax.js')).default;
+  const tax = await Tax.findOne({ _id: productData.saleTaxId, tenantId, active: { $ne: false } })
+    .select('rate code name taxGroupCode')
+    .lean();
+  if (!tax) return productData;
+  productData.saleTaxRate = Number(tax.rate) || 0;
+  productData.taxRate = productData.saleTaxRate;
+  const code = String(tax.code || tax.taxGroupCode || '').toUpperCase();
+  if (code.includes('Z') || Number(tax.rate) === 0) productData.taxCategory = 'Z';
+  else if (code.includes('E')) productData.taxCategory = 'E';
+  else if (code.includes('O')) productData.taxCategory = 'O';
+  else productData.taxCategory = productData.taxCategory || 'S';
+  return productData;
 }
 
 // @route   GET /api/products
@@ -134,6 +170,10 @@ router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
         Product.countDocuments(query),
         Product.find(query)
           .select('-landedCostHistory')
+          .populate('incomeAccountId', 'code name nameAr')
+          .populate('expenseAccountId', 'code name nameAr')
+          .populate('stockValuationAccountId', 'code name nameAr')
+          .populate('saleTaxId', 'code name nameAr rate')
           .sort({ createdAt: -1 })
           .skip((pageNum - 1) * limitNum)
           .limit(limitNum)
@@ -328,6 +368,72 @@ router.get('/stats', checkPermission('inventory', 'read'), async (req, res) => {
   }
 });
 
+// @route   POST /api/products/bulk-accounts — assign income/COGS/tax to many products
+router.post('/bulk-accounts', checkPermission('inventory', 'update'), async (req, res) => {
+  try {
+    const productIds = Array.isArray(req.body?.productIds) ? req.body.productIds : [];
+    if (!productIds.length) {
+      return res.status(400).json({ error: 'productIds required' });
+    }
+    const patch = {};
+    if (req.body?.incomeAccountId) patch.incomeAccountId = req.body.incomeAccountId;
+    if (req.body?.expenseAccountId) patch.expenseAccountId = req.body.expenseAccountId;
+    if (req.body?.cogsAccountId) patch.expenseAccountId = req.body.cogsAccountId;
+    if (req.body?.stockValuationAccountId) {
+      patch.stockValuationAccountId = req.body.stockValuationAccountId;
+      patch.inventoryAccountId = req.body.stockValuationAccountId;
+    }
+    if (req.body?.saleTaxId) patch.saleTaxId = req.body.saleTaxId;
+    if (req.body?.taxCategory) patch.taxCategory = req.body.taxCategory;
+
+    if (patch.saleTaxId) {
+      const Tax = (await import('../models/Tax.js')).default;
+      const tax = await Tax.findOne({ _id: patch.saleTaxId, tenantId: req.user.tenantId }).select('rate').lean();
+      if (tax) {
+        patch.saleTaxRate = Number(tax.rate) || 0;
+        patch.taxRate = patch.saleTaxRate;
+      }
+    }
+
+    if (!Object.keys(patch).length) {
+      // Default-fill from company/category
+      const { backfillProductAccounts } = await import('../services/inventory/productAccounting.js');
+      const report = await backfillProductAccounts(req.user.tenantId, {
+        dryRun: false,
+        productIds,
+        rewriteTimestampSkus: !!req.body?.rewriteTimestampSkus,
+      });
+      return res.json(report);
+    }
+
+    const result = await Product.updateMany(
+      { _id: { $in: productIds }, tenantId: req.user.tenantId },
+      { $set: patch },
+    );
+    res.json({ matched: result.matchedCount ?? result.n, modified: result.modifiedCount ?? result.nModified, patch });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   GET /api/products/accounting-gaps — count products missing income/COGS
+router.get('/accounting-gaps', checkPermission('inventory', 'read'), async (req, res) => {
+  try {
+    const { backfillProductAccounts } = await import('../services/inventory/productAccounting.js');
+    const report = await backfillProductAccounts(req.user.tenantId, { dryRun: true });
+    res.json({
+      missingIncome: report.missingIncome,
+      missingCogs: report.missingCogs,
+      timestampSkus: report.timestampSkus,
+      wouldUpdate: report.wouldUpdate,
+      scanned: report.scanned,
+      sample: report.rows.slice(0, 20),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // @route   GET /api/products/:id
 router.get('/:id', checkPermission('inventory', 'read'), async (req, res) => {
   try {
@@ -353,18 +459,41 @@ router.get('/:id', checkPermission('inventory', 'read'), async (req, res) => {
 router.post('/', checkTrialLimits('products'), checkPermission('inventory', 'create'), async (req, res) => {
   try {
     const { nextProductId } = await import('../services/inventory/productIdentity.js');
+    const {
+      nextReadableSku,
+      assignDefaultProductAccounts,
+      assertProductAccountingAccounts,
+      isAutoGeneratedTimestampSku,
+    } = await import('../services/inventory/productAccounting.js');
+
     const productData = syncProductTaxFields({
       ...req.body,
       productType: normalizeProductType(req.body?.productType),
       tenantId: req.user.tenantId,
       createdBy: req.user._id,
     });
+    await syncSaleTaxFromMaster(req.user.tenantId, productData);
+
+    if (!String(productData.nameEn || '').trim()) {
+      return res.status(400).json({ error: { code: 'NAME_REQUIRED', message: 'English name is required', messageAr: 'الاسم الإنجليزي مطلوب' } });
+    }
+    if (!String(productData.nameAr || '').trim()) {
+      return res.status(400).json({ error: { code: 'NAME_AR_REQUIRED', message: 'Arabic name is required', messageAr: 'الاسم العربي مطلوب' } });
+    }
+
     // Immutable sequential code — never trust client
     delete productData.productId;
     productData.productId = await nextProductId(req.user.tenantId);
 
-    const { assertProductAccountingAccounts } = await import('../services/inventory/productAccounting.js');
-    if (req.body?.requireAccountingAccounts === true) {
+    if (!productData.sku || isAutoGeneratedTimestampSku(productData.sku)) {
+      productData.sku = await nextReadableSku(req.user.tenantId, {
+        categoryId: productData.categoryId || null,
+      });
+    }
+
+    await assignDefaultProductAccounts(req.user.tenantId, productData);
+    // Always enforce for sellable catalog items (accounting products / invoice posting)
+    if (productData.canBeSold !== false || req.body?.requireAccountingAccounts === true) {
       await assertProductAccountingAccounts(req.user.tenantId, productData);
     }
 
@@ -419,6 +548,7 @@ router.put('/:id', checkPermission('inventory', 'update'), async (req, res) => {
     const { productId: _dropProductId, ...safeBody } = req.body || {};
     void _dropProductId;
     Object.assign(product, syncProductTaxFields({ ...safeBody }));
+    await syncSaleTaxFromMaster(req.user.tenantId, product);
     product.productId = lockedProductId;
     if (!product.productId) {
       const { nextProductId } = await import('../services/inventory/productIdentity.js');
@@ -426,8 +556,29 @@ router.put('/:id', checkPermission('inventory', 'update'), async (req, res) => {
     }
     product.productType = normalizeProductType(product.productType);
 
-    const { assertProductAccountingAccounts } = await import('../services/inventory/productAccounting.js');
-    if (req.body?.requireAccountingAccounts === true) {
+    if (!String(product.nameEn || '').trim() || !String(product.nameAr || '').trim()) {
+      return res.status(400).json({
+        error: {
+          code: 'NAME_REQUIRED',
+          message: 'English and Arabic names are required',
+          messageAr: 'الاسم الإنجليزي والعربي مطلوبان',
+        },
+      });
+    }
+
+    const {
+      assignDefaultProductAccounts,
+      assertProductAccountingAccounts,
+      isAutoGeneratedTimestampSku,
+      nextReadableSku,
+    } = await import('../services/inventory/productAccounting.js');
+
+    if (!product.sku || isAutoGeneratedTimestampSku(product.sku)) {
+      product.sku = await nextReadableSku(req.user.tenantId, { categoryId: product.categoryId || null });
+    }
+
+    await assignDefaultProductAccounts(req.user.tenantId, product);
+    if (product.canBeSold !== false || req.body?.requireAccountingAccounts === true) {
       await assertProductAccountingAccounts(req.user.tenantId, product);
     }
 
