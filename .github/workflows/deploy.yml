@@ -80,6 +80,23 @@ jobs:
               known.chmod(0o600)
           PY
 
+      - name: Build app images (Actions has working DNS to Docker Hub)
+        env:
+          COMPOSE_PROJECT_NAME: maqder
+          BUILD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          touch .env
+          export BUILD_SHA
+          docker compose build backend frontend pdf-worker
+          echo "=== saving images ==="
+          docker save \
+            maqder-backend:latest \
+            maqder-frontend:latest \
+            maqder-pdf-worker:latest \
+            | gzip > /tmp/maqder-app-images.tar.gz
+          ls -lh /tmp/maqder-app-images.tar.gz
+
       - name: Deploy to Plesk server
         env:
           SSH_USER: root
@@ -123,11 +140,8 @@ jobs:
           )
           REMOTE="${SSH_USER}@${SSH_HOST}"
           DEST="/var/www/vhosts/maqder.com/httpdocs"
-          # Single string for rsync -e (must not expand as separate words incorrectly).
           RSYNC_RSH="ssh -i $HOME/.ssh/plesk_deploy -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o ConnectTimeout=15 -p ${SSH_PORT}"
 
-          # Plesk often cannot resolve github.com (DNS). Push the tree from Actions
-          # instead of git fetch on the server.
           echo "=== rsync code to ${REMOTE}:${DEST} (sha=${BUILD_SHA}) ==="
           rsync -az --delete \
             -e "$RSYNC_RSH" \
@@ -148,15 +162,20 @@ jobs:
             --exclude '.env.local' \
             --exclude '.env.production' \
             --exclude '.cursor/' \
+            --exclude 'maqder-app-images.tar.gz' \
             ./ "${REMOTE}:${DEST}/"
 
-          echo "=== remote deploy.sh (SKIP_GIT=1) ==="
+          echo "=== scp pre-built images ==="
+          scp "${SSH_BASE[@]}" /tmp/maqder-app-images.tar.gz "${REMOTE}:/tmp/maqder-app-images.tar.gz"
+
+          echo "=== remote deploy.sh (prebuilt images, no Docker Hub) ==="
           set +e
           ssh "${SSH_BASE[@]}" "${REMOTE}" \
-            "cd '${DEST}' && chmod +x deploy.sh && SKIP_GIT=1 BUILD_SHA='${BUILD_SHA}' ./deploy.sh"
+            "cd '${DEST}' && chmod +x deploy.sh && SKIP_GIT=1 USE_PREBUILT_IMAGES=1 COMPOSE_PROJECT_NAME=maqder BUILD_SHA='${BUILD_SHA}' ./deploy.sh"
           status=$?
           set -e
           if [ "$status" -ne 0 ]; then
             echo "Remote deploy exited ${status} (255 = SSH never started the script)."
             exit "$status"
           fi
+          ssh "${SSH_BASE[@]}" "${REMOTE}" "rm -f /tmp/maqder-app-images.tar.gz" || true

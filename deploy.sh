@@ -4,6 +4,8 @@ set -e
 DEPLOY_PATH="/var/www/vhosts/maqder.com/httpdocs"
 cd "$DEPLOY_PATH"
 
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-maqder}"
+
 # CI rsyncs the tree from GitHub Actions (Plesk often cannot resolve github.com).
 # Manual runs on the server can still git-pull when DNS works.
 if [ "${SKIP_GIT:-0}" = "1" ]; then
@@ -19,6 +21,54 @@ else
   git reset --hard origin/main
 fi
 
+# Plesk host DNS is often broken for Docker Hub / GitHub. Prefer public resolvers
+# for Docker builds, and never require a registry pull when base images are cached.
+ensure_docker_registry_dns() {
+  if getent hosts registry-1.docker.io >/dev/null 2>&1; then
+    echo "registry-1.docker.io resolves OK"
+    return 0
+  fi
+  echo "WARNING: cannot resolve registry-1.docker.io — applying DNS fallbacks"
+
+  if [ -f /etc/resolv.conf ] && ! grep -qE '8\.8\.8\.8|1\.1\.1\.1' /etc/resolv.conf 2>/dev/null; then
+    printf '\n# maqder deploy DNS fallback\nnameserver 8.8.8.8\nnameserver 1.1.1.1\n' >> /etc/resolv.conf || true
+  fi
+
+  mkdir -p /etc/docker
+  python3 - <<'PY' || true
+import json
+from pathlib import Path
+p = Path("/etc/docker/daemon.json")
+data = {}
+if p.exists():
+    try:
+        data = json.loads(p.read_text() or "{}")
+    except Exception:
+        data = {}
+if not isinstance(data, dict):
+    data = {}
+dns = list(data.get("dns") or [])
+for ns in ("8.8.8.8", "1.1.1.1"):
+    if ns not in dns:
+        dns.append(ns)
+data["dns"] = dns
+p.write_text(json.dumps(data, indent=2) + "\n")
+print("Updated /etc/docker/daemon.json dns=", dns)
+PY
+
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl restart docker || true
+  elif command -v service >/dev/null 2>&1; then
+    service docker restart || true
+  fi
+  sleep 4
+  if getent hosts registry-1.docker.io >/dev/null 2>&1; then
+    echo "registry-1.docker.io resolves after DNS fix"
+  else
+    echo "WARNING: registry-1.docker.io still unresolved — builds will use --pull never (cached bases only)"
+  fi
+}
+
 # Detect docker compose command
 COMPOSE=""
 if docker compose version &>/dev/null; then
@@ -28,7 +78,7 @@ elif docker-compose version &>/dev/null; then
 fi
 
 if [ -n "$COMPOSE" ]; then
-  echo "Deploying with $COMPOSE..."
+  echo "Deploying with $COMPOSE (project=${COMPOSE_PROJECT_NAME})..."
   ERROR_DOCS="/var/www/vhosts/maqder.com/error_docs"
   if [ -d "$ERROR_DOCS" ] && [ -f "$DEPLOY_PATH/frontend/public/updating.html" ]; then
     cp -f "$DEPLOY_PATH/frontend/public/updating.html" "$ERROR_DOCS/502.html" || true
@@ -47,13 +97,43 @@ if [ -n "$COMPOSE" ]; then
   fi
   echo "BUILD_SHA=${BUILD_SHA:-unknown}"
 
+  ensure_docker_registry_dns
+
+  # Load images pre-built by GitHub Actions (no Docker Hub DNS required).
+  if [ -f /tmp/maqder-app-images.tar.gz ]; then
+    echo "Loading pre-built images from /tmp/maqder-app-images.tar.gz ..."
+    gunzip -c /tmp/maqder-app-images.tar.gz | docker load
+  elif [ -f "$DEPLOY_PATH/maqder-app-images.tar.gz" ]; then
+    echo "Loading pre-built images from maqder-app-images.tar.gz ..."
+    gunzip -c "$DEPLOY_PATH/maqder-app-images.tar.gz" | docker load
+  fi
+
   # Keep edge + current frontend up while images rebuild (no compose down).
   $COMPOSE up -d edge || true
-  if ! $COMPOSE up -d --build --remove-orphans; then
-    echo "=== docker compose up failed — recent logs ==="
-    $COMPOSE ps -a || true
-    $COMPOSE logs --tail=120 backend frontend mongo redis pdf-worker 2>/dev/null || $COMPOSE logs --tail=120
-    exit 1
+
+  # Prefer cached base images — Plesk often cannot reach registry-1.docker.io.
+  PULL_FLAG=(--pull never)
+  if getent hosts registry-1.docker.io >/dev/null 2>&1; then
+    PULL_FLAG=(--pull missing)
+  fi
+
+  if [ "${USE_PREBUILT_IMAGES:-0}" = "1" ]; then
+    echo "Starting stack with pre-built images (--no-build)..."
+    if ! $COMPOSE up -d --no-build --remove-orphans; then
+      echo "=== docker compose up --no-build failed — recent logs ==="
+      $COMPOSE ps -a || true
+      $COMPOSE logs --tail=120 backend frontend mongo redis pdf-worker 2>/dev/null || $COMPOSE logs --tail=120
+      exit 1
+    fi
+  elif ! $COMPOSE up -d --build "${PULL_FLAG[@]}" --remove-orphans; then
+    echo "Build with ${PULL_FLAG[*]} failed — retrying with --pull never..."
+    if ! $COMPOSE up -d --build --pull never --remove-orphans; then
+      echo "=== docker compose up failed — recent logs ==="
+      $COMPOSE ps -a || true
+      $COMPOSE logs --tail=120 backend frontend mongo redis pdf-worker 2>/dev/null || $COMPOSE logs --tail=120
+      docker images | head -40 || true
+      exit 1
+    fi
   fi
 
   # Backend-only image rebuilds change the container IP. Older frontend nginx
