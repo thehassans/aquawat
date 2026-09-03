@@ -65,8 +65,8 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
     )
   }
 
-  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en', { flow: invoice?.flow })
-  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar', { flow: invoice?.flow })
+  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en', { flow: invoice?.flow, invoice })
+  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar', { flow: invoice?.flow, invoice })
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white border border-slate-200 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] overflow-hidden font-sans rounded-xl">

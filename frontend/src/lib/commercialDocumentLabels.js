@@ -13,7 +13,7 @@ export const shouldShowZatcaQr = (documentType) =>
   && documentType !== 'vendor_bill'
   && documentType !== 'sales_order'
 
-export const getCommercialDocumentTitle = (documentType, language = 'en', { uppercase = false, flow = 'sell' } = {}) => {
+export const getCommercialDocumentTitle = (documentType, language = 'en', { uppercase = false, flow = 'sell', invoice = null } = {}) => {
   let en = 'Tax Invoice'
   let ar = 'فاتورة ضريبية'
   if (documentType === 'purchase_order') {
@@ -31,9 +31,54 @@ export const getCommercialDocumentTitle = (documentType, language = 'en', { uppe
   } else if (documentType === 'purchase_invoice' || flow === 'purchase') {
     en = 'Purchase Invoice'
     ar = 'فاتورة شراء'
+  } else if (documentType === 'credit_note' || String(invoice?.invoiceType || '') === '381') {
+    en = 'Credit Note'
+    ar = 'إشعار دائن'
+  } else if (documentType === 'debit_note' || String(invoice?.invoiceType || '') === '383') {
+    en = 'Debit Note'
+    ar = 'إشعار مدين'
+  } else {
+    const kind = resolveZatcaInvoiceKind(invoice)
+    if (kind === 'simplified') {
+      en = 'Simplified Tax Invoice'
+      ar = 'فاتورة ضريبية مبسطة'
+    } else if (kind === 'credit_note') {
+      en = 'Credit Note'
+      ar = 'إشعار دائن'
+    } else if (kind === 'debit_note') {
+      en = 'Debit Note'
+      ar = 'إشعار مدين'
+    } else {
+      en = 'Tax Invoice'
+      ar = 'فاتورة ضريبية'
+    }
   }
   const value = language === 'ar' ? ar : en
   return uppercase ? value.toUpperCase() : value
+}
+
+/** ZATCA document kind derived from invoice fields — never hardcode labels at call sites. */
+export function resolveZatcaInvoiceKind(invoice) {
+  if (!invoice) return 'standard'
+  const docType = String(invoice.invoiceType || '').trim()
+  if (docType === '381') return 'credit_note'
+  if (docType === '383') return 'debit_note'
+  const zatcaType = String(invoice?.zatca?.invoiceType || '').toLowerCase()
+  if (zatcaType === 'simplified' || zatcaType === 'standard') {
+    return zatcaType === 'simplified' ? 'simplified' : 'standard'
+  }
+  const code = String(invoice.invoiceTypeCode || '')
+  if (code.startsWith('02') || String(invoice.transactionType || '').toUpperCase() === 'B2C') {
+    return 'simplified'
+  }
+  return 'standard'
+}
+
+export function getZatcaDocumentTitle(invoice, language = 'en', documentType = 'invoice') {
+  return getCommercialDocumentTitle(documentType, language, {
+    flow: invoice?.flow || 'sell',
+    invoice,
+  })
 }
 
 export const getCommercialDocumentNumberLabel = (documentType, language = 'en', flow = 'sell') => {

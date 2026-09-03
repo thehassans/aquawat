@@ -26,7 +26,7 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
     ? totals.lines
     : [{ raw: { productName: language === 'ar' ? 'خدمة' : 'Service' }, quantity: 1, unitPrice: 0, taxAmount: 0, lineTotalWithTax: 0 }]
   const documentNumber = resolveCommercialDocumentNumber(invoice, documentType)
-  const invoiceTitle = getCommercialDocumentTitle(documentType, language, { flow: invoice?.flow })
+  const invoiceTitle = getCommercialDocumentTitle(documentType, language, { flow: invoice?.flow, invoice })
   const isQuotation = documentType === 'quotation' || Boolean(invoice?.quotationNumber)
 
   const formatDate = (dateString) => {

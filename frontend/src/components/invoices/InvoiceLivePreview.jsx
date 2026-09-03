@@ -24,6 +24,7 @@ import LetterheadTemplate from './LetterheadTemplate'
 import {
   resolveCommercialDocumentNumber,
   resolveInvoiceParties,
+  getZatcaDocumentTitle,
 } from '../../lib/commercialDocumentLabels'
 import { getTaxIdLabel, isGccTenant } from '../../lib/saudiTenant'
 
@@ -410,19 +411,20 @@ const getInvoiceTitle = (invoice, language = 'en', documentType = 'invoice') => 
     return language === 'ar' ? 'عرض سعر' : 'Quotation'
   }
 
+  const base = getZatcaDocumentTitle(invoice, language, documentType)
+  if (String(invoice?.invoiceType || '') === '381' || String(invoice?.invoiceType || '') === '383') {
+    return base
+  }
   if (invoice?.invoiceSubtype === 'travel_ticket' || invoice?.businessContext === 'travel_agency') {
-    return language === 'ar' ? 'فاتورة ضريبية لخدمات السفر' : 'Travel Services Tax Invoice'
+    return language === 'ar' ? `${base} لخدمات السفر` : `Travel Services ${base}`
   }
-
   if (invoice?.businessContext === 'construction') {
-    return language === 'ar' ? 'فاتورة ضريبية للمقاولات' : 'Construction Tax Invoice'
+    return language === 'ar' ? `${base} للمقاولات` : `Construction ${base}`
   }
-
   if (invoice?.businessContext === 'trading') {
-    return language === 'ar' ? 'فاتورة ضريبية للتجارة' : 'Trading Tax Invoice'
+    return language === 'ar' ? `${base} للتجارة` : `Trading ${base}`
   }
-
-  return language === 'ar' ? 'فاتورة ضريبية' : 'Tax Invoice'
+  return base
 }
 
 export default function InvoiceLivePreview({ invoice, tenant, language = 'en', templateId = 1, bilingual = false, secondaryLanguage, currencyRenderMode = 'icon', currencyDisplay, currencyPosition, documentType = 'invoice' }) {

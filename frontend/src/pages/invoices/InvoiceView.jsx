@@ -47,6 +47,7 @@ import {
   sectionCardClass,
   sectionEyebrowClass,
 } from '../sales/salesUi'
+import { getZatcaDocumentTitle } from '../../lib/commercialDocumentLabels'
 
 const blobToBase64 = (blob) => new Promise((resolve, reject) => {
   const reader = new FileReader()
@@ -68,17 +69,7 @@ const sanitizeAttachmentFileName = (value) => {
 }
 
 const getInvoiceContextLabel = (invoice, language = 'en') => {
-  const context = String(invoice?.businessContext || '').trim()
-  const labels = {
-    trading: language === 'ar' ? 'فاتورة تجارة' : 'Trading Invoice',
-    construction: language === 'ar' ? 'فاتورة مقاولات' : 'Construction Invoice',
-    travel_agency: language === 'ar' ? 'فاتورة وكالة سفر' : 'Travel Agency Invoice',
-    restaurant: language === 'ar' ? 'فاتورة مطعم' : 'Restaurant Invoice',
-    boutique: language === 'ar' ? 'فاتورة بوتيك' : 'Boutique Invoice',
-  }
-
-  if (labels[context]) return labels[context]
-  return language === 'ar' ? 'فاتورة ضريبية' : 'Tax Invoice'
+  return getZatcaDocumentTitle(invoice, language)
 }
 
 export default function InvoiceView() {

@@ -14,6 +14,7 @@ import { formatInvoiceDateDisplay, resolveInvoiceDateCalendar } from '../../lib/
 import {
   getCommercialCounterpartyLabel,
   getCounterpartyFallbackName,
+  getZatcaDocumentTitle,
   resolveCommercialDocumentNumber,
   shouldShowZatcaQr,
 } from '../../lib/commercialDocumentLabels'
@@ -248,7 +249,11 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                   : <EnAr en="Boutique Rental Invoice" ar="فاتورة إيجار بوتيك" enClassName="uppercase tracking-wider" />
                 : isQuotation
                 ? <EnAr en="Quotation" ar="عرض سعر" enClassName="uppercase tracking-wider" />
-                : <EnAr en="Tax Invoice" ar="فاتورة ضريبية" enClassName="uppercase tracking-wider" />}
+                : <EnAr
+                    en={getZatcaDocumentTitle(invoice, 'en', documentType)}
+                    ar={getZatcaDocumentTitle(invoice, 'ar', documentType)}
+                    enClassName="uppercase tracking-wider"
+                  />}
             </span>
           </div>
         </div>

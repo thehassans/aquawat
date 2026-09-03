@@ -64,7 +64,7 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
     )
   }
 
-  const invoiceTitle = getCommercialDocumentTitle(documentType, language, { uppercase: language !== 'ar', flow: invoice?.flow })
+  const invoiceTitle = getCommercialDocumentTitle(documentType, language, { uppercase: language !== 'ar', flow: invoice?.flow, invoice })
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white shadow-xl flex font-sans min-h-[1056px]" style={{ fontFamily: 'Arial, Helvetica, "Almarai", sans-serif' }}>

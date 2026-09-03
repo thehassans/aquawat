@@ -195,6 +195,76 @@ export function describePaymentTerm(term, language = 'en') {
   return term.kind || '';
 }
 
+/**
+ * Resolve payment-term id: explicit body → customer terms → company default.
+ */
+export function resolveInvoicePaymentTerms({
+  paymentTerms,
+  customer = null,
+  companyDefault = 'net30',
+} = {}) {
+  const explicit = String(paymentTerms || '').trim();
+  if (explicit && findPaymentTerm(explicit)) return explicit;
+
+  const fromCustomer = String(
+    customer?.paymentTermsCustomer || customer?.paymentTerms || '',
+  ).trim();
+  if (fromCustomer && findPaymentTerm(fromCustomer)) return fromCustomer;
+
+  const fallback = String(companyDefault || 'net30').trim();
+  if (fallback && findPaymentTerm(fallback)) return fallback;
+  return 'net30';
+}
+
+/**
+ * Apply payment terms + due date for sell invoices.
+ * Prefers customer payment terms over the composer default `immediate`.
+ * Keeps dueDate when the client sent a non-immediate term (manual combo).
+ */
+export function applyInvoicePaymentTerms(invoiceData, {
+  customer = null,
+  companyDefault = 'net30',
+  bodyPaymentTerms,
+  bodyDueDate,
+  dueDateOverride = false,
+} = {}) {
+  if (!invoiceData) return invoiceData;
+
+  const rawBodyTerms = String(
+    bodyPaymentTerms !== undefined ? bodyPaymentTerms : (invoiceData.paymentTerms || ''),
+  ).trim();
+  const customerTerms = String(
+    customer?.paymentTermsCustomer || customer?.paymentTerms || '',
+  ).trim();
+
+  // Composer defaults to `immediate`; treat that as unset when the customer has terms.
+  const effectiveBodyTerms = (rawBodyTerms && rawBodyTerms !== 'immediate')
+    ? rawBodyTerms
+    : (customerTerms || rawBodyTerms || '');
+
+  invoiceData.paymentTerms = resolveInvoicePaymentTerms({
+    paymentTerms: effectiveBodyTerms,
+    customer,
+    companyDefault,
+  });
+
+  const hadManualDue = dueDateOverride
+    || (
+      bodyDueDate != null
+      && String(bodyDueDate).trim() !== ''
+      && rawBodyTerms
+      && rawBodyTerms !== 'immediate'
+    );
+
+  if (!hadManualDue) {
+    invoiceData.dueDate = undefined;
+  } else if (bodyDueDate !== undefined) {
+    invoiceData.dueDate = bodyDueDate;
+  }
+
+  return ensureInvoiceDueDate(invoiceData);
+}
+
 export function ensureInvoiceDueDate(invoiceData) {
   if (!invoiceData) return invoiceData;
   const issueDate = invoiceData.issueDate || new Date();

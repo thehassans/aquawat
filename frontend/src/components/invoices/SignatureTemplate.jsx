@@ -65,8 +65,8 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
     )
   }
 
-  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en', { flow: invoice?.flow })
-  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar', { flow: invoice?.flow })
+  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en', { flow: invoice?.flow, invoice })
+  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar', { flow: invoice?.flow, invoice })
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white border border-slate-200 overflow-hidden font-serif rounded-lg shadow-xl relative">

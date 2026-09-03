@@ -84,6 +84,40 @@ export async function evaluateCustomerCredit({ tenantId, customerId, orderTotal,
 }
 
 /** B2B partners require VAT + CR before invoicing */
+const isValidSaudiVatNumber = (vat) => /^3\d{13}3$/.test(String(vat || '').trim());
+
+export function assertSellerAddressReady(address = {}, { requireVat = false, vatNumber = '' } = {}) {
+  const addr = address && typeof address === 'object' ? address : {};
+  const missing = [];
+  if (!String(addr.street || addr.streetAr || '').trim()) missing.push('street');
+  if (!String(addr.buildingNumber || '').trim()) missing.push('buildingNumber');
+  if (!String(addr.district || addr.districtAr || '').trim()) missing.push('district');
+  if (!String(addr.city || addr.cityAr || '').trim()) missing.push('city');
+  if (!String(addr.postalCode || '').trim()) missing.push('postalCode');
+  if (!String(addr.country || '').trim()) missing.push('country');
+  if (requireVat) {
+    const vat = String(vatNumber || '').trim();
+    if (!vat) missing.push('VAT number');
+    else if (!isValidSaudiVatNumber(vat)) {
+      return {
+        ok: false,
+        code: 'INVALID_SELLER_VAT',
+        error: 'Company VAT must be a valid 15-digit Saudi VAT number (starts and ends with 3)',
+        missing: ['VAT number'],
+      };
+    }
+  }
+  if (missing.length) {
+    return {
+      ok: false,
+      code: 'SELLER_ADDRESS_REQUIRED',
+      error: `Seller address incomplete for ZATCA: ${missing.join(', ')}`,
+      missing,
+    };
+  }
+  return { ok: true };
+}
+
 export function assertB2bInvoiceReady(partnerOrBuyer = {}) {
   const isCompany = Boolean(
     partnerOrBuyer.isCompany
@@ -116,6 +150,15 @@ export function assertB2bInvoiceReady(partnerOrBuyer = {}) {
       code: 'B2B_IDENTITY_REQUIRED',
       error: `B2B tax invoice requires ${missing.join(', ')} before ZATCA clearance`,
       missing,
+    };
+  }
+  if (!isValidSaudiVatNumber(vat)) {
+    return {
+      ok: false,
+      isCompany: true,
+      code: 'INVALID_BUYER_VAT',
+      error: 'B2B tax invoice requires a valid 15-digit Saudi customer VAT number (starts and ends with 3)',
+      missing: ['VAT number'],
     };
   }
   return { ok: true, isCompany: true };

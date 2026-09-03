@@ -15,6 +15,7 @@ import { formatProductTypeBilingual } from './productType'
 import { autoTranslateText } from './builtInTranslator'
 import { stripRichMarkup } from './formatRichText'
 import { formatInvoiceDateDisplay, resolveInvoiceDateCalendar } from './invoiceDateFormat'
+import { getZatcaDocumentTitle } from './commercialDocumentLabels'
 
 const sanitizeFileName = (value) => {
   return String(value || 'invoice')
@@ -784,9 +785,18 @@ const formatInvoiceIssueDate = (invoice, tenant, language) => formatInvoiceDateD
 })
 
 const formatAddress = (address = {}) => {
-  return [address?.street, address?.district, address?.city, address?.postalCode, address?.country]
-    .filter(Boolean)
-    .join(', ')
+  if (!address) return ''
+  if (typeof address === 'string') return address.trim()
+  return [
+    address.shortAddress,
+    address.buildingNumber,
+    address.additionalNumber,
+    address.street || address.streetAr,
+    address.district || address.districtAr,
+    address.city || address.cityAr,
+    address.postalCode,
+    address.country,
+  ].filter(Boolean).join(', ')
 }
 
 const getPartyDetailLines = (party = {}, language = 'en', role = 'party', isPk = false) => {
@@ -902,23 +912,24 @@ const getInvoiceTitle = (invoice, language = 'en', documentType = 'invoice') => 
     return language === 'ar' ? 'عرض سعر' : 'Quotation'
   }
 
+  // Prefer ZATCA kind (standard / simplified / credit / debit) over context suffixes.
+  const base = getZatcaDocumentTitle(invoice, language, documentType)
+  if (String(invoice?.invoiceType || '') === '381' || String(invoice?.invoiceType || '') === '383') {
+    return base
+  }
   if (invoice?.invoiceSubtype === 'travel_ticket' || invoice?.businessContext === 'travel_agency') {
-    return language === 'ar' ? 'فاتورة ضريبية لخدمات السفر' : 'Travel Services Tax Invoice'
+    return language === 'ar' ? `${base} لخدمات السفر` : `Travel Services ${base}`
   }
-
   if (invoice?.businessContext === 'construction') {
-    return language === 'ar' ? 'فاتورة ضريبية للمقاولات' : 'Construction Tax Invoice'
+    return language === 'ar' ? `${base} للمقاولات` : `Construction ${base}`
   }
-
   if (invoice?.businessContext === 'trading') {
-    return language === 'ar' ? 'فاتورة ضريبية للتجارة' : 'Trading Tax Invoice'
+    return language === 'ar' ? `${base} للتجارة` : `Trading ${base}`
   }
-
   if (invoice?.businessContext === 'manpower') {
-    return language === 'ar' ? 'فاتورة ضريبية لتوريد العمالة' : 'Manpower Supply Tax Invoice'
+    return language === 'ar' ? `${base} لتوريد العمالة` : `Manpower Supply ${base}`
   }
-
-  return language === 'ar' ? 'فاتورة ضريبية' : 'Tax Invoice'
+  return base
 }
 
 const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElement = null, output = 'save', documentType = 'invoice', editable = false }) => {

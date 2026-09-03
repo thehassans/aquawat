@@ -64,8 +64,8 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
     )
   }
 
-  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en', { uppercase: true, flow: invoice?.flow })
-  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar', { flow: invoice?.flow })
+  const invoiceTitleEn = getCommercialDocumentTitle(documentType, 'en', { uppercase: true, flow: invoice?.flow, invoice })
+  const invoiceTitleAr = getCommercialDocumentTitle(documentType, 'ar', { flow: invoice?.flow, invoice })
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white border-2 border-black overflow-hidden font-sans rounded-none">

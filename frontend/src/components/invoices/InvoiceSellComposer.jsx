@@ -1003,6 +1003,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     setValue('buyer.address.shortAddress', customer.address?.shortAddress || '', buyerOpts)
     setValue('buyer.contactPhone', customer.phone || customer.mobile || getValues('buyer.contactPhone') || '', buyerOpts)
     setValue('buyer.contactEmail', customer.email || getValues('buyer.contactEmail') || '', buyerOpts)
+    const terms = String(customer.paymentTermsCustomer || customer.paymentTerms || '').trim()
+    if (terms) {
+      setValue('paymentTerms', terms, { shouldDirty: true })
+      const issueRaw = getValues('issueDate')
+      const issue = issueRaw ? new Date(issueRaw) : new Date()
+      const due = computeDueDateFromPaymentTerms(issue, terms)
+      if (due) setValue('dueDate', due.toISOString().slice(0, 10), { shouldDirty: true })
+    }
     setSelectedCustomer(customer)
     clearErrors(['buyer.name', 'buyer.vatNumber', 'buyer.crNumber'])
   }

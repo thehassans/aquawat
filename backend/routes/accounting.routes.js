@@ -1157,6 +1157,104 @@ router.get('/parties/customers', checkPermission('finance', 'read'), async (req,
   }
 });
 
+// C3 — Customer invoices list (pagination / filters / sort) — proxies sell invoices
+router.get('/invoices', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const Invoice = (await import('../models/Invoice.js')).default;
+    const mongoose = (await import('mongoose')).default;
+    const { applyInvoiceListSearch } = await import('../utils/invoiceSearch.js');
+
+    const {
+      page = 1,
+      limit = 20,
+      status,
+      paymentStatus,
+      transactionType,
+      search,
+      dateFrom,
+      dateTo,
+      startDate,
+      endDate,
+      customerId,
+      productId,
+      type,
+      zatcaFilter,
+      sortBy,
+      sortDir,
+    } = req.query;
+
+    const query = { tenantId: tenantIdOf(req), flow: 'sell', invoiceType: '388' };
+    if (status) query.status = status;
+    if (paymentStatus) query.paymentStatus = paymentStatus;
+    if (transactionType || type) query.transactionType = transactionType || type;
+    const customerFilter = customerId && mongoose.Types.ObjectId.isValid(customerId) ? customerId : null;
+    if (customerFilter) query.customerId = customerFilter;
+    const productFilter = productId && mongoose.Types.ObjectId.isValid(productId) ? productId : null;
+    if (productFilter) query['lineItems.productId'] = productFilter;
+    const fromDate = startDate || dateFrom;
+    const toDate = endDate || dateTo;
+    if (fromDate || toDate) {
+      query.issueDate = {};
+      if (fromDate) query.issueDate.$gte = new Date(fromDate);
+      if (toDate) query.issueDate.$lte = new Date(toDate);
+    }
+    const searchTerm = String(search || '').trim();
+    if (searchTerm) {
+      await applyInvoiceListSearch(query, searchTerm, tenantIdOf(req));
+    }
+    if (zatcaFilter === 'cleared') query['zatca.submissionStatus'] = 'cleared';
+    else if (zatcaFilter === 'reported') query['zatca.submissionStatus'] = 'reported';
+    else if (zatcaFilter === 'failed' || zatcaFilter === 'rejected') query['zatca.submissionStatus'] = 'rejected';
+    else if (zatcaFilter === 'not_submitted') {
+      query.$and = (query.$and || []).concat([{
+        $or: [
+          { 'zatca.submissionStatus': { $exists: false } },
+          { 'zatca.submissionStatus': null },
+          { 'zatca.submissionStatus': 'pending' },
+          { 'zatca.submissionStatus': '' },
+        ],
+      }]);
+    } else if (zatcaFilter === 'submitted') {
+      query['zatca.submittedAt'] = { $exists: true, $ne: null };
+    }
+
+    const pageSize = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const pageNumber = Math.max(1, parseInt(page, 10) || 1);
+    const sortFieldMap = {
+      issueDate: 'issueDate',
+      dueDate: 'dueDate',
+      invoiceNumber: 'invoiceNumber',
+      grandTotal: 'grandTotal',
+      status: 'status',
+      paymentStatus: 'paymentStatus',
+    };
+    const sortField = sortFieldMap[String(sortBy || '')] || 'issueDate';
+    const sortDirection = String(sortDir || '').toLowerCase() === 'asc' ? 1 : -1;
+
+    const [invoices, total] = await Promise.all([
+      Invoice.find(query)
+        .select('-zatca.signedXml -zatca.qrCodeData -travelDetails.passengers -travelDetails.segments -searchText')
+        .sort({ [sortField]: sortDirection, _id: -1 })
+        .skip((pageNumber - 1) * pageSize)
+        .limit(pageSize)
+        .lean(),
+      Invoice.countDocuments(query),
+    ]);
+
+    res.json({
+      invoices,
+      pagination: {
+        page: pageNumber,
+        limit: pageSize,
+        total,
+        pages: Math.ceil(total / pageSize) || 1,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // C2 — Accounting customer directory (balances + filters + pagination)
 router.get('/customers', checkPermission('finance', 'read'), async (req, res) => {
   try {

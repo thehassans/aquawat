@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Search, Eye } from 'lucide-react'
+import { ArrowDown, ArrowUp, Plus, RefreshCw, Search, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useSelector } from 'react-redux'
 import api from '../../../lib/api'
@@ -12,6 +12,8 @@ import AccountingDocumentBatchBar from './AccountingDocumentBatchBar'
 import RegisterPaymentModal from '../../../components/accounting/RegisterPaymentModal'
 import BatchCustomerPaymentModal from '../../../components/accounting/BatchCustomerPaymentModal'
 import { downloadInvoicePdf } from '../../../lib/invoicePdfActions'
+import { getZatcaStatusMeta } from '../../../lib/zatcaStatus'
+import { isSaudiTenant } from '../../../lib/saudiTenant'
 import {
   canRegisterPaymentOnDocument,
   documentStatusLabel,
@@ -26,6 +28,7 @@ import {
   filterBarClass,
   filterControlClass,
   listShellClass,
+  paginationBarClass,
   rowActionBtnClass,
   rowActionsWrapClass,
   salesTdClass,
@@ -62,6 +65,7 @@ const computeNextActivity = (row, isAr) => {
     return {
       label: isAr ? `متابعة — متأخر ${overdue} يوم` : `Follow-up — ${overdue}d overdue`,
       tone: 'danger',
+      overdueDays: overdue,
     }
   }
   if (diffDays === 0) return { label: isAr ? 'متابعة — مستحق اليوم' : 'Follow-up — due today', tone: 'warn' }
@@ -75,11 +79,32 @@ const nextActivityClass = (tone) => {
   return 'bg-slate-100 text-slate-600 dark:bg-white/5 dark:text-slate-400'
 }
 
+const zatcaToneClass = (tone) => {
+  if (tone === 'success') return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+  if (tone === 'danger') return 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
+  if (tone === 'warning') return 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200'
+  if (tone === 'info') return 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300'
+  return 'bg-slate-100 text-slate-600 dark:bg-white/5 dark:text-slate-400'
+}
+
+const isOverdueRow = (row) => {
+  if (isDraftDocument(row)) return false
+  if (String(row.paymentStatus || '').toLowerCase() === 'paid') return false
+  const due = row.dueDate ? new Date(row.dueDate) : null
+  if (!due || Number.isNaN(due.getTime())) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  due.setHours(0, 0, 0, 0)
+  return due.getTime() < today.getTime()
+}
+
 export default function CustomerInvoicesPanel({ language: languageProp }) {
   const { language: uiLanguage } = useSelector((s) => s.ui)
   const { tenant } = useSelector((s) => s.auth)
   const language = languageProp || uiLanguage
   const isAr = language === 'ar'
+  const isSar = isSaudiTenant(tenant)
+  const zatcaPhase = tenant?.zatca?.phase || 2
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
@@ -87,6 +112,13 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
   const [statusFilter, setStatusFilter] = useState('')
   const [paymentFilter, setPaymentFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [zatcaFilter, setZatcaFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [page, setPage] = useState(1)
+  const [limit] = useState(25)
+  const [sortBy, setSortBy] = useState('issueDate')
+  const [sortDir, setSortDir] = useState('desc')
   const customerIdFilter = String(searchParams.get('customerId') || '').trim()
   const productIdFilter = String(searchParams.get('productId') || '').trim()
   const [selectedIds, setSelectedIds] = useState(() => new Set())
@@ -95,16 +127,35 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
   const [multiPayOpen, setMultiPayOpen] = useState(false)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['customer-invoices', search, statusFilter, paymentFilter, typeFilter, customerIdFilter, productIdFilter],
-    queryFn: () => api.get('/invoices', {
+    queryKey: [
+      'customer-invoices',
+      page,
+      limit,
+      search,
+      statusFilter,
+      paymentFilter,
+      typeFilter,
+      zatcaFilter,
+      dateFrom,
+      dateTo,
+      sortBy,
+      sortDir,
+      customerIdFilter,
+      productIdFilter,
+    ],
+    queryFn: () => api.get('/accounting/invoices', {
       params: {
-        limit: 100,
-        flow: 'sell',
-        invoiceType: '388',
+        page,
+        limit,
         search: search || undefined,
         status: statusFilter || undefined,
         paymentStatus: paymentFilter || undefined,
         transactionType: typeFilter || undefined,
+        zatcaFilter: zatcaFilter || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        sortBy,
+        sortDir,
         customerId: customerIdFilter || undefined,
         productId: productIdFilter || undefined,
       },
@@ -112,10 +163,35 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
   })
 
   const rows = data?.invoices || []
+  const pagination = data?.pagination || { page: 1, pages: 1, total: 0, limit }
   const selectedRows = useMemo(
     () => rows.filter((row) => selectedIds.has(String(row._id))),
     [rows, selectedIds],
   )
+
+  const toggleSort = (field) => {
+    setPage(1)
+    if (sortBy === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setSortBy(field)
+    setSortDir(field === 'invoiceNumber' ? 'asc' : 'desc')
+  }
+
+  const SortHeader = ({ field, children }) => {
+    const active = sortBy === field
+    return (
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 font-semibold"
+        onClick={() => toggleSort(field)}
+      >
+        {children}
+        {active ? (sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : null}
+      </button>
+    )
+  }
 
   const batchPayMutation = useMutation({
     mutationFn: ({ invoiceId, payload }) => api.post(`/invoices/${invoiceId}/payments`, payload),
@@ -154,6 +230,15 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
     onError: (err) => toast.error(err.response?.data?.error || (isAr ? 'فشل الدفع الجماعي' : 'Batch payment failed')),
   })
 
+  const retryZatcaMutation = useMutation({
+    mutationFn: (invoiceId) => api.post(`/invoices/${invoiceId}/sign`, undefined, { timeout: 120000 }),
+    onSuccess: () => {
+      toast.success(isAr ? 'تمت إعادة الإرسال' : 'Resubmitted to ZATCA')
+      queryClient.invalidateQueries({ queryKey: ['customer-invoices'] })
+    },
+    onError: (err) => toast.error(err.response?.data?.error || (isAr ? 'فشل الإرسال' : 'Resubmit failed')),
+  })
+
   const exportColumns = useMemo(() => [
     { key: 'invoiceNumber', label: isAr ? 'الرقم' : 'Number' },
     { key: 'customer', label: isAr ? 'العميل' : 'Customer', value: (r) => trimName(r.buyer) },
@@ -162,9 +247,10 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
     { key: 'taxExcluded', label: isAr ? 'بدون ضريبة' : 'Tax excluded', value: (r) => Number(r.taxableAmount ?? r.subtotal ?? 0) },
     { key: 'grandTotal', label: isAr ? 'الإجمالي' : 'Total' },
     { key: 'paymentStatus', label: isAr ? 'حالة الدفع' : 'Payment status' },
+    { key: 'zatcaStatus', label: isAr ? 'زاتكا' : 'ZATCA', value: (r) => getZatcaStatusMeta(r, language, zatcaPhase).label },
     { key: 'nextActivity', label: isAr ? 'النشاط التالي' : 'Next activity', value: (r) => computeNextActivity(r, isAr).label },
     { key: 'status', label: isAr ? 'الحالة' : 'Status' },
-  ], [isAr])
+  ], [isAr, language, zatcaPhase])
 
   const toggleSelect = (id) => {
     setSelectedIds((prev) => {
@@ -207,6 +293,12 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
     }
   }
 
+  const resetPagingFilters = (fn) => {
+    setPage(1)
+    setSelectedIds(new Set())
+    fn()
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -233,29 +325,68 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
           <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => resetPagingFilters(() => setSearch(e.target.value))}
             placeholder={isAr ? 'بحث…' : 'Search…'}
             className={`${fieldControlClass} !py-2 ps-10`}
           />
         </div>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={filterControlClass}>
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => resetPagingFilters(() => setDateFrom(e.target.value))}
+          className={filterControlClass}
+          title={isAr ? 'من تاريخ' : 'From date'}
+        />
+        <input
+          type="date"
+          value={dateTo}
+          onChange={(e) => resetPagingFilters(() => setDateTo(e.target.value))}
+          className={filterControlClass}
+          title={isAr ? 'إلى تاريخ' : 'To date'}
+        />
+        <select
+          value={typeFilter}
+          onChange={(e) => resetPagingFilters(() => setTypeFilter(e.target.value))}
+          className={filterControlClass}
+        >
           <option value="">{isAr ? 'كل الأنواع' : 'All types'}</option>
-          <option value="B2B">B2B</option>
-          <option value="B2C">B2C</option>
+          <option value="B2B">{isAr ? 'قياسية (B2B)' : 'Tax / B2B'}</option>
+          <option value="B2C">{isAr ? 'مبسطة (B2C)' : 'Simplified / B2C'}</option>
         </select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={filterControlClass}>
+        <select
+          value={statusFilter}
+          onChange={(e) => resetPagingFilters(() => setStatusFilter(e.target.value))}
+          className={filterControlClass}
+        >
           <option value="">{isAr ? 'كل الحالات' : 'All statuses'}</option>
           <option value="draft">{isAr ? 'مسودة' : 'Draft'}</option>
           <option value="issued">{isAr ? 'مرحّلة' : 'Posted'}</option>
           <option value="cancelled">{isAr ? 'ملغاة' : 'Cancelled'}</option>
         </select>
-        <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} className={filterControlClass}>
+        <select
+          value={paymentFilter}
+          onChange={(e) => resetPagingFilters(() => setPaymentFilter(e.target.value))}
+          className={filterControlClass}
+        >
           <option value="">{isAr ? 'كل المدفوعات' : 'All payments'}</option>
           <option value="pending">{isAr ? 'غير مدفوعة' : 'Unpaid'}</option>
           <option value="partial">{isAr ? 'جزئي' : 'Partial'}</option>
           <option value="paid">{isAr ? 'مدفوعة' : 'Paid'}</option>
         </select>
-        {(customerIdFilter || productIdFilter) ? (
+        {isSar ? (
+          <select
+            value={zatcaFilter}
+            onChange={(e) => resetPagingFilters(() => setZatcaFilter(e.target.value))}
+            className={filterControlClass}
+          >
+            <option value="">{isAr ? 'كل زاتكا' : 'All ZATCA'}</option>
+            <option value="not_submitted">{isAr ? 'غير مرسلة' : 'Not submitted'}</option>
+            <option value="reported">{isAr ? 'تم الإبلاغ' : 'Reported'}</option>
+            <option value="cleared">{isAr ? 'تمت التصفية' : 'Cleared'}</option>
+            <option value="failed">{isAr ? 'فشل / مرفوضة' : 'Failed'}</option>
+          </select>
+        ) : null}
+        {(customerIdFilter || productIdFilter || dateFrom || dateTo || zatcaFilter) ? (
           <button
             type="button"
             className={`${softChipClass} !px-3`}
@@ -264,6 +395,10 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
               next.delete('customerId')
               next.delete('productId')
               setSearchParams(next)
+              setDateFrom('')
+              setDateTo('')
+              setZatcaFilter('')
+              setPage(1)
             }}
           >
             {isAr ? 'مسح الفلتر' : 'Clear filter'}
@@ -294,18 +429,40 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
           <ResponsiveDataList
             items={rows}
             empty={<p className={emptyStateClass}>{isAr ? 'لا توجد فواتير عملاء' : 'No customer invoices yet'}</p>}
-            renderCard={(row) => (
-              <div key={row._id} className="space-y-2 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-dark-800">
-                <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={`${docLinkClass} text-base`}>
-                  {row.invoiceNumber}
-                </Link>
-                <p className="text-sm text-slate-500">{trimName(row.buyer)}</p>
-                <div className="flex items-center justify-between text-sm">
-                  <Money value={row.grandTotal} />
-                  <span className={softChipClass}>{paymentStatusLabel(row.paymentStatus, language, row)}</span>
+            renderCard={(row) => {
+              const overdue = isOverdueRow(row)
+              const activity = computeNextActivity(row, isAr)
+              const zatca = getZatcaStatusMeta(row, language, zatcaPhase)
+              return (
+                <div
+                  key={row._id}
+                  className={`space-y-2 rounded-2xl border p-4 ${
+                    overdue
+                      ? 'border-rose-200 bg-rose-50/70 dark:border-rose-900/50 dark:bg-rose-950/20'
+                      : 'border-slate-200/80 bg-white dark:border-white/10 dark:bg-dark-800'
+                  }`}
+                >
+                  <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={`${docLinkClass} text-base`}>
+                    {row.invoiceNumber}
+                  </Link>
+                  <p className="text-sm text-slate-500">{trimName(row.buyer)}</p>
+                  {overdue && activity.overdueDays ? (
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${nextActivityClass('danger')}`}>
+                      {isAr ? `متأخر ${activity.overdueDays} يوم` : `${activity.overdueDays}d overdue`}
+                    </span>
+                  ) : null}
+                  {isSar ? (
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${zatcaToneClass(zatca.tone)}`}>
+                      {zatca.label}
+                    </span>
+                  ) : null}
+                  <div className="flex items-center justify-between text-sm">
+                    <Money value={row.grandTotal} />
+                    <span className={softChipClass}>{paymentStatusLabel(row.paymentStatus, language, row)}</span>
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            }}
           >
             <table className={salesTableClass}>
               <thead>
@@ -324,84 +481,142 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
                       }}
                     />
                   </th>
-                  <th className={salesThClass}>{isAr ? 'الرقم' : 'Number'}</th>
+                  <th className={salesThClass}><SortHeader field="invoiceNumber">{isAr ? 'الرقم' : 'Number'}</SortHeader></th>
                   <th className={salesThClass}>{isAr ? 'العميل' : 'Customer'}</th>
-                  <th className={salesThClass}>{isAr ? 'تاريخ الفاتورة' : 'Invoice date'}</th>
-                  <th className={salesThClass}>{isAr ? 'الاستحقاق' : 'Due date'}</th>
+                  <th className={salesThClass}><SortHeader field="issueDate">{isAr ? 'تاريخ الفاتورة' : 'Invoice date'}</SortHeader></th>
+                  <th className={salesThClass}><SortHeader field="dueDate">{isAr ? 'الاستحقاق' : 'Due date'}</SortHeader></th>
                   <th className={salesThClass}>{isAr ? 'بدون ضريبة' : 'Tax excl.'}</th>
-                  <th className={salesThClass}>{isAr ? 'الإجمالي' : 'Total'}</th>
+                  <th className={salesThClass}><SortHeader field="grandTotal">{isAr ? 'الإجمالي' : 'Total'}</SortHeader></th>
                   <th className={salesThClass}>{isAr ? 'المتبقي' : 'Due'}</th>
-                  <th className={salesThClass}>{isAr ? 'حالة الدفع' : 'Payment'}</th>
+                  <th className={salesThClass}><SortHeader field="paymentStatus">{isAr ? 'حالة الدفع' : 'Payment'}</SortHeader></th>
+                  {isSar ? <th className={salesThClass}>{isAr ? 'زاتكا' : 'ZATCA'}</th> : null}
                   <th className={salesThClass}>{isAr ? 'النشاط التالي' : 'Next activity'}</th>
-                  <th className={salesThClass}>{isAr ? 'الحالة' : 'Status'}</th>
+                  <th className={salesThClass}><SortHeader field="status">{isAr ? 'الحالة' : 'Status'}</SortHeader></th>
                   <th className={salesThClass} />
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr key={row._id} className={salesTrClass}>
-                    <td className={salesTdClass}>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(String(row._id))}
-                        onChange={() => toggleSelect(row._id)}
-                        aria-label={row.invoiceNumber}
-                      />
-                    </td>
-                    <td className={salesTdClass}>
-                      <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={docLinkClass}>
-                        {row.invoiceNumber}
-                      </Link>
-                    </td>
-                    <td className={salesTdClass}>{trimName(row.buyer)}</td>
-                    <td className={salesTdClass}>
-                      {row.issueDate ? new Date(row.issueDate).toLocaleDateString(isAr ? 'ar-SA' : 'en-GB') : '—'}
-                    </td>
-                    <td className={salesTdClass}>
-                      {row.dueDate ? new Date(row.dueDate).toLocaleDateString(isAr ? 'ar-SA' : 'en-GB') : '—'}
-                    </td>
-                    <td className={salesTdClass}>
-                      <Money value={Number(row.taxableAmount ?? row.subtotal ?? 0)} />
-                    </td>
-                    <td className={salesTdClass}>
-                      <Money value={row.grandTotal} />
-                    </td>
-                    <td className={salesTdClass}>
-                      {isDraftDocument(row) ? (
-                        <span className="text-slate-400">—</span>
-                      ) : (
-                        <Money value={invoiceRemainingBalance(row)} />
-                      )}
-                    </td>
-                    <td className={salesTdClass}>
-                      <span className={softChipClass}>{paymentStatusLabel(row.paymentStatus, language, row)}</span>
-                    </td>
-                    <td className={salesTdClass}>
-                      {(() => {
-                        const activity = computeNextActivity(row, isAr)
-                        return (
-                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${nextActivityClass(activity.tone)}`}>
-                            {activity.label}
-                          </span>
-                        )
-                      })()}
-                    </td>
-                    <td className={salesTdClass}>
-                      <span className={softChipClass}>{documentStatusLabel(row.status, language)}</span>
-                    </td>
-                    <td className={salesTdClass}>
-                      <div className={rowActionsWrapClass}>
-                        <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={rowActionBtnClass}>
-                          <Eye className="h-4 w-4" />
+                {rows.map((row) => {
+                  const overdue = isOverdueRow(row)
+                  const activity = computeNextActivity(row, isAr)
+                  const zatca = getZatcaStatusMeta(row, language, zatcaPhase)
+                  const failed = ['rejected', 'warning'].includes(zatca.status)
+                  return (
+                    <tr
+                      key={row._id}
+                      className={`${salesTrClass} ${overdue ? 'bg-rose-50/80 dark:bg-rose-950/20' : ''}`}
+                    >
+                      <td className={salesTdClass}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(String(row._id))}
+                          onChange={() => toggleSelect(row._id)}
+                          aria-label={row.invoiceNumber}
+                        />
+                      </td>
+                      <td className={salesTdClass}>
+                        <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={docLinkClass}>
+                          {row.invoiceNumber}
                         </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                        {overdue && activity.overdueDays ? (
+                          <div className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${nextActivityClass('danger')}`}>
+                            {isAr ? `متأخر ${activity.overdueDays} يوم` : `${activity.overdueDays}d overdue`}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className={salesTdClass}>{trimName(row.buyer)}</td>
+                      <td className={salesTdClass}>
+                        {row.issueDate ? new Date(row.issueDate).toLocaleDateString(isAr ? 'ar-SA' : 'en-GB') : '—'}
+                      </td>
+                      <td className={salesTdClass}>
+                        {row.dueDate ? new Date(row.dueDate).toLocaleDateString(isAr ? 'ar-SA' : 'en-GB') : '—'}
+                      </td>
+                      <td className={salesTdClass}>
+                        <Money value={Number(row.taxableAmount ?? row.subtotal ?? 0)} />
+                      </td>
+                      <td className={salesTdClass}>
+                        <Money value={row.grandTotal} />
+                      </td>
+                      <td className={salesTdClass}>
+                        {isDraftDocument(row) ? (
+                          <span className="text-slate-400">—</span>
+                        ) : (
+                          <Money value={invoiceRemainingBalance(row)} />
+                        )}
+                      </td>
+                      <td className={salesTdClass}>
+                        <span className={softChipClass}>{paymentStatusLabel(row.paymentStatus, language, row)}</span>
+                      </td>
+                      {isSar ? (
+                        <td className={salesTdClass}>
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${zatcaToneClass(zatca.tone)}`}>
+                              {zatca.label}
+                            </span>
+                            {failed ? (
+                              <button
+                                type="button"
+                                className={rowActionBtnClass}
+                                title={isAr ? 'إعادة الإرسال' : 'Retry'}
+                                onClick={() => retryZatcaMutation.mutate(row._id)}
+                                disabled={retryZatcaMutation.isPending}
+                              >
+                                <RefreshCw className="h-3.5 w-3.5" />
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
+                      ) : null}
+                      <td className={salesTdClass}>
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${nextActivityClass(activity.tone)}`}>
+                          {activity.label}
+                        </span>
+                      </td>
+                      <td className={salesTdClass}>
+                        <span className={softChipClass}>{documentStatusLabel(row.status, language)}</span>
+                      </td>
+                      <td className={salesTdClass}>
+                        <div className={rowActionsWrapClass}>
+                          <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={rowActionBtnClass}>
+                            <Eye className="h-4 w-4" />
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </ResponsiveDataList>
         )}
+
+        {!isLoading && pagination.total > 0 ? (
+          <div className={paginationBarClass}>
+            <p className="text-xs text-slate-500">
+              {isAr
+                ? `${pagination.total} فاتورة · صفحة ${pagination.page} من ${pagination.pages}`
+                : `${pagination.total} invoices · page ${pagination.page} of ${pagination.pages}`}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                {isAr ? 'السابق' : 'Previous'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={page >= (pagination.pages || 1)}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                {isAr ? 'التالي' : 'Next'}
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <RegisterPaymentModal

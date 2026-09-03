@@ -35,7 +35,7 @@ import { isZatcaCurrency } from '../utils/zatcaCurrency.js';
 import { isFbrCurrency } from '../utils/fbrCurrency.js';
 import { applyFbrToInvoice } from '../utils/fbr/FbrService.js';
 import { applyCountryComplianceToInvoice } from '../utils/compliance/CountryComplianceService.js';
-import { ensureInvoiceDueDate, computePaymentSettlement } from '../utils/invoicePaymentTerms.js';
+import { ensureInvoiceDueDate, applyInvoicePaymentTerms, computePaymentSettlement } from '../utils/invoicePaymentTerms.js';
 import { cacheAside } from '../lib/redis.js';
 import { applyInvoiceListSearch } from '../utils/invoiceSearch.js';
 import { statsRead } from '../utils/mongoReadPreference.js';
@@ -46,6 +46,43 @@ import { recordUserActivity } from '../utils/auditLogger.js';
 import { syncMarqueeBookingFromDocument } from '../utils/marqueeSync.js';
 import { applyDeliveredInvoicingPolicy } from '../services/sales/invoicingPolicy.js';
 import { deliverDigitalProductsByEmail } from '../services/sales/digitalFulfillment.js';
+import { assertSellerAddressReady } from '../services/sales/creditLimit.js';
+
+function prepareSellInvoiceTermsAndSeller(invoiceData, {
+  customer,
+  tenant,
+  bodyPaymentTerms,
+  bodyDueDate,
+  dueDateOverride = false,
+  skipSellerCheck = false,
+} = {}) {
+  applyInvoicePaymentTerms(invoiceData, {
+    customer,
+    companyDefault: 'net30',
+    bodyPaymentTerms,
+    bodyDueDate,
+    dueDateOverride,
+  });
+
+  if (!skipSellerCheck && isZatcaCurrency(tenant) && (invoiceData.flow || 'sell') === 'sell') {
+    const sellerCheck = assertSellerAddressReady(
+      invoiceData.seller?.address || tenant?.business?.address,
+      {
+        requireVat: true,
+        vatNumber: invoiceData.seller?.vatNumber || tenant?.business?.vatNumber,
+      },
+    );
+    if (!sellerCheck.ok) {
+      const err = new Error(sellerCheck.error);
+      err.status = 400;
+      err.code = sellerCheck.code;
+      err.missing = sellerCheck.missing;
+      throw err;
+    }
+  }
+
+  return invoiceData;
+}
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -985,7 +1022,7 @@ async function ensureProductsExist(tenantId, userId, lineItems, flow) {
 // @route   GET /api/invoices
 router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, paymentStatus, transactionType, businessContext, search, startDate, endDate, zatcaFilter, flow, invoiceType, cursor, supplierId, customerId, productId } = req.query;
+    const { page = 1, limit = 20, status, paymentStatus, transactionType, businessContext, search, startDate, endDate, dateFrom, dateTo, zatcaFilter, flow, invoiceType, cursor, supplierId, customerId, productId, sortBy, sortDir } = req.query;
     
     const query = { ...req.tenantFilter };
     if (status) query.status = status;
@@ -1000,10 +1037,12 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
     if (customerFilter) query.customerId = customerFilter;
     const productFilter = cleanObjectId(productId);
     if (productFilter) query['lineItems.productId'] = productFilter;
-    if (startDate || endDate) {
+    const fromDate = startDate || dateFrom;
+    const toDate = endDate || dateTo;
+    if (fromDate || toDate) {
       query.issueDate = {};
-      if (startDate) query.issueDate.$gte = new Date(startDate);
-      if (endDate) query.issueDate.$lte = new Date(endDate);
+      if (fromDate) query.issueDate.$gte = new Date(fromDate);
+      if (toDate) query.issueDate.$lte = new Date(toDate);
     }
     const searchTerm = String(search || '').trim();
     if (searchTerm) {
@@ -1017,6 +1056,21 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
       }]);
     } else if (zatcaFilter === 'submitted') {
       query['zatca.submittedAt'] = { $exists: true, $ne: null };
+    } else if (zatcaFilter === 'cleared') {
+      query['zatca.submissionStatus'] = 'cleared';
+    } else if (zatcaFilter === 'reported') {
+      query['zatca.submissionStatus'] = 'reported';
+    } else if (zatcaFilter === 'failed' || zatcaFilter === 'rejected') {
+      query['zatca.submissionStatus'] = 'rejected';
+    } else if (zatcaFilter === 'not_submitted') {
+      query.$and = (query.$and || []).concat([{
+        $or: [
+          { 'zatca.submissionStatus': { $exists: false } },
+          { 'zatca.submissionStatus': null },
+          { 'zatca.submissionStatus': 'pending' },
+          { 'zatca.submissionStatus': '' },
+        ],
+      }]);
     }
 
     const pageSize = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
@@ -1041,11 +1095,26 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
         cursorDate = null;
       }
     }
+
+    const sortFieldMap = {
+      issueDate: 'issueDate',
+      dueDate: 'dueDate',
+      invoiceNumber: 'invoiceNumber',
+      grandTotal: 'grandTotal',
+      status: 'status',
+      paymentStatus: 'paymentStatus',
+      createdAt: 'createdAt',
+    };
+    const sortField = sortFieldMap[String(sortBy || '')] || 'issueDate';
+    const sortDirection = String(sortDir || '').toLowerCase() === 'asc' ? 1 : -1;
+    const sortSpec = cursorId
+      ? { issueDate: -1, _id: -1 }
+      : { [sortField]: sortDirection, _id: -1 };
    
    const findQuery = Invoice.find(query)
         .select('-zatca.signedXml -zatca.qrCodeData -travelDetails.passengers -travelDetails.segments -searchText')
         .populate('createdBy', 'firstName lastName firstNameAr lastNameAr email')
-        .sort({ issueDate: -1, _id: -1 })
+        .sort(sortSpec)
         .limit(pageSize)
         .lean();
     if (!cursorId) {
@@ -1701,7 +1770,20 @@ router.post('/', invoiceWriteLimiter, checkTrialLimits('invoices'), checkPermiss
       delete invoiceData.warehouseId;
     }
 
-    ensureInvoiceDueDate(invoiceData);
+    try {
+      prepareSellInvoiceTermsAndSeller(invoiceData, {
+        customer,
+        tenant,
+        bodyPaymentTerms: req.body.paymentTerms,
+        bodyDueDate: req.body.dueDate,
+        dueDateOverride: Boolean(req.body.dueDateOverride),
+      });
+    } catch (prepErr) {
+      if (prepErr.status === 400) {
+        return res.status(400).json({ error: prepErr.message, code: prepErr.code, missing: prepErr.missing });
+      }
+      throw prepErr;
+    }
 
     const enrichedInvoiceData = await enrichInvoiceArabicFields(invoiceData);
     const invoice = await Invoice.create(enrichedInvoiceData);
@@ -1951,7 +2033,20 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
       invoiceData.travelDetails = requestTravelDetails;
     }
 
-    ensureInvoiceDueDate(invoiceData);
+    try {
+      prepareSellInvoiceTermsAndSeller(invoiceData, {
+        customer,
+        tenant,
+        bodyPaymentTerms: req.body.paymentTerms,
+        bodyDueDate: req.body.dueDate,
+        dueDateOverride: Boolean(req.body.dueDateOverride),
+      });
+    } catch (prepErr) {
+      if (prepErr.status === 400) {
+        return res.status(400).json({ error: prepErr.message, code: prepErr.code, missing: prepErr.missing });
+      }
+      throw prepErr;
+    }
 
     resolvePaymentStatus(invoiceData);
 
@@ -2621,6 +2716,41 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
     }
 
     Object.assign(invoice, req.body);
+
+    if (invoice.flow === 'sell') {
+      let customerForTerms = null;
+      if (invoice.customerId) {
+        customerForTerms = await Customer.findOne({ _id: invoice.customerId, ...req.tenantFilter })
+          .select('paymentTermsCustomer paymentTerms')
+          .lean();
+      }
+      try {
+        const plain = invoice.toObject ? invoice.toObject() : { ...invoice };
+        prepareSellInvoiceTermsAndSeller(plain, {
+          customer: customerForTerms,
+          tenant,
+          bodyPaymentTerms: Object.prototype.hasOwnProperty.call(req.body, 'paymentTerms')
+            ? req.body.paymentTerms
+            : invoice.paymentTerms,
+          bodyDueDate: Object.prototype.hasOwnProperty.call(req.body, 'dueDate')
+            ? req.body.dueDate
+            : invoice.dueDate,
+          dueDateOverride: Boolean(req.body.dueDateOverride),
+          skipSellerCheck: true,
+        });
+        invoice.paymentTerms = plain.paymentTerms;
+        invoice.dueDate = plain.dueDate;
+        if (plain.paymentSchedule) invoice.paymentSchedule = plain.paymentSchedule;
+        if (plain.earlyPaymentDiscount) invoice.earlyPaymentDiscount = plain.earlyPaymentDiscount;
+      } catch (prepErr) {
+        if (prepErr.status === 400) {
+          return res.status(400).json({ error: prepErr.message, code: prepErr.code, missing: prepErr.missing });
+        }
+        throw prepErr;
+      }
+    } else {
+      ensureInvoiceDueDate(invoice);
+    }
 
     // Allow B2B ↔ B2C while draft/pending; enforce identity only when saving as B2B
     if (

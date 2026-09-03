@@ -64,7 +64,7 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
     )
   }
 
-  const invoiceTitle = getCommercialDocumentTitle(documentType, language, { flow: invoice?.flow })
+  const invoiceTitle = getCommercialDocumentTitle(documentType, language, { flow: invoice?.flow, invoice })
 
   return (
     <div dir="ltr" className="mx-auto max-w-5xl bg-white border-double border-[6px] border-amber-900 shadow-2xl p-8 font-serif" style={{ fontFamily: '"Times New Roman", Times, "Almarai", serif' }}>
