@@ -443,6 +443,10 @@ const tenantSchema = new mongoose.Schema({
         name: { type: String, trim: true, default: '' },
         nameAr: { type: String, trim: true, default: '' },
         channel: { type: String, enum: ['whatsapp', 'email', 'sms', 'call'], default: 'whatsapp' },
+        autoSend: { type: Boolean, default: false },
+        escalateTo: { type: Number, default: null },
+        templateEn: { type: String, default: '' },
+        templateAr: { type: String, default: '' },
       }],
       /** Asset depreciation models */
       assetModels: [{

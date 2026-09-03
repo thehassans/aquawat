@@ -1760,84 +1760,68 @@ router.get('/reports/tax', checkPermission('finance', 'read'), async (req, res) 
   }
 });
 
-/** Batch AR payment reminders — reuses invoice WhatsApp endpoint semantics (wa.me + optional send). */
+/** Batch AR payment reminders — delegates to followUpService (dryRun by default). */
 router.post('/follow-up/remind', checkPermission('finance', 'update'), async (req, res) => {
   try {
-    const tenantId = tenantIdOf(req);
-    const ids = Array.isArray(req.body.invoiceIds) ? req.body.invoiceIds.filter(Boolean) : [];
-    if (!ids.length) throw new Error('invoiceIds required');
-    const language = req.body.language === 'en' ? 'en' : 'ar';
-    const Invoice = (await import('../models/Invoice.js')).default;
-    const Customer = (await import('../models/Customer.js')).default;
-    const Tenant = (await import('../models/Tenant.js')).default;
-    const tenant = req.tenant || await Tenant.findById(tenantId);
-    const { levels } = await getFollowUpLevels(tenantId);
-    const { template } = await getReminderTemplate(tenantId);
-    const invoices = await Invoice.find({
-      _id: { $in: ids.slice(0, 50) },
-      tenantId,
-      flow: 'sell',
-      status: { $nin: ['draft', 'cancelled'] },
-    }).lean();
-
-    const partnerIds = [...new Set(invoices.map((i) => String(i.customerId || '')).filter(Boolean))];
-    const partners = partnerIds.length
-      ? await Customer.find({ _id: { $in: partnerIds }, tenantId }).select('name nameAr phone mobile').lean()
-      : [];
-    const byPartner = Object.fromEntries(partners.map((p) => [String(p._id), p]));
-
-    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-    const baseUrl = process.env.APP_URL || `${protocol}://${tenant?.domain || 'app.maqder.com'}`;
-
-    const results = invoices.map((invoice) => {
-      const customer = invoice.customerId ? byPartner[String(invoice.customerId)] : null;
-      const phone = customer?.mobile || customer?.phone || invoice?.buyer?.phone || '';
-      const cleanPhone = String(phone || '').replace(/[^0-9]/g, '');
-      const residual = Math.max(0, Number(invoice.grandTotal || 0) - Number(invoice.paidAmount || 0));
-      const amountLabel = `${residual.toFixed(2)} ${invoice.currency || 'SAR'}`;
-      const customerName = customer?.name || customer?.nameAr || invoice?.buyer?.name || 'Customer';
-      const link = `${baseUrl}/app/dashboard/accounting/invoices/${invoice._id}`;
-      const dueRaw = invoice.dueDate || invoice.issueDate || Date.now();
-      const baseDate = new Date(dueRaw);
-      const ageDays = Math.max(0, Math.floor((Date.now() - baseDate.getTime()) / 86400000));
-      const level = resolveFollowUpLevel(ageDays, levels);
-      const levelName = language === 'ar' ? (level?.nameAr || level?.name) : (level?.name || 'Reminder');
-      const dueLabel = baseDate.toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB');
-      const vars = {
-        customerName,
-        invoiceNumber: invoice.invoiceNumber || '',
-        amount: amountLabel,
-        dueDate: dueLabel,
-        daysOverdue: String(ageDays),
-        link,
-        levelName: levelName || '',
-      };
-      const textEn = renderReminderTemplate(template.en, vars);
-      const textAr = renderReminderTemplate(template.ar, vars);
-      const bilingual = `${textEn}\n\n——\n\n${textAr}`;
-      const messageText = req.body.bilingual === false
-        ? (language === 'ar' ? textAr : textEn)
-        : bilingual;
-      const waLink = cleanPhone
-        ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`
-        : `https://wa.me/?text=${encodeURIComponent(messageText)}`;
-      return {
-        invoiceId: invoice._id,
-        invoiceNumber: invoice.invoiceNumber,
-        partnerName: customerName,
-        phone: cleanPhone || null,
-        residual: Math.round(residual * 100) / 100,
-        ageDays,
-        followUpLevel: level?.level || null,
-        followUpChannel: level?.channel || 'whatsapp',
-        waLink,
-        messageText,
-        messageEn: textEn,
-        messageAr: textAr,
-      };
+    const { sendFollowUpReminders } = await import('../services/followUpService.js');
+    const data = await sendFollowUpReminders({
+      tenantId: tenantIdOf(req),
+      userId: req.user?._id,
+      invoiceIds: Array.isArray(req.body.invoiceIds) ? req.body.invoiceIds : [],
+      language: req.body.language === 'en' ? 'en' : 'ar',
+      channel: req.body.channel || null,
+      levelId: req.body.levelId || null,
+      dryRun: req.body.dryRun !== false && req.body.dryRun !== 'false',
+      asOf: req.body.asOf || null,
     });
+    res.json(data);
+  } catch (error) {
+    res.status(error.status || 400).json({ error: error.message });
+  }
+});
 
-    res.json({ count: results.length, language, results });
+/** C7 — Preview or send follow-up reminders (dryRun default true). */
+router.post('/follow-ups/send', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const { sendFollowUpReminders } = await import('../services/followUpService.js');
+    const dryRun = req.body.dryRun !== false && req.body.dryRun !== 'false';
+    const data = await sendFollowUpReminders({
+      tenantId: tenantIdOf(req),
+      userId: req.user?._id,
+      invoiceIds: Array.isArray(req.body.invoiceIds) ? req.body.invoiceIds : [],
+      language: req.body.language === 'en' ? 'en' : 'ar',
+      channel: req.body.channel || null,
+      levelId: req.body.levelId || null,
+      dryRun,
+      asOf: req.body.asOf || null,
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(error.status || 400).json({ error: error.message });
+  }
+});
+
+router.get('/follow-ups/logs', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { listFollowUpLogs } = await import('../services/followUpService.js');
+    res.json(await listFollowUpLogs(tenantIdOf(req), {
+      customerId: req.query.customerId || null,
+      invoiceId: req.query.invoiceId || null,
+      limit: req.query.limit,
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/follow-ups/last', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { getLastFollowUpsByInvoiceIds } = await import('../services/followUpService.js');
+    const ids = String(req.query.invoiceIds || '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
+    res.json({ byInvoice: await getLastFollowUpsByInvoiceIds(tenantIdOf(req), ids) });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

@@ -15,6 +15,7 @@ import AccountingQueryState from './AccountingQueryState'
 import { openPlaidLink } from './plaidLink'
 import { openSaltEdgeConnect } from './saltEdgeConnect'
 import RegisterPaymentModal from '../../components/accounting/RegisterPaymentModal'
+import FollowUpPreviewModal from '../../components/accounting/FollowUpPreviewModal'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 const yearStartIso = () => new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10)
@@ -2419,6 +2420,8 @@ function AgedReportPanel({ language, kind }) {
   const [collapsedPartners, setCollapsedPartners] = useState(() => new Set())
   const [payInvoice, setPayInvoice] = useState(null)
   const [payOpen, setPayOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewIds, setPreviewIds] = useState([])
 
   const endpoint = kind === 'ap' ? '/accounting/reports/aged-ap' : '/accounting/reports/aged-ar'
   const { data, isFetching, isLoading, isError, error, refetch } = useAccountingQuery({
@@ -2464,28 +2467,15 @@ function AgedReportPanel({ language, kind }) {
       .filter((c) => (c.invoices || []).length > 0)
   }, [data?.customers, data?.partners, filteredRows, bucketFilter])
 
-  const remind = useMutation({
-    mutationFn: (invoiceIds) => api.post('/accounting/follow-up/remind', {
-      invoiceIds,
-      language: isAr ? 'ar' : 'en',
-      bilingual: true,
-    }).then((r) => r.data),
-    onSuccess: (payload) => {
-      const results = payload?.results || []
-      if (!results.length) {
-        toast.error(isAr ? 'لا نتائج' : 'No reminders generated')
-        return
-      }
-      results.slice(0, 5).forEach((row, idx) => {
-        setTimeout(() => {
-          if (row.waLink) window.open(row.waLink, '_blank', 'noopener,noreferrer')
-        }, idx * 350)
-      })
-      toast.success(isAr ? `تم فتح ${Math.min(results.length, 5)} تذكير` : `Opened ${Math.min(results.length, 5)} reminder(s)`)
-      setSelected(new Set())
-    },
-    onError: (err) => toast.error(err?.response?.data?.error || err.message),
-  })
+  const openRemindPreview = (invoiceIds) => {
+    const ids = [...new Set((invoiceIds || []).filter(Boolean))]
+    if (!ids.length) {
+      toast.error(isAr ? 'اختر فواتير أولاً' : 'Select invoices first')
+      return
+    }
+    setPreviewIds(ids)
+    setPreviewOpen(true)
+  }
 
   const payMutation = useMutation({
     mutationFn: ({ invoiceId, payload }) => api.post(`/invoices/${invoiceId}/payments`, payload),
@@ -2559,11 +2549,10 @@ function AgedReportPanel({ language, kind }) {
           </button>
           <button
             type="button"
-            disabled={remind.isPending}
-            onClick={() => remind.mutate([row.invoiceId])}
+            onClick={() => openRemindPreview([row.invoiceId])}
             className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
           >
-            {isAr ? 'واتساب' : 'WA'}
+            {isAr ? 'تذكير' : 'Remind'}
           </button>
         </>
       ) : null}
@@ -2663,13 +2652,11 @@ function AgedReportPanel({ language, kind }) {
             {kind === 'ar' ? (
               <button
                 type="button"
-                disabled={!selectedInvoiceIds.length || remind.isPending}
-                onClick={() => remind.mutate(selectedInvoiceIds)}
+                disabled={!selectedInvoiceIds.length}
+                onClick={() => openRemindPreview(selectedInvoiceIds)}
                 className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
               >
-                {remind.isPending
-                  ? '…'
-                  : (isAr ? `تذكير واتساب (${selectedInvoiceIds.length})` : `WhatsApp remind (${selectedInvoiceIds.length})`)}
+                {isAr ? `تذكير (${selectedInvoiceIds.length})` : `Remind (${selectedInvoiceIds.length})`}
               </button>
             ) : null}
           </div>
@@ -2689,9 +2676,6 @@ function AgedReportPanel({ language, kind }) {
           title,
         }}
       />
-      {remind.isError ? (
-        <p className="text-xs text-rose-600">{remind.error?.response?.data?.error || remind.error?.message}</p>
-      ) : null}
       <AccountingQueryState
         language={language}
         isLoading={isLoading && !data}
@@ -2790,8 +2774,8 @@ function AgedReportPanel({ language, kind }) {
                         <button
                           type="button"
                           className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 disabled:opacity-40"
-                          disabled={!invoices.length || remind.isPending}
-                          onClick={() => remind.mutate(invoices.map((r) => r.invoiceId))}
+                          disabled={!invoices.length}
+                          onClick={() => openRemindPreview(invoices.map((r) => r.invoiceId))}
                         >
                           {isAr ? 'تذكير' : 'Remind'}
                         </button>
@@ -2912,6 +2896,19 @@ function AgedReportPanel({ language, kind }) {
           payMutation.mutate({ invoiceId: payInvoice._id, payload })
         }}
       />
+      {kind === 'ar' ? (
+        <FollowUpPreviewModal
+          isOpen={previewOpen}
+          onClose={() => { setPreviewOpen(false); setPreviewIds([]) }}
+          language={language}
+          invoiceIds={previewIds}
+          asOf={asOf}
+          onSent={() => {
+            setSelected(new Set())
+            queryClient.invalidateQueries({ queryKey: ['accounting-aged'] })
+          }}
+        />
+      ) : null}
     </div>
   )
 }
@@ -2927,9 +2924,12 @@ export function AgedPayablesPanel({ language }) {
 export function FollowUpReportsPanel({ language }) {
   const isAr = language === 'ar'
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [asOf, setAsOf] = useState(todayIso())
   const [minAgeDays, setMinAgeDays] = useState(1)
   const [selected, setSelected] = useState(() => new Set())
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewIds, setPreviewIds] = useState([])
   const { data, isFetching } = useQuery({
     queryKey: ['accounting-follow-up', asOf],
     queryFn: () => api.get('/accounting/reports/aged-ar', { params: { asOf } }).then((r) => r.data),
@@ -2940,6 +2940,20 @@ export function FollowUpReportsPanel({ language }) {
       .filter((row) => Number(row.ageDays || 0) >= minAgeDays && Number(row.residual || 0) > 0)
       .sort((a, b) => Number(b.ageDays || 0) - Number(a.ageDays || 0))
   }, [data?.rows, minAgeDays])
+
+  const invoiceIdsForLast = useMemo(
+    () => [...new Set(overdueRows.map((r) => String(r.invoiceId)).filter(Boolean))],
+    [overdueRows],
+  )
+
+  const { data: lastData } = useQuery({
+    queryKey: ['follow-up-last', invoiceIdsForLast.join(',')],
+    enabled: invoiceIdsForLast.length > 0,
+    queryFn: () => api.get('/accounting/follow-ups/last', {
+      params: { invoiceIds: invoiceIdsForLast.join(',') },
+    }).then((r) => r.data),
+  })
+  const lastByInvoice = lastData?.byInvoice || {}
 
   const partnerSummary = useMemo(() => {
     const map = new Map()
@@ -2962,21 +2976,24 @@ export function FollowUpReportsPanel({ language }) {
     return [...map.values()].sort((a, b) => b.totalResidual - a.totalResidual)
   }, [overdueRows])
 
-  const remind = useMutation({
-    mutationFn: (invoiceIds) => api.post('/accounting/follow-up/remind', {
-      invoiceIds,
-      language: isAr ? 'ar' : 'en',
-    }).then((r) => r.data),
-    onSuccess: (payload) => {
-      const results = payload?.results || []
-      results.slice(0, 5).forEach((row, idx) => {
-        setTimeout(() => {
-          if (row.waLink) window.open(row.waLink, '_blank', 'noopener,noreferrer')
-        }, idx * 400)
-      })
-      setSelected(new Set())
-    },
-  })
+  const openRemindPreview = (invoiceIds) => {
+    const ids = [...new Set((invoiceIds || []).filter(Boolean))]
+    if (!ids.length) {
+      toast.error(isAr ? 'اختر فواتير أولاً' : 'Select invoices first')
+      return
+    }
+    setPreviewIds(ids)
+    setPreviewOpen(true)
+  }
+
+  useEffect(() => {
+    const onShellSend = () => {
+      const ids = overdueRows.map((r) => r.invoiceId).filter(Boolean)
+      openRemindPreview(ids)
+    }
+    window.addEventListener('accounting:send-overdue-reminders', onShellSend)
+    return () => window.removeEventListener('accounting:send-overdue-reminders', onShellSend)
+  }, [overdueRows, isAr])
 
   const toggle = (rowKey) => {
     setSelected((prev) => {
@@ -3002,6 +3019,15 @@ export function FollowUpReportsPanel({ language }) {
     return isAr ? `متأخر ${age} يوم` : `${age} days overdue`
   }
 
+  const formatLastReminder = (invoiceId) => {
+    const last = lastByInvoice[String(invoiceId)]
+    if (!last?.sentAt) return '—'
+    const d = new Date(last.sentAt)
+    const label = d.toLocaleDateString(isAr ? 'ar-SA' : 'en-GB', { day: 'numeric', month: 'short' })
+    const ch = last.channel || ''
+    return ch ? `${label} · ${ch}` : label
+  }
+
   return (
     <div className="space-y-4">
       <ReportFilterRibbon
@@ -3020,13 +3046,11 @@ export function FollowUpReportsPanel({ language }) {
             </label>
             <button
               type="button"
-              disabled={!selectedInvoiceIds.length || remind.isPending}
-              onClick={() => remind.mutate(selectedInvoiceIds)}
+              disabled={!selectedInvoiceIds.length}
+              onClick={() => openRemindPreview(selectedInvoiceIds)}
               className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
             >
-              {remind.isPending
-                ? '…'
-                : (isAr ? `تذكير واتساب (${selectedInvoiceIds.length})` : `WhatsApp remind (${selectedInvoiceIds.length})`)}
+              {isAr ? `تذكير (${selectedInvoiceIds.length})` : `Remind (${selectedInvoiceIds.length})`}
             </button>
           </>
         )}
@@ -3037,6 +3061,7 @@ export function FollowUpReportsPanel({ language }) {
             trancheSequence: row.trancheSequence,
             ageDays: row.ageDays,
             residual: row.residual,
+            lastReminder: formatLastReminder(row.invoiceId),
           })),
           columns: [
             { key: 'partnerName', label: isAr ? 'العميل' : 'Customer' },
@@ -3044,6 +3069,7 @@ export function FollowUpReportsPanel({ language }) {
             { key: 'trancheSequence', label: isAr ? 'الدفعة' : 'Tranche', value: (r) => (r.trancheSequence ? `#${r.trancheSequence}` : '—') },
             { key: 'ageDays', label: isAr ? 'التأخير' : 'Age (days)' },
             { key: 'residual', label: isAr ? 'المتبقي' : 'Due', value: (r) => Number(r.residual || 0).toFixed(2) },
+            { key: 'lastReminder', label: isAr ? 'آخر تذكير' : 'Last reminder' },
           ],
           fileBaseName: 'maqder-follow-up',
           title: isAr ? 'تقارير المتابعة' : 'Follow-up reports',
@@ -3107,6 +3133,7 @@ export function FollowUpReportsPanel({ language }) {
               <th className="px-4 py-2 text-start">{isAr ? 'الدفعة' : 'Tranche'}</th>
               <th className="px-4 py-2 text-start">{isAr ? 'النشاط التالي' : 'Next activity'}</th>
               <th className="px-4 py-2 text-start">{isAr ? 'المستوى' : 'Level'}</th>
+              <th className="px-4 py-2 text-start">{isAr ? 'آخر تذكير' : 'Last reminder'}</th>
               <th className="px-4 py-2 text-end">{isAr ? 'المتبقي' : 'Due'}</th>
               <th className="px-4 py-2 text-end">{isAr ? 'تذكير' : 'Remind'}</th>
             </tr>
@@ -3145,26 +3172,39 @@ export function FollowUpReportsPanel({ language }) {
                     </span>
                   ) : '—'}
                 </td>
+                <td className="px-4 py-2 text-xs text-slate-500">{formatLastReminder(row.invoiceId)}</td>
                 <td className="px-4 py-2 text-end"><Money value={row.residual} /></td>
                 <td className="px-4 py-2 text-end">
                   <button
                     type="button"
-                    disabled={remind.isPending}
-                    onClick={() => remind.mutate([row.invoiceId])}
+                    onClick={() => openRemindPreview([row.invoiceId])}
                     className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold dark:border-dark-600"
                   >
-                    {isAr ? 'واتساب' : 'WA'}
+                    {isAr ? 'تذكير' : 'Remind'}
                   </button>
                 </td>
               </tr>
               )
             })}
             {!overdueRows.length && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا فواتير متأخرة' : 'No overdue invoices'}</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا فواتير متأخرة' : 'No overdue invoices'}</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      <FollowUpPreviewModal
+        isOpen={previewOpen}
+        onClose={() => { setPreviewOpen(false); setPreviewIds([]) }}
+        language={language}
+        invoiceIds={previewIds}
+        asOf={asOf}
+        onSent={() => {
+          setSelected(new Set())
+          queryClient.invalidateQueries({ queryKey: ['accounting-follow-up'] })
+          queryClient.invalidateQueries({ queryKey: ['follow-up-last'] })
+        }}
+      />
     </div>
   )
 }
@@ -5098,6 +5138,7 @@ export function FollowUpLevelsPanel({ language }) {
   })
   const [rows, setRows] = useState([])
   const [template, setTemplate] = useState({ en: '', ar: '' })
+  const [expanded, setExpanded] = useState(() => new Set())
   useEffect(() => {
     if (data?.levels) setRows(data.levels.map((r) => ({ ...r })))
   }, [data?.levels])
@@ -5116,6 +5157,14 @@ export function FollowUpLevelsPanel({ language }) {
     },
     onError: (err) => toast.error(err?.response?.data?.error || (isAr ? 'فشل الحفظ' : 'Save failed')),
   })
+  const toggleExpand = (i) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
+  }
   return (
     <ConfigPanelShell
       language={language}
@@ -5127,52 +5176,112 @@ export function FollowUpLevelsPanel({ language }) {
       impactAr="صفوف أعمار المدينين وتذكيرات واتساب تستخدم اسم المستوى والقناة ونبرة التصعيد."
       actions={(
         <>
-          <button type="button" onClick={() => setRows((p) => [...p, { level: p.length + 1, daysOverdue: 0, name: '', nameAr: '', channel: 'whatsapp' }])} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600">{isAr ? 'إضافة' : 'Add'}</button>
+          <button
+            type="button"
+            onClick={() => setRows((p) => [...p, {
+              level: p.length + 1,
+              daysOverdue: 0,
+              name: '',
+              nameAr: '',
+              channel: 'whatsapp',
+              autoSend: false,
+              templateEn: '',
+              templateAr: '',
+            }])}
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600"
+          >
+            {isAr ? 'إضافة' : 'Add'}
+          </button>
           <button type="button" disabled={save.isPending || isFetching} onClick={() => save.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{save.isPending ? '…' : (isAr ? 'حفظ' : 'Save')}</button>
         </>
       )}
     >
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
-            <tr>
-              <th className="px-3 py-2 text-start">#</th>
-              <th className="px-3 py-2 text-start">{isAr ? 'أيام التأخير' : 'Days overdue'}</th>
-              <th className="px-3 py-2 text-start">{isAr ? 'الاسم' : 'Name'}</th>
-              <th className="px-3 py-2 text-start">{isAr ? 'عربي' : 'Arabic'}</th>
-              <th className="px-3 py-2 text-start">{isAr ? 'القناة' : 'Channel'}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-            {rows.map((row, i) => (
-              <tr key={i}>
-                <td className="px-3 py-2"><input type="number" value={row.level || i + 1} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, level: Number(e.target.value) } : r)))} className="w-14 rounded-lg border border-slate-200 px-2 py-1 dark:border-dark-600 dark:bg-dark-900" /></td>
-                <td className="px-3 py-2"><input type="number" value={row.daysOverdue ?? 0} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, daysOverdue: Number(e.target.value) } : r)))} className="w-20 rounded-lg border border-slate-200 px-2 py-1 dark:border-dark-600 dark:bg-dark-900" /></td>
-                <td className="px-3 py-2"><input value={row.name || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, name: e.target.value } : r)))} className="w-full rounded-lg border border-slate-200 px-2 py-1 dark:border-dark-600 dark:bg-dark-900" /></td>
-                <td className="px-3 py-2"><input value={row.nameAr || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, nameAr: e.target.value } : r)))} className="w-full rounded-lg border border-slate-200 px-2 py-1 dark:border-dark-600 dark:bg-dark-900" /></td>
-                <td className="px-3 py-2">
-                  <select value={row.channel || 'whatsapp'} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, channel: e.target.value } : r)))} className="rounded-lg border border-slate-200 px-2 py-1 dark:border-dark-600 dark:bg-dark-900">
-                    <option value="whatsapp">WhatsApp</option>
-                    <option value="email">Email</option>
-                    <option value="sms">SMS</option>
-                    <option value="call">Call</option>
-                  </select>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="space-y-3">
+        {rows.map((row, i) => (
+          <div key={i} className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+            <div className="flex flex-wrap items-end gap-2 p-3">
+              <label className="text-[11px] font-medium text-slate-400">
+                #
+                <input type="number" value={row.level || i + 1} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, level: Number(e.target.value) } : r)))} className="mt-1 block w-14 rounded-lg border border-slate-200 px-2 py-1 text-sm dark:border-dark-600 dark:bg-dark-900" />
+              </label>
+              <label className="text-[11px] font-medium text-slate-400">
+                {isAr ? 'أيام التأخير' : 'Days overdue'}
+                <input type="number" value={row.daysOverdue ?? 0} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, daysOverdue: Number(e.target.value) } : r)))} className="mt-1 block w-20 rounded-lg border border-slate-200 px-2 py-1 text-sm dark:border-dark-600 dark:bg-dark-900" />
+              </label>
+              <label className="min-w-[120px] flex-1 text-[11px] font-medium text-slate-400">
+                {isAr ? 'الاسم' : 'Name'}
+                <input value={row.name || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, name: e.target.value } : r)))} className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1 text-sm dark:border-dark-600 dark:bg-dark-900" />
+              </label>
+              <label className="min-w-[120px] flex-1 text-[11px] font-medium text-slate-400">
+                {isAr ? 'عربي' : 'Arabic'}
+                <input value={row.nameAr || ''} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, nameAr: e.target.value } : r)))} className="mt-1 block w-full rounded-lg border border-slate-200 px-2 py-1 text-sm dark:border-dark-600 dark:bg-dark-900" />
+              </label>
+              <label className="text-[11px] font-medium text-slate-400">
+                {isAr ? 'القناة' : 'Channel'}
+                <select value={row.channel || 'whatsapp'} onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, channel: e.target.value } : r)))} className="mt-1 block rounded-lg border border-slate-200 px-2 py-1 text-sm dark:border-dark-600 dark:bg-dark-900">
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="email">Email</option>
+                  <option value="sms">SMS</option>
+                  <option value="call">Call</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => toggleExpand(i)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold dark:border-dark-600"
+              >
+                {expanded.has(i)
+                  ? (isAr ? 'إخفاء القالب' : 'Hide template')
+                  : (isAr ? 'قالب المستوى' : 'Level template')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setRows((p) => p.filter((_, idx) => idx !== i))}
+                className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 dark:border-rose-800"
+              >
+                {isAr ? 'حذف' : 'Remove'}
+              </button>
+            </div>
+            {expanded.has(i) ? (
+              <div className="space-y-2 border-t border-slate-100 px-3 pb-3 pt-2 dark:border-dark-600">
+                <p className="text-[11px] text-slate-400">
+                  {isAr
+                    ? 'اتركه فارغاً لاستخدام القالب العام. المتغيرات: {{customerName}} {{invoiceNumber}} {{amount}} {{dueDate}} {{daysOverdue}} {{link}} {{levelName}}'
+                    : 'Leave blank to use the global template. Placeholders: {{customerName}} {{invoiceNumber}} {{amount}} {{dueDate}} {{daysOverdue}} {{link}} {{levelName}}'}
+                </p>
+                <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-400">EN</label>
+                <textarea
+                  rows={2}
+                  value={row.templateEn || ''}
+                  onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, templateEn: e.target.value } : r)))}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+                />
+                <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-400">AR</label>
+                <textarea
+                  rows={2}
+                  dir="rtl"
+                  value={row.templateAr || ''}
+                  onChange={(e) => setRows((p) => p.map((r, idx) => (idx === i ? { ...r, templateAr: e.target.value } : r)))}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+                />
+              </div>
+            ) : null}
+          </div>
+        ))}
+        {!rows.length ? (
+          <p className="py-6 text-center text-sm text-slate-400">{isAr ? 'لا مستويات — أضف مستوى أو احفظ الافتراضيات' : 'No levels — add one or save defaults'}</p>
+        ) : null}
       </div>
 
       <div className="mt-6 space-y-3 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
         <div>
           <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-            {isAr ? 'قالب تذكير واتساب' : 'WhatsApp reminder template'}
+            {isAr ? 'قالب تذكير افتراضي (عام)' : 'Default reminder template (global)'}
           </h3>
           <p className="mt-1 text-xs text-slate-500">
             {isAr
-              ? 'استخدم: {{customerName}} {{invoiceNumber}} {{amount}} {{dueDate}} {{daysOverdue}} {{link}} {{levelName}}'
-              : 'Placeholders: {{customerName}} {{invoiceNumber}} {{amount}} {{dueDate}} {{daysOverdue}} {{link}} {{levelName}}'}
+              ? 'يُستخدم عندما لا يوجد قالب على المستوى. المتغيرات: {{customerName}} {{invoiceNumber}} {{amount}} {{dueDate}} {{daysOverdue}} {{link}} {{levelName}}'
+              : 'Used when a level has no template. Placeholders: {{customerName}} {{invoiceNumber}} {{amount}} {{dueDate}} {{daysOverdue}} {{link}} {{levelName}}'}
           </p>
         </div>
         <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">English</label>

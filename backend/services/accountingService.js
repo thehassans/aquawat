@@ -3746,10 +3746,46 @@ export async function setIncotermsCatalog(tenantId, { enabledCodes, defaultIncot
 }
 
 export const DEFAULT_FOLLOW_UP_LEVELS = [
-  { level: 1, daysOverdue: 1, name: 'Friendly reminder', nameAr: 'تذكير ودي', channel: 'whatsapp' },
-  { level: 2, daysOverdue: 15, name: 'Second notice', nameAr: 'إشعار ثانٍ', channel: 'whatsapp' },
-  { level: 3, daysOverdue: 30, name: 'Final notice', nameAr: 'إشعار أخير', channel: 'email' },
-  { level: 4, daysOverdue: 60, name: 'Escalation', nameAr: 'تصعيد', channel: 'call' },
+  {
+    level: 1,
+    daysOverdue: 1,
+    name: 'Friendly reminder',
+    nameAr: 'تذكير ودي',
+    channel: 'whatsapp',
+    autoSend: false,
+    templateEn: 'Dear {{customerName}}, friendly reminder: invoice {{invoiceNumber}} is {{daysOverdue}} days overdue. Amount due: {{amount}}. Due: {{dueDate}}. {{link}}',
+    templateAr: 'عزيزي {{customerName}}، تذكير ودي: الفاتورة {{invoiceNumber}} متأخرة {{daysOverdue}} يوم. المبلغ: {{amount}}. الاستحقاق: {{dueDate}}. {{link}}',
+  },
+  {
+    level: 2,
+    daysOverdue: 15,
+    name: 'Second notice',
+    nameAr: 'إشعار ثانٍ',
+    channel: 'whatsapp',
+    autoSend: false,
+    templateEn: 'Dear {{customerName}}, second notice: invoice {{invoiceNumber}} remains overdue ({{daysOverdue}} days). Please settle {{amount}}. {{link}}',
+    templateAr: 'عزيزي {{customerName}}، إشعار ثانٍ: الفاتورة {{invoiceNumber}} ما زالت متأخرة ({{daysOverdue}} يوم). يرجى سداد {{amount}}. {{link}}',
+  },
+  {
+    level: 3,
+    daysOverdue: 30,
+    name: 'Final notice',
+    nameAr: 'إشعار أخير',
+    channel: 'email',
+    autoSend: false,
+    templateEn: 'FINAL NOTICE: {{customerName}}, invoice {{invoiceNumber}} is {{daysOverdue}} days overdue. Amount {{amount}} must be paid immediately. {{link}}',
+    templateAr: 'إشعار أخير: {{customerName}}، الفاتورة {{invoiceNumber}} متأخرة {{daysOverdue}} يوم. يجب سداد {{amount}} فوراً. {{link}}',
+  },
+  {
+    level: 4,
+    daysOverdue: 60,
+    name: 'Escalation',
+    nameAr: 'تصعيد',
+    channel: 'call',
+    autoSend: false,
+    templateEn: 'Escalation: {{customerName}}, invoice {{invoiceNumber}} is {{daysOverdue}} days overdue ({{amount}}). Further delay may lead to collection action. {{link}}',
+    templateAr: 'تصعيد: {{customerName}}، الفاتورة {{invoiceNumber}} متأخرة {{daysOverdue}} يوم ({{amount}}). التأخير قد يؤدي لإجراءات تحصيل. {{link}}',
+  },
 ];
 
 export async function getFollowUpLevels(tenantId) {
@@ -3769,6 +3805,10 @@ export async function setFollowUpLevels(tenantId, levels) {
     name: String(row.name || '').trim().slice(0, 120),
     nameAr: String(row.nameAr || '').trim().slice(0, 120),
     channel: ['whatsapp', 'email', 'sms', 'call'].includes(row.channel) ? row.channel : 'whatsapp',
+    autoSend: Boolean(row.autoSend),
+    escalateTo: row.escalateTo != null ? Number(row.escalateTo) : null,
+    templateEn: String(row.templateEn || '').slice(0, 2000),
+    templateAr: String(row.templateAr || '').slice(0, 2000),
   })).filter((row) => row.name);
   if (!cleaned.length) throw new Error('At least one follow-up level is required');
   await Tenant.findByIdAndUpdate(tenantId, {
