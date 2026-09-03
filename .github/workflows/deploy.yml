@@ -89,12 +89,24 @@ jobs:
           touch .env
           export BUILD_SHA
           docker compose build backend frontend pdf-worker
-          echo "=== saving images ==="
-          docker save \
-            maqder-backend:latest \
-            maqder-frontend:latest \
-            maqder-pdf-worker:latest \
-            | gzip > /tmp/maqder-app-images.tar.gz
+          echo "=== local compose images ==="
+          docker compose images || true
+          docker images --format '{{.Repository}}:{{.Tag}}' | grep -E 'maqder|backend|frontend|pdf' | head -30 || true
+          # Compose v2 tags built services as {project}-{service}:latest
+          TAGS=()
+          for s in backend frontend pdf-worker; do
+            if docker image inspect "maqder-${s}:latest" >/dev/null 2>&1; then
+              TAGS+=("maqder-${s}:latest")
+            elif docker image inspect "maqder_${s}:latest" >/dev/null 2>&1; then
+              TAGS+=("maqder_${s}:latest")
+            else
+              echo "Missing built image for ${s}"
+              docker images
+              exit 1
+            fi
+          done
+          echo "=== saving ${TAGS[*]} ==="
+          docker save "${TAGS[@]}" | gzip > /tmp/maqder-app-images.tar.gz
           ls -lh /tmp/maqder-app-images.tar.gz
 
       - name: Deploy to Plesk server
@@ -165,8 +177,18 @@ jobs:
             --exclude 'maqder-app-images.tar.gz' \
             ./ "${REMOTE}:${DEST}/"
 
-          echo "=== scp pre-built images ==="
-          scp "${SSH_BASE[@]}" /tmp/maqder-app-images.tar.gz "${REMOTE}:/tmp/maqder-app-images.tar.gz"
+          echo "=== rsync pre-built images ==="
+          # Do not use scp with SSH_BASE: scp -p means preserve times, not port.
+          # Use rsync + ssh -p (port) like the code sync above.
+          if [ ! -f /tmp/maqder-app-images.tar.gz ]; then
+            echo "Missing /tmp/maqder-app-images.tar.gz from build step"
+            ls -la /tmp/maqder-app-images* 2>/dev/null || true
+            exit 1
+          fi
+          rsync -az -e "$RSYNC_RSH" \
+            /tmp/maqder-app-images.tar.gz \
+            "${REMOTE}:/tmp/maqder-app-images.tar.gz"
+          ls -lh /tmp/maqder-app-images.tar.gz
 
           echo "=== remote deploy.sh (prebuilt images, no Docker Hub) ==="
           set +e
