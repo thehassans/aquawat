@@ -88,25 +88,17 @@ jobs:
           set -euo pipefail
           touch .env
           export BUILD_SHA
+          # Explicit image: tags in docker-compose.yml → maqder-*:latest
           docker compose build backend frontend pdf-worker
-          echo "=== local compose images ==="
-          docker compose images || true
-          docker images --format '{{.Repository}}:{{.Tag}}' | grep -E 'maqder|backend|frontend|pdf' | head -30 || true
-          # Compose v2 tags built services as {project}-{service}:latest
-          TAGS=()
-          for s in backend frontend pdf-worker; do
-            if docker image inspect "maqder-${s}:latest" >/dev/null 2>&1; then
-              TAGS+=("maqder-${s}:latest")
-            elif docker image inspect "maqder_${s}:latest" >/dev/null 2>&1; then
-              TAGS+=("maqder_${s}:latest")
-            else
-              echo "Missing built image for ${s}"
-              docker images
-              exit 1
-            fi
+          for img in maqder-backend maqder-frontend maqder-pdf-worker; do
+            docker image inspect "${img}:latest" >/dev/null
           done
-          echo "=== saving ${TAGS[*]} ==="
-          docker save "${TAGS[@]}" | gzip > /tmp/maqder-app-images.tar.gz
+          echo "=== saving maqder-*-latest ==="
+          docker save \
+            maqder-backend:latest \
+            maqder-frontend:latest \
+            maqder-pdf-worker:latest \
+            | gzip > /tmp/maqder-app-images.tar.gz
           ls -lh /tmp/maqder-app-images.tar.gz
 
       - name: Deploy to Plesk server
@@ -193,7 +185,7 @@ jobs:
           echo "=== remote deploy.sh (prebuilt images, no Docker Hub) ==="
           set +e
           ssh "${SSH_BASE[@]}" "${REMOTE}" \
-            "cd '${DEST}' && chmod +x deploy.sh && SKIP_GIT=1 USE_PREBUILT_IMAGES=1 COMPOSE_PROJECT_NAME=maqder BUILD_SHA='${BUILD_SHA}' ./deploy.sh"
+            "cd '${DEST}' && chmod +x deploy.sh && SKIP_GIT=1 USE_PREBUILT_IMAGES=1 BUILD_SHA='${BUILD_SHA}' ./deploy.sh"
           status=$?
           set -e
           if [ "$status" -ne 0 ]; then

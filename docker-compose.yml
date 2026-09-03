@@ -170,6 +170,7 @@ services:
         max-file: "2"
 
   backend:
+    image: maqder-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -234,6 +235,7 @@ services:
         max-file: "3"
 
   pdf-worker:
+    image: maqder-pdf-worker:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -283,6 +285,7 @@ services:
         max-file: "3"
 
   frontend:
+    image: maqder-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile

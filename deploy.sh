@@ -4,8 +4,6 @@ set -e
 DEPLOY_PATH="/var/www/vhosts/maqder.com/httpdocs"
 cd "$DEPLOY_PATH"
 
-export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-maqder}"
-
 # CI rsyncs the tree from GitHub Actions (Plesk often cannot resolve github.com).
 # Manual runs on the server can still git-pull when DNS works.
 if [ "${SKIP_GIT:-0}" = "1" ]; then
@@ -21,8 +19,25 @@ else
   git reset --hard origin/main
 fi
 
-# Plesk host DNS is often broken for Docker Hub / GitHub. Prefer public resolvers
-# for Docker builds, and never require a registry pull when base images are cached.
+# Reuse the live compose project so mongo/redis volumes are NOT recreated empty.
+detect_compose_project() {
+  for c in maqder_backend maqder_mongo maqder_edge maqder_frontend maqder_redis; do
+    if docker inspect "$c" >/dev/null 2>&1; then
+      p=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$c" 2>/dev/null || true)
+      if [ -n "$p" ] && [ "$p" != "<no value>" ]; then
+        echo "$p"
+        return 0
+      fi
+    fi
+  done
+  # Fallback: directory name (Plesk path ends in httpdocs)
+  basename "$DEPLOY_PATH"
+}
+
+export COMPOSE_PROJECT_NAME="$(detect_compose_project)"
+echo "Using compose project: ${COMPOSE_PROJECT_NAME}"
+
+# Plesk host DNS is often broken for Docker Hub / GitHub.
 ensure_docker_registry_dns() {
   if getent hosts registry-1.docker.io >/dev/null 2>&1; then
     echo "registry-1.docker.io resolves OK"
@@ -97,9 +112,8 @@ if [ -n "$COMPOSE" ]; then
   fi
   echo "BUILD_SHA=${BUILD_SHA:-unknown}"
 
-  ensure_docker_registry_dns
-
   # Load images pre-built by GitHub Actions (no Docker Hub DNS required).
+  # Do this before any docker restart so load is fast; DNS helper may restart docker later.
   if [ -f /tmp/maqder-app-images.tar.gz ]; then
     echo "Loading pre-built images from /tmp/maqder-app-images.tar.gz ..."
     gunzip -c /tmp/maqder-app-images.tar.gz | docker load
@@ -108,10 +122,25 @@ if [ -n "$COMPOSE" ]; then
     gunzip -c "$DEPLOY_PATH/maqder-app-images.tar.gz" | docker load
   fi
 
-  # Keep edge + current frontend up while images rebuild (no compose down).
-  $COMPOSE up -d edge || true
+  # Stable image names (see docker-compose.yml image: keys)
+  for img in maqder-backend maqder-frontend maqder-pdf-worker; do
+    if docker image inspect "${img}:latest" >/dev/null 2>&1; then
+      echo "Image ready: ${img}:latest"
+    fi
+  done
 
-  # Prefer cached base images — Plesk often cannot reach registry-1.docker.io.
+  if [ "${USE_PREBUILT_IMAGES:-0}" != "1" ]; then
+    ensure_docker_registry_dns
+  fi
+
+  # Fixed container_name values conflict across compose projects. Remove only
+  # app containers so compose can recreate them; leave mongo/redis running.
+  echo "Recreating app containers (keeping mongo/redis)..."
+  for c in maqder_edge maqder_frontend maqder_backend maqder_pdf_worker; do
+    docker rm -f "$c" 2>/dev/null || true
+  done
+
+  # Prefer cached base images when building on the server.
   PULL_FLAG=(--pull never)
   if getent hosts registry-1.docker.io >/dev/null 2>&1; then
     PULL_FLAG=(--pull missing)
@@ -119,10 +148,14 @@ if [ -n "$COMPOSE" ]; then
 
   if [ "${USE_PREBUILT_IMAGES:-0}" = "1" ]; then
     echo "Starting stack with pre-built images (--no-build)..."
-    if ! $COMPOSE up -d --no-build --remove-orphans; then
+    # Bring data plane first if missing, then app services.
+    $COMPOSE up -d --no-build mongo redis || true
+    if ! $COMPOSE up -d --no-build --remove-orphans \
+        edge backend frontend pdf-worker mongo redis mongo-backup; then
       echo "=== docker compose up --no-build failed — recent logs ==="
       $COMPOSE ps -a || true
-      $COMPOSE logs --tail=120 backend frontend mongo redis pdf-worker 2>/dev/null || $COMPOSE logs --tail=120
+      docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' | head -40 || true
+      $COMPOSE logs --tail=80 backend frontend edge 2>/dev/null || true
       exit 1
     fi
   elif ! $COMPOSE up -d --build "${PULL_FLAG[@]}" --remove-orphans; then
@@ -136,12 +169,15 @@ if [ -n "$COMPOSE" ]; then
     fi
   fi
 
-  # Backend-only image rebuilds change the container IP. Older frontend nginx
-  # configs cache that IP at start — force a frontend refresh after every deploy.
-  $COMPOSE up -d --force-recreate --no-deps frontend || $COMPOSE restart frontend || true
+  # Backend image IP can change — refresh frontend nginx upstream.
+  $COMPOSE up -d --force-recreate --no-deps --no-build frontend \
+    || $COMPOSE up -d --force-recreate --no-deps frontend \
+    || $COMPOSE restart frontend \
+    || true
 
   echo "Running containers:"
   $COMPOSE ps
+  docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' | head -30 || true
 fi
 
 echo "Updating Node modules and restarting app..."
