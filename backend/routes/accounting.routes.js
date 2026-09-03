@@ -51,6 +51,9 @@ import {
   getFollowUpLevels,
   setFollowUpLevels,
   resolveFollowUpLevel,
+  getReminderTemplate,
+  setReminderTemplate,
+  renderReminderTemplate,
   getReconciliationModels,
   setReconciliationModels,
   getJournalGroups,
@@ -470,6 +473,22 @@ router.get('/follow-up-levels', checkPermission('finance', 'read'), async (req, 
 router.put('/follow-up-levels', checkPermission('finance', 'approve'), async (req, res) => {
   try {
     res.json(await setFollowUpLevels(tenantIdOf(req), req.body?.levels || []));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/reminder-template', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    res.json(await getReminderTemplate(tenantIdOf(req)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/reminder-template', checkPermission('finance', 'approve'), async (req, res) => {
+  try {
+    res.json(await setReminderTemplate(tenantIdOf(req), req.body?.template || req.body || {}));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -1709,7 +1728,10 @@ router.get('/reports/cash-flow', checkPermission('finance', 'read'), async (req,
 
 router.get('/reports/aged-ar', checkPermission('finance', 'read'), async (req, res) => {
   try {
-    res.json(await buildAgedReceivables(tenantIdOf(req), { asOf: req.query.asOf || null }));
+    res.json(await buildAgedReceivables(tenantIdOf(req), {
+      asOf: req.query.asOf || null,
+      groupBy: req.query.groupBy || 'customer',
+    }));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -1717,7 +1739,10 @@ router.get('/reports/aged-ar', checkPermission('finance', 'read'), async (req, r
 
 router.get('/reports/aged-ap', checkPermission('finance', 'read'), async (req, res) => {
   try {
-    res.json(await buildAgedPayables(tenantIdOf(req), { asOf: req.query.asOf || null }));
+    res.json(await buildAgedPayables(tenantIdOf(req), {
+      asOf: req.query.asOf || null,
+      groupBy: req.query.groupBy || 'invoice',
+    }));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -1747,6 +1772,7 @@ router.post('/follow-up/remind', checkPermission('finance', 'update'), async (re
     const Tenant = (await import('../models/Tenant.js')).default;
     const tenant = req.tenant || await Tenant.findById(tenantId);
     const { levels } = await getFollowUpLevels(tenantId);
+    const { template } = await getReminderTemplate(tenantId);
     const invoices = await Invoice.find({
       _id: { $in: ids.slice(0, 50) },
       tenantId,
@@ -1771,17 +1797,27 @@ router.post('/follow-up/remind', checkPermission('finance', 'update'), async (re
       const amountLabel = `${residual.toFixed(2)} ${invoice.currency || 'SAR'}`;
       const customerName = customer?.name || customer?.nameAr || invoice?.buyer?.name || 'Customer';
       const link = `${baseUrl}/app/dashboard/accounting/invoices/${invoice._id}`;
-      const baseDate = new Date(invoice.dueDate || invoice.issueDate || Date.now());
+      const dueRaw = invoice.dueDate || invoice.issueDate || Date.now();
+      const baseDate = new Date(dueRaw);
       const ageDays = Math.max(0, Math.floor((Date.now() - baseDate.getTime()) / 86400000));
       const level = resolveFollowUpLevel(ageDays, levels);
       const levelName = language === 'ar' ? (level?.nameAr || level?.name) : (level?.name || 'Reminder');
-      const textEn = level && Number(level.daysOverdue) >= 30
-        ? `Dear ${customerName}, ${levelName}: invoice ${invoice.invoiceNumber} remains overdue (${ageDays} days) — ${amountLabel}. View: ${link}`
-        : `Dear ${customerName}, ${levelName || 'friendly reminder'}: invoice ${invoice.invoiceNumber} has an outstanding balance of ${amountLabel}. View: ${link}`;
-      const textAr = level && Number(level.daysOverdue) >= 30
-        ? `عزيزي ${customerName}، ${level?.nameAr || levelName}: الفاتورة ${invoice.invoiceNumber} متأخرة (${ageDays} يوم) — ${amountLabel}. العرض: ${link}`
-        : `عزيزي ${customerName}، ${level?.nameAr || 'تذكير ودي'}: الفاتورة ${invoice.invoiceNumber} عليها رصيد متبقي ${amountLabel}. العرض: ${link}`;
-      const messageText = language === 'ar' ? textAr : textEn;
+      const dueLabel = baseDate.toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB');
+      const vars = {
+        customerName,
+        invoiceNumber: invoice.invoiceNumber || '',
+        amount: amountLabel,
+        dueDate: dueLabel,
+        daysOverdue: String(ageDays),
+        link,
+        levelName: levelName || '',
+      };
+      const textEn = renderReminderTemplate(template.en, vars);
+      const textAr = renderReminderTemplate(template.ar, vars);
+      const bilingual = `${textEn}\n\n——\n\n${textAr}`;
+      const messageText = req.body.bilingual === false
+        ? (language === 'ar' ? textAr : textEn)
+        : bilingual;
       const waLink = cleanPhone
         ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`
         : `https://wa.me/?text=${encodeURIComponent(messageText)}`;
@@ -1796,6 +1832,8 @@ router.post('/follow-up/remind', checkPermission('finance', 'update'), async (re
         followUpChannel: level?.channel || 'whatsapp',
         waLink,
         messageText,
+        messageEn: textEn,
+        messageAr: textAr,
       };
     });
 

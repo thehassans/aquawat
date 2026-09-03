@@ -14,6 +14,7 @@ import { CustomReportLinesSection } from './AccountingReportPanels'
 import AccountingQueryState from './AccountingQueryState'
 import { openPlaidLink } from './plaidLink'
 import { openSaltEdgeConnect } from './saltEdgeConnect'
+import RegisterPaymentModal from '../../components/accounting/RegisterPaymentModal'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 const yearStartIso = () => new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10)
@@ -2410,33 +2411,91 @@ function agedRowKey(row) {
 function AgedReportPanel({ language, kind }) {
   const isAr = language === 'ar'
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [asOf, setAsOf] = useState(todayIso())
   const [selected, setSelected] = useState(() => new Set())
+  const [bucketFilter, setBucketFilter] = useState('')
+  const [groupBy, setGroupBy] = useState(kind === 'ar' ? 'customer' : 'invoice')
+  const [collapsedPartners, setCollapsedPartners] = useState(() => new Set())
+  const [payInvoice, setPayInvoice] = useState(null)
+  const [payOpen, setPayOpen] = useState(false)
+
   const endpoint = kind === 'ap' ? '/accounting/reports/aged-ap' : '/accounting/reports/aged-ar'
   const { data, isFetching, isLoading, isError, error, refetch } = useAccountingQuery({
-    queryKey: ['accounting-aged', kind, asOf],
-    queryFn: () => api.get(endpoint, { params: { asOf } }).then((r) => r.data),
+    queryKey: ['accounting-aged', kind, asOf, groupBy],
+    queryFn: () => api.get(endpoint, { params: { asOf, groupBy } }).then((r) => r.data),
   })
   const buckets = data?.buckets || {}
+
+  const filteredRows = useMemo(() => {
+    const rows = data?.rows || []
+    if (!bucketFilter) return rows
+    if (bucketFilter === 'total') return rows
+    return rows.filter((r) => r.bucket === bucketFilter)
+  }, [data?.rows, bucketFilter])
+
+  const filteredCustomers = useMemo(() => {
+    const customers = data?.customers || data?.partners || []
+    const attach = (c, invoices) => {
+      const aging = { d0_30: 0, d31_60: 0, d61_90: 0, d90_plus: 0, total: 0 }
+      for (const inv of invoices) {
+        const b = inv.bucket || 'd0_30'
+        if (aging[b] != null) aging[b] = Math.round((aging[b] + Number(inv.residual || 0)) * 100) / 100
+        aging.total = Math.round((aging.total + Number(inv.residual || 0)) * 100) / 100
+      }
+      return {
+        ...c,
+        invoices,
+        openResidual: aging.total,
+        aging: (!bucketFilter || bucketFilter === 'total') && c.aging ? c.aging : aging,
+      }
+    }
+    if (!bucketFilter || bucketFilter === 'total') {
+      return customers
+        .map((c) => attach(c, c.invoices || filteredRows.filter((r) => String(r.partnerId) === String(c.partnerId))))
+        .filter((c) => Number(c.openResidual || 0) > 0.009 || (c.invoices || []).length)
+    }
+    return customers
+      .map((c) => {
+        const invoices = (c.invoices || filteredRows.filter((r) => String(r.partnerId) === String(c.partnerId)))
+          .filter((r) => r.bucket === bucketFilter)
+        return attach(c, invoices)
+      })
+      .filter((c) => (c.invoices || []).length > 0)
+  }, [data?.customers, data?.partners, filteredRows, bucketFilter])
 
   const remind = useMutation({
     mutationFn: (invoiceIds) => api.post('/accounting/follow-up/remind', {
       invoiceIds,
       language: isAr ? 'ar' : 'en',
+      bilingual: true,
     }).then((r) => r.data),
     onSuccess: (payload) => {
-      const first = payload?.results?.[0]
-      if (first?.waLink) window.open(first.waLink, '_blank', 'noopener,noreferrer')
-      if ((payload?.results || []).length > 1) {
-        // Open remaining links with a short delay so the browser allows them
-        payload.results.slice(1, 5).forEach((row, idx) => {
-          setTimeout(() => {
-            if (row.waLink) window.open(row.waLink, '_blank', 'noopener,noreferrer')
-          }, (idx + 1) * 400)
-        })
+      const results = payload?.results || []
+      if (!results.length) {
+        toast.error(isAr ? 'لا نتائج' : 'No reminders generated')
+        return
       }
+      results.slice(0, 5).forEach((row, idx) => {
+        setTimeout(() => {
+          if (row.waLink) window.open(row.waLink, '_blank', 'noopener,noreferrer')
+        }, idx * 350)
+      })
+      toast.success(isAr ? `تم فتح ${Math.min(results.length, 5)} تذكير` : `Opened ${Math.min(results.length, 5)} reminder(s)`)
       setSelected(new Set())
     },
+    onError: (err) => toast.error(err?.response?.data?.error || err.message),
+  })
+
+  const payMutation = useMutation({
+    mutationFn: ({ invoiceId, payload }) => api.post(`/invoices/${invoiceId}/payments`, payload),
+    onSuccess: () => {
+      toast.success(isAr ? 'تم تسجيل الدفعة' : 'Payment recorded')
+      setPayOpen(false)
+      setPayInvoice(null)
+      queryClient.invalidateQueries({ queryKey: ['accounting-aged'] })
+    },
+    onError: (err) => toast.error(err?.response?.data?.error || (isAr ? 'فشل الدفع' : 'Payment failed')),
   })
 
   const toggle = (rowKey) => {
@@ -2450,15 +2509,126 @@ function AgedReportPanel({ language, kind }) {
 
   const selectedInvoiceIds = useMemo(() => {
     const ids = new Set()
-    for (const row of data?.rows || []) {
+    for (const row of filteredRows) {
       if (selected.has(agedRowKey(row))) ids.add(row.invoiceId)
     }
     return [...ids]
-  }, [data?.rows, selected])
+  }, [filteredRows, selected])
+
+  const togglePartner = (partnerId) => {
+    const key = String(partnerId || '')
+    setCollapsedPartners((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   const title = kind === 'ap'
     ? (isAr ? 'أعمار الذمم الدائنة' : 'Aged payables')
     : (isAr ? 'أعمار الذمم المدينة' : 'Aged receivables')
+
+  const openPay = async (row) => {
+    try {
+      const { data: inv } = await api.get(`/invoices/${row.invoiceId}`)
+      setPayInvoice(inv)
+      setPayOpen(true)
+    } catch (err) {
+      toast.error(err?.response?.data?.error || (isAr ? 'تعذر فتح الفاتورة' : 'Could not open invoice'))
+    }
+  }
+
+  const renderInvoiceActions = (row) => (
+    <div className="flex flex-wrap items-center justify-end gap-1">
+      <button
+        type="button"
+        className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] font-semibold dark:border-dark-600"
+        onClick={() => navigate(`/app/dashboard/accounting/invoices/${row.invoiceId}`)}
+      >
+        {isAr ? 'عرض' : 'View'}
+      </button>
+      {kind === 'ar' ? (
+        <>
+          <button
+            type="button"
+            className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] font-semibold dark:border-dark-600"
+            onClick={() => openPay(row)}
+          >
+            {isAr ? 'دفع' : 'Pay'}
+          </button>
+          <button
+            type="button"
+            disabled={remind.isPending}
+            onClick={() => remind.mutate([row.invoiceId])}
+            className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+          >
+            {isAr ? 'واتساب' : 'WA'}
+          </button>
+        </>
+      ) : null}
+    </div>
+  )
+
+  const exportRows = async () => {
+    const out = []
+    out.push({
+      partnerName: isAr ? '—— إجمالي الشرائح ——' : '—— Bucket totals ——',
+      invoiceNumber: '',
+      trancheSequence: '',
+      dueDate: '',
+      residual: buckets.total,
+      ageDays: '',
+      bucket: 'total',
+    })
+    for (const key of ['d0_30', 'd31_60', 'd61_90', 'd90_plus']) {
+      out.push({
+        partnerName: isAr ? AGING_LABELS[key].ar : AGING_LABELS[key].en,
+        invoiceNumber: '',
+        trancheSequence: '',
+        dueDate: '',
+        residual: buckets[key],
+        ageDays: '',
+        bucket: key,
+      })
+    }
+    for (const customer of filteredCustomers) {
+      out.push({
+        partnerName: customer.partnerName,
+        invoiceNumber: isAr ? `(${customer.invoiceCount || (customer.invoices || []).length} فواتير)` : `(${customer.invoiceCount || (customer.invoices || []).length} invoices)`,
+        trancheSequence: '',
+        dueDate: '',
+        residual: customer.openResidual ?? customer.aging?.total,
+        ageDays: '',
+        bucket: 'customer',
+      })
+      for (const row of customer.invoices || []) {
+        out.push({
+          partnerName: `  ${row.partnerName}`,
+          invoiceNumber: row.invoiceNumber,
+          trancheSequence: row.trancheSequence,
+          dueDate: row.dueDate || row.issueDate,
+          residual: row.residual,
+          ageDays: row.ageDays,
+          bucket: row.bucket,
+        })
+      }
+    }
+    if (!filteredCustomers.length) {
+      for (const row of filteredRows) {
+        out.push({
+          partnerName: row.partnerName,
+          invoiceNumber: row.invoiceNumber,
+          trancheSequence: row.trancheSequence,
+          dueDate: row.dueDate || row.issueDate,
+          residual: row.residual,
+          ageDays: row.ageDays,
+          bucket: row.bucket,
+        })
+      }
+    }
+    return out
+  }
 
   return (
     <div className="space-y-4">
@@ -2466,37 +2636,51 @@ function AgedReportPanel({ language, kind }) {
         language={language}
         mode="asOf"
         asOf={asOf}
-        setAsOf={setAsOf}
+        setAsOf={(v) => { setAsOf(v); setSelected(new Set()) }}
         showComparison={false}
         showBasis={false}
         title={title}
-        extra={kind === 'ar' ? (
-          <button
-            type="button"
-            disabled={!selectedInvoiceIds.length || remind.isPending}
-            onClick={() => remind.mutate(selectedInvoiceIds)}
-            className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-          >
-            {remind.isPending
-              ? '…'
-              : (isAr ? `تذكير واتساب (${selectedInvoiceIds.length})` : `WhatsApp remind (${selectedInvoiceIds.length})`)}
-          </button>
-        ) : null}
+        extra={(
+          <div className="flex flex-wrap items-center gap-2">
+            {kind === 'ar' ? (
+              <div className="inline-flex rounded-xl border border-slate-200 p-0.5 dark:border-dark-600">
+                <button
+                  type="button"
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${groupBy === 'customer' ? 'bg-emerald-700 text-white' : 'text-slate-600'}`}
+                  onClick={() => setGroupBy('customer')}
+                >
+                  {isAr ? 'حسب العميل' : 'By customer'}
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${groupBy === 'invoice' ? 'bg-emerald-700 text-white' : 'text-slate-600'}`}
+                  onClick={() => setGroupBy('invoice')}
+                >
+                  {isAr ? 'حسب الفاتورة' : 'By invoice'}
+                </button>
+              </div>
+            ) : null}
+            {kind === 'ar' ? (
+              <button
+                type="button"
+                disabled={!selectedInvoiceIds.length || remind.isPending}
+                onClick={() => remind.mutate(selectedInvoiceIds)}
+                className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                {remind.isPending
+                  ? '…'
+                  : (isAr ? `تذكير واتساب (${selectedInvoiceIds.length})` : `WhatsApp remind (${selectedInvoiceIds.length})`)}
+              </button>
+            ) : null}
+          </div>
+        )}
         exportProps={{
-          getRows: async () => (data?.rows || []).map((row) => ({
-            partnerName: row.partnerName,
-            invoiceNumber: row.invoiceNumber,
-            trancheSequence: row.trancheSequence,
-            dueDate: row.dueDate || row.issueDate,
-            residual: row.residual,
-            ageDays: row.ageDays,
-            bucket: row.bucket,
-          })),
+          getRows: exportRows,
           columns: [
             { key: 'partnerName', label: isAr ? 'الشريك' : 'Partner' },
             { key: 'invoiceNumber', label: isAr ? 'الفاتورة' : 'Invoice' },
             { key: 'trancheSequence', label: isAr ? 'الدفعة' : 'Tranche', value: (r) => (r.trancheSequence ? `#${r.trancheSequence}` : '—') },
-            { key: 'dueDate', label: isAr ? 'الاستحقاق' : 'Due', value: (r) => r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '' },
+            { key: 'dueDate', label: isAr ? 'الاستحقاق' : 'Due', value: (r) => (r.dueDate ? new Date(r.dueDate).toLocaleDateString() : '') },
             { key: 'residual', label: isAr ? 'المتبقي' : 'Residual', value: (r) => Number(r.residual || 0).toFixed(2) },
             { key: 'ageDays', label: isAr ? 'العمر' : 'Age' },
             { key: 'bucket', label: isAr ? 'الشريحة' : 'Bucket' },
@@ -2518,100 +2702,216 @@ function AgedReportPanel({ language, kind }) {
       >
       {isFetching && data ? <p className="text-xs text-slate-400">…</p> : null}
       <div className="grid gap-3 sm:grid-cols-5">
-        {['d0_30', 'd31_60', 'd61_90', 'd90_plus'].map((key) => (
-          <div key={key} className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
-            <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? AGING_LABELS[key].ar : AGING_LABELS[key].en}</p>
-            <p className="mt-1 text-lg font-semibold"><Money value={isError ? null : buckets[key]} /></p>
-          </div>
-        ))}
-        <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/50 p-4 dark:border-emerald-500/20 dark:bg-emerald-950/20">
+        {['d0_30', 'd31_60', 'd61_90', 'd90_plus'].map((key) => {
+          const active = bucketFilter === key
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setBucketFilter((prev) => (prev === key ? '' : key))}
+              className={`rounded-2xl border p-4 text-start transition ${
+                active
+                  ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200 dark:border-emerald-400 dark:bg-emerald-950/40'
+                  : 'border-slate-200/80 bg-white hover:border-emerald-300 dark:border-dark-600 dark:bg-dark-800'
+              }`}
+            >
+              <p className="text-[11px] uppercase tracking-widest text-slate-400">{isAr ? AGING_LABELS[key].ar : AGING_LABELS[key].en}</p>
+              <p className="mt-1 text-lg font-semibold"><Money value={isError ? null : buckets[key]} /></p>
+            </button>
+          )
+        })}
+        <button
+          type="button"
+          onClick={() => setBucketFilter((prev) => (prev === 'total' || !prev ? '' : 'total'))}
+          className={`rounded-2xl border p-4 text-start transition ${
+            !bucketFilter || bucketFilter === 'total'
+              ? 'border-emerald-500 bg-emerald-50/80 ring-2 ring-emerald-200 dark:border-emerald-400 dark:bg-emerald-950/30'
+              : 'border-emerald-200/80 bg-emerald-50/50 dark:border-emerald-500/20 dark:bg-emerald-950/20'
+          }`}
+        >
           <p className="text-[11px] uppercase tracking-widest text-emerald-700/70">{isAr ? 'الإجمالي' : 'Total'}</p>
           <p className="mt-1 text-lg font-semibold"><Money value={isError ? null : buckets.total} /></p>
-        </div>
+        </button>
       </div>
+
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-400 dark:bg-dark-900">
-            <tr>
-              {kind === 'ar' ? <th className="px-3 py-2 text-start" /> : null}
-              <th className="px-4 py-2 text-start">{isAr ? 'الشريك' : 'Partner'}</th>
-              <th className="px-4 py-2 text-start">{isAr ? 'الفاتورة' : 'Invoice'}</th>
-              <th className="px-4 py-2 text-start">{isAr ? 'الدفعة' : 'Tranche'}</th>
-              <th className="px-4 py-2 text-start">{isAr ? 'الاستحقاق' : 'Due'}</th>
-              <th className="px-4 py-2 text-end">{isAr ? 'المتبقي' : 'Residual'}</th>
-              <th className="px-4 py-2 text-end">{isAr ? 'العمر' : 'Age'}</th>
-              <th className="px-4 py-2 text-start">{isAr ? 'الشريحة' : 'Bucket'}</th>
-              {kind === 'ar' ? <th className="px-4 py-2 text-end">{isAr ? 'تذكير' : 'Remind'}</th> : null}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-            {(data?.rows || []).map((row) => {
-              const rowKey = agedRowKey(row)
-              return (
-              <tr key={rowKey}>
-                {kind === 'ar' ? (
-                  <td className="px-3 py-2">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(rowKey)}
-                      onChange={() => toggle(rowKey)}
-                    />
-                  </td>
-                ) : null}
-                <td className="px-4 py-2">
-                  <button
-                    type="button"
-                    className="text-start hover:text-emerald-700"
-                    onClick={() => {
-                      if (row.partnerId && kind === 'ar') {
-                        navigate(`/app/dashboard/accounting/partner-ledger?customerId=${row.partnerId}`)
-                      } else if (row.partnerId && kind === 'ap') {
-                        navigate(`/app/dashboard/accounting/partner-ledger?supplierId=${row.partnerId}`)
-                      }
-                    }}
-                  >
-                    <p>{row.partnerName}</p>
-                    {row.partnerPhone ? <p className="font-mono text-[11px] text-slate-400">{row.partnerPhone}</p> : null}
-                  </button>
-                </td>
-                <td className="px-4 py-2">
-                  <button
-                    type="button"
-                    className="font-mono text-xs text-emerald-800 hover:underline"
-                    onClick={() => navigate(`/app/dashboard/accounting/invoices/${row.invoiceId}`)}
-                  >
-                    {row.invoiceNumber}
-                  </button>
-                </td>
-                <td className="px-4 py-2 text-xs text-slate-500">
-                  {row.trancheSequence ? `#${row.trancheSequence}` : '—'}
-                </td>
-                <td className="px-4 py-2">{row.dueDate ? new Date(row.dueDate).toLocaleDateString() : (row.issueDate ? new Date(row.issueDate).toLocaleDateString() : '—')}</td>
-                <td className="px-4 py-2 text-end"><Money value={row.residual} /></td>
-                <td className="px-4 py-2 text-end tabular-nums">{row.ageDays}</td>
-                <td className="px-4 py-2 text-xs text-slate-500">{AGING_LABELS[row.bucket] ? (isAr ? AGING_LABELS[row.bucket].ar : AGING_LABELS[row.bucket].en) : row.bucket}</td>
-                {kind === 'ar' ? (
-                  <td className="px-4 py-2 text-end">
-                    <button
-                      type="button"
-                      disabled={remind.isPending}
-                      onClick={() => remind.mutate([row.invoiceId])}
-                      className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold dark:border-dark-600"
-                    >
-                      {isAr ? 'واتساب' : 'WA'}
-                    </button>
-                  </td>
-                ) : null}
+        {kind === 'ar' && groupBy === 'customer' ? (
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-400 dark:bg-dark-900">
+              <tr>
+                <th className="px-3 py-2 text-start w-10" />
+                <th className="px-4 py-2 text-start">{isAr ? 'العميل' : 'Customer'}</th>
+                <th className="px-4 py-2 text-end">{isAr ? 'فواتير' : 'Invoices'}</th>
+                <th className="px-4 py-2 text-end">0–30</th>
+                <th className="px-4 py-2 text-end">31–60</th>
+                <th className="px-4 py-2 text-end">61–90</th>
+                <th className="px-4 py-2 text-end">90+</th>
+                <th className="px-4 py-2 text-end">{isAr ? 'الإجمالي' : 'Total'}</th>
+                <th className="px-4 py-2 text-end">{isAr ? 'إجراءات' : 'Actions'}</th>
               </tr>
-              )
-            })}
-            {!(data?.rows || []).length && (
-              <tr><td colSpan={kind === 'ar' ? 9 : 7} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا أرصدة مفتوحة' : 'No open balances'}</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {filteredCustomers.map((customer) => {
+                const key = String(customer.partnerId || customer.partnerName)
+                const open = !collapsedPartners.has(key)
+                const invoices = customer.invoices || []
+                const aging = customer.aging || {}
+                return (
+                  <Fragment key={key}>
+                    <tr className="bg-slate-50/60 dark:bg-dark-900/40">
+                      <td className="px-3 py-2">
+                        <button type="button" className="text-xs font-bold text-slate-500" onClick={() => togglePartner(key)}>
+                          {open ? '▾' : '▸'}
+                        </button>
+                      </td>
+                      <td className="px-4 py-2">
+                        <button
+                          type="button"
+                          className="text-start font-semibold hover:text-emerald-700"
+                          onClick={() => {
+                            if (customer.partnerId) {
+                              navigate(`/app/dashboard/accounting/partner-ledger?customerId=${customer.partnerId}`)
+                            }
+                          }}
+                        >
+                          {customer.partnerName}
+                        </button>
+                        {customer.partnerPhone || customer.phone ? (
+                          <p className="font-mono text-[11px] text-slate-400">{customer.partnerPhone || customer.phone}</p>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-2 text-end tabular-nums">{invoices.length || customer.invoiceCount || 0}</td>
+                      <td className="px-4 py-2 text-end"><Money value={aging.d0_30} /></td>
+                      <td className="px-4 py-2 text-end"><Money value={aging.d31_60} /></td>
+                      <td className="px-4 py-2 text-end"><Money value={aging.d61_90} /></td>
+                      <td className="px-4 py-2 text-end"><Money value={aging.d90_plus} /></td>
+                      <td className="px-4 py-2 text-end font-semibold"><Money value={customer.openResidual ?? aging.total} /></td>
+                      <td className="px-4 py-2 text-end">
+                        <button
+                          type="button"
+                          className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 disabled:opacity-40"
+                          disabled={!invoices.length || remind.isPending}
+                          onClick={() => remind.mutate(invoices.map((r) => r.invoiceId))}
+                        >
+                          {isAr ? 'تذكير' : 'Remind'}
+                        </button>
+                      </td>
+                    </tr>
+                    {open ? invoices.map((row) => (
+                      <tr key={agedRowKey(row)}>
+                        <td className="px-3 py-2">
+                          <input type="checkbox" checked={selected.has(agedRowKey(row))} onChange={() => toggle(agedRowKey(row))} />
+                        </td>
+                        <td className="px-4 py-2 ps-8" colSpan={2}>
+                          <button
+                            type="button"
+                            className="font-mono text-xs text-emerald-800 hover:underline"
+                            onClick={() => navigate(`/app/dashboard/accounting/invoices/${row.invoiceId}`)}
+                          >
+                            {row.invoiceNumber}
+                          </button>
+                          <span className="ms-2 text-[11px] text-slate-400">
+                            {row.trancheSequence ? `#${row.trancheSequence}` : ''}
+                            {' · '}
+                            {row.dueDate ? new Date(row.dueDate).toLocaleDateString() : '—'}
+                            {' · '}
+                            {AGING_LABELS[row.bucket] ? (isAr ? AGING_LABELS[row.bucket].ar : AGING_LABELS[row.bucket].en) : row.bucket}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-end" colSpan={4} />
+                        <td className="px-4 py-2 text-end"><Money value={row.residual} /></td>
+                        <td className="px-4 py-2 text-end">{renderInvoiceActions(row)}</td>
+                      </tr>
+                    )) : null}
+                  </Fragment>
+                )
+              })}
+              {!filteredCustomers.length && (
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا أرصدة مفتوحة' : 'No open balances'}</td></tr>
+              )}
+            </tbody>
+          </table>
+        ) : (
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-400 dark:bg-dark-900">
+              <tr>
+                {kind === 'ar' ? <th className="px-3 py-2 text-start" /> : null}
+                <th className="px-4 py-2 text-start">{isAr ? 'الشريك' : 'Partner'}</th>
+                <th className="px-4 py-2 text-start">{isAr ? 'الفاتورة' : 'Invoice'}</th>
+                <th className="px-4 py-2 text-start">{isAr ? 'الدفعة' : 'Tranche'}</th>
+                <th className="px-4 py-2 text-start">{isAr ? 'الاستحقاق' : 'Due'}</th>
+                <th className="px-4 py-2 text-end">{isAr ? 'المتبقي' : 'Residual'}</th>
+                <th className="px-4 py-2 text-end">{isAr ? 'العمر' : 'Age'}</th>
+                <th className="px-4 py-2 text-start">{isAr ? 'الشريحة' : 'Bucket'}</th>
+                <th className="px-4 py-2 text-end">{isAr ? 'إجراءات' : 'Actions'}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {filteredRows.map((row) => {
+                const rowKey = agedRowKey(row)
+                return (
+                  <tr key={rowKey}>
+                    {kind === 'ar' ? (
+                      <td className="px-3 py-2">
+                        <input type="checkbox" checked={selected.has(rowKey)} onChange={() => toggle(rowKey)} />
+                      </td>
+                    ) : null}
+                    <td className="px-4 py-2">
+                      <button
+                        type="button"
+                        className="text-start hover:text-emerald-700"
+                        onClick={() => {
+                          if (row.partnerId && kind === 'ar') {
+                            navigate(`/app/dashboard/accounting/partner-ledger?customerId=${row.partnerId}`)
+                          } else if (row.partnerId && kind === 'ap') {
+                            navigate(`/app/dashboard/accounting/partner-ledger?supplierId=${row.partnerId}`)
+                          }
+                        }}
+                      >
+                        <p>{row.partnerName}</p>
+                        {row.partnerPhone ? <p className="font-mono text-[11px] text-slate-400">{row.partnerPhone}</p> : null}
+                      </button>
+                    </td>
+                    <td className="px-4 py-2">
+                      <button
+                        type="button"
+                        className="font-mono text-xs text-emerald-800 hover:underline"
+                        onClick={() => navigate(`/app/dashboard/accounting/invoices/${row.invoiceId}`)}
+                      >
+                        {row.invoiceNumber}
+                      </button>
+                    </td>
+                    <td className="px-4 py-2 text-xs text-slate-500">
+                      {row.trancheSequence ? `#${row.trancheSequence}` : '—'}
+                    </td>
+                    <td className="px-4 py-2">{row.dueDate ? new Date(row.dueDate).toLocaleDateString() : (row.issueDate ? new Date(row.issueDate).toLocaleDateString() : '—')}</td>
+                    <td className="px-4 py-2 text-end"><Money value={row.residual} /></td>
+                    <td className="px-4 py-2 text-end tabular-nums">{row.ageDays}</td>
+                    <td className="px-4 py-2 text-xs text-slate-500">{AGING_LABELS[row.bucket] ? (isAr ? AGING_LABELS[row.bucket].ar : AGING_LABELS[row.bucket].en) : row.bucket}</td>
+                    <td className="px-4 py-2 text-end">{renderInvoiceActions(row)}</td>
+                  </tr>
+                )
+              })}
+              {!filteredRows.length && (
+                <tr><td colSpan={kind === 'ar' ? 9 : 8} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا أرصدة مفتوحة' : 'No open balances'}</td></tr>
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
       </AccountingQueryState>
+
+      <RegisterPaymentModal
+        isOpen={payOpen}
+        onClose={() => { setPayOpen(false); setPayInvoice(null) }}
+        invoice={payInvoice}
+        language={language}
+        isPending={payMutation.isPending}
+        onSubmit={(payload) => {
+          if (!payInvoice?._id) return
+          payMutation.mutate({ invoiceId: payInvoice._id, payload })
+        }}
+      />
     </div>
   )
 }
@@ -4792,13 +5092,29 @@ export function FollowUpLevelsPanel({ language }) {
     queryKey: ['accounting-follow-up-levels'],
     queryFn: () => api.get('/accounting/follow-up-levels').then((r) => r.data),
   })
+  const { data: templateData, refetch: refetchTemplate } = useQuery({
+    queryKey: ['accounting-reminder-template'],
+    queryFn: () => api.get('/accounting/reminder-template').then((r) => r.data),
+  })
   const [rows, setRows] = useState([])
+  const [template, setTemplate] = useState({ en: '', ar: '' })
   useEffect(() => {
     if (data?.levels) setRows(data.levels.map((r) => ({ ...r })))
   }, [data?.levels])
+  useEffect(() => {
+    if (templateData?.template) setTemplate({ ...templateData.template })
+  }, [templateData?.template])
   const save = useMutation({
-    mutationFn: () => api.put('/accounting/follow-up-levels', { levels: rows }).then((r) => r.data),
-    onSuccess: () => refetch(),
+    mutationFn: async () => {
+      await api.put('/accounting/follow-up-levels', { levels: rows })
+      await api.put('/accounting/reminder-template', { template })
+    },
+    onSuccess: () => {
+      refetch()
+      refetchTemplate()
+      toast.success(isAr ? 'تم الحفظ' : 'Saved')
+    },
+    onError: (err) => toast.error(err?.response?.data?.error || (isAr ? 'فشل الحفظ' : 'Save failed')),
   })
   return (
     <ConfigPanelShell
@@ -4846,6 +5162,34 @@ export function FollowUpLevelsPanel({ language }) {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-6 space-y-3 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+            {isAr ? 'قالب تذكير واتساب' : 'WhatsApp reminder template'}
+          </h3>
+          <p className="mt-1 text-xs text-slate-500">
+            {isAr
+              ? 'استخدم: {{customerName}} {{invoiceNumber}} {{amount}} {{dueDate}} {{daysOverdue}} {{link}} {{levelName}}'
+              : 'Placeholders: {{customerName}} {{invoiceNumber}} {{amount}} {{dueDate}} {{daysOverdue}} {{link}} {{levelName}}'}
+          </p>
+        </div>
+        <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">English</label>
+        <textarea
+          rows={3}
+          value={template.en || ''}
+          onChange={(e) => setTemplate((t) => ({ ...t, en: e.target.value }))}
+          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+        />
+        <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">العربية</label>
+        <textarea
+          rows={3}
+          dir="rtl"
+          value={template.ar || ''}
+          onChange={(e) => setTemplate((t) => ({ ...t, ar: e.target.value }))}
+          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+        />
       </div>
     </ConfigPanelShell>
   )

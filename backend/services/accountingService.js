@@ -3773,6 +3773,42 @@ export async function setFollowUpLevels(tenantId, levels) {
   return { levels: cleaned };
 }
 
+export const DEFAULT_REMINDER_TEMPLATE = {
+  en: 'Dear {{customerName}}, invoice {{invoiceNumber}} is overdue by {{daysOverdue}} days. Amount due: {{amount}}. Due date: {{dueDate}}. View: {{link}}',
+  ar: 'عزيزي {{customerName}}، الفاتورة {{invoiceNumber}} متأخرة {{daysOverdue}} يوم. المبلغ المستحق: {{amount}}. تاريخ الاستحقاق: {{dueDate}}. العرض: {{link}}',
+};
+
+export async function getReminderTemplate(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.reminderTemplate').lean();
+  const stored = tenant?.settings?.accounting?.reminderTemplate || {};
+  return {
+    template: {
+      en: String(stored.en || DEFAULT_REMINDER_TEMPLATE.en),
+      ar: String(stored.ar || DEFAULT_REMINDER_TEMPLATE.ar),
+    },
+    placeholders: ['customerName', 'invoiceNumber', 'amount', 'dueDate', 'daysOverdue', 'link', 'levelName'],
+  };
+}
+
+export async function setReminderTemplate(tenantId, template = {}) {
+  const next = {
+    en: String(template.en || DEFAULT_REMINDER_TEMPLATE.en).slice(0, 2000),
+    ar: String(template.ar || DEFAULT_REMINDER_TEMPLATE.ar).slice(0, 2000),
+  };
+  await Tenant.findByIdAndUpdate(tenantId, {
+    $set: { 'settings.accounting.reminderTemplate': next },
+  });
+  return { template: next };
+}
+
+export function renderReminderTemplate(template, vars = {}) {
+  let text = String(template || '');
+  for (const [key, value] of Object.entries(vars)) {
+    text = text.split(`{{${key}}}`).join(String(value ?? ''));
+  }
+  return text;
+}
+
 /** Resolve the highest follow-up level whose daysOverdue threshold is met. */
 export function resolveFollowUpLevel(ageDays, levels) {
   const sorted = [...(levels || [])].sort(
@@ -6716,7 +6752,7 @@ export async function buildCashFlowStatement(tenantId, { from, to } = {}) {
   };
 }
 
-async function buildAgedInvoices(tenantId, { flow, asOf = null } = {}) {
+async function buildAgedInvoices(tenantId, { flow, asOf = null, groupBy = 'invoice' } = {}) {
   const partnerType = flow === 'purchase' ? 'vendor' : 'customer';
   const data = await getPartnerBalances({ tenantId, partnerType, asOf });
   const followUpLevels = flow === 'sell' ? (await getFollowUpLevels(tenantId)).levels : [];
@@ -6724,7 +6760,7 @@ async function buildAgedInvoices(tenantId, { flow, asOf = null } = {}) {
   const rows = (data.invoices || []).map((inv) => ({
     ...inv,
     followUpLevel: flow === 'sell' ? resolveFollowUpLevel(inv.ageDays, followUpLevels) : null,
-    trancheSequence: null,
+    trancheSequence: inv.trancheSequence ?? null,
     partnerPhone: '',
   }));
 
@@ -6735,12 +6771,20 @@ async function buildAgedInvoices(tenantId, { flow, asOf = null } = {}) {
     row.partnerPhone = phoneById[String(row.partnerId)] || '';
   }
 
+  const customers = (data.partners || []).map((p) => ({
+    ...p,
+    partnerPhone: p.phone || '',
+    invoices: rows.filter((r) => String(r.partnerId || '') === String(p.partnerId || '')),
+  }));
+
   return {
     asOf: data.asOf,
     flow,
+    groupBy: groupBy === 'customer' ? 'customer' : 'invoice',
     buckets: data.buckets || emptyAgingBuckets(),
     rows,
     partners: data.partners || [],
+    customers,
     totals: data.totals || { openResidual: 0 },
   };
 }
@@ -7145,6 +7189,10 @@ export default {
   buildInvoiceAnalysis,
   getFollowUpLevels,
   setFollowUpLevels,
+  getReminderTemplate,
+  setReminderTemplate,
+  renderReminderTemplate,
+  DEFAULT_REMINDER_TEMPLATE,
   resolveFollowUpLevel,
   getReconciliationModels,
   setReconciliationModels,

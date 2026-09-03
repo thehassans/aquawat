@@ -367,41 +367,101 @@ export async function getPartnerBalances({
     return byPartner.get(key);
   };
 
+  /** Expand an invoice residual across payment-schedule tranches (FIFO against paidAmount). */
+  const expandTranches = (inv) => {
+    const residual = round2(inv.residual);
+    const schedule = Array.isArray(inv.paymentSchedule) ? inv.paymentSchedule : [];
+    if (schedule.length < 2) {
+      const due = new Date(inv.dueForAge || inv.dueDate || inv.issueDate || asOfDate);
+      const ageDays = Math.max(0, Math.floor((asOfDate - due) / MS_PER_DAY));
+      return [{
+        residual,
+        dueDate: inv.dueDate || inv.dueForAge || null,
+        ageDays,
+        bucket: agingBucket(ageDays),
+        trancheSequence: null,
+      }];
+    }
+
+    let paidLeft = round2(inv.paidAmount || 0);
+    const sorted = [...schedule].sort((a, b) => (
+      (Number(a.sequence) || 0) - (Number(b.sequence) || 0)
+      || new Date(a.dueDate || 0) - new Date(b.dueDate || 0)
+    ));
+    const parts = [];
+    for (const tr of sorted) {
+      const trancheAmt = round2(tr.amount || 0);
+      if (trancheAmt < 0.01) continue;
+      const applied = Math.min(paidLeft, trancheAmt);
+      paidLeft = round2(Math.max(0, paidLeft - applied));
+      const trResidual = round2(trancheAmt - applied);
+      if (trResidual < 0.01) continue;
+      const due = new Date(tr.dueDate || inv.dueForAge || inv.dueDate || inv.issueDate || asOfDate);
+      const ageDays = Math.max(0, Math.floor((asOfDate - due) / MS_PER_DAY));
+      parts.push({
+        residual: trResidual,
+        dueDate: tr.dueDate || inv.dueDate || null,
+        ageDays,
+        bucket: agingBucket(ageDays),
+        trancheSequence: tr.sequence || parts.length + 1,
+      });
+    }
+
+    const partsSum = round2(parts.reduce((s, p) => s + p.residual, 0));
+    if (parts.length && Math.abs(partsSum - residual) > 0.05) {
+      // Keep partner/GL totals aligned to invoice residual
+      const scale = residual > 0 && partsSum > 0 ? residual / partsSum : 1;
+      for (const p of parts) p.residual = round2(p.residual * scale);
+    }
+    if (!parts.length) {
+      const due = new Date(inv.dueForAge || inv.dueDate || inv.issueDate || asOfDate);
+      const ageDays = Math.max(0, Math.floor((asOfDate - due) / MS_PER_DAY));
+      return [{
+        residual,
+        dueDate: inv.dueDate || inv.dueForAge || null,
+        ageDays,
+        bucket: agingBucket(ageDays),
+        trancheSequence: null,
+      }];
+    }
+    return parts;
+  };
+
   for (const inv of invoiceRows) {
     const residual = round2(inv.residual);
     if (residual < 0.01) continue;
 
-    const due = new Date(inv.dueForAge || inv.dueDate || inv.issueDate || asOfDate);
-    const ageDays = Math.max(0, Math.floor((asOfDate - due) / MS_PER_DAY));
-    const bucket = agingBucket(ageDays);
-
-    buckets[bucket] = round2(buckets[bucket] + residual);
-    buckets.total = round2(buckets.total + residual);
-
+    const partner = partnerById[String(inv.partnerId || '')];
     const row = ensurePartner(inv.partnerId);
     row.totalInvoiced = round2(row.totalInvoiced + Number(inv.grandTotal || 0));
     row.totalPaid = round2(row.totalPaid + Number(inv.paidAmount || 0));
     row.openResidual = round2(row.openResidual + residual);
-    row.aging[bucket] = round2(row.aging[bucket] + residual);
-    row.aging.total = round2(row.aging.total + residual);
     row.invoiceCount += 1;
 
-    const partner = partnerById[String(inv.partnerId || '')];
-    invoiceDetails.push({
-      invoiceId: inv.invoiceId || inv._id,
-      invoiceNumber: inv.invoiceNumber,
-      invoiceType: inv.invoiceType,
-      partnerId: inv.partnerId || null,
-      partnerName: partner?.displayName || partner?.name || partner?.nameAr || '—',
-      issueDate: inv.issueDate,
-      dueDate: inv.dueDate || inv.dueForAge || null,
-      grandTotal: round2(inv.grandTotal),
-      paidAmount: round2(inv.paidAmount),
-      residual,
-      ageDays,
-      bucket,
-      paymentStatus: inv.paymentStatus,
-    });
+    const tranches = expandTranches(inv);
+    for (const tr of tranches) {
+      buckets[tr.bucket] = round2(buckets[tr.bucket] + tr.residual);
+      buckets.total = round2(buckets.total + tr.residual);
+      row.aging[tr.bucket] = round2(row.aging[tr.bucket] + tr.residual);
+      row.aging.total = round2(row.aging.total + tr.residual);
+
+      invoiceDetails.push({
+        invoiceId: inv.invoiceId || inv._id,
+        invoiceNumber: inv.invoiceNumber,
+        invoiceType: inv.invoiceType,
+        partnerId: inv.partnerId || null,
+        partnerName: partner?.displayName || partner?.name || partner?.nameAr || '—',
+        issueDate: inv.issueDate,
+        dueDate: tr.dueDate,
+        grandTotal: round2(inv.grandTotal),
+        paidAmount: round2(inv.paidAmount),
+        residual: tr.residual,
+        ageDays: tr.ageDays,
+        bucket: tr.bucket,
+        paymentStatus: inv.paymentStatus,
+        trancheSequence: tr.trancheSequence,
+      });
+    }
   }
 
   // Enrich with lifetime invoiced/paid even when currently paid (optional partners list)
