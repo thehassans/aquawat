@@ -110,7 +110,7 @@ jobs:
           fi
           chmod 600 "$HOME/.ssh/known_hosts" "$HOME/.ssh/plesk_deploy"
 
-          SSH_OPTS=(
+          SSH_BASE=(
             -i "$HOME/.ssh/plesk_deploy"
             -o IdentitiesOnly=yes
             -o BatchMode=yes
@@ -123,12 +123,14 @@ jobs:
           )
           REMOTE="${SSH_USER}@${SSH_HOST}"
           DEST="/var/www/vhosts/maqder.com/httpdocs"
+          # Single string for rsync -e (must not expand as separate words incorrectly).
+          RSYNC_RSH="ssh -i $HOME/.ssh/plesk_deploy -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o ConnectTimeout=15 -p ${SSH_PORT}"
 
           # Plesk often cannot resolve github.com (DNS). Push the tree from Actions
           # instead of git fetch on the server.
           echo "=== rsync code to ${REMOTE}:${DEST} (sha=${BUILD_SHA}) ==="
           rsync -az --delete \
-            -e "ssh ${SSH_OPTS[*]}" \
+            -e "$RSYNC_RSH" \
             --exclude '.git/' \
             --exclude 'node_modules/' \
             --exclude 'frontend/node_modules/' \
@@ -143,15 +145,14 @@ jobs:
             --exclude 'tmp/' \
             --exclude 'logs/' \
             --exclude '.env' \
-            --exclude '.env.*' \
-            --exclude '!.env.example' \
+            --exclude '.env.local' \
+            --exclude '.env.production' \
             --exclude '.cursor/' \
-            --exclude 'agent-transcripts/' \
             ./ "${REMOTE}:${DEST}/"
 
           echo "=== remote deploy.sh (SKIP_GIT=1) ==="
           set +e
-          ssh "${SSH_OPTS[@]}" "${REMOTE}" \
+          ssh "${SSH_BASE[@]}" "${REMOTE}" \
             "cd '${DEST}' && chmod +x deploy.sh && SKIP_GIT=1 BUILD_SHA='${BUILD_SHA}' ./deploy.sh"
           status=$?
           set -e
