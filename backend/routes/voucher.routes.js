@@ -37,6 +37,31 @@ router.get('/', checkPermission('finance', 'read'), async (req, res) => {
 // Create voucher
 router.post('/', checkTrialLimits('vouchers'), checkPermission('finance', 'create'), async (req, res) => {
   try {
+    // Customer receipts: unified AccountPayment path (creates payment + mirror voucher + GL)
+    if (req.body?.type === 'receive' && req.body?.partyType === 'customer') {
+      const { createCustomerPayment } = await import('../services/customerPaymentService.js');
+      const payment = await createCustomerPayment({
+        tenantId: req.user.tenantId,
+        userId: req.user._id,
+        customerId: req.body.partyId || null,
+        customerName: req.body.partyName || '',
+        date: req.body.date || new Date(),
+        amount: req.body.amount,
+        method: req.body.paymentMethod || 'cash',
+        reference: req.body.reference || '',
+        memo: req.body.description || req.body.memo || '',
+        currency: req.body.currency || 'SAR',
+        allocations: Array.isArray(req.body.allocations) ? req.body.allocations : [],
+        source: 'voucher',
+        autoAllocateOldest: !!req.body.autoAllocateOldest,
+      });
+      if (payment.voucherId) {
+        const mirrored = await Voucher.findById(payment.voucherId);
+        if (mirrored) return res.status(201).json(mirrored);
+      }
+      return res.status(201).json(payment);
+    }
+
     // Generate voucher number
     const count = await Voucher.countDocuments({ tenantId: req.user.tenantId });
     const prefix = req.body.type === 'receive' ? 'RV' : 'PV';
@@ -65,7 +90,7 @@ router.post('/', checkTrialLimits('vouchers'), checkPermission('finance', 'creat
 
     res.status(201).json(voucher);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: error.message, code: error.code });
   }
 });
 

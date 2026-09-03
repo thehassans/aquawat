@@ -1720,4 +1720,73 @@ router.post('/firm/switch', checkPermission('finance', 'read'), async (req, res)
   }
 });
 
+// ─── C4: Unified customer payments ───────────────────────────────────────────
+
+router.get('/customer-payments', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { listCustomerPayments } = await import('../services/customerPaymentService.js');
+    const data = await listCustomerPayments(req.user.tenantId, {
+      search: req.query.search || '',
+      page: req.query.page,
+      limit: req.query.limit,
+      partnerId: req.query.partnerId || req.query.customerId || null,
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/customer-payments/open-invoices', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { getOpenCustomerInvoices } = await import('../services/customerPaymentService.js');
+    const customerId = req.query.customerId || req.query.partnerId;
+    if (!customerId) return res.status(400).json({ error: 'customerId required' });
+    const rows = await getOpenCustomerInvoices(req.user.tenantId, customerId);
+    res.json({ invoices: rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/customer-payments', checkPermission('finance', 'create'), async (req, res) => {
+  try {
+    const { createCustomerPayment } = await import('../services/customerPaymentService.js');
+    const payment = await createCustomerPayment({
+      tenantId: req.user.tenantId,
+      userId: req.user._id,
+      customerId: req.body.customerId || req.body.partnerId || null,
+      customerName: req.body.customerName || req.body.partnerName || '',
+      date: req.body.date || new Date(),
+      amount: req.body.amount,
+      method: req.body.method || 'bank_transfer',
+      journalId: req.body.journalId || null,
+      reference: req.body.reference || '',
+      memo: req.body.memo || '',
+      currency: req.body.currency || req.tenant?.settings?.currency || 'SAR',
+      allocations: req.body.allocations || [],
+      source: req.body.source || 'payments_page',
+      autoAllocateOldest: !!req.body.autoAllocateOldest,
+      differenceMode: req.body.differenceMode,
+      differenceAccountId: req.body.differenceAccountId,
+    });
+    res.status(201).json(payment);
+  } catch (error) {
+    res.status(error?.status || 400).json({ error: error.message, code: error.code });
+  }
+});
+
+router.post('/customer-payments/backfill', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const { backfillCustomerPaymentsFromJournals } = await import('../services/customerPaymentService.js');
+    const report = await backfillCustomerPaymentsFromJournals(req.user.tenantId, {
+      dryRun: req.body?.dryRun !== false && req.query?.apply !== '1',
+      limit: req.body?.limit || req.query?.limit,
+    });
+    res.json(report);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

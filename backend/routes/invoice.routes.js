@@ -1254,122 +1254,75 @@ router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req,
     const differenceAccountId = cleanObjectId(req.body?.differenceAccountId);
     const paymentDate = req.body?.paymentDate ? new Date(req.body.paymentDate) : new Date();
     const remaining = Math.round(((Number(invoice.grandTotal) || 0) - (Number(invoice.paidAmount) || 0)) * 100) / 100;
-
-    const settlement = invoice.flow === 'sell'
-      ? computePaymentSettlement(invoice.toObject ? invoice.toObject() : invoice, {
-        amount,
-        paymentDate,
-        differenceMode,
-      })
-      : {
-        cashAmount: amount,
-        discountAmount: 0,
-        targetPaidAmount: differenceMode === 'mark_paid'
-          ? Math.round(Number(invoice.grandTotal || 0) * 100) / 100
-          : Math.round(((Number(invoice.paidAmount) || 0) + amount) * 100) / 100,
-        remaining,
-        applyEarlyDiscount: false,
-      };
-
-    const cashAmount = Math.round(settlement.cashAmount * 100) / 100;
-    const paymentDiff = Math.round((remaining - cashAmount - (settlement.discountAmount || 0)) * 100) / 100;
-
-    if (cashAmount > remaining + 0.005) {
-      return res.status(400).json({ error: 'Amount exceeds remaining balance' });
-    }
-
-    if (differenceMode === 'mark_paid' && paymentDiff > 0.005 && !settlement.applyEarlyDiscount) {
-      if (!differenceAccountId) {
-        return res.status(400).json({ error: 'Difference account is required to mark as fully paid' });
-      }
-    }
-
     const method = ['cash', 'card', 'bank_transfer', 'cheque', 'other', 'khata'].includes(req.body?.method)
       ? req.body.method
       : 'bank_transfer';
 
-    const previousPaymentStatus = invoice.paymentStatus;
-    invoice.paidAmount = Math.round(settlement.targetPaidAmount * 100) / 100;
-    invoice.payments = [...(invoice.payments || []), {
-      method,
-      amount: cashAmount,
-      discountAmount: settlement.discountAmount > 0 ? settlement.discountAmount : undefined,
-      differenceMode: paymentDiff > 0.005 && !settlement.applyEarlyDiscount ? differenceMode : undefined,
-      differenceAccountId: paymentDiff > 0.005 && differenceMode === 'mark_paid' && !settlement.applyEarlyDiscount
-        ? differenceAccountId
-        : undefined,
-    }];
-    if (settlement.applyEarlyDiscount) {
-      invoice.earlyPaymentDiscount = {
-        ...(invoice.earlyPaymentDiscount?.toObject?.() || invoice.earlyPaymentDiscount || {}),
-        applied: true,
-        appliedAt: paymentDate,
-      };
+    if (amount > remaining + 0.005 && differenceMode !== 'mark_paid') {
+      return res.status(400).json({ error: 'Amount exceeds remaining balance' });
     }
-    applyPaidAmountStatus(invoice);
-    await invoice.save();
+    if (differenceMode === 'mark_paid' && remaining - amount > 0.005 && !differenceAccountId) {
+      return res.status(400).json({ error: 'Difference account is required to mark as fully paid' });
+    }
 
-    try {
-      const accounting = await import('../services/accountingService.js');
-      if (invoice.flow === 'purchase') {
+    // Purchase bills keep legacy vendor payment journal path for now
+    if (invoice.flow === 'purchase') {
+      const previousPaymentStatus = invoice.paymentStatus;
+      const targetPaid = differenceMode === 'mark_paid'
+        ? Math.round(Number(invoice.grandTotal || 0) * 100) / 100
+        : Math.round(((Number(invoice.paidAmount) || 0) + amount) * 100) / 100;
+      invoice.paidAmount = targetPaid;
+      invoice.payments = [...(invoice.payments || []), { method, amount }];
+      applyPaidAmountStatus(invoice);
+      await invoice.save();
+      try {
+        const accounting = await import('../services/accountingService.js');
         await accounting.postVendorBillPaymentJournal({
           tenantId: invoice.tenantId,
           userId: req.user._id,
           invoice,
-          amount: cashAmount,
+          amount,
           paymentMethod: method,
           paymentDate,
           reference: `pay-${invoice.invoiceNumber}-${Date.now()}`,
           currency: invoice.currency || req.tenant?.settings?.currency || 'SAR',
           memo: req.body?.memo || '',
         });
-      } else {
-        await accounting.postInvoicePaymentJournal({
-          tenantId: invoice.tenantId,
-          userId: req.user._id,
-          invoice,
-          amount: cashAmount,
-          paymentMethod: method,
-          paymentDate,
-          reference: `pay-${invoice.invoiceNumber}-${Date.now()}`,
-          currency: invoice.currency || req.tenant?.settings?.currency || 'SAR',
-        });
-        if (settlement.discountAmount > 0.005) {
-          await accounting.postEarlyPaymentDiscountJournal({
-            tenantId: invoice.tenantId,
-            userId: req.user._id,
-            invoice,
-            amount: settlement.discountAmount,
-            paymentDate,
-            reference: `pay-disc-${invoice.invoiceNumber}-${Date.now()}`,
-            currency: invoice.currency || req.tenant?.settings?.currency || 'SAR',
-          });
-        } else if (differenceMode === 'mark_paid' && paymentDiff > 0.005 && differenceAccountId) {
-          await accounting.postInvoicePaymentDifferenceJournal({
-            tenantId: invoice.tenantId,
-            userId: req.user._id,
-            invoice,
-            amount: paymentDiff,
-            differenceAccountId,
-            paymentDate,
-            reference: `pay-diff-${invoice.invoiceNumber}-${Date.now()}`,
-            currency: invoice.currency || req.tenant?.settings?.currency || 'SAR',
-          });
-        }
+      } catch (glError) {
+        console.warn('[accounting] vendor payment journal failed:', glError.message);
       }
-    } catch (glError) {
-      console.warn('[accounting] invoice payment journal failed:', glError.message);
+      afterInvoiceWrite(invoice, { userId: req.user._id, previousPaymentStatus });
+      return res.json(invoice);
     }
 
-    if (invoice.customerId) {
-      await syncCustomerStats(invoice.tenantId, invoice.customerId);
+    const { createCustomerPayment } = await import('../services/customerPaymentService.js');
+    const previousPaymentStatus = invoice.paymentStatus;
+    await createCustomerPayment({
+      tenantId: invoice.tenantId,
+      userId: req.user._id,
+      customerId: invoice.customerId || null,
+      customerName: invoice.buyer?.name || '',
+      date: paymentDate,
+      amount,
+      method,
+      reference: req.body?.reference || '',
+      memo: req.body?.memo || '',
+      currency: invoice.currency || req.tenant?.settings?.currency || 'SAR',
+      allocations: [{ invoiceId: invoice._id, amount }],
+      source: 'invoice',
+      differenceMode,
+      differenceAccountId,
+    });
+
+    const refreshed = await Invoice.findOne({ _id: invoice._id, ...req.tenantFilter });
+    if (refreshed?.customerId) {
+      await syncCustomerStats(refreshed.tenantId, refreshed.customerId);
     }
-
-    afterInvoiceWrite(invoice, { userId: req.user._id, previousPaymentStatus });
-
-    res.json(invoice);
+    afterInvoiceWrite(refreshed || invoice, { userId: req.user._id, previousPaymentStatus });
+    res.json(refreshed || invoice);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    const status = error?.status || 400;
+    res.status(status).json({ error: error.message, code: error.code });
   }
 });
 

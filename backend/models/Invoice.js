@@ -259,7 +259,13 @@ const invoiceSchema = new mongoose.Schema({
   paymentMethod: { type: String, enum: ['cash', 'card', 'credit', 'bank_transfer', 'cheque', 'other', 'split', 'khata'], default: 'cash' },
   payments: [{
     method: { type: String, enum: ['cash', 'card', 'bank_transfer', 'cheque', 'other', 'khata'] },
-    amount: { type: Number }
+    amount: { type: Number },
+    discountAmount: { type: Number },
+    differenceMode: { type: String },
+    differenceAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount' },
+    accountPaymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'AccountPayment' },
+    paymentNumber: { type: String },
+    paidAt: { type: Date, default: Date.now },
   }],
   paymentTerms: { type: String },
   /** Staggered receivable tranches computed from paymentTerms (installments / early discount). */
