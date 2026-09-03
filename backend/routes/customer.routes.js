@@ -472,6 +472,15 @@ router.post('/', checkTrialLimits('customers'), checkPermission('invoicing', 'cr
       tenantId: req.user.tenantId,
       isCustomer: true,
     });
+
+    try {
+      const { assertSaudiVatNumber } = await import('../services/customerDirectoryService.js');
+      if (customerData.vatNumber) {
+        customerData.vatNumber = assertSaudiVatNumber(customerData.vatNumber);
+      }
+    } catch (vatErr) {
+      return res.status(vatErr.status || 400).json({ error: vatErr.message, code: vatErr.code });
+    }
     
     // Check for duplicate VAT number if provided
     if (customerData.vatNumber) {
@@ -527,6 +536,15 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
 
     const patch = fromCustomerBody(req.body);
     delete patch.tenantId;
+
+    try {
+      const { assertSaudiVatNumber } = await import('../services/customerDirectoryService.js');
+      if (patch.vatNumber != null && patch.vatNumber !== '') {
+        patch.vatNumber = assertSaudiVatNumber(patch.vatNumber);
+      }
+    } catch (vatErr) {
+      return res.status(vatErr.status || 400).json({ error: vatErr.message, code: vatErr.code });
+    }
 
     if (patch.vatNumber && patch.vatNumber !== existingDoc.vatNumber) {
       const existing = await Customer.findOne(asCustomerQuery({

@@ -1157,6 +1157,54 @@ router.get('/parties/customers', checkPermission('finance', 'read'), async (req,
   }
 });
 
+// C2 — Accounting customer directory (balances + filters + pagination)
+router.get('/customers', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { listAccountingCustomers } = await import('../services/customerDirectoryService.js');
+    const data = await listAccountingCustomers(tenantIdOf(req), {
+      search: req.query.search || req.query.q || '',
+      page: req.query.page,
+      limit: req.query.limit,
+      sort: req.query.sort,
+      order: req.query.order,
+      hasOpenBalance: req.query.hasOpenBalance,
+      overdueOnly: req.query.overdueOnly,
+      isActive: req.query.isActive || 'all',
+      city: req.query.city || '',
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/customers/check-duplicate', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { checkCustomerDuplicate } = await import('../services/customerDirectoryService.js');
+    const data = await checkCustomerDuplicate(tenantIdOf(req), {
+      name: req.body?.name,
+      nameEn: req.body?.nameEn,
+      nameAr: req.body?.nameAr,
+      vatNumber: req.body?.vatNumber,
+      phone: req.body?.phone || req.body?.mobile,
+      excludeId: req.body?.excludeId || null,
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(error?.status || 400).json({ error: error.message, code: error.code });
+  }
+});
+
+router.get('/customers/:id', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { getAccountingCustomerDetail } = await import('../services/customerDirectoryService.js');
+    const data = await getAccountingCustomerDetail(tenantIdOf(req), req.params.id);
+    res.json(data);
+  } catch (error) {
+    res.status(error?.status || 500).json({ error: error.message, code: error.code });
+  }
+});
+
 router.get('/parties/suppliers', checkPermission('finance', 'read'), async (req, res) => {
   try {
     const filter = { tenantId: tenantIdOf(req), isVendor: true };
