@@ -20,7 +20,7 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
   const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
   const {
     headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, companyNtn, companyStrn,
-    counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyNtn, counterpartyStrn,
+    counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyCr, counterpartyNtn, counterpartyStrn,
     counterpartyPhone, counterpartyLabelEn, taxLabel, taxIdLabel
   } = parties
 
