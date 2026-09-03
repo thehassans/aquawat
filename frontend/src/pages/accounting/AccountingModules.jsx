@@ -6927,9 +6927,6 @@ export function AccountingComingSoonPanel({ language, titleEn, titleAr, descript
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700/70 dark:text-emerald-300/80">
         {isAr ? 'قريباً' : 'Coming soon'}
       </p>
-      <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
-        {isAr ? (titleAr || titleEn) : (titleEn || titleAr)}
-      </h2>
       <p className="mx-auto mt-3 max-w-lg text-sm text-slate-500 dark:text-slate-400">
         {isAr
           ? (descriptionAr || 'هذه الشاشة مخططة في قائمة المحاسبة وستُبنى في مرحلة لاحقة.')
