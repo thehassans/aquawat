@@ -30,13 +30,14 @@ test('nginx.conf braces are balanced (invalid config takes the origin offline)',
     assert.ok(depth >= 0, 'closing brace without opener');
   }
   assert.equal(depth, 0);
-  const apiAuthCount = (conf.match(/proxy_pass\s+http:\/\/backend_pool\/api\/auth\//g) || []).length;
-  const apiCount = (conf.match(/proxy_pass\s+http:\/\/backend_pool\/api\/;/g) || []).length;
-  assert.equal(apiAuthCount, 1);
-  assert.equal(apiCount, 1);
+  assert.match(conf, /resolver 127\.0\.0\.11 valid=10s ipv6=off;/);
+  assert.match(conf, /set \$backend_upstream backend:3000;/);
+  const backendPassCount = (conf.match(/proxy_pass\s+http:\/\/\$backend_upstream;/g) || []).length;
+  assert.ok(backendPassCount >= 3, 'expected variable proxy_pass to backend for api/socket/uploads');
   assert.match(conf, /location \/api\/auth\/ \{/);
   assert.match(conf, /location \/api\/ \{/);
   assert.doesNotMatch(conf, /location \/api\/ \{[\s\S]*location \/api\/auth\//);
+  assert.doesNotMatch(conf, /upstream backend_pool/);
 });
 
 test('Cloudflare real-ip list includes published IPv4 and IPv6 prefixes', () => {

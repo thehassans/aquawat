@@ -40,6 +40,10 @@ if [ -n "$COMPOSE" ]; then
     exit 1
   fi
 
+  # Backend-only image rebuilds change the container IP. Older frontend nginx
+  # configs cache that IP at start — force a frontend refresh after every deploy.
+  $COMPOSE up -d --force-recreate --no-deps frontend || $COMPOSE restart frontend || true
+
   echo "Running containers:"
   $COMPOSE ps
 fi
