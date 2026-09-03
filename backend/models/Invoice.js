@@ -331,6 +331,13 @@ const invoiceSchema = new mongoose.Schema({
     markedUploadedAt: { type: Date, default: null },
   },
   originalInvoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', set: cleanObjectId },
+  originalInvoiceNumber: { type: String, default: '' },
+  creditNoteReason: { type: String, default: '' },
+  creditNoteType: {
+    type: String,
+    enum: ['full_refund', 'partial_refund', 'price_correction', 'return', 'damage', 'other', ''],
+    default: '',
+  },
   proformaSourceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', set: cleanObjectId },
   sourceQuotationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Quotation', index: true, set: cleanObjectId },
 

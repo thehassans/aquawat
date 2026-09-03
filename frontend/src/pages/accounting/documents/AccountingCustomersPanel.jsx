@@ -72,20 +72,7 @@ export default function AccountingCustomersPanel({ language = 'en' }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-            {isAr ? 'العملاء' : 'Customers'}
-          </p>
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-            {isAr ? 'دليل العملاء' : 'Customer directory'}
-          </h2>
-          <p className="mt-0.5 text-sm text-slate-500">
-            {isAr
-              ? 'أرصدة الذمم من دفتر الأستاذ الموحّد مع حد الائتمان وشروط الدفع'
-              : 'Receivables from the unified ledger with credit limit and payment terms'}
-          </p>
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <button
           type="button"
           className="btn btn-primary btn-sm"

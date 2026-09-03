@@ -118,6 +118,37 @@ const HIDE_JOURNAL_CTA_TABS = new Set([
 
 const JOURNAL_ENTRY_TABS = NEW_ENTRY_TABS
 
+const TAB_SUBTITLES = {
+  overview: { en: 'Double-entry ledger with invoices and reports', ar: 'دفتر مزدوج القيد مع الفواتير والتقارير' },
+  'chart-of-accounts': { en: 'Chart structure and live account balances', ar: 'هيكل الدليل وأرصدة الحسابات الحية' },
+  'journal-books': { en: 'Organize journals by book and sequence', ar: 'تنظيم القيود حسب الدفتر والتسلسل' },
+  defaults: { en: 'Default receivable, payable, income and tax accounts', ar: 'الحسابات الافتراضية للذمم والدخل والضريبة' },
+  taxes: { en: 'Tax rates and codes used on invoices', ar: 'معدلات وأكواد الضريبة المستخدمة في الفواتير' },
+  'tax-report': { en: 'Posted tax amounts by period', ar: 'مبالغ الضريبة المرحّلة حسب الفترة' },
+  'aged-ar': { en: 'Open customer balances by due-date bucket', ar: 'أرصدة العملاء المفتوحة حسب شريحة الاستحقاق' },
+  'aged-ap': { en: 'Open vendor balances by due-date bucket', ar: 'أرصدة الموردين المفتوحة حسب شريحة الاستحقاق' },
+  'credit-notes': { en: 'Refunds and invoice corrections', ar: 'الاستردادات وتصحيحات الفواتير' },
+  'customer-payments': { en: 'Allocate customer receipts to open invoices', ar: 'تخصيص مقبوضات العملاء على الفواتير المفتوحة' },
+  customers: { en: 'Customer directory with live receivables', ar: 'دليل العملاء مع الذمم المدينة الحية' },
+  products: { en: 'Income, COGS and tax accounts for products', ar: 'حسابات الدخل وتكلفة البضاعة والضريبة للمنتجات' },
+  'vendor-bills': { en: 'Purchase bills awaiting payment', ar: 'فواتير الشراء بانتظار الدفع' },
+  'vendor-refunds': { en: 'Vendor credit notes and refunds', ar: 'إشعارات وإرجاعات الموردين' },
+  'vendor-payments': { en: 'Payments allocated to vendor bills', ar: 'مدفوعات مخصّصة لفواتير الموردين' },
+  'follow-up-reports': { en: 'Overdue invoices ready for collection follow-up', ar: 'فواتير متأخرة جاهزة للمتابعة التحصيلية' },
+  'follow-up-levels': { en: 'Dunning levels and WhatsApp reminder templates', ar: 'مستويات التذكير وقوالب واتساب' },
+  'partner-ledger': { en: 'Detailed movements per customer or vendor', ar: 'حركات تفصيلية لكل عميل أو مورد' },
+  'customer-account': { en: 'Statement of account for one customer', ar: 'كشف حساب لعميل واحد' },
+  'customer-summary': { en: 'Receivables summary across customers', ar: 'ملخص الذمم المدينة عبر العملاء' },
+  'balance-sheet': { en: 'Assets, liabilities and equity as of a date', ar: 'الأصول والخصوم وحقوق الملكية لتاريخ محدد' },
+  'cash-flow': { en: 'Operating, investing and financing cash movements', ar: 'التدفقات التشغيلية والاستثمارية والتمويلية' },
+  'bank-recon': { en: 'Match bank statement lines to journals', ar: 'مطابقة بنود كشف البنك مع القيود' },
+  'journals-board': { en: 'Draft, posted and reversed journal board', ar: 'لوحة القيود المسودة والمرحّلة والمعكوسة' },
+  'journal-items': { en: 'Line-level journal detail', ar: 'تفاصيل بنود القيود' },
+  'general-ledger': { en: 'Account movements for the selected period', ar: 'حركات الحساب للفترة المحددة' },
+  'lock-dates': { en: 'Prevent posting into closed periods', ar: 'منع الترحيل إلى فترات مغلقة' },
+  'period-close': { en: 'Close accounting periods and roll balances', ar: 'إقفال الفترات المحاسبية وترحيل الأرصدة' },
+}
+
 const TABS = [
   { id: 'overview', labelEn: 'Overview', labelAr: 'نظرة عامة', icon: Landmark },
   { id: 'chart-of-accounts', labelEn: 'Chart of Accounts', labelAr: 'دليل الحسابات', icon: BookOpen },
@@ -261,7 +292,7 @@ export default function Accounting() {
         {tab === 'credit-notes' ? (
           <button
             type="button"
-            onClick={() => navigate('/app/dashboard/accounting/invoices/new/sell?invoiceType=381')}
+            onClick={() => window.dispatchEvent(new CustomEvent('accounting:new-credit-note'))}
             className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-700"
           >
             <Plus className="h-3.5 w-3.5" />
@@ -564,9 +595,11 @@ export default function Accounting() {
             {isAr ? activeTab.labelAr : activeTab.labelEn}
           </h2>
           <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-            {isAr
-              ? 'دفتر مزدوج القيد مع الفواتير والتقارير'
-              : 'Double-entry ledger with invoices and reports'}
+            {(() => {
+              const sub = TAB_SUBTITLES[tab]
+              if (sub) return isAr ? sub.ar : sub.en
+              return isAr ? activeTab.labelAr : activeTab.labelEn
+            })()}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

@@ -2598,6 +2598,10 @@ export async function reconcileCreditNoteWithInvoice({
 
   originalInvoice.paidAmount = round2(Number(originalInvoice.paidAmount || 0) + applied);
   applyPaidAmountStatus(originalInvoice);
+  const remainingAfter = round2(Math.max(0, Number(originalInvoice.grandTotal || 0) - Number(originalInvoice.paidAmount || 0)));
+  if (remainingAfter < 0.01 && String(originalInvoice.status) !== 'cancelled') {
+    originalInvoice.status = 'credited';
+  }
   await originalInvoice.save();
 
   creditNote.paymentStatus = applied >= remaining - 0.005 ? 'paid' : 'partial';

@@ -148,21 +148,7 @@ export default function AccountingProductsPanel({ language = 'en' }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-            {isAr ? 'المنتجات' : 'Products'}
-          </p>
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-            {isAr ? 'المنتجات (محاسبة)' : 'Products (accounting)'}
-          </h2>
-          <p className="mt-0.5 text-sm text-slate-500">
-            {isAr
-              ? 'سعر التكلفة والبيع، حساب الدخل وتكلفة البضاعة، والضريبة'
-              : 'Cost & sale price, income / COGS accounts, and customer tax'}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
           <button
             type="button"
             className="btn btn-secondary btn-sm"
@@ -179,7 +165,6 @@ export default function AccountingProductsPanel({ language = 'en' }) {
             <Plus className="h-4 w-4" />
             {isAr ? 'منتج جديد' : 'New product'}
           </button>
-        </div>
       </div>
 
       {missingCount > 0 ? (

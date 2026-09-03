@@ -51,15 +51,7 @@ export default function VendorRefundsPanel({ language = 'en' }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-            {isAr ? 'الموردون' : 'Vendors'}
-          </p>
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-            {isAr ? 'مرتجعات الموردين' : 'Vendor refunds'}
-          </h2>
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <button
           type="button"
           className="btn btn-primary btn-sm"

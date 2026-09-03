@@ -8,6 +8,15 @@ const ACTIONS = [
   { id: 'full_and_draft', en: 'Full refund & new draft invoice', ar: 'استرداد كامل وفاتورة مسودة جديدة' },
 ]
 
+const REASON_PRESETS = [
+  { id: 'return', en: 'Goods returned', ar: 'إرجاع بضاعة' },
+  { id: 'damage', en: 'Damaged goods', ar: 'بضاعة تالفة' },
+  { id: 'price_correction', en: 'Price correction', ar: 'تصحيح سعر' },
+  { id: 'partial_refund', en: 'Partial refund', ar: 'استرداد جزئي' },
+  { id: 'full_refund', en: 'Full refund', ar: 'استرداد كامل' },
+  { id: 'other', en: 'Other', ar: 'أخرى' },
+]
+
 export default function CreditNoteFromInvoiceModal({
   isOpen,
   onClose,
@@ -23,6 +32,7 @@ export default function CreditNoteFromInvoiceModal({
   allowPartialLines = false,
 }) {
   const isAr = language === 'ar'
+  const [reasonPreset, setReasonPreset] = useState('return')
   const [reason, setReason] = useState('')
   const [reversalDate, setReversalDate] = useState('')
   const [useJournalDate, setUseJournalDate] = useState(true)
@@ -36,7 +46,8 @@ export default function CreditNoteFromInvoiceModal({
 
   useEffect(() => {
     if (!isOpen) return
-    setReason('')
+    setReasonPreset('return')
+    setReason(isAr ? REASON_PRESETS[0].ar : REASON_PRESETS[0].en)
     setReversalDate(new Date().toISOString().slice(0, 10))
     setUseJournalDate(true)
     setAction('full')
@@ -46,7 +57,7 @@ export default function CreditNoteFromInvoiceModal({
       next[key] = Math.abs(Number(line.quantity || 0))
     }
     setRefundQtyByLine(next)
-  }, [isOpen, invoice?._id, sourceLines])
+  }, [isOpen, invoice?._id, sourceLines, isAr])
 
   if (!isOpen) return null
 
@@ -67,6 +78,7 @@ export default function CreditNoteFromInvoiceModal({
   const handleSubmit = () => {
     const payload = {
       reason: reason.trim(),
+      creditNoteType: reasonPreset,
       reversalDate: useJournalDate ? null : reversalDate,
       action,
     }
@@ -93,7 +105,23 @@ export default function CreditNoteFromInvoiceModal({
           </button>
         </div>
 
-        <label className="label">{isAr ? 'السبب' : 'Reason'}</label>
+        <label className="label">{isAr ? 'نوع السبب' : 'Reason type'}</label>
+        <select
+          value={reasonPreset}
+          onChange={(e) => {
+            const id = e.target.value
+            setReasonPreset(id)
+            const preset = REASON_PRESETS.find((r) => r.id === id)
+            if (preset) setReason(isAr ? preset.ar : preset.en)
+          }}
+          className="input"
+        >
+          {REASON_PRESETS.map((r) => (
+            <option key={r.id} value={r.id}>{isAr ? r.ar : r.en}</option>
+          ))}
+        </select>
+
+        <label className="label mt-3">{isAr ? 'السبب (مطلوب)' : 'Reason (required)'}</label>
         <input
           value={reason}
           onChange={(e) => setReason(e.target.value)}

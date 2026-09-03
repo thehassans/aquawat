@@ -205,15 +205,7 @@ export default function VendorPaymentsPanel({ language = 'en' }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-            {isAr ? 'الموردون' : 'Vendors'}
-          </p>
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-            {isAr ? 'مدفوعات الموردين' : 'Vendor payments'}
-          </h2>
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowForm(true)}>
           <Plus className="h-4 w-4" />
           {isAr ? 'دفعة جديدة' : 'New payment'}

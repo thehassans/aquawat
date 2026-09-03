@@ -286,21 +286,7 @@ export default function CustomerPaymentsPanel({ language = 'en' }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-            {isAr ? 'العملاء' : 'Customers'}
-          </p>
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-            {isAr ? 'مدفوعات العملاء' : 'Customer payments'}
-          </h2>
-          <p className="mt-0.5 text-sm text-slate-500">
-            {isAr
-              ? 'إيصالات مرتبطة بالفواتير مع التخصيص والقيد المحاسبي'
-              : 'Receipts linked to invoices with allocation and GL posting'}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
           <button
             type="button"
             className="btn btn-secondary btn-sm"
@@ -319,7 +305,6 @@ export default function CustomerPaymentsPanel({ language = 'en' }) {
             <Plus className="h-4 w-4" />
             {isAr ? 'دفعة جديدة' : 'New payment'}
           </button>
-        </div>
       </div>
 
       <div className={filterBarClass}>

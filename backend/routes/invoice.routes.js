@@ -3190,6 +3190,14 @@ router.post('/:id/credit-note', checkPermission('invoicing', 'create'), async (r
     const action = String(req.body?.action || 'full').toLowerCase();
     const isPartial = action === 'partial';
     const reason = String(req.body?.reason || '').trim();
+    if (!reason) {
+      return res.status(400).json({ error: 'Credit note reason is required (ZATCA)', code: 'CREDIT_NOTE_REASON_REQUIRED' });
+    }
+    const creditNoteType = String(req.body?.creditNoteType || '').trim().toLowerCase();
+    const allowedTypes = new Set(['full_refund', 'partial_refund', 'price_correction', 'return', 'damage', 'other']);
+    const resolvedType = allowedTypes.has(creditNoteType)
+      ? creditNoteType
+      : (isPartial ? 'partial_refund' : 'full_refund');
     const reversalDateRaw = req.body?.reversalDate;
     const reversalDate = reversalDateRaw ? new Date(reversalDateRaw) : new Date();
 
@@ -3198,7 +3206,8 @@ router.post('/:id/credit-note', checkPermission('invoicing', 'create'), async (r
         tenantId: originalInvoice.tenantId,
         originalInvoiceId: originalInvoice._id,
         invoiceType: '381',
-      }).select('_id invoiceNumber');
+        status: { $nin: ['cancelled'] },
+      }).select('_id invoiceNumber status');
       if (existingCn) {
         return res.status(400).json({
           error: `A credit note already exists (${existingCn.invoiceNumber})`,
@@ -3207,17 +3216,17 @@ router.post('/:id/credit-note', checkPermission('invoicing', 'create'), async (r
       }
     }
 
-    const partialCount = isPartial
-      ? await Invoice.countDocuments({
-        tenantId: originalInvoice.tenantId,
-        originalInvoiceId: originalInvoice._id,
-        invoiceType: '381',
-      })
-      : 0;
-
-    const creditNoteNumber = originalInvoice.flow === 'purchase'
-      ? (isPartial ? `VR-${originalInvoice.invoiceNumber}-${partialCount + 1}` : `VR-${originalInvoice.invoiceNumber}`)
-      : (isPartial ? `CN-${originalInvoice.invoiceNumber}-${partialCount + 1}` : `CN-${originalInvoice.invoiceNumber}`);
+    const year = (reversalDate instanceof Date && !Number.isNaN(reversalDate.getTime())
+      ? reversalDate
+      : new Date()).getFullYear();
+    const seriesPrefix = originalInvoice.flow === 'purchase' ? `VR-${year}-` : `CN-${year}-`;
+    const seriesCount = await Invoice.countDocuments({
+      tenantId: originalInvoice.tenantId,
+      invoiceType: '381',
+      flow: originalInvoice.flow || 'sell',
+      invoiceNumber: new RegExp(`^${seriesPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
+    });
+    const creditNoteNumber = `${seriesPrefix}${String(seriesCount + 1).padStart(6, '0')}`;
     const source = originalInvoice.toObject();
     delete source._id;
     delete source.__v;
@@ -3246,6 +3255,7 @@ router.post('/:id/credit-note', checkPermission('invoicing', 'create'), async (r
       invoiceType: '381',
       invoiceTypeCode: originalInvoice.transactionType === 'B2C' ? '0200100' : '0100100',
       originalInvoiceId: originalInvoice._id,
+      originalInvoiceNumber: originalInvoice.invoiceNumber,
       lineItems: reversedLines,
       subtotal,
       taxAmount,
@@ -3253,17 +3263,17 @@ router.post('/:id/credit-note', checkPermission('invoicing', 'create'), async (r
       paidAmount: 0,
       status: 'draft',
       zatca: {},
-      internalNotes: reason ? `Refund: ${reason}` : source.internalNotes,
+      creditNoteReason: reason,
+      creditNoteType: resolvedType,
+      internalNotes: `Refund: ${reason}${originalInvoice.invoiceNumber ? ` (from ${originalInvoice.invoiceNumber})` : ''}`,
       createdBy: req.user._id,
       ...getUserDisplayNames(req.user),
       issueDate: reversalDate,
       accountingDate: reversalDate,
     });
 
-    if (!isPartial) {
-      originalInvoice.status = 'credited';
-      await originalInvoice.save();
-    }
+    // Do not mark original as credited until the credit note is posted (see postSellInvoiceLedgers).
+    // Keep a soft lock via existingCn check for non-cancelled drafts.
 
     if (originalInvoice.flow === 'purchase') {
       creditNote.status = 'approved';

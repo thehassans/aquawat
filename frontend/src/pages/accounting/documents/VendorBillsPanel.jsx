@@ -180,16 +180,7 @@ export default function VendorBillsPanel({ language = 'en' }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-            {isAr ? 'الموردون' : 'Vendors'}
-          </p>
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-            {isAr ? 'فواتير الموردين' : 'Vendor bills'}
-          </h2>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
           <ExportMenu
             columns={exportColumns}
             filename="vendor-bills"
@@ -213,7 +204,6 @@ export default function VendorBillsPanel({ language = 'en' }) {
             <Plus className="h-4 w-4" />
             {isAr ? 'فاتورة جديدة' : 'New bill'}
           </button>
-        </div>
       </div>
 
       <div className={filterBarClass}>
