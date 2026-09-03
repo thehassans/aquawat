@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Search } from 'lucide-react'
+import { Search, Users, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import Money from '../../components/ui/Money'
@@ -16,6 +16,18 @@ import { openPlaidLink } from './plaidLink'
 import { openSaltEdgeConnect } from './saltEdgeConnect'
 import RegisterPaymentModal from '../../components/accounting/RegisterPaymentModal'
 import FollowUpPreviewModal from '../../components/accounting/FollowUpPreviewModal'
+import EmptyState from '../../components/ui/EmptyState'
+import {
+  journalStatusLabel,
+  journalTypeLabel,
+  followUpChannelLabel,
+  accountTypeLabel,
+  accountSubtypeLabel,
+  taxTypeLabel,
+  taxScopeLabel,
+  analyticTypeLabel,
+  deferredStatusLabel,
+} from '../../lib/accountingLabels'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 const yearStartIso = () => new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10)
@@ -52,7 +64,7 @@ function JournalCards({ rows, language, empty, onPost, posting, onReverse, rever
             <div>
               <p className="font-semibold text-slate-900 dark:text-white">{j.entryNumber}</p>
               <p className="text-sm text-slate-500">{j.memo || '—'}</p>
-              <p className="mt-1 text-xs text-slate-400">{new Date(j.entryDate).toLocaleDateString()} · {j.type}</p>
+              <p className="mt-1 text-xs text-slate-400">{new Date(j.entryDate).toLocaleDateString()} · {journalTypeLabel(j.type, language)}</p>
             </div>
             <div className="flex items-center gap-2">
               <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
@@ -60,7 +72,7 @@ function JournalCards({ rows, language, empty, onPost, posting, onReverse, rever
                   : j.status === 'reversed' ? 'bg-slate-100 text-slate-600'
                     : j.status === 'void' ? 'bg-rose-50 text-rose-700'
                       : 'bg-amber-50 text-amber-700'
-              }`}>{j.status}</span>
+              }`}>{journalStatusLabel(j.status, language)}</span>
               {j.status === 'draft' && onPost && (
                 <button
                   type="button"
@@ -379,7 +391,7 @@ export function AccountReportPanel({ language }) {
             </div>
           </div>
           <table className="min-w-full text-sm">
-            <thead className="sticky top-[7.5rem] bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-400 dark:bg-dark-900">
+            <thead className="sticky top-[6.75rem] bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-400 dark:bg-dark-900">
               <tr>
                 <th className="px-4 py-3 text-start">{language === 'ar' ? 'التاريخ' : 'Date'}</th>
                 <th className="px-4 py-3 text-start">{language === 'ar' ? 'القيد' : 'Entry'}</th>
@@ -1349,7 +1361,7 @@ export function JournalBooksPanel({ language }) {
               <tr key={book._id}>
                 <td className="px-4 py-3 font-semibold tabular-nums">{book.code}</td>
                 <td className="px-4 py-3">{isAr ? (book.nameAr || book.name) : book.name}</td>
-                <td className="px-4 py-3 text-slate-500">{book.type}</td>
+                <td className="px-4 py-3 text-slate-500">{journalTypeLabel(book.type, language)}</td>
                 <td className="px-4 py-3 text-xs text-slate-500">
                   {editId === book._id ? (
                     <select
@@ -1572,7 +1584,7 @@ export function TaxesPanel({ language }) {
                   <p>{isAr ? (tax.nameAr || tax.name) : tax.name}</p>
                   {tax.invoiceLabel ? <p className="text-[11px] text-slate-400">{tax.invoiceLabel}</p> : null}
                 </td>
-                <td className="px-4 py-3 text-slate-500">{tax.type}{tax.scope && tax.scope !== 'all' ? ` · ${tax.scope}` : ''}</td>
+                <td className="px-4 py-3 text-slate-500">{taxTypeLabel(tax.type, language)}{tax.scope && tax.scope !== 'all' ? ` · ${taxScopeLabel(tax.scope, language)}` : ''}</td>
                 <td className="px-4 py-3 text-xs text-slate-500">{computationShort(tax.computationMethod)}{tax.includedInPrice ? ' · incl' : ''}</td>
                 <td className="px-4 py-3 text-end tabular-nums">
                   {tax.computationMethod === 'fixed' ? `—` : `${tax.rate}%`}
@@ -2153,7 +2165,7 @@ export function AnalyticAccountsPanel({ language }) {
               <tr key={row._id}>
                 <td className="px-4 py-3 font-semibold">{row.code}</td>
                 <td className="px-4 py-3">{isAr ? (row.nameAr || row.name) : row.name}</td>
-                <td className="px-4 py-3 text-slate-500">{row.type}</td>
+                <td className="px-4 py-3 text-slate-500">{analyticTypeLabel(row.type, language)}</td>
                 <td className="px-4 py-3">
                   <button type="button" className={`text-xs font-semibold ${row.active !== false ? 'text-emerald-600' : 'text-slate-400'}`} onClick={() => toggle.mutate({ id: row._id, active: row.active === false })}>
                     {row.active !== false ? (isAr ? 'نعم' : 'Yes') : (isAr ? 'لا' : 'No')}
@@ -2811,7 +2823,25 @@ function AgedReportPanel({ language, kind }) {
                 )
               })}
               {!filteredCustomers.length && (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا أرصدة مفتوحة' : 'No open balances'}</td></tr>
+                <tr>
+                  <td colSpan={9}>
+                    <EmptyState
+                      icon={Users}
+                      language={language}
+                      title="No open balances"
+                      titleAr="لا أرصدة مفتوحة"
+                      description={kind === 'ar'
+                        ? 'When customers have unpaid invoices past due, they appear here by aging bucket.'
+                        : 'When vendors have unpaid bills, they appear here by aging bucket.'}
+                      descriptionAr={kind === 'ar'
+                        ? 'عند وجود فواتير عملاء غير مدفوعة تظهر هنا حسب شريحة التأخير.'
+                        : 'عند وجود فواتير موردين غير مدفوعة تظهر هنا حسب شريحة التأخير.'}
+                      action={() => navigate(kind === 'ar' ? '/app/dashboard/accounting/invoices' : '/app/dashboard/accounting/vendor-bills')}
+                      actionLabel={kind === 'ar' ? 'View invoices' : 'View vendor bills'}
+                      actionLabelAr={kind === 'ar' ? 'عرض الفواتير' : 'عرض فواتير الموردين'}
+                    />
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
@@ -2877,7 +2907,25 @@ function AgedReportPanel({ language, kind }) {
                 )
               })}
               {!filteredRows.length && (
-                <tr><td colSpan={kind === 'ar' ? 9 : 8} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا أرصدة مفتوحة' : 'No open balances'}</td></tr>
+                <tr>
+                  <td colSpan={kind === 'ar' ? 9 : 8}>
+                    <EmptyState
+                      icon={Users}
+                      language={language}
+                      title="No open balances"
+                      titleAr="لا أرصدة مفتوحة"
+                      description={kind === 'ar'
+                        ? 'When customers have unpaid invoices past due, they appear here by aging bucket.'
+                        : 'When vendors have unpaid bills, they appear here by aging bucket.'}
+                      descriptionAr={kind === 'ar'
+                        ? 'عند وجود فواتير عملاء غير مدفوعة تظهر هنا حسب شريحة التأخير.'
+                        : 'عند وجود فواتير موردين غير مدفوعة تظهر هنا حسب شريحة التأخير.'}
+                      action={() => navigate(kind === 'ar' ? '/app/dashboard/accounting/invoices' : '/app/dashboard/accounting/vendor-bills')}
+                      actionLabel={kind === 'ar' ? 'View invoices' : 'View vendor bills'}
+                      actionLabelAr={kind === 'ar' ? 'عرض الفواتير' : 'عرض فواتير الموردين'}
+                    />
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
@@ -3024,7 +3072,7 @@ export function FollowUpReportsPanel({ language }) {
     if (!last?.sentAt) return '—'
     const d = new Date(last.sentAt)
     const label = d.toLocaleDateString(isAr ? 'ar-SA' : 'en-GB', { day: 'numeric', month: 'short' })
-    const ch = last.channel || ''
+    const ch = last.channel ? followUpChannelLabel(last.channel, language) : ''
     return ch ? `${label} · ${ch}` : label
   }
 
@@ -3168,7 +3216,7 @@ export function FollowUpReportsPanel({ language }) {
                   {row.followUpLevel ? (
                     <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                       {isAr ? (row.followUpLevel.nameAr || row.followUpLevel.name) : row.followUpLevel.name}
-                      {' · '}{row.followUpLevel.channel}
+                      {' · '}{followUpChannelLabel(row.followUpLevel.channel, language)}
                     </span>
                   ) : '—'}
                 </td>
@@ -3187,7 +3235,21 @@ export function FollowUpReportsPanel({ language }) {
               )
             })}
             {!overdueRows.length && (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا فواتير متأخرة' : 'No overdue invoices'}</td></tr>
+              <tr>
+                <td colSpan={9}>
+                  <EmptyState
+                    icon={FileText}
+                    language={language}
+                    title="No overdue invoices"
+                    titleAr="لا فواتير متأخرة"
+                    description="Overdue open invoices appear here for collection follow-up."
+                    descriptionAr="الفواتير المفتوحة المتأخرة تظهر هنا للمتابعة التحصيلية."
+                    action={() => navigate('/app/dashboard/accounting/aged-ar')}
+                    actionLabel="View aged receivables"
+                    actionLabelAr="عرض أعمار المدينين"
+                  />
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
@@ -4103,7 +4165,7 @@ export function OpeningBalancesPanel({ language, onNewOpening }) {
                 <p className="font-semibold">{j.entryNumber}</p>
                 <p className="text-sm text-slate-500">{j.memo || '—'}</p>
                 <p className="mt-1 text-xs text-slate-400">
-                  {j.entryDate ? new Date(j.entryDate).toLocaleDateString() : '—'} · {j.status}
+                  {j.entryDate ? new Date(j.entryDate).toLocaleDateString() : '—'} · {journalStatusLabel(j.status, language)}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -5105,7 +5167,7 @@ export function ChartOfAccountsPanel({ language }) {
                     <p className="font-medium text-slate-900 dark:text-white">{isAr ? (a.nameAr || a.name) : a.name}</p>
                     {a.isSystem ? <span className="text-[10px] uppercase text-slate-400">{isAr ? 'نظام' : 'System'}</span> : null}
                   </td>
-                  <td className="px-5 py-3.5 capitalize text-slate-500">{a.type}{a.subtype ? ` · ${a.subtype}` : ''}</td>
+                  <td className="px-5 py-3.5 text-slate-500">{accountTypeLabel(a.type, language)}{a.subtype ? ` · ${accountSubtypeLabel(a.subtype, language)}` : ''}</td>
                   <td className="px-5 py-3.5 text-xs text-slate-500">{(a.tags || []).join(', ') || '—'}</td>
                   <td className="px-5 py-3.5 text-end font-semibold"><Money value={a.balance || 0} /></td>
                   <td className="px-5 py-3.5 text-end">
@@ -5691,7 +5753,7 @@ export function DeferredAccountsPanel({ language, kind = 'expense' }) {
                     <tr key={row.period}>
                       <td className="px-4 py-2 font-mono text-xs">{row.period}</td>
                       <td className="px-4 py-2 text-end"><Money value={row.amount} /></td>
-                      <td className="px-4 py-2 text-xs text-slate-500">{row.status}</td>
+                      <td className="px-4 py-2 text-xs text-slate-500">{deferredStatusLabel(row.status, language)}</td>
                     </tr>
                   ))}
                 </tbody>

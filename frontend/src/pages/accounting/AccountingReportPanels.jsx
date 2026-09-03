@@ -571,7 +571,7 @@ export function TrialBalancePanel({ language }) {
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="sticky top-[7.5rem] bg-slate-50 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:bg-dark-900">
+              <thead className="sticky top-[6.75rem] bg-slate-50 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:bg-dark-900">
                 <tr>
                   <th className="px-4 py-3 text-start">{isAr ? 'الرمز' : 'Code'}</th>
                   <th className="px-4 py-3 text-start">{isAr ? 'الحساب' : 'Account'}</th>

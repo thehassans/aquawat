@@ -121,12 +121,12 @@ export function ReportFilterRibbon({
   }
 
   return (
-    <div className="sticky top-0 z-20 space-y-3 rounded-[1.4rem] border border-white/80 bg-white/95 p-4 shadow-[0_14px_36px_-28px_rgba(15,23,42,0.35)] backdrop-blur-md dark:border-white/10 dark:bg-dark-800/95">
+    <div className="sticky top-[6.75rem] z-20 space-y-3 rounded-[1.4rem] border border-white/80 bg-white/95 p-4 shadow-[0_14px_36px_-28px_rgba(15,23,42,0.35)] backdrop-blur-md dark:border-white/10 dark:bg-dark-800/95">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          {title ? <p className="text-sm font-semibold text-slate-900 dark:text-white">{title}</p> : null}
+          {/* Title omitted when page shell already shows the same heading */}
           {!hidePresets ? (
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {Object.entries(presets).map(([key, p]) => (
               <button
                 key={key}

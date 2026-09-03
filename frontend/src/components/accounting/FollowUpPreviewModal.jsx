@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { X, Copy, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
-import Money from '../../components/ui/Money'
+import { followUpChannelLabel } from '../../lib/accountingLabels'
 
 /**
  * Preview before any bulk follow-up send. Always dry-run first.
@@ -151,7 +151,7 @@ export default function FollowUpPreviewModal({
                   <p className="font-semibold text-slate-900 dark:text-white">{row.partnerName}</p>
                   <p className="font-mono text-xs text-emerald-800 dark:text-emerald-300">{row.invoiceNumber}</p>
                   <p className="mt-0.5 text-[11px] text-slate-400">
-                    {row.levelNameAr || row.levelName} · {row.followUpChannel} · {row.ageDays}d · <Money value={row.residual} />
+                    {row.levelNameAr || row.levelName} · {followUpChannelLabel(row.followUpChannel, language)} · {row.ageDays}d · <Money value={row.residual} />
                     {row.phone ? ` · ${row.phone}` : (isAr ? ' · بلا هاتف' : ' · no phone')}
                   </p>
                 </div>

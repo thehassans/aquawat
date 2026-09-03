@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowDown, ArrowUp, Plus, RefreshCw, Search, Eye } from 'lucide-react'
+import { ArrowDown, ArrowUp, Plus, RefreshCw, Search, Eye, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useSelector } from 'react-redux'
 import api from '../../../lib/api'
 import Money from '../../../components/ui/Money'
 import ExportMenu from '../../../components/ui/ExportMenu'
 import ResponsiveDataList from '../../../components/ui/ResponsiveDataList'
+import EmptyState from '../../../components/ui/EmptyState'
 import AccountingDocumentBatchBar from './AccountingDocumentBatchBar'
 import RegisterPaymentModal from '../../../components/accounting/RegisterPaymentModal'
 import BatchCustomerPaymentModal from '../../../components/accounting/BatchCustomerPaymentModal'
@@ -428,7 +429,19 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
         ) : (
           <ResponsiveDataList
             items={rows}
-            empty={<p className={emptyStateClass}>{isAr ? 'لا توجد فواتير عملاء' : 'No customer invoices yet'}</p>}
+            empty={(
+              <EmptyState
+                icon={FileText}
+                language={language}
+                title="No customer invoices yet"
+                titleAr="لا توجد فواتير عملاء بعد"
+                description="Create a sales invoice to start tracking receivables and ZATCA compliance."
+                descriptionAr="أنشئ فاتورة مبيعات لبدء تتبع الذمم والامتثال لـ ZATCA."
+                action={() => navigate('/app/dashboard/accounting/invoices/new/sell')}
+                actionLabel="New invoice"
+                actionLabelAr="فاتورة جديدة"
+              />
+            )}
             renderCard={(row) => {
               const overdue = isOverdueRow(row)
               const activity = computeNextActivity(row, isAr)

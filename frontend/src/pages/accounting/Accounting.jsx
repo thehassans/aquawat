@@ -12,6 +12,7 @@ import api from '../../lib/api'
 import Money from '../../components/ui/Money'
 import ExportMenu from '../../components/ui/ExportMenu'
 import AccountingQueryState from './AccountingQueryState'
+import AccountingNotFound from './AccountingNotFound'
 import Vouchers from '../finance/Vouchers'
 import {
   AccountReportPanel,
@@ -139,6 +140,8 @@ const TAB_SUBTITLES = {
   'partner-ledger': { en: 'Detailed movements per customer or vendor', ar: 'حركات تفصيلية لكل عميل أو مورد' },
   'customer-account': { en: 'Statement of account for one customer', ar: 'كشف حساب لعميل واحد' },
   'customer-summary': { en: 'Receivables summary across customers', ar: 'ملخص الذمم المدينة عبر العملاء' },
+  'supplier-account': { en: 'Statement of account for one vendor', ar: 'كشف حساب لمورد واحد' },
+  'supplier-summary': { en: 'Payables summary across vendors', ar: 'ملخص الذمم الدائنة عبر الموردين' },
   'balance-sheet': { en: 'Assets, liabilities and equity as of a date', ar: 'الأصول والخصوم وحقوق الملكية لتاريخ محدد' },
   'cash-flow': { en: 'Operating, investing and financing cash movements', ar: 'التدفقات التشغيلية والاستثمارية والتمويلية' },
   'bank-recon': { en: 'Match bank statement lines to journals', ar: 'مطابقة بنود كشف البنك مع القيود' },
@@ -147,6 +150,31 @@ const TAB_SUBTITLES = {
   'general-ledger': { en: 'Account movements for the selected period', ar: 'حركات الحساب للفترة المحددة' },
   'lock-dates': { en: 'Prevent posting into closed periods', ar: 'منع الترحيل إلى فترات مغلقة' },
   'period-close': { en: 'Close accounting periods and roll balances', ar: 'إقفال الفترات المحاسبية وترحيل الأرصدة' },
+  trial: { en: 'Debits and credits by account for the period', ar: 'المدين والدائن حسب الحساب للفترة' },
+  pnl: { en: 'Revenue and expenses for the selected period', ar: 'الإيرادات والمصروفات للفترة المحددة' },
+  'executive-summary': { en: 'High-level KPIs and period highlights', ar: 'مؤشرات رئيسية وأبرز نتائج الفترة' },
+  'invoice-analysis': { en: 'Invoice volume, aging and payment trends', ar: 'حجم الفواتير وأعمارها واتجاهات السداد' },
+  'journal-report': { en: 'Journal entries listed for audit review', ar: 'قيود اليومية للمراجعة والتدقيق' },
+  'analytic-accounts': { en: 'Cost centers and analytic dimensions', ar: 'مراكز التكلفة والأبعاد التحليلية' },
+  'analytic-report': { en: 'Balances by analytic account', ar: 'الأرصدة حسب الحساب التحليلي' },
+  'analytic-items': { en: 'Journal lines tagged with analytics', ar: 'بنود القيود ذات التحليل' },
+  'fiscal-positions': { en: 'Tax mapping by fiscal position', ar: 'تعيين الضرائب حسب المركز الضريبي' },
+  'payment-terms': { en: 'Net days, installments and early discounts', ar: 'أيام الاستحقاق والأقساط وخصم التعجيل' },
+  incoterms: { en: 'International commercial terms catalog', ar: 'كتالوج شروط التجارة الدولية' },
+  'bank-accounts': { en: 'Company bank and cash journals', ar: 'حسابات البنك والنقد للشركة' },
+  currencies: { en: 'Currencies and exchange rates', ar: 'العملات وأسعار الصرف' },
+  assets: { en: 'Fixed assets register', ar: 'سجل الأصول الثابتة' },
+  'depreciation-schedule': { en: 'Planned and posted depreciation', ar: 'الإهلاك المخطط والمرحّل' },
+  'deferred-revenues': { en: 'Revenue recognition schedules', ar: 'جداول الاعتراف بالإيراد' },
+  'deferred-expenses': { en: 'Prepaid expense recognition schedules', ar: 'جداول الاعتراف بالمصروف المدفوع مقدماً' },
+  'opening-balances': { en: 'Opening entry for the fiscal year', ar: 'قيد الافتتاح للسنة المالية' },
+  'firm-clients': { en: 'Switch books for accounting firm clients', ar: 'تبديل دفاتر عملاء المكتب المحاسبي' },
+  'daily-restriction': { en: 'Journals posted on a selected day', ar: 'القيود المرحّلة في يوم محدد' },
+  'general-voucher': { en: 'Manual multi-line journal vouchers', ar: 'سندات قيد يدوية متعددة البنود' },
+  'receipt-voucher': { en: 'Cash and bank receipt vouchers', ar: 'سندات القبض النقدي والبنكي' },
+  'payment-voucher': { en: 'Cash and bank payment vouchers', ar: 'سندات الصرف النقدي والبنكي' },
+  'account-report': { en: 'Movements for a single GL account', ar: 'حركات حساب أستاذ واحد' },
+  'ledger-search': { en: 'Search journals and ledger lines', ar: 'بحث في القيود وبنود الأستاذ' },
 }
 
 const TABS = [
@@ -271,8 +299,9 @@ export default function Accounting() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { section } = useParams()
-  const tab = TABS.some((item) => item.id === section) ? section : 'overview'
-  const activeTab = TABS.find((item) => item.id === tab) || TABS[0]
+  const knownSection = !section || TABS.some((item) => item.id === section)
+  const tab = knownSection ? (section || 'overview') : null
+  const activeTab = tab ? (TABS.find((item) => item.id === tab) || TABS[0]) : null
   const [showJournalForm, setShowJournalForm] = useState(false)
   const [journalForm, setJournalForm] = useState({
     memo: '',
@@ -282,10 +311,10 @@ export default function Accounting() {
     lines: [emptyLine(), emptyLine()],
   })
   const isAr = language === 'ar'
-  const showNewEntry = NEW_ENTRY_TABS.has(tab) && !HIDE_JOURNAL_CTA_TABS.has(tab)
+  const showNewEntry = tab ? NEW_ENTRY_TABS.has(tab) && !HIDE_JOURNAL_CTA_TABS.has(tab) : false
 
   useRegisterAccountingPageActions(
-    (tab === 'receipt-voucher' || tab === 'payment-voucher')
+    !tab || tab === 'receipt-voucher' || tab === 'payment-voucher'
       ? null
       : (
       <div className="flex flex-wrap items-center gap-2">
@@ -346,6 +375,7 @@ export default function Accounting() {
   const { data: dashboard, isLoading: dashLoading, isError: dashError, error: dashErr, refetch: refetchDash } = useQuery({
     queryKey: ['accounting-dashboard'],
     queryFn: () => api.get('/accounting/dashboard').then((r) => r.data),
+    enabled: Boolean(tab),
   })
 
   const { data: recentInvoicesData, isLoading: invoicesLoading, refetch: refetchInvoices } = useQuery({
@@ -589,18 +619,20 @@ export default function Accounting() {
 
   return (
     <div className="space-y-6" style={fontPage}>
+      {!tab ? (
+        <AccountingNotFound language={language} section={section} />
+      ) : (
+      <>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
             {isAr ? activeTab.labelAr : activeTab.labelEn}
           </h2>
-          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-            {(() => {
-              const sub = TAB_SUBTITLES[tab]
-              if (sub) return isAr ? sub.ar : sub.en
-              return isAr ? activeTab.labelAr : activeTab.labelEn
-            })()}
-          </p>
+          {TAB_SUBTITLES[tab] ? (
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+              {isAr ? TAB_SUBTITLES[tab].ar : TAB_SUBTITLES[tab].en}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           {!PANEL_EXPORT_TABS.has(tab) ? (
@@ -1504,6 +1536,8 @@ export default function Accounting() {
           </div>
         )}
       </AnimatePresence>
+      </>
+      )}
     </div>
   )
 }

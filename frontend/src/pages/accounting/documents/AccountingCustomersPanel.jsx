@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Search, ShieldCheck, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Search, ShieldCheck, AlertTriangle, ChevronLeft, ChevronRight, Users } from 'lucide-react'
 import api from '../../../lib/api'
 import Money from '../../../components/ui/Money'
 import ResponsiveDataList from '../../../components/ui/ResponsiveDataList'
+import EmptyState from '../../../components/ui/EmptyState'
 import { useAccountingQuery } from '../../../hooks/useAccountingQuery'
 import AccountingQueryState from '../AccountingQueryState'
 import {
@@ -149,7 +150,19 @@ export default function AccountingCustomersPanel({ language = 'en' }) {
         <div className={listShellClass}>
           <ResponsiveDataList
             items={rows}
-            empty={<p className={emptyStateClass}>{isAr ? 'لا يوجد عملاء' : 'No customers found'}</p>}
+            empty={(
+              <EmptyState
+                icon={Users}
+                language={language}
+                title="No customers found"
+                titleAr="لا يوجد عملاء"
+                description="Add a customer to track receivables, payment terms, and VAT identity."
+                descriptionAr="أضف عميلاً لتتبع الذمم وشروط الدفع والرقم الضريبي."
+                action={() => navigate('/app/dashboard/customers/new')}
+                actionLabel="New customer"
+                actionLabelAr="عميل جديد"
+              />
+            )}
             renderCard={(row) => (
               <Link
                 key={row._id}

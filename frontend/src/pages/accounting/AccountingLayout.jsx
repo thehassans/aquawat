@@ -242,10 +242,14 @@ export default function AccountingLayout() {
               </label>
             ) : null}
           </div>
+        </div>
+      </div>
 
+      <div className="sticky top-16 z-40 border-b border-slate-200/90 bg-white/95 backdrop-blur-md dark:border-dark-600 dark:bg-dark-900/95">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
           <button
             type="button"
-            className="btn btn-secondary btn-sm me-3 mb-2 lg:hidden"
+            className="btn btn-secondary btn-sm me-3 my-2 lg:hidden"
             onClick={() => setMobileOpen((v) => !v)}
             aria-expanded={mobileOpen}
           >
