@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { getAuthToken } from '../lib/authStorage'
 
 export function useZatcaQueueStream() {
   const [data, setData] = useState(null)
@@ -8,7 +9,7 @@ export function useZatcaQueueStream() {
   useEffect(() => {
     if (typeof window === 'undefined' || !window.EventSource) return
 
-    const token = localStorage.getItem('token')
+    const token = getAuthToken()
     if (!token) return
 
     const url = `${import.meta.env.VITE_API_URL || '/api'}/super-admin/zatca/queue/stream`

@@ -37,18 +37,19 @@ const sendRouteError = (res, error) => {
   return res.status(500).json({ error: error.message });
 };
 
-const generateToken = (id, tenantId = null) => {
+const generateToken = (id, tenantId = null, expiresIn) => {
   const payload = { id: String(id) };
   if (tenantId) payload.tenantId = String(tenantId);
   if (!process.env.JWT_SECRET) {
     throw new Error('JWT_SECRET is not configured');
   }
   return jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '24h'
+    expiresIn: expiresIn || process.env.JWT_EXPIRE || '24h'
   });
 };
 
 const AUTH_COOKIE = 'maqder_token';
+const REMEMBER_EXPIRE = process.env.JWT_REMEMBER_EXPIRE || '30d';
 
 /** Convert JWT_EXPIRE-style strings (e.g. 7d, 24h, 30m) to milliseconds for cookie maxAge. */
 const jwtExpireToMs = (expire = '7d') => {
@@ -60,14 +61,17 @@ const jwtExpireToMs = (expire = '7d') => {
   return n * (mult[unit] || mult.d);
 };
 
-const setAuthCookie = (res, token) => {
-  res.cookie(AUTH_COOKIE, token, {
+const setAuthCookie = (res, token, { rememberMe = false } = {}) => {
+  const options = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
-    maxAge: jwtExpireToMs(process.env.JWT_EXPIRE || '24h'),
-  });
+  };
+  if (rememberMe) {
+    options.maxAge = jwtExpireToMs(REMEMBER_EXPIRE);
+  }
+  res.cookie(AUTH_COOKIE, token, options);
 };
 
 const clearAuthCookie = (res) => {
@@ -166,7 +170,7 @@ router.post('/register', async (req, res) => {
 // @route   POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
-    let { email, password, isObfuscated, tenantSlug } = req.body;
+    let { email, password, isObfuscated, tenantSlug, rememberMe } = req.body;
     
     // Obfuscation decode to prevent plaintext in browser payload
     if (isObfuscated && password) {
@@ -350,9 +354,10 @@ router.post('/login', async (req, res) => {
 
     User.updateOne({ _id: user._id }, updatePayload).catch(() => {});
 
-    const token = generateToken(user._id, user.tenantId || tenant?._id);
+    const remember = rememberMe === true || rememberMe === 'true' || rememberMe === 1 || rememberMe === '1';
+    const token = generateToken(user._id, user.tenantId || tenant?._id, remember ? REMEMBER_EXPIRE : undefined);
     const responseTenant = serializeAuthTenant(tenant);
-    setAuthCookie(res, token);
+    setAuthCookie(res, token, { rememberMe: remember });
 
     emitPlatformEvent('login', {
       userId: String(user._id),
@@ -604,9 +609,10 @@ router.post('/verify-otp', async (req, res) => {
       tenant = await withQueryTimeout(Tenant.findById(user.tenantId).select(authTenantSelect));
     }
 
-    const token = generateToken(user._id, user.tenantId || tenant?._id);
+    const remember = req.body?.rememberMe === true || req.body?.rememberMe === 'true' || req.body?.rememberMe === 1 || req.body?.rememberMe === '1';
+    const token = generateToken(user._id, user.tenantId || tenant?._id, remember ? REMEMBER_EXPIRE : undefined);
     const responseTenant = serializeAuthTenant(tenant);
-    setAuthCookie(res, token);
+    setAuthCookie(res, token, { rememberMe: remember });
 
     res.json({
       token,

@@ -1,5 +1,13 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../lib/api'
+import {
+  clearAuthSession,
+  getAuthToken,
+  getCachedAuthTenant,
+  getCachedAuthUser,
+  persistAuthSession,
+  setRememberedEmail,
+} from '../../lib/authStorage'
 
 const hasBusinessIdentity = (business) => Boolean(
   business?.legalNameEn
@@ -77,48 +85,31 @@ const mergeTenantState = (prev, incoming) => {
 }
 
 const persistAuthSnapshot = (payload = {}) => {
-  if (Object.prototype.hasOwnProperty.call(payload, 'user')) {
-    if (payload.user) {
-      localStorage.setItem('auth_user', JSON.stringify(payload.user))
-    } else {
-      localStorage.removeItem('auth_user')
-    }
-  }
-
-  if (Object.prototype.hasOwnProperty.call(payload, 'tenant')) {
-    if (payload.tenant) {
-      localStorage.setItem('auth_tenant', JSON.stringify(payload.tenant))
-    } else {
-      localStorage.removeItem('auth_tenant')
-    }
-  }
+  persistAuthSession({
+    user: Object.prototype.hasOwnProperty.call(payload, 'user') ? payload.user : undefined,
+    tenant: Object.prototype.hasOwnProperty.call(payload, 'tenant') ? payload.tenant : undefined,
+    remember: payload.remember,
+  })
 }
 
 const clearAuthSnapshot = () => {
-  localStorage.removeItem('auth_user')
-  localStorage.removeItem('auth_tenant')
+  clearAuthSession()
 }
 
-const token = localStorage.getItem('token')
-const cachedUser = (() => {
-  try {
-    return JSON.parse(localStorage.getItem('auth_user') || 'null')
-  } catch {
-    return null
-  }
-})()
+const token = getAuthToken()
+const cachedUser = getCachedAuthUser()
 const cachedTenant = (() => {
   try {
-    const raw = JSON.parse(localStorage.getItem('auth_tenant') || 'null')
+    const raw = getCachedAuthTenant()
     if (!raw || typeof raw !== 'object') return null
     // Recover from a past bug that stored the whole `/auth/me` envelope as tenant.
     if (looksLikeAuthMePayload(raw) && raw.tenant) {
-      try { localStorage.setItem('auth_tenant', JSON.stringify(raw.tenant)) } catch {}
+      persistAuthSession({ tenant: raw.tenant })
       return raw.tenant
     }
     // Discard shells that only hold a compliance key (no company identity).
     if (!raw._id && !raw.name && !raw.business && !raw.businessTypes && !raw.subscription) {
-      localStorage.removeItem('auth_tenant')
+      persistAuthSession({ tenant: null })
       return null
     }
     return raw
@@ -138,19 +129,26 @@ const initialState = {
 
 export const login = createAsyncThunk(
   'auth/login',
-  async ({ email, password, tenantSlug }, { rejectWithValue }) => {
+  async ({ email, password, tenantSlug, rememberMe }, { rejectWithValue }) => {
     try {
       // Obfuscate password to prevent it showing in plaintext in the Network tab
       // Note: HTTPS provides the actual transport security.
+      const remember = Boolean(rememberMe)
       const obfPassword = btoa(encodeURIComponent(password))
       const { data } = await api.post('/auth/login', { 
         email, 
         password: obfPassword, 
         isObfuscated: true,
-        tenantSlug 
+        tenantSlug,
+        rememberMe: remember,
       })
-      localStorage.setItem('token', data.token)
-      persistAuthSnapshot(data)
+      persistAuthSession({
+        token: data.token,
+        user: data.user,
+        tenant: data.tenant,
+        remember,
+      })
+      setRememberedEmail(email, remember)
       return data
     } catch (error) {
       return rejectWithValue(error.userMessage || error.response?.data?.error || 'Login failed')
@@ -161,7 +159,7 @@ export const login = createAsyncThunk(
 export const demoLogin = createAsyncThunk('auth/demoLogin', async (_, { rejectWithValue }) => {
   try {
     const { data } = await api.post('/public/demo-login')
-    localStorage.setItem('token', data.token)
+    persistAuthSession({ token: data.token, user: data.user, tenant: data.tenant, remember: true })
     persistAuthSnapshot(data)
     return data
   } catch (error) {
@@ -172,7 +170,7 @@ export const demoLogin = createAsyncThunk('auth/demoLogin', async (_, { rejectWi
 export const demoSignup = createAsyncThunk('auth/demoSignup', async ({ email, businessType, country, currency, companyName, logo }, { rejectWithValue }) => {
   try {
     const { data } = await api.post('/public/demo-signup', { email, businessType, country, currency, companyName, logo })
-    localStorage.setItem('token', data.token)
+    persistAuthSession({ token: data.token, user: data.user, tenant: data.tenant, remember: true })
     persistAuthSnapshot(data)
     return data
   } catch (error) {
@@ -194,7 +192,6 @@ export const getMe = createAsyncThunk(
       if (errMsg === 'Tenant account is inactive') {
         return rejectWithValue({ tenantInactive: true })
       }
-      localStorage.removeItem('token')
       clearAuthSnapshot()
       return rejectWithValue(error.userMessage || errMsg || 'Session expired')
     }
@@ -207,7 +204,6 @@ export const logout = createAsyncThunk('auth/logout', async () => {
   } catch {
     // Cookie clear is best-effort — always clear local session
   }
-  localStorage.removeItem('token')
   clearAuthSnapshot()
   return null
 })
@@ -230,7 +226,7 @@ const authSlice = createSlice({
     setTenantInactive: (state) => {
       if (state.tenant) {
         state.tenant = { ...state.tenant, isActive: false }
-        try { localStorage.setItem('auth_tenant', JSON.stringify(state.tenant)) } catch {}
+        persistAuthSnapshot({ user: state.user, tenant: state.tenant })
       }
     },
     // Seed token into Redux + localStorage (cross-subdomain handoff).
@@ -242,9 +238,7 @@ const authSlice = createSlice({
       state.token = next
       state.isLoading = true
       state.error = null
-      try {
-        localStorage.setItem('token', next)
-      } catch {}
+      persistAuthSession({ token: next, remember: true })
     },
     // Synchronous logout — used by the auth-expired event handler so that
     // Redux state is cleared BEFORE React Router navigates to /login.
@@ -258,9 +252,7 @@ const authSlice = createSlice({
       state.token = null
       state.error = null
       try {
-        localStorage.removeItem('token')
-        localStorage.removeItem('auth_user')
-        localStorage.removeItem('auth_tenant')
+        clearAuthSession()
       } catch {}
       // Best-effort clear httpOnly cookie (fire-and-forget; reducer must stay sync)
       try {
@@ -327,7 +319,7 @@ const authSlice = createSlice({
         // Keep Redux token in sync after handoff (token may only exist in localStorage).
         if (!state.token) {
           try {
-            state.token = localStorage.getItem('token')
+            state.token = getAuthToken()
           } catch {
             state.token = null
           }

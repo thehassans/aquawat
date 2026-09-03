@@ -240,18 +240,7 @@ export default function Header() {
             )}
           </button>
 
-          {/* Company Profile Quick Link */}
-          <button
-            onClick={() => navigate('/app/dashboard/profile')}
-            className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors group relative text-gray-600 dark:text-gray-400"
-            title={language === 'ar' ? 'الملف التعريفي للمنشأة' : 'Company Profile'}
-            aria-label={language === 'ar' ? 'الملف التعريفي للمنشأة' : 'Company Profile'}
-          >
-            <Building2 className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors" />
-            <span className="tooltip -bottom-10 start-1/2 -translate-x-1/2 whitespace-nowrap">
-              {language === 'ar' ? 'الملف التعريفي للمنشأة' : 'Company Profile'}
-            </span>
-          </button>
+          {/* Company profile lives in the user menu — keep the header for utilities only */}
 
           {/* Notifications */}
           <Popover className="relative">

@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { enqueueSyncItem, initDb } from './syncEngine'
+import { getAuthToken } from './authStorage'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
 
@@ -108,7 +109,7 @@ const inflightGetRequests = new Map()
 const defaultHttpAdapter = axios.getAdapter(axios.defaults.adapter)
 
 api.interceptors.request.use(async (config) => {
-  const token = localStorage.getItem('token')
+  const token = getAuthToken()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }

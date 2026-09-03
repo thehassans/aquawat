@@ -8,6 +8,7 @@ import { login, clearError } from '../../store/slices/authSlice'
 import { setLanguage, setAppLauncherOpen, setHideSidebar, setNavigationStyle } from '../../store/slices/uiSlice'
 import { useTranslation } from '../../lib/translations'
 import { usePublicWebsiteSettings, usePublicTenantBranding } from '../../lib/website'
+import { getRememberedEmail, getAuthToken } from '../../lib/authStorage'
 import { getAliasSlugFromHost, isApexHost, isOnTenantAliasHost, getTenantAliasHandoffUrl, issueHandoffCode } from '../../lib/tenantHost'
 import api from '../../lib/api'
 import { isGccArabicMarket } from '../../lib/invoiceLanguage'
@@ -89,8 +90,9 @@ export default function Login() {
   
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
-      email: demoEmail || location.state?.email || '',
-      password: demoPassword || location.state?.password || ''
+      email: demoEmail || location.state?.email || getRememberedEmail(),
+      password: demoPassword || location.state?.password || '',
+      rememberMe: true,
     }
   })
 
@@ -100,6 +102,7 @@ export default function Login() {
     try {
       const result = await dispatch(login({
         ...data,
+        rememberMe: Boolean(data.rememberMe),
         tenantSlug: String(data.tenantSlug || initialTenantSlug || '').trim().toLowerCase() || undefined,
       })).unwrap()
       const tenant = result.tenant;
@@ -120,7 +123,7 @@ export default function Login() {
       // Apex login → send the user to their dedicated {slug}.maqder.com workspace
       // via one-time handoff code (cookie is origin-scoped across subdomains).
       const tenantSlug = String(tenant?.slug || '').trim().toLowerCase()
-      const sessionToken = result.token || localStorage.getItem('token')
+      const sessionToken = result.token || getAuthToken()
       if (tenantSlug && sessionToken && isApexHost() && !isOnTenantAliasHost()) {
         try {
           const code = await issueHandoffCode(api, sessionToken)
@@ -674,7 +677,7 @@ export default function Login() {
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <div className="relative">
-                    <input type="checkbox" className="peer sr-only" />
+                    <input type="checkbox" {...register('rememberMe')} className="peer sr-only" />
                     <div className="w-5 h-5 border-2 border-gray-300 rounded-md peer-checked:bg-[#244D33] peer-checked:border-[#244D33] transition-all" />
                     <svg className="absolute top-0.5 left-0.5 w-4 h-4 text-white opacity-0 peer-checked:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
