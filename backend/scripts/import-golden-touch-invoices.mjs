@@ -161,6 +161,14 @@ async function findOrCreateTenant() {
     types.add('boutique');
     tenant.businessTypes = [...types];
     if (!tenant.businessType) tenant.businessType = 'trading';
+    tenant.settings = tenant.settings || {};
+    tenant.settings.currency = tenant.settings.currency || 'SAR';
+    tenant.settings.invoiceLanguage = 'en_ar';
+    tenant.settings.invoicePdfPageSize = 'a4';
+    if (!tenant.business?.legalNameAr) {
+      tenant.business = tenant.business || {};
+      tenant.business.legalNameAr = tenant.business.legalNameAr || 'شركة جولدن تاتش لخدمات الأعمال';
+    }
     await tenant.save();
     return tenant;
   }
@@ -188,6 +196,8 @@ async function findOrCreateTenant() {
       currency: 'SAR',
       taxRate: 15,
       language: 'en',
+      invoiceLanguage: 'en_ar',
+      invoicePdfPageSize: 'a4',
       invoicePrefix: 'INV',
     },
     subscription: {
@@ -330,7 +340,7 @@ async function main() {
       supplyDate: issueDate,
       dueDate: issueDate,
       accountingDate: issueDate,
-      printFormat: 'thermal',
+      printFormat: 'a4',
       currency: 'SAR',
       seller,
       buyer: {
@@ -440,6 +450,26 @@ async function main() {
       errors += 1;
       console.error(`ERR ${row.no}`, err.message);
     }
+  }
+
+  if (!dryRun) {
+    const legacyNumbers = ROWS.map((r) => r.no);
+    const formatFix = await Invoice.updateMany(
+      {
+        tenantId: tenant._id,
+        $or: [
+          { invoiceNumber: { $in: legacyNumbers } },
+          { internalNotes: new RegExp(IMPORT_TAG.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) },
+        ],
+      },
+      {
+        $set: {
+          printFormat: 'a4',
+          'seller.nameAr': seller.nameAr || 'شركة جولدن تاتش لخدمات الأعمال',
+        },
+      }
+    );
+    console.log(`Format fix → a4 bilingual-ready: matched=${formatFix.matchedCount} modified=${formatFix.modifiedCount}`);
   }
 
   console.log('\n--- Summary ---');
