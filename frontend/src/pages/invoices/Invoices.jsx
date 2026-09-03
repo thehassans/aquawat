@@ -25,6 +25,7 @@ import {
   ChevronRight,
   Plus,
   Calculator,
+  Banknote,
 } from 'lucide-react'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
@@ -1061,6 +1062,16 @@ export default function Invoices() {
                             >
                               <Edit className="h-4 w-4" />
                             </Link>
+                          )}
+                          {canRegisterPaymentOnDocument(invoice) && (
+                            <button
+                              type="button"
+                              onClick={() => { setBatchPayInvoice(invoice); setBatchPayOpen(true) }}
+                              className={rowActionPrimaryClass}
+                              title={language === 'ar' ? 'تسجيل دفعة' : 'Register payment'}
+                            >
+                              <Banknote className="h-4 w-4" />
+                            </button>
                           )}
                           <Link
                             to={`/app/dashboard/accounting/invoices/${invoice._id}`}

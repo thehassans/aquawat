@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { backBtnClass, ghostActionClass, pageSubtitleClass, pageTitleClass, sectionEyebrowClass } from '../../pages/sales/salesUi'
 
 export function DocumentStatusRibbon({ steps = [], activeStep, language = 'en', cancelled = false }) {
@@ -126,6 +126,8 @@ export default function AccountingDocumentShell({
   subtitle,
   backTo,
   onBack,
+  prevHref,
+  nextHref,
   statusSteps = [],
   activeStatusStep,
   statusCancelled = false,
@@ -153,9 +155,41 @@ export default function AccountingDocumentShell({
               </button>
             )
           ) : null}
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             {eyebrow ? <p className={sectionEyebrowClass}>{eyebrow}</p> : null}
-            <h1 className={pageTitleClass}>{title}</h1>
+            <div className="flex items-center gap-1.5">
+              <h1 className={`${pageTitleClass} min-w-0 truncate`}>{title}</h1>
+              {(prevHref || nextHref) && (
+                <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-slate-200/80 bg-white p-0.5 dark:border-white/10 dark:bg-dark-800">
+                  {prevHref ? (
+                    <Link
+                      to={prevHref}
+                      className="rounded p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/10 dark:hover:text-slate-200"
+                      title={isAr ? 'الفاتورة السابقة' : 'Previous invoice'}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Link>
+                  ) : (
+                    <span className="rounded p-1 text-slate-300 dark:text-slate-600 cursor-not-allowed">
+                      <ChevronLeft className="h-4 w-4" />
+                    </span>
+                  )}
+                  {nextHref ? (
+                    <Link
+                      to={nextHref}
+                      className="rounded p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/10 dark:hover:text-slate-200"
+                      title={isAr ? 'الفاتورة التالية' : 'Next invoice'}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Link>
+                  ) : (
+                    <span className="rounded p-1 text-slate-300 dark:text-slate-600 cursor-not-allowed">
+                      <ChevronRight className="h-4 w-4" />
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
             {subtitle ? <p className={pageSubtitleClass}>{subtitle}</p> : null}
           </div>
         </div>

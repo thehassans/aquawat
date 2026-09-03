@@ -107,6 +107,13 @@ export default function InvoiceView() {
     enabled: Boolean(id),
   })
 
+  const { data: adjacentInvoices } = useQuery({
+    queryKey: ['invoice-adjacent', id],
+    queryFn: () => api.get(`/invoices/${id}/adjacent`).then((res) => res.data),
+    enabled: Boolean(id),
+    staleTime: 30000,
+  })
+
   const invoiceForDisplay = useMemo(() => {
     if (!invoice) return invoice
     if (!invoiceLots?.enabled || !invoiceLots?.byProduct) return invoice
@@ -380,6 +387,8 @@ export default function InvoiceView() {
       <AccountingDocumentShell
         language={language}
         onBack={() => navigate(-1)}
+        prevHref={adjacentInvoices?.prev?._id ? `/app/dashboard/accounting/invoices/${adjacentInvoices.prev._id}` : undefined}
+        nextHref={adjacentInvoices?.next?._id ? `/app/dashboard/accounting/invoices/${adjacentInvoices.next._id}` : undefined}
         eyebrow={
           isPurchaseRefund
             ? (language === 'ar' ? 'مرتجع مورد' : 'Vendor refund')

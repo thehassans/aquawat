@@ -1343,6 +1343,34 @@ router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req,
 });
 
 // @route   GET /api/invoices/:id
+// @route   GET /api/invoices/:id/adjacent
+// Returns { prev: { _id, invoiceNumber }, next: { _id, invoiceNumber } } for nav arrows
+router.get('/:id/adjacent', checkPermission('invoicing', 'read'), async (req, res) => {
+  try {
+    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter }).select('issueDate flow').lean();
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+
+    const base = { ...req.tenantFilter, flow: invoice.flow };
+    const [prevDoc, nextDoc] = await Promise.all([
+      Invoice.findOne({ ...base, issueDate: { $lt: invoice.issueDate } })
+        .sort({ issueDate: -1, _id: -1 })
+        .select('_id invoiceNumber')
+        .lean(),
+      Invoice.findOne({ ...base, issueDate: { $gt: invoice.issueDate } })
+        .sort({ issueDate: 1, _id: 1 })
+        .select('_id invoiceNumber')
+        .lean(),
+    ]);
+
+    res.json({
+      prev: prevDoc ? { _id: prevDoc._id, invoiceNumber: prevDoc.invoiceNumber } : null,
+      next: nextDoc ? { _id: nextDoc._id, invoiceNumber: nextDoc.invoiceNumber } : null,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/:id', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
     const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter })
