@@ -55,6 +55,8 @@ const boutiqueDetailsSchema = new mongoose.Schema({
   amountRefunded: { type: Number, default: 0 },
   depositStatus: { type: String, enum: ['pending', 'held', 'partially_refunded', 'fully_refunded', 'forfeited'], default: 'pending' },
   transactionType: { type: String, enum: ['rental', 'sale'], default: 'rental' },
+  paymentMethod: { type: String, enum: ['cash', 'card', 'bank_transfer', 'online', 'other', 'split'], default: 'cash' },
+  paymentStatus: { type: String, enum: ['pending', 'partial', 'paid'], default: 'pending' },
 }, { _id: false });
 
 

@@ -19,6 +19,11 @@ import InvoiceLivePreview from './InvoiceLivePreview'
 import DocumentPreSaveModal from './DocumentPreSaveModal'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
 import TravelInvoiceFields from './TravelInvoiceFields'
+import BoutiqueInvoiceFields, {
+  boutiqueDetailsFromInvoice,
+  emptyBoutiqueDetails,
+  sanitizeBoutiqueDetails,
+} from './BoutiqueInvoiceFields'
 import ThermalReceipt from '../ui/ThermalReceipt'
 import CreatableSelect from 'react-select/creatable'
 import { getAvailableUomOptions, getDefaultUom } from '../../lib/uomOptions'
@@ -172,7 +177,7 @@ const mapSellLineItems = (invoice, tenant) => {
   }).filter((line) => line.productName || line.unitPrice > 0 || line.productId)
   return mapped.length ? mapped : [{ ...empty }]
 }
-const selectableContexts = ['trading', 'marquee', 'construction', 'travel_agency', 'restaurant', 'manpower', 'furniture', 'furniture_shop']
+const selectableContexts = ['trading', 'marquee', 'construction', 'travel_agency', 'restaurant', 'manpower', 'furniture', 'furniture_shop', 'boutique']
 const SELL_ORDER_FILL_STATUSES = new Set(['approved', 'partially_delivered', 'delivered'])
 
 const bilingualPairGridClass = 'grid grid-cols-1 gap-x-3 gap-y-1.5 md:grid-cols-2'
@@ -344,6 +349,7 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
     },
   },
   travelDetails: sanitizeTravelDetails(invoice?.travelDetails || { passengerTitle: 'mr', layoverStay: '', hasReturnDate: false, segments: [{ from: '', to: '' }], passengers: [] }),
+  boutiqueDetails: boutiqueDetailsFromInvoice(invoice),
   lineItems: mapSellLineItems(invoice, tenant),
   authorizedPersonName: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonName || '') : '',
   authorizedPersonNameAr: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonNameAr || '') : '',
@@ -417,6 +423,12 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     initialInvoice?.bankDetails?.iban ||
     initialInvoice?.bankDetails?.accountNumber
   ))
+  const [showRentalPanel, setShowRentalPanel] = useState(() => Boolean(
+    initialInvoice?.businessContext === 'boutique' ||
+    initialInvoice?.boutiqueDetails?.transactionType === 'rental' ||
+    initialInvoice?.boutiqueDetails?.startDate ||
+    initialInvoice?.rentalId
+  ))
 
   const handleToggleAuthorizedPerson = (enable) => {
     setShowAuthorizedPerson(enable)
@@ -484,6 +496,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const isTravelContext = businessContext === 'travel_agency'
   const isRestaurantContext = businessContext === 'restaurant'
   const isManpowerContext = businessContext === 'manpower'
+  const isBoutiqueContext = businessContext === 'boutique' || showRentalPanel
+  const tenantHasBoutique = tenantBusinessTypes.includes('boutique')
   const emptyLine = useMemo(() => getEmptyLine(tenant), [tenant])
   const isMarqueeContext =
     businessContext === 'marquee' ||
@@ -581,6 +595,38 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     }
   }
 
+  const rentalContextBeforeRef = useRef(null)
+  const handleToggleRental = (enable) => {
+    setShowRentalPanel(enable)
+    if (enable) {
+      const currentCtx = getValues('businessContext') || defaultBusinessContext
+      if (currentCtx !== 'boutique') {
+        rentalContextBeforeRef.current = currentCtx
+        setValue('businessContext', 'boutique', { shouldDirty: true })
+      }
+      const current = getValues('boutiqueDetails') || {}
+      const defaults = emptyBoutiqueDetails({
+        ...current,
+        transactionType: current.transactionType === 'sale' ? 'sale' : 'rental',
+        amountPaid: Number(getValues('paidAmount') ?? current.amountPaid) || 0,
+        paymentMethod: getValues('paymentMethod') || current.paymentMethod || 'cash',
+      })
+      Object.entries(defaults).forEach(([key, value]) => {
+        setValue(`boutiqueDetails.${key}`, value, { shouldDirty: true })
+      })
+    } else {
+      const restoreCtx = rentalContextBeforeRef.current || defaultBusinessContext
+      rentalContextBeforeRef.current = null
+      if (getValues('businessContext') === 'boutique' && restoreCtx !== 'boutique') {
+        setValue('businessContext', restoreCtx, { shouldDirty: true })
+      }
+      const cleared = emptyBoutiqueDetails({ transactionType: 'rental', startDate: '', endDate: '' })
+      Object.entries(cleared).forEach(([key, value]) => {
+        setValue(`boutiqueDetails.${key}`, value, { shouldDirty: true })
+      })
+    }
+  }
+
   useLiveTranslation({
     control, watch, setValue,
     sourceField: 'buyer.name',
@@ -603,8 +649,12 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
 
   useEffect(() => {
     if (isEdit && initialInvoice?._id) return
+    if (showRentalPanel) {
+      setValue('businessContext', 'boutique')
+      return
+    }
     setValue('businessContext', defaultBusinessContext)
-  }, [defaultBusinessContext, initialInvoice?._id, isEdit, setValue])
+  }, [defaultBusinessContext, initialInvoice?._id, isEdit, setValue, showRentalPanel])
 
   useEffect(() => {
     if (!isEdit || !initialInvoice?._id || isSubmittedRef.current) return
@@ -632,6 +682,12 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       initialInvoice?.bankDetails?.bankName ||
       initialInvoice?.bankDetails?.iban ||
       initialInvoice?.bankDetails?.accountNumber
+    ))
+    setShowRentalPanel(Boolean(
+      initialInvoice?.businessContext === 'boutique' ||
+      initialInvoice?.boutiqueDetails?.transactionType === 'rental' ||
+      initialInvoice?.boutiqueDetails?.startDate ||
+      initialInvoice?.rentalId
     ))
     setSelectedSalesOrderId(idOf(initialInvoice?.sourcePurchaseOrderId) || '')
     setDocumentReferences(Array.isArray(initialInvoice?.documentReferences) ? initialInvoice.documentReferences : [])
@@ -1460,6 +1516,30 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     } else {
       delete payload.travelDetails
     }
+
+    if (showRentalPanel || businessContext === 'boutique') {
+      payload.businessContext = 'boutique'
+      const paid = Number(payload.paidAmount ?? data?.paidAmount ?? data?.boutiqueDetails?.amountPaid ?? 0) || 0
+      const grand = Number(namedTotals.grandTotal || 0)
+      payload.boutiqueDetails = sanitizeBoutiqueDetails({
+        ...(data.boutiqueDetails || {}),
+        transactionType: data.boutiqueDetails?.transactionType || 'rental',
+        amountPaid: paid,
+        paymentMethod: data.paymentMethod || data.boutiqueDetails?.paymentMethod || 'cash',
+        paymentStatus: grand > 0 && paid >= grand ? 'paid' : (paid > 0 ? 'partial' : (data.boutiqueDetails?.paymentStatus || 'pending')),
+        totalAmount: grand,
+      })
+      if (payload.boutiqueDetails.rentalId) {
+        payload.rentalId = payload.boutiqueDetails.rentalId
+      }
+      if (payload.boutiqueDetails.rentalNumber) {
+        payload.rentalNumber = payload.boutiqueDetails.rentalNumber
+      }
+    } else {
+      delete payload.boutiqueDetails
+      delete payload.rentalId
+      delete payload.rentalNumber
+    }
     if (data?.eventDate || data?.marqueePackageId || isMarqueeContext) {
       payload.eventDate = data?.eventDate || ''
       payload.eventShift = data?.eventShift || 'dinner'
@@ -1593,6 +1673,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       ...values.travelDetails,
       travelerName: values?.buyer?.name || values?.travelDetails?.travelerName || '',
     }),
+    businessContext: showRentalPanel ? 'boutique' : (values?.businessContext || businessContext),
+    boutiqueDetails: showRentalPanel || values?.businessContext === 'boutique' || businessContext === 'boutique'
+      ? sanitizeBoutiqueDetails({
+          ...(values?.boutiqueDetails || {}),
+          transactionType: values?.boutiqueDetails?.transactionType || 'rental',
+          amountPaid: Number(values?.paidAmount ?? values?.boutiqueDetails?.amountPaid ?? 0) || 0,
+          paymentMethod: values?.paymentMethod || values?.boutiqueDetails?.paymentMethod || 'cash',
+          totalAmount: totals.grandTotal,
+        })
+      : undefined,
   }
 
   const segmentWrapClass =
@@ -2512,6 +2602,15 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     labelAr: 'بنك',
                     onClick: () => handleToggleBankDetails(!showBankPanel),
                   },
+                  ...(tenantHasBoutique || showRentalPanel
+                    ? [{
+                        id: 'rental',
+                        active: showRentalPanel,
+                        labelEn: 'Rental',
+                        labelAr: 'إيجار',
+                        onClick: () => handleToggleRental(!showRentalPanel),
+                      }]
+                    : []),
                 ].map((pill) => (
                   <button
                     key={pill.id}
@@ -2714,6 +2813,28 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 </motion.div>
               )}
             </AnimatePresence>
+
+            <AnimatePresence>
+              {showRentalPanel && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden border-t border-slate-100 pt-4 dark:border-white/5"
+                >
+                  <BoutiqueInvoiceFields
+                    language={language}
+                    register={register}
+                    watch={watch}
+                    setValue={setValue}
+                    fieldControlClass={fieldControlClass}
+                    fieldLabelClass={fieldLabelClass}
+                    dense
+                    onRemove={() => handleToggleRental(false)}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
             {!showNotesPanel && <input type="hidden" {...register('notes')} />}
             {!showTermsPanel && <input type="hidden" {...register('termsAndConditions')} />}
             {!showBankPanel && (
@@ -2723,6 +2844,23 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 <input type="hidden" {...register('bankDetails.accountName')} />
                 <input type="hidden" {...register('bankDetails.accountNumber')} />
                 <input type="hidden" {...register('bankDetails.iban')} />
+              </>
+            )}
+            {!showRentalPanel && (
+              <>
+                <input type="hidden" {...register('boutiqueDetails.transactionType')} />
+                <input type="hidden" {...register('boutiqueDetails.startDate')} />
+                <input type="hidden" {...register('boutiqueDetails.endDate')} />
+                <input type="hidden" {...register('boutiqueDetails.totalDeposit', { valueAsNumber: true })} />
+                <input type="hidden" {...register('boutiqueDetails.amountPaid', { valueAsNumber: true })} />
+                <input type="hidden" {...register('boutiqueDetails.paymentMethod')} />
+                <input type="hidden" {...register('boutiqueDetails.depositStatus')} />
+                <input type="hidden" {...register('boutiqueDetails.amountRefunded', { valueAsNumber: true })} />
+                <input type="hidden" {...register('boutiqueDetails.totalLateFee', { valueAsNumber: true })} />
+                <input type="hidden" {...register('boutiqueDetails.totalDamageFee', { valueAsNumber: true })} />
+                <input type="hidden" {...register('boutiqueDetails.totalCleaningFee', { valueAsNumber: true })} />
+                <input type="hidden" {...register('boutiqueDetails.rentalId')} />
+                <input type="hidden" {...register('boutiqueDetails.rentalNumber')} />
               </>
             )}
             </div>
