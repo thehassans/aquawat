@@ -22,13 +22,17 @@ export async function fetchDefaultPayableAccountId() {
   return active?._id || null
 }
 
-/** Saudi VAT: exactly 15 digits (ZATCA). Soft-check for other countries. */
+/** Saudi VAT: 15 digits, first and last must be 3 (ZATCA). Soft-check for other countries. */
 export function validatePartnerVat(vatNumber, countryCode = 'SA') {
   const v = String(vatNumber || '').trim()
   if (!v) return { ok: true }
   if (countryCode === 'SA' || countryCode === 'Saudi Arabia') {
-    if (!/^\d{15}$/.test(v)) {
-      return { ok: false, message: 'VAT number must be exactly 15 digits', messageAr: 'الرقم الضريبي يجب أن يكون 15 رقمًا' }
+    if (!/^3\d{13}3$/.test(v)) {
+      return {
+        ok: false,
+        message: 'VAT / TRN must be 15 digits starting and ending with 3',
+        messageAr: 'الرقم الضريبي يجب أن يكون 15 رقمًا يبدأ وينتهي بـ 3',
+      }
     }
   }
   return { ok: true }

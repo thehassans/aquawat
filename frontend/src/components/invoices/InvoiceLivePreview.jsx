@@ -1,5 +1,5 @@
 import { QRCodeSVG } from 'qrcode.react'
-import { generateZatcaQrValue } from '../../lib/zatcaQr'
+import { generateZatcaQrValue, verifyQrIntegrity } from '../../lib/zatcaQr'
 import { generateFbrQrValue } from '../../lib/fbrQr'
 import { generateNbrQrValue } from '../../lib/nbrQr'
 import { generateGccQrValue } from '../../lib/gccQr'
@@ -460,13 +460,18 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
         return null
       }
       if (cur === 'SAR') {
-        return invoice?.zatca?.qrCodeData || generateZatcaQrValue({
+        const generated = generateZatcaQrValue({
           sellerName: companyNameEn || companyNameAr,
           vatNumber,
           timestamp: invoice?.issueDate || new Date().toISOString(),
+          issueTime: invoice?.issueTime,
           totalWithVat: toNumber(invoice?.grandTotal),
           vatTotal: toNumber(invoice?.totalTax),
         })
+        if (generated) return generated
+        const stored = invoice?.zatca?.qrCodeData
+        if (stored && verifyQrIntegrity(stored).valid) return stored
+        return null
       }
       if (cur === 'AED') {
         return invoice?.countryCompliance?.qrCode || generateGccQrValue({

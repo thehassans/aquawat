@@ -25,7 +25,7 @@ const bytesToBase64 = (bytes) => {
   return btoa(binary)
 }
 
-const VAT_NUMBER_REGEX = /^[0-9]{15}$/
+const VAT_NUMBER_REGEX = /^3[0-9]{13}3$/
 
 export const validateZatcaQrFields = ({ sellerName, vatNumber, totalWithVat, vatTotal }) => {
   const errors = []
@@ -33,8 +33,8 @@ export const validateZatcaQrFields = ({ sellerName, vatNumber, totalWithVat, vat
   if (!sellerName || String(sellerName).trim().length === 0) {
     errors.push('Seller name is required')
   }
-  if (!vatNumber || !VAT_NUMBER_REGEX.test(String(vatNumber))) {
-    errors.push('VAT number must be exactly 15 digits')
+  if (!vatNumber || !VAT_NUMBER_REGEX.test(String(vatNumber).trim())) {
+    errors.push('VAT number must be 15 digits starting and ending with 3')
   }
   const total = toNumber(totalWithVat, null)
   if (total === null || total < 0) {

@@ -21,7 +21,7 @@ import { formatZatcaQrTimestamp } from '../utils/zatcaTimestamp.js';
  * additional fields and cryptographic signing via the Phase 2 APIs.
  */
 
-const VAT_NUMBER_REGEX = /^[0-9]{15}$/;
+const VAT_NUMBER_REGEX = /^3[0-9]{13}3$/;
 
 /**
  * Validate ZATCA QR input fields before encoding.
@@ -34,8 +34,8 @@ export function validateZatcaQrFields({ sellerName, vatNumber, totalAmount, vatA
   if (!sellerName || String(sellerName).trim().length === 0) {
     errors.push('Seller name is required');
   }
-  if (!vatNumber || !VAT_NUMBER_REGEX.test(String(vatNumber))) {
-    errors.push('VAT number must be exactly 15 digits');
+  if (!vatNumber || !VAT_NUMBER_REGEX.test(String(vatNumber).trim())) {
+    errors.push('VAT number must be 15 digits starting and ending with 3');
   }
   const total = Number(totalAmount);
   if (!Number.isFinite(total) || total < 0) {
@@ -128,7 +128,10 @@ export function generateContractZatcaQr(contract, tenant) {
     || tenant?.name
     || 'Car Rental';
 
-  const vatNumber = tenant?.business?.vatNumber || '000000000000000';
+  const vatNumber = tenant?.business?.vatNumber || '';
+  if (!/^3\d{13}3$/.test(String(vatNumber).trim())) {
+    throw new Error('Tenant VAT / TRN must be 15 digits starting and ending with 3 before generating a ZATCA QR');
+  }
   const invoiceDate = contract.actualReturnDateTime || contract.updatedAt || new Date();
   const totalAmount = contract.grandTotal || 0;
   const vatAmount = contract.totalVat || 0;

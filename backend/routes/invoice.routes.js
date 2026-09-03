@@ -655,8 +655,18 @@ async function attachDraftQr(invoice, seller, tenant) {
 
     invoice.zatca = {
       ...(invoice.zatca || {}),
-      ...qr,
     };
+    if (qr.qrCodeData && qr.qrCodeImage) {
+      invoice.zatca.qrCodeData = qr.qrCodeData;
+      invoice.zatca.qrCodeImage = qr.qrCodeImage;
+      invoice.zatca.submissionStatus = qr.submissionStatus || invoice.zatca.submissionStatus || 'pending';
+      if (invoice.zatca.qrBlockedReason) delete invoice.zatca.qrBlockedReason;
+    } else {
+      // Do not keep a previous/invalid QR that ZATCA would reject on scan.
+      invoice.zatca.qrCodeData = undefined;
+      invoice.zatca.qrCodeImage = undefined;
+      if (qr.qrBlockedReason) invoice.zatca.qrBlockedReason = qr.qrBlockedReason;
+    }
 
     await invoice.save();
     return invoice;

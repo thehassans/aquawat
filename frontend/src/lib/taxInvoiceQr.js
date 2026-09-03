@@ -1,4 +1,4 @@
-import { generateZatcaQrValue } from './zatcaQr'
+import { generateZatcaQrValue, verifyQrIntegrity } from './zatcaQr'
 import { generateFbrQrValue } from './fbrQr'
 import { generateNbrQrValue } from './nbrQr'
 import { generateGccQrValue } from './gccQr'
@@ -35,14 +35,19 @@ export function resolveTaxInvoiceQr({
 
   try {
     if (cur === 'SAR') {
-      return generateZatcaQrValue({
+      const generated = generateZatcaQrValue({
         sellerName: name,
         vatNumber: vat,
         timestamp,
         issueTime: invoice?.issueTime,
         totalWithVat: total,
         vatTotal: tax,
-      }) || invoice?.zatca?.qrCodeData || null
+      })
+      if (generated) return generated
+      // Only reuse a stored payload if it still verifies (never show empty-TRN QRs).
+      const stored = invoice?.zatca?.qrCodeData
+      if (stored && verifyQrIntegrity(stored).valid) return stored
+      return null
     }
 
     if (cur === 'AED') {
