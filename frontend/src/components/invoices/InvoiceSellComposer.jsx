@@ -1566,12 +1566,28 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       lineTotalWithTax: line.lineTotalWithTax,
     })),
     seller: {
-      name: tenant?.business?.legalNameEn,
-      nameAr: tenant?.business?.legalNameAr,
-      vatNumber: tenant?.business?.vatNumber,
-      address: tenant?.business?.address,
-      contactPhone: tenant?.business?.contactPhone,
-      contactEmail: tenant?.business?.contactEmail,
+      name: tenant?.business?.legalNameEn || initialInvoice?.seller?.name || '',
+      nameAr: tenant?.business?.legalNameAr || initialInvoice?.seller?.nameAr || '',
+      vatNumber: tenant?.business?.vatNumber || initialInvoice?.seller?.vatNumber || '',
+      crNumber: tenant?.business?.crNumber || tenant?.business?.commercialRegistration?.crNumber || initialInvoice?.seller?.crNumber || '',
+      address: tenant?.business?.address || initialInvoice?.seller?.address || {},
+      contactPhone: tenant?.business?.contactPhone || initialInvoice?.seller?.contactPhone || '',
+      contactEmail: tenant?.business?.contactEmail || initialInvoice?.seller?.contactEmail || '',
+    },
+    buyer: {
+      ...(initialInvoice?.buyer || {}),
+      ...(values?.buyer || {}),
+      name: values?.buyer?.name || selectedCustomer?.name || selectedCustomer?.nameEn || initialInvoice?.buyer?.name || '',
+      nameAr: values?.buyer?.nameAr || selectedCustomer?.nameAr || initialInvoice?.buyer?.nameAr || '',
+      vatNumber: values?.buyer?.vatNumber || selectedCustomer?.vatNumber || selectedCustomer?.taxNumber || initialInvoice?.buyer?.vatNumber || '',
+      crNumber: values?.buyer?.crNumber || selectedCustomer?.crNumber || initialInvoice?.buyer?.crNumber || '',
+      contactPhone: values?.buyer?.contactPhone || selectedCustomer?.phone || selectedCustomer?.mobile || initialInvoice?.buyer?.contactPhone || '',
+      contactEmail: values?.buyer?.contactEmail || selectedCustomer?.email || initialInvoice?.buyer?.contactEmail || '',
+      address: {
+        ...(initialInvoice?.buyer?.address || {}),
+        ...(selectedCustomer?.address || {}),
+        ...(values?.buyer?.address || {}),
+      },
     },
     travelDetails: sanitizeTravelDetails({
       ...values.travelDetails,
@@ -1887,8 +1903,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             {/* Party data lives on the contact — kept as hidden for submit/ZATCA */}
             <input type="hidden" {...register('buyer.name')} />
             <input type="hidden" {...register('buyer.nameAr')} />
-            <input type="hidden" {...register('buyer.vatNumber')} />
-            <input type="hidden" {...register('buyer.crNumber')} />
             <input type="hidden" {...register('transactionType')} />
             <input type="hidden" {...register('invoiceTypeCode')} />
             <input type="hidden" {...register('buyer.contactPhone')} />
@@ -1904,6 +1918,33 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             <input type="hidden" {...register('buyer.address.buildingNumber')} />
             <input type="hidden" {...register('buyer.address.additionalNumber')} />
             <input type="hidden" {...register('buyer.address.shortAddress')} />
+            {invoiceType === 'B2B' ? (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" dir="ltr">
+                <div>
+                  <FieldLabel en="Customer VAT / TRN" ar="الرقم الضريبي للعميل" />
+                  <input
+                    className={compactFieldClass}
+                    {...register('buyer.vatNumber')}
+                    placeholder="3XXXXXXXXXXXXX3"
+                    disabled={isInvoicePosted && !transactionTypeDirty}
+                  />
+                </div>
+                <div>
+                  <FieldLabel en="Customer CR" ar="السجل التجاري للعميل" />
+                  <input
+                    className={compactFieldClass}
+                    {...register('buyer.crNumber')}
+                    placeholder={language === 'ar' ? 'رقم السجل' : 'CR number'}
+                    disabled={isInvoicePosted && !transactionTypeDirty}
+                  />
+                </div>
+              </div>
+            ) : (
+              <>
+                <input type="hidden" {...register('buyer.vatNumber')} />
+                <input type="hidden" {...register('buyer.crNumber')} />
+              </>
+            )}
             {invoiceSubtype === 'travel_ticket' ? (
               <TravelInvoiceFields language={language} register={register} control={control} watch={watch} setValue={setValue} />
             ) : null}

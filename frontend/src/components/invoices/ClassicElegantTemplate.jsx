@@ -105,6 +105,7 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
           <div className="mt-2 text-sm text-gray-700">
             {counterpartyNtn ? <p>NTN: {counterpartyNtn}</p> : (counterpartyVat ? <p>{taxIdLabel}: {counterpartyVat}</p> : null)}
             {counterpartyStrn && <p>STRN: {counterpartyStrn}</p>}
+            {counterpartyCr ? <p>CR: {counterpartyCr}</p> : null}
             {counterpartyPhone && <p>Tel: {counterpartyPhone}</p>}
           </div>
         </div>

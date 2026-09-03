@@ -324,9 +324,20 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                   </div>
                 )}
                 {counterpartyCr && (
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-gray-900">CR No:</span>
-                    <span className="font-mono">{counterpartyCr}</span>
+                  <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <p className="inline-flex items-center gap-2">
+                      <span className="font-semibold text-gray-900">CR No:</span>
+                      <span className="font-mono">{counterpartyCr}</span>
+                    </p>
+                    {bilingual && S('السجل التجاري') && (
+                      <>
+                        <span className="text-gray-400" aria-hidden>/</span>
+                        <p className="inline-flex items-center gap-1.5" dir={secondaryDir}>
+                          <ArText className="font-semibold text-gray-900">{S('السجل التجاري')}:</ArText>
+                          <ArText>{isArabicSecondary ? toEasternArabicNumerals(counterpartyCr) : counterpartyCr}</ArText>
+                        </p>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

@@ -21,7 +21,7 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
   const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
   const {
     headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, companyNtn, companyStrn,
-    counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyNtn, counterpartyStrn,
+    counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyCr, counterpartyNtn, counterpartyStrn,
     counterpartyLabelEn, taxLabel, taxIdLabel
   } = parties
 
@@ -157,6 +157,7 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
         {bilingual && counterpartyNameAr && <p className="text-sm font-bold text-slate-900 mt-1" dir="rtl">{counterpartyNameAr}</p>}
         {counterpartyNtn ? <p className="text-sm text-slate-700 mt-2">NTN: {counterpartyNtn}</p> : (counterpartyVat ? <p className="text-sm text-slate-700 mt-2">{taxIdLabel}: {counterpartyVat}</p> : null)}
         {counterpartyStrn && <p className="text-sm text-slate-700 mt-1">STRN: {counterpartyStrn}</p>}
+        {counterpartyCr ? <p className="text-sm text-slate-700 mt-1">CR: {counterpartyCr}</p> : null}
       </div>
 
       {/* Table */}

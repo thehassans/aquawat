@@ -16,7 +16,10 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
   const invoiceBranding = getInvoiceBranding(tenant, language, invoice?.businessContext)
 
   const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
-  const { counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyAddress, counterpartyPhone, counterpartyLabelEn, counterpartyLabelAr } = parties
+  const {
+    counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyAddress, counterpartyPhone,
+    counterpartyVat, counterpartyCr, counterpartyLabelEn, counterpartyLabelAr, taxIdLabel,
+  } = parties
 
   const totals = calculateInvoiceSummary(invoice)
   const lineItems = totals.lines.length > 0
@@ -101,6 +104,8 @@ export default function LetterheadTemplate({ invoice, tenant, language = 'en', b
             ) : null}
             {counterpartyAddressStr ? <p className="mt-2 text-sm text-slate-600">{counterpartyAddressStr}</p> : null}
             {counterpartyPhone ? <p className="mt-1 text-sm text-slate-600">{counterpartyPhone}</p> : null}
+            {counterpartyVat ? <p className="mt-1 text-sm text-slate-700"><span className="font-semibold">{taxIdLabel || 'VAT'}:</span> {counterpartyVat}</p> : null}
+            {counterpartyCr ? <p className="mt-1 text-sm text-slate-700"><span className="font-semibold">CR:</span> {counterpartyCr}</p> : null}
           </div>
           <div className="rounded-xl border border-slate-200 p-4">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Details / التفاصيل</p>
