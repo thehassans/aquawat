@@ -5,6 +5,9 @@ DEPLOY_PATH="/var/www/vhosts/maqder.com/httpdocs"
 cd "$DEPLOY_PATH"
 
 echo "Pulling latest code..."
+# Clear locks left by a cancelled CI deploy mid-fetch.
+rm -f .git/index.lock
+find .git -maxdepth 2 -name "*.lock" -type f -mmin +2 -delete 2>/dev/null || true
 git fetch origin main
 git reset --hard origin/main
 
