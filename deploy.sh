@@ -4,12 +4,20 @@ set -e
 DEPLOY_PATH="/var/www/vhosts/maqder.com/httpdocs"
 cd "$DEPLOY_PATH"
 
-echo "Pulling latest code..."
-# Clear locks left by a cancelled CI deploy mid-fetch.
-rm -f .git/index.lock
-find .git -maxdepth 2 -name "*.lock" -type f -mmin +2 -delete 2>/dev/null || true
-git fetch origin main
-git reset --hard origin/main
+# CI rsyncs the tree from GitHub Actions (Plesk often cannot resolve github.com).
+# Manual runs on the server can still git-pull when DNS works.
+if [ "${SKIP_GIT:-0}" = "1" ]; then
+  echo "Skipping git pull (SKIP_GIT=1 — code already synced by CI)."
+else
+  echo "Pulling latest code..."
+  rm -f .git/index.lock
+  find .git -maxdepth 2 -name "*.lock" -type f -mmin +2 -delete 2>/dev/null || true
+  if ! git fetch origin main; then
+    echo "git fetch failed. If DNS cannot resolve github.com, deploy via GitHub Actions (rsync) instead."
+    exit 128
+  fi
+  git reset --hard origin/main
+fi
 
 # Detect docker compose command
 COMPOSE=""
@@ -31,8 +39,13 @@ if [ -n "$COMPOSE" ]; then
   # Drop deprecated cron-worker container from earlier compose files.
   docker rm -f maqder_cron_worker 2>/dev/null || true
 
-  BUILD_SHA="$(git rev-parse HEAD)"
-  export BUILD_SHA
+  if [ -n "${BUILD_SHA:-}" ]; then
+    export BUILD_SHA
+  elif command -v git &>/dev/null && [ -d .git ]; then
+    BUILD_SHA="$(git rev-parse HEAD 2>/dev/null || true)"
+    export BUILD_SHA
+  fi
+  echo "BUILD_SHA=${BUILD_SHA:-unknown}"
 
   # Keep edge + current frontend up while images rebuild (no compose down).
   $COMPOSE up -d edge || true
