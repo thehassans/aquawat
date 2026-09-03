@@ -45,11 +45,13 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
   const EnAr = ({ en, ar, enClassName = '', arClassName = '', className = '' }) => {
     const secondary = bilingual ? S(ar) : ''
     if (!secondary) return <span className={enClassName}>{en}</span>
+    // shrink-0 on each part — otherwise a compressed parent (min-w-0) collapses
+    // the flex children and English/Arabic text paint on top of each other.
     return (
-      <span className={`inline-flex items-center gap-1.5 ${className}`}>
-        <span className={enClassName}>{en}</span>
-        <span className="opacity-60" aria-hidden>/</span>
-        <ArText className={arClassName}>{secondary}</ArText>
+      <span className={`inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 ${className}`}>
+        <span className={`shrink-0 ${enClassName}`}>{en}</span>
+        <span className="shrink-0 opacity-60" aria-hidden>/</span>
+        <ArText className={`shrink-0 ${arClassName}`}>{secondary}</ArText>
       </span>
     )
   }
@@ -141,7 +143,9 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
     })
   }
 
-  const renderMoney = (value) => {
+  const isBoutiqueRental = invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental'
+
+  const renderMoney = (value, { compact = false } = {}) => {
     const amount = formatCurrencyAmount(value, {
       language,
       currency,
@@ -156,11 +160,26 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })
+    const showArabicMoney = isBoutiqueRental && isArabicSecondary
+    // Stack EN/AR amounts vertically in tight summary rows so labels never collide.
+    if (showArabicMoney && compact) {
+      return (
+        <span className="inline-flex flex-col items-end gap-0.5 whitespace-nowrap leading-tight">
+          <span className="inline-flex items-center gap-[0.3em]">
+            <span className="tabular-nums">{amount}</span>
+            <span className="text-[0.85em] font-medium">{currency}</span>
+          </span>
+          <span className="font-['Almarai'] text-[0.8em] font-medium text-gray-600" dir="rtl">
+            {amountAr} {currency === 'SAR' ? 'ر.س' : currency}
+          </span>
+        </span>
+      )
+    }
     return (
       <span className="inline-flex items-center gap-[0.3em] whitespace-nowrap">
         <span className="tabular-nums">{amount}</span>
         <span className="text-[0.85em] font-medium">{currency}</span>
-        {isBoutiqueRental && isArabicSecondary && (
+        {showArabicMoney && (
           <>
             <span className="text-gray-400">/</span>
             <span className="font-['Almarai'] text-[0.85em] font-medium" dir="rtl">
@@ -171,8 +190,6 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
       </span>
     )
   }
-
-  const isBoutiqueRental = invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental'
   const isQuotation = documentType === 'quotation'
   const isPurchaseOrder = documentType === 'purchase_order'
   const showZatcaQr = shouldShowZatcaQr(documentType)
@@ -348,21 +365,19 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
               {invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental' && (
                 <>
                   <hr className="border-gray-200" />
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-500">Rental Start:</span>
-                    <span className="font-semibold text-gray-900">{formatDate(invoice.boutiqueDetails.startDate)}</span>
-                    {bilingual && S('بداية الإيجار') && <span className="text-gray-500" dir={secondaryDir}>:{S('بداية الإيجار')}</span>}
+                  <div className="flex items-start justify-between gap-3">
+                    <EnAr en="Rental Start" ar="بداية الإيجار" enClassName="text-gray-500" arClassName="text-xs text-gray-400" className="shrink-0 max-w-[55%]" />
+                    <span className="font-semibold text-gray-900 shrink-0 text-end">{formatDate(invoice.boutiqueDetails.startDate)}</span>
                   </div>
                   <hr className="border-gray-200" />
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-500">Rental End:</span>
-                    <span className="font-semibold text-gray-900">{formatDate(invoice.boutiqueDetails.endDate)}</span>
-                    {bilingual && S('نهاية الإيجار') && <span className="text-gray-500" dir={secondaryDir}>:{S('نهاية الإيجار')}</span>}
+                  <div className="flex items-start justify-between gap-3">
+                    <EnAr en="Rental End" ar="نهاية الإيجار" enClassName="text-gray-500" arClassName="text-xs text-gray-400" className="shrink-0 max-w-[55%]" />
+                    <span className="font-semibold text-gray-900 shrink-0 text-end">{formatDate(invoice.boutiqueDetails.endDate)}</span>
                   </div>
                   <hr className="border-gray-200" />
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-500">Rental Days:</span>
-                    <span className="font-semibold text-gray-900">
+                  <div className="flex items-start justify-between gap-3">
+                    <EnAr en="Rental Days" ar="عدد أيام الإيجار" enClassName="text-gray-500" arClassName="text-xs text-gray-400" className="shrink-0 max-w-[55%]" />
+                    <span className="font-semibold text-gray-900 shrink-0 text-end">
                       {(() => {
                         const start = new Date(invoice.boutiqueDetails.startDate)
                         const end = new Date(invoice.boutiqueDetails.endDate)
@@ -370,37 +385,32 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                         return days
                       })()}
                     </span>
-                    {bilingual && S('عدد أيام الإيجار') && <span className="text-gray-500" dir={secondaryDir}>:{S('عدد أيام الإيجار')}</span>}
                   </div>
                   <hr className="border-gray-200" />
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-500">Security Deposit:</span>
-                    <span className="font-semibold text-gray-900">{renderMoney(toNumber(invoice.boutiqueDetails.totalDeposit))}</span>
-                    {bilingual && S('تأمين') && <span className="text-gray-500" dir={secondaryDir}>:{S('تأمين')}</span>}
+                  <div className="flex items-start justify-between gap-3">
+                    <EnAr en="Security Deposit" ar="تأمين" enClassName="text-gray-500" arClassName="text-xs text-gray-400" className="shrink-0 max-w-[55%]" />
+                    <span className="font-semibold text-gray-900 shrink-0 text-end">{renderMoney(toNumber(invoice.boutiqueDetails.totalDeposit), { compact: true })}</span>
                   </div>
                   <hr className="border-gray-200" />
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-500">Payment Method:</span>
-                    <span className="font-semibold text-gray-900 capitalize">{invoice.boutiqueDetails.paymentMethod === 'card' ? 'Card' : 'Cash'}</span>
-                    {bilingual && S('طريقة الدفع') && (
-                      <span className="font-semibold text-gray-900" dir={secondaryDir}>
-                        {invoice.boutiqueDetails.paymentMethod === 'card' ? (isArabicSecondary ? 'بطاقة' : 'Card') : (isArabicSecondary ? 'نقدي' : 'Cash')}:{S('طريقة الدفع')}
-                      </span>
-                    )}
+                  <div className="flex items-start justify-between gap-3">
+                    <EnAr en="Payment Method" ar="طريقة الدفع" enClassName="text-gray-500" arClassName="text-xs text-gray-400" className="shrink-0 max-w-[55%]" />
+                    <span className="font-semibold text-gray-900 capitalize shrink-0 text-end">
+                      {invoice.boutiqueDetails.paymentMethod === 'card'
+                        ? (isArabicSecondary ? 'Card / بطاقة' : 'Card')
+                        : (isArabicSecondary ? 'Cash / نقدي' : 'Cash')}
+                    </span>
                   </div>
                   <hr className="border-gray-200" />
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-500">Amount Paid:</span>
-                    <span className="font-semibold text-gray-900">{renderMoney(toNumber(invoice.boutiqueDetails.amountPaid))}</span>
-                    {bilingual && S('المبلغ المدفوع') && <span className="text-gray-500" dir={secondaryDir}>:{S('المبلغ المدفوع')}</span>}
+                  <div className="flex items-start justify-between gap-3">
+                    <EnAr en="Amount Paid" ar="المبلغ المدفوع" enClassName="text-gray-500" arClassName="text-xs text-gray-400" className="shrink-0 max-w-[55%]" />
+                    <span className="font-semibold text-gray-900 shrink-0 text-end">{renderMoney(toNumber(invoice.boutiqueDetails.amountPaid), { compact: true })}</span>
                   </div>
                   {toNumber(invoice.boutiqueDetails.amountPaid) < toNumber(invoice.grandTotal) && (
                     <>
                       <hr className="border-gray-200" />
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-500">Pending Amount:</span>
-                        <span className="font-semibold text-rose-600">{renderMoney(toNumber(invoice.grandTotal) - toNumber(invoice.boutiqueDetails.amountPaid))}</span>
-                        {bilingual && S('المبلغ المتبقي') && <span className="text-gray-500" dir={secondaryDir}>:{S('المبلغ المتبقي')}</span>}
+                      <div className="flex items-start justify-between gap-3">
+                        <EnAr en="Pending Amount" ar="المبلغ المتبقي" enClassName="text-gray-500" arClassName="text-xs text-gray-400" className="shrink-0 max-w-[55%]" />
+                        <span className="font-semibold text-rose-600 shrink-0 text-end">{renderMoney(toNumber(invoice.grandTotal) - toNumber(invoice.boutiqueDetails.amountPaid), { compact: true })}</span>
                       </div>
                     </>
                   )}
@@ -524,9 +534,9 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
             </div>
           )}
 
-          <div className="w-full shrink-0 rounded-xl border bg-gray-50 p-3 md:w-80">
+          <div className="w-full shrink-0 rounded-xl border bg-gray-50 p-3 md:min-w-[20rem] md:w-[24rem]">
             {invoice?.paymentMethod && (
-              <div className="mb-2 flex items-center gap-2 border-b border-gray-200 pb-2 text-sm">
+              <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-gray-200 pb-2 text-sm">
                 <CreditCard className="h-4 w-4 shrink-0 text-gray-400" />
                 <span className="font-semibold text-gray-900">
                   <EnAr en="Payment Method" ar="طريقة الدفع" enClassName="font-semibold text-gray-900" arClassName="font-semibold text-gray-900" />:
@@ -535,28 +545,28 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
               </div>
             )}
             <div className="space-y-2">
-              <div className="flex justify-between gap-3 text-sm">
-                <EnAr en="Subtotal" ar="المجموع الفرعي" enClassName="text-gray-500" arClassName="text-xs text-gray-400" className="min-w-0" />
-                <span className="font-mono font-semibold text-gray-900 shrink-0">
-                  {renderMoney(totals.subtotal)}
+              <div className="flex items-start justify-between gap-3 text-sm">
+                <EnAr en="Subtotal" ar="المجموع الفرعي" enClassName="text-gray-500" arClassName="text-xs text-gray-400" className="shrink-0 max-w-[55%]" />
+                <span className="font-mono font-semibold text-gray-900 shrink-0 text-end">
+                  {renderMoney(totals.subtotal, { compact: true })}
                 </span>
               </div>
               <hr className="border-gray-200" />
               
-              <div className="flex justify-between gap-3 text-sm">
-                <EnAr en="VAT Total" ar="إجمالي الضريبة" enClassName="text-gray-500" arClassName="text-xs text-gray-400" className="min-w-0" />
-                <span className="font-mono font-semibold text-gray-900 shrink-0">
-                  {renderMoney(totals.totalTax)}
+              <div className="flex items-start justify-between gap-3 text-sm">
+                <EnAr en="VAT Total" ar="إجمالي الضريبة" enClassName="text-gray-500" arClassName="text-xs text-gray-400" className="shrink-0 max-w-[55%]" />
+                <span className="font-mono font-semibold text-gray-900 shrink-0 text-end">
+                  {renderMoney(totals.totalTax, { compact: true })}
                 </span>
               </div>
               <hr className="border-gray-200" />
 
               {invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental' && toNumber(invoice.boutiqueDetails.totalDeposit) > 0 && (
                 <>
-                  <div className="flex justify-between gap-3 text-sm">
-                    <EnAr en="Security Deposit" ar="تأمين" enClassName="text-gray-500" arClassName="text-xs text-gray-400" className="min-w-0" />
-                    <span className="font-mono font-semibold text-gray-900 shrink-0">
-                      {renderMoney(toNumber(invoice.boutiqueDetails.totalDeposit))}
+                  <div className="flex items-start justify-between gap-3 text-sm">
+                    <EnAr en="Security Deposit" ar="تأمين" enClassName="text-gray-500" arClassName="text-xs text-gray-400" className="shrink-0 max-w-[55%]" />
+                    <span className="font-mono font-semibold text-gray-900 shrink-0 text-end">
+                      {renderMoney(toNumber(invoice.boutiqueDetails.totalDeposit), { compact: true })}
                     </span>
                   </div>
                   <hr className="border-gray-200" />
@@ -564,12 +574,12 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
               )}
               
               <div
-                className="flex justify-between gap-3 rounded-lg p-3 border"
+                className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                 style={{ backgroundColor: 'var(--inv-accent-soft)', borderColor: 'var(--inv-accent-border)' }}
               >
-                <EnAr en="Total" ar="الإجمالي" enClassName="font-bold text-gray-900" arClassName="text-xs font-semibold text-gray-600" className="min-w-0" />
-                <span className="font-mono text-xl font-bold text-primary-700 shrink-0">
-                  {renderMoney(totals.grandTotal)}
+                <EnAr en="Total" ar="الإجمالي" enClassName="font-bold text-gray-900" arClassName="text-sm font-semibold text-gray-600" className="shrink-0" />
+                <span className="font-mono text-lg font-bold text-primary-700 shrink-0 text-end sm:text-xl">
+                  {renderMoney(totals.grandTotal, { compact: true })}
                 </span>
               </div>
             </div>
