@@ -1329,6 +1329,16 @@ export default function PurchaseOrderForm() {
             </button>
             <button
               type="button"
+              onClick={() => navigate(`/app/dashboard/accounting/invoices/new/purchase?poId=${id}`)}
+              disabled={!isEdit || order?.status === 'cancelled' || order?.status === 'draft'}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50/70 px-3 py-1.5 text-[12px] font-semibold text-sky-800 transition hover:bg-sky-100 disabled:opacity-40 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300"
+              title={language === 'ar' ? 'إنشاء فاتورة مشتريات في المحاسبة من أمر الشراء' : 'Create an accounting purchase invoice from this PO'}
+            >
+              <Receipt className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+              {language === 'ar' ? 'فاتورة محاسبة' : 'Accounting invoice'}
+            </button>
+            <button
+              type="button"
               onClick={() => openWhatsAppModal(order)}
               className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-[12px] font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
               title={language === 'ar' ? 'إرسال عبر الواتساب' : 'Send via WhatsApp'}
