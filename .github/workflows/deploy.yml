@@ -33,13 +33,77 @@ jobs:
         working-directory: backend
         run: npm test
 
+  # Build in parallel with tests so wall-clock ≈ max(test, build) instead of sum.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend (shared with pdf-worker)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: false
+          load: true
+          tags: maqder-backend:latest
+          cache-from: type=gha,scope=maqder-backend
+          cache-to: type=gha,mode=max,scope=maqder-backend
+          build-args: |
+            BUILD_SHA=${{ github.sha }}
+
+      - name: Tag pdf-worker from backend (same image)
+        run: docker tag maqder-backend:latest maqder-pdf-worker:latest
+
+      - name: Build frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: false
+          load: true
+          tags: maqder-frontend:latest
+          cache-from: type=gha,scope=maqder-frontend
+          cache-to: type=gha,mode=max,scope=maqder-frontend
+          build-args: |
+            BUILD_SHA=${{ github.sha }}
+
+      - name: Pack images (zstd — faster than gzip)
+        run: |
+          set -euo pipefail
+          for img in maqder-backend maqder-frontend maqder-pdf-worker; do
+            docker image inspect "${img}:latest" >/dev/null
+          done
+          docker save \
+            maqder-backend:latest \
+            maqder-frontend:latest \
+            maqder-pdf-worker:latest \
+            | zstd -T0 -3 -o /tmp/maqder-app-images.tar.zst
+          ls -lh /tmp/maqder-app-images.tar.zst
+
+      - name: Upload image tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: maqder-app-images
+          path: /tmp/maqder-app-images.tar.zst
+          retention-days: 1
+          compression-level: 0
+
   deploy:
-    needs: test
+    needs: [test, build]
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download image tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: maqder-app-images
+          path: /tmp
 
       - name: Write SSH key and known_hosts
         env:
@@ -79,27 +143,6 @@ jobs:
               known.write_text(host)
               known.chmod(0o600)
           PY
-
-      - name: Build app images (Actions has working DNS to Docker Hub)
-        env:
-          COMPOSE_PROJECT_NAME: maqder
-          BUILD_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          touch .env
-          export BUILD_SHA
-          # Explicit image: tags in docker-compose.yml → maqder-*:latest
-          docker compose build backend frontend pdf-worker
-          for img in maqder-backend maqder-frontend maqder-pdf-worker; do
-            docker image inspect "${img}:latest" >/dev/null
-          done
-          echo "=== saving maqder-*-latest ==="
-          docker save \
-            maqder-backend:latest \
-            maqder-frontend:latest \
-            maqder-pdf-worker:latest \
-            | gzip > /tmp/maqder-app-images.tar.gz
-          ls -lh /tmp/maqder-app-images.tar.gz
 
       - name: Deploy to Plesk server
         env:
@@ -146,6 +189,17 @@ jobs:
           DEST="/var/www/vhosts/maqder.com/httpdocs"
           RSYNC_RSH="ssh -i $HOME/.ssh/plesk_deploy -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o ConnectTimeout=15 -p ${SSH_PORT}"
 
+          IMG_ZST="/tmp/maqder-app-images.tar.zst"
+          if [ ! -f "$IMG_ZST" ]; then
+            # artifact download may nest the file
+            IMG_ZST="$(find /tmp -name 'maqder-app-images.tar.zst' -type f | head -1)"
+          fi
+          if [ -z "${IMG_ZST}" ] || [ ! -f "$IMG_ZST" ]; then
+            echo "Missing maqder-app-images.tar.zst from build artifact"
+            find /tmp -maxdepth 3 -type f -name 'maqder*' 2>/dev/null || true
+            exit 1
+          fi
+
           echo "=== rsync code to ${REMOTE}:${DEST} (sha=${BUILD_SHA}) ==="
           rsync -az --delete \
             -e "$RSYNC_RSH" \
@@ -167,20 +221,14 @@ jobs:
             --exclude '.env.production' \
             --exclude '.cursor/' \
             --exclude 'maqder-app-images.tar.gz' \
+            --exclude 'maqder-app-images.tar.zst' \
             ./ "${REMOTE}:${DEST}/"
 
           echo "=== rsync pre-built images ==="
-          # Do not use scp with SSH_BASE: scp -p means preserve times, not port.
-          # Use rsync + ssh -p (port) like the code sync above.
-          if [ ! -f /tmp/maqder-app-images.tar.gz ]; then
-            echo "Missing /tmp/maqder-app-images.tar.gz from build step"
-            ls -la /tmp/maqder-app-images* 2>/dev/null || true
-            exit 1
-          fi
+          ls -lh "$IMG_ZST"
           rsync -az -e "$RSYNC_RSH" \
-            /tmp/maqder-app-images.tar.gz \
-            "${REMOTE}:/tmp/maqder-app-images.tar.gz"
-          ls -lh /tmp/maqder-app-images.tar.gz
+            "$IMG_ZST" \
+            "${REMOTE}:/tmp/maqder-app-images.tar.zst"
 
           echo "=== remote deploy.sh (prebuilt images, no Docker Hub) ==="
           set +e
@@ -192,4 +240,4 @@ jobs:
             echo "Remote deploy exited ${status} (255 = SSH never started the script)."
             exit "$status"
           fi
-          ssh "${SSH_BASE[@]}" "${REMOTE}" "rm -f /tmp/maqder-app-images.tar.gz" || true
+          ssh "${SSH_BASE[@]}" "${REMOTE}" "rm -f /tmp/maqder-app-images.tar.gz /tmp/maqder-app-images.tar.zst" || true

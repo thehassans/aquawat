@@ -113,8 +113,20 @@ if [ -n "$COMPOSE" ]; then
   echo "BUILD_SHA=${BUILD_SHA:-unknown}"
 
   # Load images pre-built by GitHub Actions (no Docker Hub DNS required).
-  # Do this before any docker restart so load is fast; DNS helper may restart docker later.
-  if [ -f /tmp/maqder-app-images.tar.gz ]; then
+  # Prefer zstd (CI); keep gzip for older artifact drops.
+  if [ -f /tmp/maqder-app-images.tar.zst ]; then
+    echo "Loading pre-built images from /tmp/maqder-app-images.tar.zst ..."
+    if ! command -v zstd >/dev/null 2>&1; then
+      apt-get update -qq && apt-get install -y -qq zstd >/dev/null 2>&1 \
+        || yum install -y -q zstd >/dev/null 2>&1 \
+        || true
+    fi
+    if ! command -v zstd >/dev/null 2>&1; then
+      echo "ERROR: zstd is required to load maqder-app-images.tar.zst"
+      exit 1
+    fi
+    zstd -d -c /tmp/maqder-app-images.tar.zst | docker load
+  elif [ -f /tmp/maqder-app-images.tar.gz ]; then
     echo "Loading pre-built images from /tmp/maqder-app-images.tar.gz ..."
     gunzip -c /tmp/maqder-app-images.tar.gz | docker load
   elif [ -f "$DEPLOY_PATH/maqder-app-images.tar.gz" ]; then

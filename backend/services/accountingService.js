@@ -5878,7 +5878,20 @@ export async function buildInvoiceAnalysis(tenantId, { from, to, flow, groupBy =
 
 export async function getAccountingDashboard(tenantId) {
   await ensureDefaultChartOfAccounts(tenantId);
-  const [accountCount, draftCount, postedCount, pnl, tb, agedAr, agedAp] = await Promise.all([
+  const activeInvoice = { tenantId, status: { $nin: ['cancelled', 'void'] } };
+  const [
+    accountCount,
+    draftCount,
+    postedCount,
+    pnl,
+    tb,
+    agedAr,
+    agedAp,
+    sellInvoiceCount,
+    purchaseInvoiceCount,
+    draftInvoiceCount,
+    invoiceCount,
+  ] = await Promise.all([
     ChartOfAccount.countDocuments({ tenantId, isActive: true }),
     JournalEntry.countDocuments({ tenantId, status: 'draft' }),
     JournalEntry.countDocuments({ tenantId, status: 'posted' }),
@@ -5886,6 +5899,10 @@ export async function getAccountingDashboard(tenantId) {
     buildTrialBalance(tenantId),
     buildAgedReceivables(tenantId),
     buildAgedPayables(tenantId),
+    Invoice.countDocuments({ ...activeInvoice, flow: { $ne: 'purchase' } }),
+    Invoice.countDocuments({ ...activeInvoice, flow: 'purchase' }),
+    Invoice.countDocuments({ tenantId, status: 'draft' }),
+    Invoice.countDocuments(activeInvoice),
   ]);
 
   const cash = tb.rows.find((r) => r.code === '1000');
@@ -5902,6 +5919,10 @@ export async function getAccountingDashboard(tenantId) {
     accountCount,
     draftCount,
     postedCount,
+    invoiceCount,
+    sellInvoiceCount,
+    purchaseInvoiceCount,
+    draftInvoiceCount,
     netIncome: pnl.netIncome,
     totalRevenue: pnl.totalRevenue,
     totalExpenses: pnl.totalExpenses,

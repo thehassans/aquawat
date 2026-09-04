@@ -393,14 +393,24 @@ export default function Accounting() {
   }, [recentInvoicesData])
 
   const invoiceStats = useMemo(() => {
+    // Prefer tenant-wide counts from /accounting/dashboard — never the recent-8 page slice.
+    if (dashboard) {
+      return {
+        count: Number(dashboard.invoiceCount || 0),
+        sell: Number(dashboard.sellInvoiceCount || 0),
+        purchase: Number(dashboard.purchaseInvoiceCount || 0),
+        draft: Number(dashboard.draftInvoiceCount || 0),
+        outstanding: Number(dashboard.agedAr?.total ?? dashboard.arBalance ?? 0),
+        openAr: Number(dashboard.agedAr?.openCount || 0),
+      }
+    }
     const list = recentInvoices
     const sell = list.filter((i) => String(i.flow || 'sell') !== 'purchase')
     const purchase = list.filter((i) => String(i.flow || '') === 'purchase')
     const draft = list.filter((i) => String(i.status || '').toLowerCase() === 'draft').length
     const outstanding = list.reduce((s, i) => s + Number(i.balanceDue ?? i.amountDue ?? 0), 0)
-    const revenue = sell.reduce((s, i) => s + Number(i.grandTotal || 0), 0)
-    return { count: list.length, sell: sell.length, purchase: purchase.length, draft, outstanding, revenue }
-  }, [recentInvoices])
+    return { count: list.length, sell: sell.length, purchase: purchase.length, draft, outstanding, openAr: 0 }
+  }, [dashboard, recentInvoices])
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounting-accounts'],
@@ -684,10 +694,17 @@ export default function Accounting() {
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
-                { labelEn: 'Invoices', labelAr: 'فواتير', value: invoiceStats.count },
-                { labelEn: 'Sales invoices', labelAr: 'مبيعات', value: invoiceStats.sell },
-                { labelEn: 'Drafts', labelAr: 'مسودات', value: invoiceStats.draft },
-                { labelEn: 'Outstanding', labelAr: 'مستحق', value: invoiceStats.outstanding, money: true },
+                { labelEn: 'Sales invoices', labelAr: 'فواتير المبيعات', value: invoiceStats.sell },
+                { labelEn: 'Purchase bills', labelAr: 'فواتير المشتريات', value: invoiceStats.purchase },
+                { labelEn: 'Draft invoices', labelAr: 'مسودات', value: invoiceStats.draft },
+                {
+                  labelEn: 'Open receivables',
+                  labelAr: 'ذمم مفتوحة',
+                  value: invoiceStats.outstanding,
+                  money: true,
+                  hintEn: invoiceStats.openAr ? `${invoiceStats.openAr} open` : null,
+                  hintAr: invoiceStats.openAr ? `${invoiceStats.openAr} مفتوحة` : null,
+                },
               ].map((item) => (
                 <div
                   key={item.labelEn}
@@ -697,8 +714,13 @@ export default function Accounting() {
                     {isAr ? item.labelAr : item.labelEn}
                   </p>
                   <p className="mt-1 text-lg font-semibold tabular-nums tracking-tight text-slate-800 dark:text-slate-100">
-                    {invoicesLoading ? '—' : item.money ? <Money value={item.value || 0} /> : item.value}
+                    {dashLoading || invoicesLoading ? '—' : item.money ? <Money value={item.value || 0} /> : item.value}
                   </p>
+                  {(item.hintEn || item.hintAr) && !dashLoading ? (
+                    <p className="mt-0.5 text-[10px] text-slate-400">
+                      {isAr ? item.hintAr : item.hintEn}
+                    </p>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -836,9 +858,9 @@ export default function Accounting() {
                 <div className="mt-4 space-y-3 text-sm">
                   {[
                     [isAr ? 'الحسابات' : 'Accounts', dashboard?.accountCount || 0],
-                    [isAr ? 'مسودات' : 'Drafts', dashboard?.draftCount || 0],
+                    [isAr ? 'مسودات القيود' : 'Draft journals', dashboard?.draftCount || 0],
                     [isAr ? 'مرحّلة' : 'Posted', dashboard?.postedCount || 0],
-                    [isAr ? 'فواتير' : 'Invoices', invoiceStats.count],
+                    [isAr ? 'الفواتير' : 'Invoices', invoiceStats.count],
                   ].map(([label, value]) => (
                     <div key={label} className="flex justify-between">
                       <span className="text-slate-500">{label}</span>
