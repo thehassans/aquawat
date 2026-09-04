@@ -3539,7 +3539,7 @@ router.post('/tenants/:id/finalise-import', async (req, res) => {
 });
 
 // @route   POST /api/super-admin/ops/import-golden-touch-legacy
-// Idempotent import of Golden Touch historical POS sales (journals + customers).
+// Import Golden Touch historical POS sales (journals + customers). Matching invoice numbers are rewritten.
 router.post('/ops/import-golden-touch-legacy', async (req, res) => {
   try {
     const { spawn } = await import('child_process');

@@ -1,5 +1,5 @@
 /**
- * Import historical Golden Touch POS sales into Maqder invoices.
+ * Import historical Golden Touch POS sales into Maqder invoices (EN+AR).
  *
  * Usage (from backend/):
  *   node scripts/import-golden-touch-invoices.mjs
@@ -7,10 +7,11 @@
  *   node scripts/import-golden-touch-invoices.mjs --dry-run
  *   node scripts/import-golden-touch-invoices.mjs --create-tenant
  *
- * Idempotent: skips invoiceNumbers that already exist for the tenant.
+ * Matching invoiceNumbers are rewritten (journals reversed, invoice replaced).
  */
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
 import dns from 'dns';
@@ -24,7 +25,6 @@ const useProd = args.has('--env=production') || args.has('--prod');
 const dryRun = args.has('--dry-run');
 const createTenant = args.has('--create-tenant');
 
-// Prefer already-injected env (Docker / PM2). File load is for local/laptop runs.
 if (!process.env.MONGODB_URI) {
   dotenv.config({ path: path.join(__dirname, useProd ? '../.env.production' : '../.env') });
 } else if (useProd) {
@@ -35,57 +35,194 @@ import Tenant from '../models/Tenant.js';
 import User from '../models/User.js';
 import Partner from '../models/Partner.js';
 import Invoice from '../models/Invoice.js';
+import AccountPayment from '../models/AccountPayment.js';
 import {
   postSalesInvoiceJournal,
   postInvoicePaymentJournal,
   ensureAccountingDefaults,
+  reverseInvoiceLinkedJournals,
 } from '../services/accountingService.js';
 import { roundMoney } from '../utils/money.js';
 
-/** Source export — dates are MM/DD/YYYY (Aug–Sep 2026). Totals are VAT-inclusive SAR. */
-const ROWS = [
-  { date: '08/06/2026 21:55', no: '0112', customer: 'Nada Yahya', phone: '0552883448', payStatus: 'paid', method: 'cash', total: 1225, paid: 1225, note: '' },
-  { date: '08/06/2026 23:19', no: '0086', customer: 'Omar Farouk', phone: '555', payStatus: 'paid', method: 'card', total: 300, paid: 300, note: '' },
-  { date: '08/07/2026 23:49', no: '0087', customer: 'Abdul Aziz Muhammad', phone: '0551126316', payStatus: 'paid', method: 'cash', total: 200, paid: 200, note: '' },
-  { date: '08/08/2026 21:56', no: '0113', customer: 'Reem Ali', phone: '0555321377', payStatus: 'paid', method: 'cash', total: 2400, paid: 2400, note: '' },
-  { date: '08/08/2026 21:58', no: '0114', customer: 'Mona Hakami', phone: '0532967048', payStatus: 'paid', method: 'cash', total: 4100, paid: 4100, note: '' },
-  { date: '08/09/2026 19:18', no: '0088', customer: 'Saleh Hussein Abdali', phone: '0551369260', payStatus: 'paid', method: 'card', total: 1725, paid: 1725, note: '' },
-  { date: '08/09/2026 21:59', no: '0115', customer: 'Awatif Hassan', phone: '0538761032', payStatus: 'paid', method: 'cash', total: 1125, paid: 1125, note: '' },
-  { date: '08/09/2026 22:00', no: '0116', customer: 'Noura Ali', phone: '0557923442', payStatus: 'paid', method: 'cash', total: 1000, paid: 1000, note: '' },
-  { date: '08/09/2026 22:01', no: '0117', customer: 'Agwan', phone: '0583911661', payStatus: 'paid', method: 'cash', total: 2000, paid: 2000, note: '' },
-  { date: '08/09/2026 22:02', no: '0118', customer: 'Ibtihal Muhammad', phone: '0543347008', payStatus: 'paid', method: 'cash', total: 1375, paid: 1375, note: '' },
-  { date: '08/09/2026 22:03', no: '0119', customer: 'Mohammed', phone: '0543347008', payStatus: 'paid', method: 'cash', total: 100, paid: 100, note: '' },
-  { date: '08/09/2026 22:16', no: '0089', customer: 'Samaa Aloun', phone: '054274574', payStatus: 'partial', method: 'cash', total: 3450, paid: 1000, note: '' },
-  { date: '08/10/2026 22:38', no: '0090', customer: 'Zahraa Al-Naami', phone: '0534622833', payStatus: 'paid', method: 'card', total: 2185, paid: 2185, note: '' },
-  { date: '08/10/2026 23:19', no: '0091', customer: 'Safaa Muhammad', phone: '9999', payStatus: 'paid', method: 'card', total: 150, paid: 150, note: '' },
-  { date: '08/11/2026 22:06', no: '0120', customer: 'Walk-In Customer', phone: '', payStatus: 'paid', method: 'cash', total: 140, paid: 140, note: '' },
-  { date: '08/11/2026 22:07', no: '0121', customer: 'Fatima Hassan Majiri', phone: '0538699447', payStatus: 'paid', method: 'cash', total: 2070, paid: 2070, note: '' },
-  { date: '08/12/2026 22:07', no: '0122', customer: 'Susan Ayali', phone: '0509606022', payStatus: 'paid', method: 'cash', total: 450, paid: 450, note: '' },
-  { date: '08/12/2026 22:08', no: '0123', customer: 'Mahja Aqeel Ali', phone: '0507244214', payStatus: 'paid', method: 'cash', total: 3077, paid: 3077, note: '' },
-  { date: '08/13/2026 22:09', no: '0124', customer: 'Angham Hassan Masawi', phone: '0550301580', payStatus: 'paid', method: 'cash', total: 1600, paid: 1600, note: '' },
-  { date: '08/14/2026 22:10', no: '0125', customer: 'Ahmed Ruby', phone: '0', payStatus: 'paid', method: 'cash', total: 200, paid: 200, note: '' },
-  { date: '08/17/2026 22:11', no: '0126', customer: 'Maryam Jaabour', phone: '0554235553', payStatus: 'partial', method: 'cash', total: 1495, paid: 500, note: '' },
-  { date: '08/19/2026 22:12', no: '0127', customer: 'Raneem Ahmed Areeji', phone: '0506604375', payStatus: 'paid', method: 'split', total: 1380, paid: 1380, note: '' },
-  { date: '08/20/2026 22:13', no: '0128', customer: 'Amani 2222', phone: '0', payStatus: 'partial', method: 'cash', total: 650, paid: 150, note: '' },
-  { date: '08/20/2026 22:13', no: '0092', customer: 'Fatima Yahya', phone: '0503588308', payStatus: 'paid', method: 'card', total: 500, paid: 500, note: '' },
-  { date: '08/26/2026 18:27', no: '0129', customer: 'Shrouq Yahya Al-Maliki', phone: '0508896747', payStatus: 'paid', method: 'split', total: 1495, paid: 1495, note: 'Pickup 19/3, Return 22/3' },
-  { date: '08/27/2026 22:39', no: '0130', customer: 'Zainab Qasim Sahlooli', phone: '0500094586', payStatus: 'partial', method: 'card', total: 2300, paid: 500, note: 'Received 12/4, Returned 14/4' },
-  { date: '08/27/2026 23:28', no: '0131', customer: 'Hahaha', phone: '0502438198', payStatus: 'paid', method: 'card', total: 500, paid: 500, note: '' },
-  { date: '08/28/2026 17:45', no: '0132', customer: 'Noor Muhammad Al-Attas', phone: '0530060932', payStatus: 'paid', method: 'card', total: 287.5, paid: 287.5, note: 'Rent a tarpaulin' },
-  { date: '08/28/2026 17:50', no: '0133', customer: 'Talal Al-Maliki', phone: '0597088778', payStatus: 'partial', method: 'cash', total: 2070, paid: 500, note: 'Received 26, Returned 29/3' },
-  { date: '08/28/2026 20:08', no: '0134', customer: 'Mohammed', phone: '0', payStatus: 'paid', method: 'card', total: 75, paid: 75, note: '' },
-  { date: '08/30/2026 23:29', no: '0135', customer: 'Sharifa Shami', phone: '0559011935', payStatus: 'partial', method: 'card', total: 1300, paid: 500, note: '' },
-  { date: '09/01/2026 19:58', no: '0136', customer: 'Noura Mohammed Subiani', phone: '0553260396', payStatus: 'partial', method: 'card', total: 3300, paid: 1000, note: '15/4 Probe, Receipt 19/4' },
-];
-
 const TAX_RATE = 15;
-const IMPORT_TAG = 'golden-touch-legacy-import-2026-08';
+const IMPORT_TAG = 'golden-touch-legacy-import-2026-full';
+const EXPECTED_TOTAL = 184665.98;
+const EXPECTED_PAID = 136338.97;
+
+/** English source name → Arabic display name (bilingual invoices). */
+const CUSTOMER_AR = {
+  'Noura Mohammed Subiani': 'نورة محمد صبياني',
+  'Sharifa Shami': 'شريفة شامي',
+  Mohammed: 'محمد',
+  'Talal Al-Maliki': 'طلال المالكي',
+  'Noor Muhammad Al-Attas': 'نور محمد العطاس',
+  Hahaha: 'هههه',
+  'Zainab Qasim Sahlooli': 'زينب قاسم سهلولي',
+  'Shrouq Yahya Al-Maliki': 'شروق يحيى المالكي',
+  'Fatima Yahya': 'فاطمة يحيى',
+  'Amani 2222': 'أماني 2222',
+  'Raneem Ahmed Areeji': 'رنيم أحمد عريجي',
+  'Maryam Jaabour': 'مريم جعبور',
+  'Ahmed Ruby': 'أحمد روبي',
+  'Angham Hassan Masawi': 'أنغام حسن مساوي',
+  'Mahja Aqeel Ali': 'مهجة عقيل علي',
+  'Susan Ayali': 'سوزان عيالي',
+  'Fatima Hassan Majiri': 'فاطمة حسن مجيري',
+  'Walk-In Customer': 'عميل عابر',
+  'Safaa Muhammad': 'صفاء محمد',
+  'Zahraa Al-Naami': 'زهراء النعمي',
+  'Samaa Aloun': 'سماء علون',
+  'Ibtihal Muhammad': 'ابتهال محمد',
+  Agwan: 'أجوان',
+  'Noura Ali': 'نورة علي',
+  'Awatif Hassan': 'عواطف حسن',
+  'Saleh Hussein Abdali': 'صالح حسين عبدلي',
+  'Mona Hakami': 'منى حكمي',
+  'Reem Ali': 'ريم علي',
+  'Abdul Aziz Muhammad': 'عبد العزيز محمد',
+  'Omar Farouk': 'عمر فاروق',
+  'Nada Yahya': 'ندى يحيى',
+  "Ru'a Al-Hazmi": 'رؤى الحازمي',
+  Siyabari: 'سيابري',
+  'Sarah Ali Maroubi': 'سارة علي مروبي',
+  'Amani Ibrahim Jabali': 'أماني إبراهيم جبالي',
+  'Issa Aqili witnessed': 'عيسى عقيلي شهد',
+  'Sharifa Ahmed Matari': 'شريفة أحمد مطري',
+  Yara: 'يارا',
+  'Reem Hassan': 'ريم حسن',
+  'Arena Mahzari': 'أرينا محظري',
+  'Amal Al-Hazmi': 'أمل الحازمي',
+  'Zakaria Hakami': 'زكريا حكمي',
+  'Majed Abdullah': 'ماجد عبدالله',
+  'Kholoud Ahmed': 'خلود أحمد',
+  'Layla Muafa': 'ليلى معافا',
+  'Rawbi Ahmed': 'روابي أحمد',
+  'Juman Mubarak': 'جمان مبارك',
+  'Fatima Nazim Muhammad': 'فاطمة ناظم محمد',
+  'Mubarak Nebula': 'مبارك سديم',
+  'Samira Abdelli': 'سميرة عبدلي',
+  'Good candy': 'حلوى جيدة',
+  'Maryam Muhammad Ali': 'مريم محمد علي',
+  Ahmed: 'أحمد',
+  'My ambition witnessed': 'طموحي شهد',
+  'Noha Ahmed': 'نهى أحمد',
+  'Fatima Murei Arji': 'فاطمة مرعي عرجي',
+  Cave: 'كهف',
+  'Ibrahim Ali Al-Fifi': 'إبراهيم علي الفيفي',
+  'Abrar Ahmed': 'أبرار أحمد',
+  'Maimouna Jaafari': 'ميمونة جعفري',
+  'Sanaa Sadiq': 'سناء صادق',
+  'Najwa Al-Harbi': 'نجوى الحربي',
+  'Bashayer Doushi': 'بشاير دوشي',
+  'Mohamed Hassan': 'محمد حسن',
+  Rawabi: 'روابي',
+  sentiment: 'شعور',
+  'Aa L': 'أ أ ل',
+  'Laila Ibrahim': 'ليلى إبراهيم',
+  'Sarah Nasser': 'سارة ناصر',
+  Zahra: 'زهرة',
+  'The Good News of Abraham': 'بشرى إبراهيم',
+  'Rahaf Ali': 'رهف علي',
+  'Mohamed Gamal': 'محمد جمال',
+  'Maram Ahmed': 'مرام أحمد',
+  'Hanan Hassan': 'حنان حسن',
+  Fatasa: 'فطاسة',
+  'Layan Hassan': 'ليان حسن',
+  'Al-Wasli narrated': 'الوصلي روى',
+  'Nadine Sultan': 'نادين سلطان',
+  pleasant: 'لطيف',
+  'Popular breeze': 'نسيم شعبي',
+  princess: 'الأميرة',
+  'mlak Atif': 'ملاك عاطف',
+  'With her, Abdul Wadud Hassan': 'معها عبد الودود حسن',
+  'Hanan Ala': 'حنان علاء',
+  'Hassan lived': 'حسن عاش',
+  'Amna Hazazi': 'آمنة هزازي',
+  'Azhar Ahmed': 'أزهار أحمد',
+  'Rinas Abdullah': 'ريناس عبدالله',
+  'Noha Ali': 'نهى علي',
+  'His customer modified': 'عميله المعدل',
+  'Atheer Jabali': 'أثير جبالي',
+  'His daytime order': 'طلبه النهاري',
+  'Amjad Amer Ali': 'أمجد عامر علي',
+  'Al-Anoud Othman': 'العنود عثمان',
+  'Layl Ala': 'ليل علاء',
+  'Wasan Ahmed': 'وسن أحمد',
+  'to attest': 'تشهد',
+  'Zaqri Ahmed': 'زقري أحمد',
+  'Atra Khorma': 'عطرة خرمة',
+  'Ghabia Muhammad': 'غابية محمد',
+  'Rania Jabri': 'رانيا جبري',
+  'Wajdan Muhammad Ali': 'وجدان محمد علي',
+  'Rafif on': 'رفيف على',
+  'Joud Ahmed Ghazi': 'جود أحمد غازي',
+  'Elham Ahmed': 'إلهام أحمد',
+  'Sarah Kharafi': 'سارة خرفي',
+  'On this': 'على هذا',
+  'Ruqaya Hadi': 'رقية هادي',
+  'Abdullah witnessed': 'عبدالله شهد',
+  'Abdullah Othman': 'عبدالله عثمان',
+  'Nibras Asiri': 'نبراس عسيري',
+  Rehav: 'رحاب',
+  Fatima: 'فاطمة',
+  Neuer: 'نوير',
+  'Rahaf Hamdi': 'رهف حمدي',
+  immortality: 'خلود',
+  'Hanan Al-Yamani': 'حنان اليماني',
+  'Jaber collapsed': 'جابر انهار',
+  'Hanan Madkhali': 'حنان مدخلي',
+  'Ghafira Atouli': 'غفيرة عتولي',
+};
+
+const NOTE_AR = {
+  '15/4 Probe, Receipt 19/4': 'تجربة 15/4، استلام 19/4',
+  'Received 26, Returned 29/3': 'استلام 26، إرجاع 29/3',
+  'Rent a tarpaulin': 'إيجار شادر',
+  'Received 12/4, Returned 14/4': 'استلام 12/4، إرجاع 14/4',
+  'Pickup 19/3, Return 22/3': 'استلام 19/3، إرجاع 22/3',
+};
+
+function mapPaymentMethod(raw) {
+  const m = String(raw || '').trim().toLowerCase();
+  if (m.includes('mada') || m === 'card') return 'card';
+  if (m.includes('multi') || m.includes('split')) return 'split';
+  if (m.includes('cash') || m === 'in cash') return 'cash';
+  if (m === 'last') return 'cash'; // POS “آخر/آجل” export quirk — record paid portion as cash
+  return 'cash';
+}
+
+function loadRows() {
+  const tsvPath = path.join(__dirname, 'data/golden-touch-legacy.tsv');
+  const lines = fs.readFileSync(tsvPath, 'utf8').trim().split(/\r?\n/);
+  const header = lines[0].split('\t');
+  return lines.slice(1).map((line) => {
+    const cols = line.split('\t');
+    const row = {};
+    header.forEach((h, i) => { row[h] = cols[i] ?? ''; });
+    const customer = String(row.customer || '').trim() || 'Walk-In Customer';
+    return {
+      date: row.date.trim(),
+      no: String(row.no).trim(),
+      customer,
+      customerAr: CUSTOMER_AR[customer] || customer,
+      phone: String(row.phone || '').trim(),
+      payStatus: row.payStatus.trim(),
+      method: mapPaymentMethod(row.method),
+      methodRaw: row.method.trim(),
+      total: Number(row.total),
+      paid: Number(row.paid),
+      note: String(row.note || '').trim(),
+      noteAr: NOTE_AR[String(row.note || '').trim()] || '',
+    };
+  });
+}
+
+const ROWS = loadRows();
 
 function parseIssueDate(raw) {
   const m = String(raw).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})$/);
   if (!m) throw new Error(`Bad date: ${raw}`);
   const [, mm, dd, yyyy, hh, min] = m.map(Number);
-  // Store as local wall-clock in Asia/Riyadh (+03) as UTC+3 absolute.
   return new Date(Date.UTC(yyyy, mm - 1, dd, hh - 3, min, 0));
 }
 
@@ -103,7 +240,6 @@ function isRentalNote(note) {
   return /pickup|return|received|returned|rent|probe|receipt|tarpaulin/.test(n);
 }
 
-/** Split VAT-inclusive total so mongoose tax hook (net + round(net*15%)) equals source. */
 function inclusiveLine(totalIncl) {
   const grand = roundMoney(totalIncl);
   let net = roundMoney(grand / (1 + TAX_RATE / 100));
@@ -115,6 +251,12 @@ function inclusiveLine(totalIncl) {
   }
   const tax = roundMoney(grand - net);
   return { net, tax, grand };
+}
+
+function bilingualNote(note, noteAr) {
+  if (!note) return '';
+  if (noteAr && noteAr !== note) return `${note} | ${noteAr}`;
+  return note;
 }
 
 async function resolveAtlasUri(srvUri) {
@@ -165,10 +307,16 @@ async function findOrCreateTenant() {
     tenant.settings.currency = tenant.settings.currency || 'SAR';
     tenant.settings.invoiceLanguage = 'en_ar';
     tenant.settings.invoicePdfPageSize = 'a4';
-    if (!tenant.business?.legalNameAr) {
-      tenant.business = tenant.business || {};
-      tenant.business.legalNameAr = tenant.business.legalNameAr || 'شركة جولدن تاتش لخدمات الأعمال';
-    }
+    tenant.business = tenant.business || {};
+    tenant.business.legalNameEn = tenant.business.legalNameEn || 'Golden Touch Business Services Company';
+    tenant.business.legalNameAr = tenant.business.legalNameAr || 'شركة جولدن تاتش لخدمات الأعمال';
+    tenant.business.tradeName = tenant.business.tradeName || 'Golden Touch';
+    tenant.business.address = {
+      ...(tenant.business.address || {}),
+      city: tenant.business.address?.city || 'Jeddah',
+      cityAr: tenant.business.address?.cityAr || 'جدة',
+      country: tenant.business.address?.country || 'SA',
+    };
     await tenant.save();
     return tenant;
   }
@@ -215,6 +363,7 @@ async function findOrCreateTenant() {
 
 async function upsertCustomer(tenantId, row) {
   const name = String(row.customer || 'Walk-In Customer').trim() || 'Walk-In Customer';
+  const nameAr = String(row.customerAr || name).trim();
   const phone = normalizePhone(row.phone);
   const rawPhone = String(row.phone || '').trim();
 
@@ -235,17 +384,29 @@ async function upsertCustomer(tenantId, row) {
   }
 
   if (partner) {
+    let dirty = false;
     if (phone && !partner.phone) {
       partner.phone = phone;
       partner.mobile = phone;
-      await partner.save();
+      dirty = true;
     }
+    if (!partner.nameAr || partner.nameAr === partner.name) {
+      partner.nameAr = nameAr;
+      dirty = true;
+    }
+    if (!partner.nameEn) {
+      partner.nameEn = name;
+      dirty = true;
+    }
+    if (dirty) await partner.save();
     return partner;
   }
 
   return Partner.create({
     tenantId,
     name,
+    nameEn: name,
+    nameAr,
     phone: phone || undefined,
     mobile: phone || undefined,
     type: 'individual',
@@ -256,18 +417,38 @@ async function upsertCustomer(tenantId, row) {
   });
 }
 
+async function rewriteExistingInvoice(tenantId, invoiceNumber, userId) {
+  const existing = await Invoice.findOne({ tenantId, invoiceNumber });
+  if (!existing) return { rewritten: false };
+
+  await reverseInvoiceLinkedJournals(
+    tenantId,
+    existing._id,
+    userId,
+    `Rewrite legacy import ${IMPORT_TAG} #${invoiceNumber}`,
+  );
+
+  await AccountPayment.deleteMany({
+    tenantId,
+    'allocations.invoiceId': existing._id,
+  });
+
+  await Invoice.deleteOne({ _id: existing._id });
+  return { rewritten: true, previousId: existing._id.toString() };
+}
+
 async function main() {
   const rawUri = process.env.MONGODB_URI;
   if (!rawUri) throw new Error('MONGODB_URI missing');
-  // Only rewrite SRV when explicitly targeting Atlas from a broken local DNS environment.
   const uri = (useProd && String(rawUri).startsWith('mongodb+srv://'))
     ? await resolveAtlasUri(rawUri)
     : rawUri;
   await mongoose.connect(uri, { serverSelectionTimeoutMS: 30000 });
   console.log('Connected', mongoose.connection.db.databaseName, useProd ? '(production flag)' : '');
+  console.log(`Source rows: ${ROWS.length}`);
 
   const tenant = await findOrCreateTenant();
-  console.log('Tenant', tenant._id.toString(), '|', tenant.name, '|', tenant.businessTypes);
+  console.log('Tenant', tenant._id.toString(), '|', tenant.name, '| invoiceLanguage=', tenant.settings?.invoiceLanguage);
 
   let user = await User.findOne({ tenantId: tenant._id, role: { $in: ['admin', 'super_admin', 'owner'] } }).sort({ createdAt: 1 });
   if (!user) user = await User.findOne({ tenantId: tenant._id }).sort({ createdAt: 1 });
@@ -278,7 +459,7 @@ async function main() {
 
   const seller = {
     name: tenant.business?.legalNameEn || tenant.name,
-    nameAr: tenant.business?.legalNameAr || '',
+    nameAr: tenant.business?.legalNameAr || 'شركة جولدن تاتش لخدمات الأعمال',
     vatNumber: tenant.business?.vatNumber || '',
     crNumber: tenant.business?.crNumber || '',
     address: {
@@ -295,7 +476,7 @@ async function main() {
   };
 
   let created = 0;
-  let skipped = 0;
+  let rewritten = 0;
   let errors = 0;
   let sumTotal = 0;
   let sumPaid = 0;
@@ -304,105 +485,115 @@ async function main() {
     sumTotal = roundMoney(sumTotal + row.total);
     sumPaid = roundMoney(sumPaid + row.paid);
 
-    const existing = await Invoice.findOne({ tenantId: tenant._id, invoiceNumber: row.no }).select('_id status grandTotal');
-    if (existing) {
-      console.log(`SKIP ${row.no} (exists ${existing._id})`);
-      skipped += 1;
-      continue;
-    }
-
     const issueDate = parseIssueDate(row.date);
     const { net, tax, grand } = inclusiveLine(row.total);
     const rental = isRentalNote(row.note);
     const businessContext = rental ? 'boutique' : 'trading';
+    const tarpaulin = row.note?.toLowerCase().includes('tarpaulin');
     const productName = rental
-      ? (row.note?.toLowerCase().includes('tarpaulin') ? 'Tarpaulin rental' : 'Boutique rental')
+      ? (tarpaulin ? 'Tarpaulin rental' : 'Boutique rental')
       : 'Sales item';
+    const productNameAr = rental
+      ? (tarpaulin ? 'إيجار شادر' : 'إيجار بوتيك')
+      : 'صنف مبيعات';
     const paidAmount = roundMoney(Math.min(row.paid, grand));
     const paymentStatus = paidAmount >= grand - 0.005 ? 'paid' : (paidAmount > 0 ? 'partial' : 'pending');
-    const paymentMethod = row.method === 'card' || row.method === 'cash' || row.method === 'split'
-      ? row.method
-      : 'cash';
-
-    const partner = dryRun ? null : await upsertCustomer(tenant._id, row);
-    const phoneDisplay = normalizePhone(row.phone) || String(row.phone || '').trim();
-
-    const doc = {
-      tenantId: tenant._id,
-      flow: 'sell',
-      businessContext,
-      invoiceNumber: row.no,
-      invoiceType: '388',
-      invoiceSubtype: 'standard',
-      invoiceTypeCode: '0200000',
-      transactionType: 'B2C',
-      issueDate,
-      supplyDate: issueDate,
-      dueDate: issueDate,
-      accountingDate: issueDate,
-      printFormat: 'a4',
-      currency: 'SAR',
-      seller,
-      buyer: {
-        name: row.customer || 'Walk-In Customer',
-        contactPhone: phoneDisplay || undefined,
-        address: { country: 'SA', city: seller.address.city || 'Jeddah' },
-      },
-      customerId: partner?._id,
-      lineItems: [{
-        lineNumber: 1,
-        productName,
-        productNameAr: rental ? 'إيجار بوتيك' : 'صنف مبيعات',
-        productType: rental ? 'service' : 'goods',
-        description: row.note || 'Legacy POS import',
-        quantity: 1,
-        unitCode: rental ? 'DAY' : 'PCE',
-        unitPrice: net,
-        discount: 0,
-        taxCategory: 'S',
-        taxRate: TAX_RATE,
-        taxAmount: tax,
-        lineTotal: net,
-        lineTotalWithTax: grand,
-      }],
-      subtotal: net,
-      invoiceDiscount: 0,
-      totalDiscount: 0,
-      taxableAmount: net,
-      totalTax: tax,
-      grandTotal: grand,
-      paymentMethod,
-      paymentStatus,
-      paidAmount,
-      payments: paidAmount > 0 ? [{ method: paymentMethod === 'split' ? 'cash' : paymentMethod, amount: paidAmount }] : [],
-      status: 'approved',
-      notes: row.note || '',
-      internalNotes: `[${IMPORT_TAG}] Legacy POS sale #${row.no}; method=${row.method}; source status=${row.payStatus}`,
-      createdBy: user?._id,
-      createdByName: 'Business',
-      approvedBy: user?._id,
-      approvedAt: issueDate,
-    };
-
-    if (rental) {
-      doc.boutiqueDetails = {
-        transactionType: 'rental',
-        amountPaid: paidAmount,
-        depositStatus: 'pending',
-        startDate: issueDate,
-        endDate: issueDate,
-      };
-    }
+    const paymentMethod = row.method;
+    const notes = bilingualNote(row.note, row.noteAr);
 
     if (dryRun) {
-      console.log(`DRY ${row.no} ${businessContext} ${grand} paid=${paidAmount} ${paymentStatus}`);
-      created += 1;
+      const exists = await Invoice.exists({ tenantId: tenant._id, invoiceNumber: row.no });
+      console.log(`DRY ${row.no} ${exists ? 'REWRITE' : 'CREATE'} ${businessContext} ${grand} paid=${paidAmount} ${paymentStatus} | ${row.customer} / ${row.customerAr}`);
+      if (exists) rewritten += 1;
+      else created += 1;
       continue;
     }
 
     try {
+      const prior = await rewriteExistingInvoice(tenant._id, row.no, user?._id);
+      if (prior.rewritten) {
+        console.log(`REWRITE ${row.no} (was ${prior.previousId})`);
+        rewritten += 1;
+      }
+
+      const partner = await upsertCustomer(tenant._id, row);
+      const phoneDisplay = normalizePhone(row.phone) || String(row.phone || '').trim();
+
+      const doc = {
+        tenantId: tenant._id,
+        flow: 'sell',
+        businessContext,
+        invoiceNumber: row.no,
+        invoiceType: '388',
+        invoiceSubtype: 'standard',
+        invoiceTypeCode: '0200000',
+        transactionType: 'B2C',
+        issueDate,
+        supplyDate: issueDate,
+        dueDate: issueDate,
+        accountingDate: issueDate,
+        printFormat: 'a4',
+        currency: 'SAR',
+        seller,
+        buyer: {
+          name: row.customer || 'Walk-In Customer',
+          nameAr: row.customerAr || row.customer || 'عميل عابر',
+          contactPhone: phoneDisplay || undefined,
+          address: {
+            country: 'SA',
+            city: seller.address.city || 'Jeddah',
+            cityAr: seller.address.cityAr || 'جدة',
+          },
+        },
+        customerId: partner?._id,
+        lineItems: [{
+          lineNumber: 1,
+          productName,
+          productNameAr,
+          productType: rental ? 'service' : 'goods',
+          description: notes || 'Legacy POS import / استيراد من نقطة البيع',
+          quantity: 1,
+          unitCode: rental ? 'DAY' : 'PCE',
+          unitPrice: net,
+          discount: 0,
+          taxCategory: 'S',
+          taxRate: TAX_RATE,
+          taxAmount: tax,
+          lineTotal: net,
+          lineTotalWithTax: grand,
+        }],
+        subtotal: net,
+        invoiceDiscount: 0,
+        totalDiscount: 0,
+        taxableAmount: net,
+        totalTax: tax,
+        grandTotal: grand,
+        paymentMethod,
+        paymentStatus,
+        paidAmount,
+        payments: paidAmount > 0
+          ? [{ method: paymentMethod === 'split' ? 'cash' : paymentMethod, amount: paidAmount }]
+          : [],
+        status: 'approved',
+        notes,
+        internalNotes: `[${IMPORT_TAG}] Legacy POS sale #${row.no}; method=${row.methodRaw}; source status=${row.payStatus}`,
+        createdBy: user?._id,
+        createdByName: 'Business',
+        approvedBy: user?._id,
+        approvedAt: issueDate,
+      };
+
+      if (rental) {
+        doc.boutiqueDetails = {
+          transactionType: 'rental',
+          amountPaid: paidAmount,
+          depositStatus: 'pending',
+          startDate: issueDate,
+          endDate: issueDate,
+        };
+      }
+
       const invoice = await Invoice.create(doc);
-      // Force exact VAT-inclusive totals (2dp VAT math cannot always match every retail total).
       await Invoice.collection.updateOne(
         { _id: invoice._id },
         {
@@ -419,6 +610,8 @@ async function main() {
             'lineItems.0.taxAmount': tax,
             'lineItems.0.lineTotal': net,
             'lineItems.0.lineTotalWithTax': grand,
+            'buyer.nameAr': row.customerAr || row.customer,
+            'seller.nameAr': seller.nameAr,
           },
         },
       );
@@ -445,7 +638,7 @@ async function main() {
       }
 
       console.log(`OK  ${row.no} ${fresh.grandTotal} paid=${fresh.paidAmount} ${fresh.paymentStatus} ${businessContext}`);
-      created += 1;
+      if (!prior.rewritten) created += 1;
     } catch (err) {
       errors += 1;
       console.error(`ERR ${row.no}`, err.message);
@@ -457,24 +650,33 @@ async function main() {
     const formatFix = await Invoice.updateMany(
       {
         tenantId: tenant._id,
-        $or: [
-          { invoiceNumber: { $in: legacyNumbers } },
-          { internalNotes: new RegExp(IMPORT_TAG.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) },
-        ],
+        invoiceNumber: { $in: legacyNumbers },
       },
       {
         $set: {
           printFormat: 'a4',
-          'seller.nameAr': seller.nameAr || 'شركة جولدن تاتش لخدمات الأعمال',
+          'seller.name': seller.name,
+          'seller.nameAr': seller.nameAr,
         },
-      }
+      },
     );
-    console.log(`Format fix → a4 bilingual-ready: matched=${formatFix.matchedCount} modified=${formatFix.modifiedCount}`);
+    console.log(`Format fix → a4 bilingual: matched=${formatFix.matchedCount} modified=${formatFix.modifiedCount}`);
   }
 
   console.log('\n--- Summary ---');
-  console.log({ created, skipped, errors, sourceRows: ROWS.length, sumTotal, sumPaid, expectedTotal: 44224.5, expectedPaid: 33809.5 });
+  console.log({
+    created,
+    rewritten,
+    errors,
+    sourceRows: ROWS.length,
+    sumTotal,
+    sumPaid,
+    expectedTotal: EXPECTED_TOTAL,
+    expectedPaid: EXPECTED_PAID,
+    totalsMatch: sumTotal === EXPECTED_TOTAL && sumPaid === EXPECTED_PAID,
+  });
   await mongoose.disconnect();
+  if (errors > 0) process.exitCode = 1;
 }
 
 main().catch(async (err) => {
