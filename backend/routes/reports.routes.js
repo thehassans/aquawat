@@ -929,63 +929,234 @@ router.get('/customer-statement', async (req, res) => {
     const { customerId } = req.query;
     if (!customerId) return res.status(400).json({ error: 'customerId required' });
     const { startDate, endDate } = resolvePeriod(req);
-    
-    const mongoose = (await import('mongoose')).default;
-    const Voucher = mongoose.model('Voucher');
-    
-    const invoices = await Invoice.find({ 
-      ...req.tenantFilter, customerId, flow: 'sell', issueDate: { $gte: startDate, $lte: endDate }, status: { $nin: ['draft', 'cancelled'] }
-    }).select('invoiceNumber issueDate grandTotal paymentStatus paidAmount').lean();
+    const {
+      buildCustomerStatement,
+    } = await import('../services/sales/customerStatementService.js');
+    const data = await buildCustomerStatement({
+      tenantId: req.user.tenantId,
+      customerId,
+      startDate,
+      endDate,
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message });
+  }
+});
 
-    const priorInvoices = await Invoice.find({
-      ...req.tenantFilter, customerId, flow: 'sell', issueDate: { $lt: startDate }, status: { $nin: ['draft', 'cancelled'] }
-    }).select('invoiceNumber issueDate grandTotal paidAmount').lean();
-    
-    let receipts = [];
-    let priorReceipts = [];
+router.get('/customer-statement/pdf', async (req, res) => {
+  try {
+    const { customerId } = req.query;
+    if (!customerId) return res.status(400).json({ error: 'customerId required' });
+    const { startDate, endDate } = resolvePeriod(req);
+    const {
+      buildCustomerStatement,
+      buildCustomerStatementPdfBuffer,
+      sanitizeFileName,
+    } = await import('../services/sales/customerStatementService.js');
+    const data = await buildCustomerStatement({
+      tenantId: req.user.tenantId,
+      customerId,
+      startDate,
+      endDate,
+    });
+    const pdf = await buildCustomerStatementPdfBuffer(data, { language: 'bilingual' });
+    const name = sanitizeFileName(`SOA-${data.customer?.nameEn || data.customer?.name || customerId}-${data.period?.endDate || 'statement'}`);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${name}.pdf"`);
+    res.send(pdf);
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message });
+  }
+});
+
+router.post('/customer-statement/send-email', async (req, res) => {
+  try {
+    const customerId = req.body?.customerId || req.query?.customerId;
+    if (!customerId) return res.status(400).json({ error: 'customerId required' });
+    const startDate = req.body?.startDate || req.query?.startDate;
+    const endDate = req.body?.endDate || req.query?.endDate;
+    const Tenant = (await import('../models/Tenant.js')).default;
+    const tenant = await Tenant.findById(req.user.tenantId);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    const {
+      buildCustomerStatement,
+      sendCustomerStatementEmail,
+    } = await import('../services/sales/customerStatementService.js');
+    const data = await buildCustomerStatement({
+      tenantId: req.user.tenantId,
+      customerId,
+      startDate,
+      endDate,
+    });
+    const delivery = await sendCustomerStatementEmail({
+      tenant,
+      statementData: data,
+      to: req.body?.to,
+      language: req.body?.language || req.tenant?.settings?.language || 'en',
+    });
+    res.json({ success: true, delivery, closingBalance: data.closingBalance });
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message });
+  }
+});
+
+router.post('/customer-statement/send-whatsapp', async (req, res) => {
+  try {
+    const customerId = req.body?.customerId || req.query?.customerId;
+    if (!customerId) return res.status(400).json({ error: 'customerId required' });
+    const startDate = req.body?.startDate || req.query?.startDate;
+    const endDate = req.body?.endDate || req.query?.endDate;
+    const {
+      buildCustomerStatement,
+      buildCustomerStatementPdfBuffer,
+      sanitizeFileName,
+    } = await import('../services/sales/customerStatementService.js');
+    const data = await buildCustomerStatement({
+      tenantId: req.user.tenantId,
+      customerId,
+      startDate,
+      endDate,
+    });
+    const phone = String(req.body?.phone || data.customer?.phone || '').replace(/\D/g, '');
+    if (!phone) return res.status(400).json({ error: 'Customer phone is missing' });
+    const pdf = await buildCustomerStatementPdfBuffer(data, { language: 'bilingual' });
+    const filename = `${sanitizeFileName(`SOA-${data.customer?.nameEn || customerId}`)}.pdf`;
+    const caption = req.body?.language === 'ar'
+      ? `كشف حساب ${data.period?.startDate} — ${data.period?.endDate}. الرصيد: ${Number(data.closingBalance || 0).toFixed(2)} ${data.currency || 'SAR'}`
+      : `Statement of Account ${data.period?.startDate} — ${data.period?.endDate}. Balance: ${Number(data.closingBalance || 0).toFixed(2)} ${data.currency || 'SAR'}`;
+
     try {
-      receipts = await Voucher.find({
-        ...req.tenantFilter, partyId: customerId, type: 'receive', date: { $gte: startDate, $lte: endDate }
-      }).select('voucherNumber date amount description').lean();
-      priorReceipts = await Voucher.find({
-        ...req.tenantFilter, partyId: customerId, type: 'receive', date: { $lt: startDate }
-      }).select('voucherNumber date amount description').lean();
-    } catch(e) {
-      console.log('Voucher collection missing or error:', e.message);
+      const whatsappService = (await import('../services/whatsappService.js')).default;
+      if (whatsappService?.sendPdf) {
+        await whatsappService.sendPdf(req.user.tenantId, phone, pdf, filename, caption);
+        return res.json({ success: true, channel: 'whatsapp_qr', closingBalance: data.closingBalance });
+      }
+    } catch (waErr) {
+      // fall through to wa.me link
+      console.warn('[SOA WhatsApp]', waErr.message);
     }
 
-    const mapInvoiceDebits = (rows) => rows.map(i => ({ type: 'invoice', id: i.invoiceNumber, date: i.issueDate, debit: i.grandTotal, credit: 0, desc: 'Invoice' }));
-    const mapInvoiceCredits = (rows) => rows.filter(i => i.paidAmount > 0).map(i => ({ type: 'invoice_payment', id: i.invoiceNumber, date: i.issueDate, debit: 0, credit: i.paidAmount, desc: `Invoice Payment (${i.invoiceNumber})` }));
-    const mapReceipts = (rows) => rows.map(r => ({ type: 'receipt', id: r.voucherNumber, date: r.date, debit: 0, credit: r.amount, desc: r.description }));
-
-    const priorTransactions = [
-      ...mapInvoiceDebits(priorInvoices),
-      ...mapInvoiceCredits(priorInvoices),
-      ...mapReceipts(priorReceipts),
-    ];
-    const openingBalance = priorTransactions.reduce((sum, row) => sum + (row.debit || 0) - (row.credit || 0), 0);
-
-    const invoiceDebits = mapInvoiceDebits(invoices);
-    const invoiceCredits = mapInvoiceCredits(invoices);
-    
-    const transactions = [
-      { type: 'opening', id: 'OPEN', date: startDate, debit: openingBalance > 0 ? openingBalance : 0, credit: openingBalance < 0 ? Math.abs(openingBalance) : 0, desc: 'Opening Balance' },
-      ...invoiceDebits,
-      ...invoiceCredits,
-      ...mapReceipts(receipts),
-    ].sort((a, b) => {
-      if (a.type === 'opening') return -1;
-      if (b.type === 'opening') return 1;
-      return new Date(a.date) - new Date(b.date);
+    const waMe = `https://wa.me/${phone}?text=${encodeURIComponent(caption)}`;
+    res.json({
+      success: true,
+      channel: 'wa_me',
+      waMe,
+      pdfBase64: pdf.toString('base64'),
+      filename,
+      closingBalance: data.closingBalance,
     });
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message });
+  }
+});
 
-    let balance = 0;
-    const statement = transactions.map(t => {
-      balance += t.debit - t.credit;
-      return { ...t, balance };
+router.post('/customer-statement/bulk-send', async (req, res) => {
+  try {
+    const customerIds = Array.isArray(req.body?.customerIds) ? req.body.customerIds.filter(Boolean) : [];
+    if (!customerIds.length) return res.status(400).json({ error: 'customerIds required' });
+    const channels = Array.isArray(req.body?.channels) ? req.body.channels : ['email'];
+    const startDate = req.body?.startDate;
+    const endDate = req.body?.endDate;
+    const language = req.body?.language || 'en';
+    const Tenant = (await import('../models/Tenant.js')).default;
+    const tenant = await Tenant.findById(req.user.tenantId);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    const {
+      buildCustomerStatement,
+      sendCustomerStatementEmail,
+      buildCustomerStatementPdfBuffer,
+      sanitizeFileName,
+    } = await import('../services/sales/customerStatementService.js');
+
+    const results = [];
+    for (const customerId of customerIds.slice(0, 50)) {
+      const row = { customerId, ok: false };
+      try {
+        const data = await buildCustomerStatement({
+          tenantId: req.user.tenantId,
+          customerId,
+          startDate,
+          endDate,
+        });
+        row.customerName = data.customer?.nameEn || data.customer?.name;
+        row.closingBalance = data.closingBalance;
+        row.email = data.customer?.email || '';
+        row.phone = data.customer?.phone || '';
+        if (channels.includes('email') && data.customer?.email) {
+          await sendCustomerStatementEmail({ tenant, statementData: data, language });
+          row.emailSent = true;
+        }
+        if (channels.includes('whatsapp') && data.customer?.phone) {
+          try {
+            const whatsappService = (await import('../services/whatsappService.js')).default;
+            const pdf = await buildCustomerStatementPdfBuffer(data);
+            const filename = `${sanitizeFileName(`SOA-${data.customer?.nameEn || customerId}`)}.pdf`;
+            const caption = `SOA ${data.period?.startDate} — ${data.period?.endDate}: ${Number(data.closingBalance || 0).toFixed(2)}`;
+            if (whatsappService?.sendPdf) {
+              await whatsappService.sendPdf(
+                req.user.tenantId,
+                String(data.customer.phone).replace(/\D/g, ''),
+                pdf,
+                filename,
+                caption,
+              );
+              row.whatsappSent = true;
+            }
+          } catch {
+            row.whatsappSent = false;
+          }
+        }
+        row.ok = true;
+      } catch (err) {
+        row.error = err.message;
+      }
+      results.push(row);
+    }
+    res.json({
+      success: true,
+      sent: results.filter((r) => r.ok).length,
+      failed: results.filter((r) => !r.ok).length,
+      results,
     });
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message });
+  }
+});
 
-    res.json({ statement, totalBalance: balance, openingBalance });
+router.post('/customer-statement/bulk-preview', async (req, res) => {
+  try {
+    const customerIds = Array.isArray(req.body?.customerIds) ? req.body.customerIds.filter(Boolean) : [];
+    if (!customerIds.length) return res.status(400).json({ error: 'customerIds required' });
+    const startDate = req.body?.startDate;
+    const endDate = req.body?.endDate;
+    const { buildCustomerStatement } = await import('../services/sales/customerStatementService.js');
+    const previews = [];
+    for (const customerId of customerIds.slice(0, 50)) {
+      try {
+        const data = await buildCustomerStatement({
+          tenantId: req.user.tenantId,
+          customerId,
+          startDate,
+          endDate,
+        });
+        previews.push({
+          customerId,
+          name: data.customer?.nameEn || data.customer?.name,
+          nameAr: data.customer?.nameAr,
+          email: data.customer?.email || '',
+          phone: data.customer?.phone || '',
+          openingBalance: data.openingBalance,
+          closingBalance: data.closingBalance,
+          agingTotal: data.aging?.total,
+          consistency: data.consistency,
+          lineCount: (data.statement || []).length,
+        });
+      } catch (err) {
+        previews.push({ customerId, error: err.message });
+      }
+    }
+    res.json({ previews, period: { startDate, endDate } });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

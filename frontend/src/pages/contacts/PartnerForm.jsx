@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Building2,
   CreditCard,
+  FileSpreadsheet,
   FileText,
   MapPin,
   Plus,
@@ -19,6 +20,7 @@ import toast from 'react-hot-toast'
 import api, { getImageUrl } from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
 import AsyncCombobox from '../../components/ui/AsyncCombobox'
+import CustomerStatement from '../customers/CustomerStatement'
 import {
   fetchDefaultPayableAccountId,
   fetchDefaultReceivableAccountId,
@@ -49,6 +51,7 @@ const TABS = [
   { id: 'general', en: 'General', ar: 'عام', icon: User },
   { id: 'sales', en: 'Sales & Purchase', ar: 'بيع وشراء', icon: Users },
   { id: 'accounting', en: 'Accounting', ar: 'محاسبة', icon: CreditCard },
+  { id: 'statement', en: 'Statement', ar: 'كشف حساب', icon: FileSpreadsheet },
 ]
 
 const emptyBankRow = () => ({
@@ -617,7 +620,7 @@ export default function PartnerForm() {
           </div>
 
           <div className={formTabBarClass}>
-            {TABS.map((item) => {
+            {TABS.filter((item) => item.id !== 'statement' || (isCustomer && isEditing)).map((item) => {
               const Icon = item.icon
               const active = tab === item.id
               return (
@@ -945,6 +948,13 @@ export default function PartnerForm() {
             </div>
           )}
 
+          {tab === 'statement' && isCustomer && isEditing ? (
+            <div className={`${sectionCardClass} !bg-transparent !p-0 !shadow-none`}>
+              <CustomerStatement embeddedCustomerId={id} compact />
+            </div>
+          ) : null}
+
+          {tab !== 'statement' ? (
           <div className="flex justify-end gap-2 pb-8">
             <button type="button" className={outlinedBtnClass} onClick={() => navigate(backPath)}>
               {ar ? 'إلغاء' : 'Cancel'}
@@ -954,6 +964,7 @@ export default function PartnerForm() {
               {ar ? 'حفظ جهة الاتصال' : 'Save contact'}
             </button>
           </div>
+          ) : null}
         </form>
 
         {isEditing && isCustomer && isVendor ? (
