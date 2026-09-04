@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   CheckCircle2,
@@ -34,7 +34,6 @@ export default function InvoicePrePostChecklist({
   language = 'en',
   className = '',
   onFix,
-  defaultOpen,
 }) {
   const isAr = language === 'ar'
   const failed = checks.filter((c) => !c.ok && c.blocking)
@@ -43,13 +42,7 @@ export default function InvoicePrePostChecklist({
   const failCount = failed.length
   const warnCount = warnings.length
 
-  const [open, setOpen] = useState(() => (typeof defaultOpen === 'boolean' ? defaultOpen : false))
-
-  useEffect(() => {
-    if (failCount > 0) setOpen(true)
-    else if (canPost && warnCount === 0) setOpen(false)
-  }, [failCount, canPost, warnCount])
-
+  const [open, setOpen] = useState(false)
   const title = isAr ? 'قبل الترحيل' : 'Before posting'
   const statusLabel = loading
     ? (isAr ? 'جارٍ الفحص…' : 'Checking…')

@@ -1997,7 +1997,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     language={language}
                     className="min-w-[240px] w-full max-w-md sm:w-[320px]"
                     onFix={handlePrePostFix}
-                    defaultOpen={false}
                   />
                   <button
                     type="button"
@@ -2046,15 +2045,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   {language === 'ar' ? 'إضافة إشعار دائن' : 'Add credit note'}
                 </button>
               ) : null}
-              <button
-                type="button"
-                className={ghostActionClass}
-                onClick={() => window.print()}
-              >
-                {invoiceType === 'B2C'
-                  ? (language === 'ar' ? 'طباعة / QR' : 'Print / Generate QR')
-                  : (language === 'ar' ? 'إرسال وطباعة' : 'Send & print')}
-              </button>
               {isEdit && canCancelInvoice(initialInvoice, tenant?.zatca?.phase || 2) ? (
                 <button
                   type="button"
