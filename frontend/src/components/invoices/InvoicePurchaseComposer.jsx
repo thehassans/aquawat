@@ -473,9 +473,12 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   })
 
   const { data: purchaseOrders = [] } = useQuery({
-    queryKey: ['purchase-orders', 'invoice-fill'],
-    queryFn: () => api.get('/purchase-orders', { params: { page: 1, limit: 200 } })
-      .then((res) => res.data?.purchaseOrders || res.data || []),
+    queryKey: ['purchase-orders', 'invoice-fill', 'purchase'],
+    queryFn: () => api.get('/purchase-orders', { params: { flow: 'purchase', page: 1, limit: 200 } })
+      .then((res) => {
+        const rows = res.data?.purchaseOrders || res.data || []
+        return (Array.isArray(rows) ? rows : []).filter((po) => String(po?.flow || 'purchase') !== 'sell')
+      }),
     enabled: isTradingContext,
   })
 
@@ -964,6 +967,8 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     }
     const payload = pendingPayload || buildPayload(getValues())
     if (!payload) return
+    payload.confirmPost = true
+    if (payload.status === 'draft') delete payload.status
     saveMutation.mutate(payload)
   }
 
@@ -988,37 +993,64 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           iban: values?.bankDetails?.iban || '',
         }
       : { bankName: '', accountName: '', accountNumber: '', iban: '' },
-    invoiceNumber: initialInvoice?.invoiceNumber || 'DRAFT-PURCHASE',
-    issueDate: initialInvoice?.issueDate || new Date(),
+    invoiceNumber: initialInvoice?.invoiceNumber || 'DRAFT-PREVIEW',
+    issueDate: (() => {
+      const raw = typeof values?.issueDate === 'string' ? values.issueDate.trim() : ''
+      if (raw) {
+        const parsed = new Date(`${raw}T12:00:00`)
+        if (!Number.isNaN(parsed.getTime())) return parsed
+      }
+      return initialInvoice?.issueDate || new Date()
+    })(),
+    dueDate: (() => {
+      const raw = typeof values?.dueDate === 'string' ? values.dueDate.trim() : ''
+      if (raw) {
+        const parsed = new Date(`${raw}T12:00:00`)
+        if (!Number.isNaN(parsed.getTime())) return parsed
+      }
+      const issueRaw = typeof values?.issueDate === 'string' ? values.issueDate.trim() : ''
+      return computeDueDateFromPaymentTerms(issueRaw || new Date(), values?.paymentTerms || 'immediate') || undefined
+    })(),
+    printFormat: values?.printFormat === 'thermal' ? 'thermal' : 'a4',
     createdByName: initialInvoice?.createdByName || [user?.firstName, user?.lastName].filter(Boolean).join(' '),
     createdByNameAr: initialInvoice?.createdByNameAr || [user?.firstNameAr, user?.lastNameAr].filter(Boolean).join(' '),
     createdBy: initialInvoice?.createdBy || user,
     flow: 'purchase',
     transactionType,
+    invoiceTypeCode: transactionType === 'B2C' ? '0200000' : '0100000',
+    invoiceType: isManualRefund || isVendorRefund(initialInvoice || {}) ? '381' : (initialInvoice?.invoiceType || '388'),
     invoiceSubtype,
     pdfTemplateId: selectedTemplateId,
+    businessContext: values?.businessContext || businessContext,
+    invoiceDiscount: Math.max(0, toNumber(values?.invoiceDiscount, 0)),
     subtotal: totals.subtotal,
     totalTax: totals.totalTax,
     grandTotal: totals.grandTotal,
-    invoiceDiscount: totals.invoiceDiscount,
     totalDiscount: totals.totalDiscount,
     taxableAmount: totals.taxableAmount,
-    buyer: {
-      name: tenant?.business?.legalNameEn,
-      nameAr: tenant?.business?.legalNameAr,
-      vatNumber: tenant?.business?.vatNumber,
-      address: tenant?.business?.address,
+    seller: {
+      ...(values?.seller || {}),
+      name: values?.seller?.name || selectedSupplier?.nameEn || selectedSupplier?.name || values?.seller?.nameAr || '',
+      nameAr: values?.seller?.nameAr || selectedSupplier?.nameAr || '',
+      vatNumber: values?.seller?.vatNumber || selectedSupplier?.vatNumber || '',
+      address: values?.seller?.address || selectedSupplier?.address || {},
     },
-    lineItems: (values.lineItems || []).map((line, index) => {
-      const calc = summarizedLines[index] || {}
-      return {
-        ...line,
-        lineNumber: index + 1,
-        lineTotal: calc.lineTotal,
-        taxAmount: calc.taxAmount,
-        lineTotalWithTax: calc.lineTotalWithTax,
-      }
-    }),
+    buyer: {
+      name: tenant?.business?.legalNameEn || tenant?.name || '',
+      nameAr: tenant?.business?.legalNameAr || '',
+      vatNumber: tenant?.business?.vatNumber || '',
+      crNumber: tenant?.business?.crNumber || '',
+      address: tenant?.business?.address || {},
+      contactPhone: tenant?.business?.contactPhone || '',
+      contactEmail: tenant?.business?.contactEmail || '',
+    },
+    lineItems: (Array.isArray(totals.lines) ? totals.lines : []).map((line, index) => ({
+      ...(line.raw || values.lineItems?.[index] || {}),
+      lineNumber: index + 1,
+      lineTotal: line.lineTotal,
+      taxAmount: line.taxAmount,
+      lineTotalWithTax: line.lineTotalWithTax,
+    })),
   }
 
   const availablePurchaseContexts = tenantBusinessTypes.filter((type) => purchaseContexts.includes(type))
@@ -1085,7 +1117,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         <AccountingDocumentShell
           language={language}
           backTo={isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : (isRefundDoc ? '/app/dashboard/accounting/vendor-refunds' : '/app/dashboard/accounting/invoices?tab=purchase')}
-          eyebrow={isRefundDoc ? (language === 'ar' ? 'مرتجع مورد' : 'Vendor refund') : (language === 'ar' ? 'فاتورة مورد' : 'Vendor bill')}
+          eyebrow={isRefundDoc ? (language === 'ar' ? 'مرتجع مورد' : 'Vendor refund') : (language === 'ar' ? 'فاتورة شراء' : 'Purchase invoice')}
           title={initialInvoice?.invoiceNumber || (language === 'ar' ? 'مسودة جديدة' : 'New draft')}
           subtitle={language === 'ar' ? 'منشئ المستند' : 'Document builder'}
           statusSteps={statusSteps}
@@ -1099,19 +1131,34 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           onTabChange={setFormTab}
           actionBar={(
             <>
+              {!isBillPosted ? (
+                <button
+                  type="button"
+                  className={ghostActionClass}
+                  onClick={() => {
+                    const form = document.getElementById('invoice-purchase-form')
+                    form?.requestSubmit()
+                  }}
+                  disabled={saveMutation.isPending}
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  {language === 'ar' ? 'معاينة' : 'Preview'}
+                </button>
+              ) : null}
               {isEdit && canCancelInvoice(initialInvoice, tenant?.zatca?.phase || 2) ? (
                 <button
                   type="button"
                   className={ghostActionClass}
                   onClick={() => setCancelOpen(true)}
                 >
-                  {language === 'ar' ? 'إلغاء' : 'Cancel bill'}
+                  {language === 'ar' ? 'إلغاء' : 'Cancel invoice'}
                 </button>
               ) : null}
             </>
           )}
         />
         <form
+          id="invoice-purchase-form"
           onSubmit={(e) => {
             e.preventDefault()
             if (isBillPosted) {
@@ -1864,30 +1911,6 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
             )}
           </div>
 
-          </>
-          )}
-
-          {formTab === 'journal' && (
-          <InvoiceJournalItemsPanel
-            flow="purchase"
-            language={language}
-            totals={totals}
-            lineItems={totals.lines || []}
-            sourcePurchaseOrderId={selectedPoId || watch('sourcePurchaseOrderId')}
-            sourceGrnIds={sourceGrnIds}
-            paymentTerms={watch('paymentTerms')}
-            issueDate={watch('billDate') || watch('issueDate')}
-            dueDate={watch('dueDate')}
-            value={accountingLines}
-            onChange={setAccountingLines}
-            suggestedAccounts={vendorPredictions}
-            lineItemsRaw={lineItems}
-            readOnly={isBillPosted}
-          />
-          )}
-
-          {formTab === 'other' && (
-          <>
           <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
             <div className="flex items-center gap-1 border-b border-slate-100 px-2 py-1.5 dark:border-white/5">
               <span className="px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
@@ -2274,6 +2297,37 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           </div>
           </>
           )}
+          {formTab === 'journal' && (
+          <InvoiceJournalItemsPanel
+            flow="purchase"
+            language={language}
+            totals={totals}
+            lineItems={totals.lines || []}
+            sourcePurchaseOrderId={selectedPoId || watch('sourcePurchaseOrderId')}
+            sourceGrnIds={sourceGrnIds}
+            paymentTerms={watch('paymentTerms')}
+            issueDate={watch('billDate') || watch('issueDate')}
+            dueDate={watch('dueDate')}
+            value={accountingLines}
+            onChange={setAccountingLines}
+            suggestedAccounts={vendorPredictions}
+            lineItemsRaw={lineItems}
+            readOnly={isBillPosted}
+          />
+          )}
+
+          
+          {formTab === 'other' && (
+          <div className={`${sectionCardClass} space-y-4`}>
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+              {language === 'ar' ? 'معلومات أخرى' : 'Other info'}
+            </h4>
+            <div>
+              <label className={fieldLabelClass}>{language === 'ar' ? 'رقم العقد / المرجع' : 'Contract / reference'}</label>
+              <input {...register('contractNumber')} disabled={isBillPosted} className={`mt-1.5 ${fieldControlClass} disabled:opacity-60`} />
+            </div>
+          </div>
+          )}
         </form>
       </div>
 
@@ -2288,6 +2342,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         documentType="purchase_invoice"
         templateId={selectedTemplateId}
         title={language === 'ar' ? 'معاينة فاتورة الشراء قبل الحفظ' : 'Purchase Invoice Live Preview'}
+        confirmLabel={language === 'ar' ? 'تأكيد / ترحيل' : 'Confirm / Post'}
       />
       <CancelInvoiceModal
         isOpen={cancelOpen}

@@ -207,7 +207,7 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
             onClick={() => navigate('/app/dashboard/accounting/invoices/new/purchase')}
           >
             <Plus className="h-4 w-4" />
-            {isAr ? 'فاتورة جديدة' : 'New bill'}
+            {isAr ? 'فاتورة شراء' : 'New purchase invoice'}
           </button>
           ) : null}
       </div>
@@ -265,7 +265,7 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
         ) : (
           <ResponsiveDataList
             items={rows}
-            empty={<p className={emptyStateClass}>{isAr ? 'لا توجد فواتير موردين' : 'No vendor bills yet'}</p>}
+            empty={<p className={emptyStateClass}>{isAr ? 'لا توجد فواتير شراء' : 'No purchase invoices yet'}</p>}
             renderCard={(row) => (
               <div key={row._id} className="space-y-2 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-dark-800">
                 <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={`${docLinkClass} text-base`}>

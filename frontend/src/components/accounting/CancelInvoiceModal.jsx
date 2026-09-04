@@ -19,7 +19,7 @@ function resolveDocKind(invoice = {}) {
     return { en: 'vendor refund', ar: 'مرتجع المورد', titleEn: 'Cancel vendor refund', titleAr: 'إلغاء مرتجع المورد' }
   }
   if (flow === 'purchase') {
-    return { en: 'vendor bill', ar: 'فاتورة المورد', titleEn: 'Cancel vendor bill', titleAr: 'إلغاء فاتورة المورد' }
+    return { en: 'purchase invoice', ar: 'فاتورة الشراء', titleEn: 'Cancel purchase invoice', titleAr: 'إلغاء فاتورة الشراء' }
   }
   if (type === '381') {
     return { en: 'credit note', ar: 'الإشعار الدائن', titleEn: 'Cancel credit note', titleAr: 'إلغاء الإشعار الدائن' }

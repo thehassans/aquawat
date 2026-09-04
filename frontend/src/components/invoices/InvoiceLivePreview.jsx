@@ -355,7 +355,7 @@ const getInvoiceEyebrow = (invoice, language = 'en', documentType = 'invoice') =
     return language === 'ar' ? 'طلب شراء' : 'Purchase Order'
   }
   if (documentType === 'vendor_bill') {
-    return language === 'ar' ? 'فاتورة أمر الشراء' : 'Purchase Order Bill'
+    return language === 'ar' ? 'فاتورة شراء' : 'Purchase Invoice'
   }
   if (documentType === 'sales_order') {
     return language === 'ar' ? 'فاتورة أمر البيع' : 'Sales Order Bill'
@@ -393,7 +393,7 @@ const getInvoiceTitle = (invoice, language = 'en', documentType = 'invoice') => 
     return language === 'ar' ? 'طلب شراء' : 'Purchase Order'
   }
   if (documentType === 'vendor_bill') {
-    return language === 'ar' ? 'فاتورة أمر الشراء' : 'Purchase Order Bill'
+    return language === 'ar' ? 'فاتورة شراء' : 'Purchase Invoice'
   }
   if (documentType === 'sales_order') {
     return language === 'ar' ? 'فاتورة أمر البيع' : 'Sales Order Bill'

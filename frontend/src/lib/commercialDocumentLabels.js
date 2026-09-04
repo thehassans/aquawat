@@ -20,8 +20,8 @@ export const getCommercialDocumentTitle = (documentType, language = 'en', { uppe
     en = 'Purchase Order'
     ar = 'طلب شراء'
   } else if (documentType === 'vendor_bill') {
-    en = 'Purchase Order Bill'
-    ar = 'فاتورة أمر الشراء'
+    en = 'Purchase Invoice'
+    ar = 'فاتورة شراء'
   } else if (documentType === 'sales_order') {
     en = 'Sales Order Bill'
     ar = 'فاتورة أمر البيع'

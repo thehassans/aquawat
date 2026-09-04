@@ -55,7 +55,7 @@ export default function AccountingInvoicesHub() {
           <p className="mt-1 text-sm text-slate-500">
             {isAr
               ? 'فواتير المبيعات للعملاء وفواتير الشراء للموردين في مكان واحد'
-              : 'Customer sales invoices and vendor purchase bills in one place'}
+              : 'Customer sales invoices and vendor purchase invoices in one place'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
