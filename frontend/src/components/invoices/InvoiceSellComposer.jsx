@@ -1476,8 +1476,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         return {
           lineNumber: index + 1,
           taxCategory: 'S',
-          productId: isTradingContext ? line.productId || undefined : undefined,
-          variantId: isTradingContext && line.variantId ? line.variantId : undefined,
+          productId: line.productId || undefined,
+          variantId: line.variantId || undefined,
           productName: line.productName,
           productNameAr: line.productNameAr || '',
           productType: normalizeProductType(line.productType),
