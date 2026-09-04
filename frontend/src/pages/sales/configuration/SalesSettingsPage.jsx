@@ -203,6 +203,17 @@ export default function SalesSettingsPage() {
               ...(base?.business?.address || {}),
               ...(company.address || {}),
             },
+            nationalAddress: {
+              ...(base?.business?.nationalAddress || {}),
+              shortAddress: company.address?.shortAddress || base?.business?.nationalAddress?.shortAddress || '',
+              buildingNo: company.address?.buildingNumber || base?.business?.nationalAddress?.buildingNo || '',
+              secondaryNo: company.address?.additionalNumber || base?.business?.nationalAddress?.secondaryNo || '',
+              postalCode: company.address?.postalCode || base?.business?.nationalAddress?.postalCode || '',
+              neighborhood: company.address?.district || base?.business?.nationalAddress?.neighborhood || '',
+              neighborhoodAr: company.address?.districtAr || base?.business?.nationalAddress?.neighborhoodAr || '',
+              region: company.address?.city || base?.business?.nationalAddress?.region || '',
+              regionAr: company.address?.cityAr || base?.business?.nationalAddress?.regionAr || '',
+            },
           },
           settings: {
             invoiceBranding: {

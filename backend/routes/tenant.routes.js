@@ -182,13 +182,30 @@ router.put('/current', authorize('admin'), async (req, res) => {
 
     // Merge business fields instead of replacing entire object
     if (business) {
+      const existingBusiness = tenant.business?.toObject?.() || tenant.business || {};
       tenant.business = {
-        ...tenant.business?.toObject?.() || tenant.business || {},
+        ...existingBusiness,
         ...business,
         address: {
-          ...tenant.business?.address?.toObject?.() || tenant.business?.address || {},
-          ...business.address
-        }
+          ...(existingBusiness.address || {}),
+          ...(business.address || {}),
+        },
+        nationalAddress: {
+          ...(existingBusiness.nationalAddress || {}),
+          ...(business.nationalAddress || {}),
+        },
+        bankDetails: {
+          ...(existingBusiness.bankDetails || {}),
+          ...(business.bankDetails || {}),
+        },
+        commercialRegistration: {
+          ...(existingBusiness.commercialRegistration || {}),
+          ...(business.commercialRegistration || {}),
+        },
+        vatCertificate: {
+          ...(existingBusiness.vatCertificate || {}),
+          ...(business.vatCertificate || {}),
+        },
       };
     }
     

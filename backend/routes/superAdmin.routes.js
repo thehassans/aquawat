@@ -1291,9 +1291,48 @@ router.put('/tenants/:id', async (req, res) => {
       : undefined;
 
     const incomingName = req.body?.name ? String(req.body.name).trim() : (existingTenant.name || '');
+    const existingBusiness = existingTenant.business?.toObject?.() || existingTenant.business || {};
+    const bodyBusiness = req.body?.business || {};
     const incomingBusiness = req.body?.business
-      ? { ...(existingTenant.business?.toObject?.() || existingTenant.business || {}), ...req.body.business }
-      : (existingTenant.business?.toObject?.() || existingTenant.business || {});
+      ? {
+          ...existingBusiness,
+          ...bodyBusiness,
+          address: {
+            ...(existingBusiness.address || {}),
+            ...(bodyBusiness.address || {}),
+          },
+          nationalAddress: {
+            ...(existingBusiness.nationalAddress || {}),
+            ...(bodyBusiness.nationalAddress || {}),
+          },
+          bankDetails: {
+            ...(existingBusiness.bankDetails || {}),
+            ...(bodyBusiness.bankDetails || {}),
+          },
+          commercialRegistration: {
+            ...(existingBusiness.commercialRegistration || {}),
+            ...(bodyBusiness.commercialRegistration || {}),
+          },
+          vatCertificate: {
+            ...(existingBusiness.vatCertificate || {}),
+            ...(bodyBusiness.vatCertificate || {}),
+          },
+        }
+      : existingBusiness;
+
+    if (nextSubscription) {
+      const prevPlan = existingTenant.subscription?.plan;
+      if (nextSubscription.plan && nextSubscription.plan !== prevPlan) {
+        const entitlements = getPlanEntitlements(
+          nextSubscription.plan,
+          nextSubscription.billingCycle || existingTenant.subscription?.billingCycle || 'monthly',
+        );
+        const bodySub = req.body.subscription || {};
+        if (bodySub.maxUsers == null) nextSubscription.maxUsers = entitlements.maxUsers;
+        if (bodySub.maxInvoices == null) nextSubscription.maxInvoices = entitlements.maxInvoices;
+        if (bodySub.maxQuotations == null) nextSubscription.maxQuotations = entitlements.maxQuotations;
+      }
+    }
 
     if (incomingName) {
       if (!incomingBusiness.legalNameEn || incomingBusiness.legalNameEn === existingTenant.name || (req.body?.name && req.body.name !== existingTenant.name && incomingBusiness.legalNameEn === existingTenant.business?.legalNameEn)) {
@@ -1358,8 +1397,14 @@ router.put('/tenants/:id', async (req, res) => {
 router.put('/tenants/:id/subscription', async (req, res) => {
   try {
     const { plan, status, maxUsers, maxInvoices, maxQuotations, features, billingCycle, price, hasEmailAddon, endDate } = req.body;
-    
-    const updateData = { 'subscription.plan': plan };
+
+    const prior = await Tenant.findById(req.params.id).select('subscription').lean();
+    if (!prior) {
+      return res.status(404).json({ error: 'Tenant not found' });
+    }
+
+    const updateData = {};
+    if (plan) updateData['subscription.plan'] = plan;
     if (status) updateData['subscription.status'] = status;
     if (maxUsers !== undefined && maxUsers !== null && maxUsers !== '') updateData['subscription.maxUsers'] = maxUsers;
     if (maxInvoices !== undefined && maxInvoices !== null && maxInvoices !== '') updateData['subscription.maxInvoices'] = maxInvoices;
@@ -1374,21 +1419,36 @@ router.put('/tenants/:id/subscription', async (req, res) => {
     if (price !== undefined) updateData['subscription.price'] = price;
     if (hasEmailAddon !== undefined) updateData['subscription.hasEmailAddon'] = hasEmailAddon === true;
     if (!features && hasEmailAddon !== undefined) {
-      const existingTenant = await Tenant.findById(req.params.id).select('subscription.features');
-      const existingFeatures = Array.isArray(existingTenant?.subscription?.features) ? existingTenant.subscription.features.filter(Boolean) : [];
+      const existingFeatures = Array.isArray(prior?.subscription?.features) ? prior.subscription.features.filter(Boolean) : [];
       updateData['subscription.features'] = hasEmailAddon === true
         ? [...new Set([...existingFeatures, 'email_automation'])]
         : existingFeatures.filter((feature) => feature !== 'email_automation');
     }
-    
+
+    // When plan changes, refresh caps unless explicitly overridden
+    if (plan && plan !== prior.subscription?.plan) {
+      const entitlements = getPlanEntitlements(
+        plan,
+        billingCycle || prior.subscription?.billingCycle || 'monthly',
+      );
+      if (maxUsers === undefined || maxUsers === null || maxUsers === '') {
+        updateData['subscription.maxUsers'] = entitlements.maxUsers;
+      }
+      if (maxInvoices === undefined || maxInvoices === null || maxInvoices === '') {
+        updateData['subscription.maxInvoices'] = entitlements.maxInvoices;
+      }
+      if (maxQuotations === undefined || maxQuotations === null || maxQuotations === '') {
+        updateData['subscription.maxQuotations'] = entitlements.maxQuotations;
+      }
+    }
+
     // Extend end date
     if (endDate) {
       updateData['subscription.endDate'] = new Date(endDate);
     } else if (status === 'active' && !updateData['subscription.endDate']) {
       updateData['subscription.endDate'] = addBillingCycle(new Date(), billingCycle === 'yearly' ? 'yearly' : 'monthly');
     }
-    
-    const prior = await Tenant.findById(req.params.id).select('subscription').lean();
+
     const tenant = await Tenant.findByIdAndUpdate(
       req.params.id,
       updateData,

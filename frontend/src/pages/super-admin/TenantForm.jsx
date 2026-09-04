@@ -77,6 +77,11 @@ export default function TenantForm() {
     if (!tenant?.tenant) return
     const businessData = tenant.tenant?.business || {}
     const resolvedCrNumber = businessData.crNumber || businessData.commercialRegistration?.crNumber || ''
+    const na = businessData.nationalAddress || {}
+    const toDateInput = (v) => {
+      if (!v) return ''
+      try { return new Date(v).toISOString().split('T')[0] } catch { return '' }
+    }
     reset({
       ...tenant.tenant,
       business: {
@@ -85,19 +90,33 @@ export default function TenantForm() {
         commercialRegistration: {
           ...(businessData.commercialRegistration || {}),
           crNumber: resolvedCrNumber,
-        }
+          issueDate: toDateInput(businessData.commercialRegistration?.issueDate),
+        },
+        nationalAddress: {
+          ...na,
+          originalDate: toDateInput(na.originalDate),
+          expirationDate: toDateInput(na.expirationDate),
+          regDate: toDateInput(na.regDate),
+        },
+        vatCertificate: {
+          ...(businessData.vatCertificate || {}),
+          certificateDate: toDateInput(businessData.vatCertificate?.certificateDate),
+          effectiveDate: toDateInput(businessData.vatCertificate?.effectiveDate),
+          firstFilingDueDate: toDateInput(businessData.vatCertificate?.firstFilingDueDate),
+        },
       },
       businessTypes: getTenantBusinessTypes(tenant.tenant),
       businessType: getPrimaryBusinessType(tenant.tenant),
       subscription: {
         ...tenant.tenant?.subscription,
+        startDate: tenant.tenant?.subscription?.startDate ? new Date(tenant.tenant.subscription.startDate).toISOString().split('T')[0] : '',
         endDate: tenant.tenant?.subscription?.endDate ? new Date(tenant.tenant.subscription.endDate).toISOString().split('T')[0] : ''
       }
     })
     const sub = tenant.tenant?.subscription || {}
     setPaymentForm((p) => ({
       ...p,
-      plan: ['starter', 'professional', 'enterprise'].includes(sub.plan) ? sub.plan : 'professional',
+      plan: ['trial', 'starter', 'professional', 'enterprise'].includes(sub.plan) ? sub.plan : 'starter',
       billingCycle: sub.billingCycle === 'yearly' ? 'yearly' : 'monthly',
       currency: tenant.tenant?.settings?.currency || p.currency || 'SAR',
       amount: sub.price != null ? String(sub.price) : p.amount,
@@ -215,6 +234,33 @@ export default function TenantForm() {
     const nextSettings = data?.settings || {}
     const crNumberVal = data?.business?.crNumber || data?.business?.commercialRegistration?.crNumber || ''
     const tenantName = String(data?.name || '').trim()
+    const na = data?.business?.nationalAddress || {}
+    const addr = data?.business?.address || {}
+
+    // Keep ZATCA seller address + SPL national address in sync
+    const syncedAddress = {
+      ...addr,
+      country: addr.country || 'SA',
+      buildingNumber: addr.buildingNumber || na.buildingNo || '',
+      additionalNumber: addr.additionalNumber || na.secondaryNo || '',
+      postalCode: addr.postalCode || na.postalCode || '',
+      district: addr.district || na.neighborhood || '',
+      districtAr: addr.districtAr || na.neighborhoodAr || '',
+      city: addr.city || na.region || '',
+      cityAr: addr.cityAr || na.regionAr || '',
+      shortAddress: addr.shortAddress || na.shortAddress || '',
+    }
+    const syncedNational = {
+      ...na,
+      buildingNo: na.buildingNo || syncedAddress.buildingNumber || '',
+      secondaryNo: na.secondaryNo || syncedAddress.additionalNumber || '',
+      postalCode: na.postalCode || syncedAddress.postalCode || '',
+      neighborhood: na.neighborhood || syncedAddress.district || '',
+      neighborhoodAr: na.neighborhoodAr || syncedAddress.districtAr || '',
+      region: na.region || syncedAddress.city || '',
+      regionAr: na.regionAr || syncedAddress.cityAr || '',
+      shortAddress: na.shortAddress || syncedAddress.shortAddress || '',
+    }
 
     const nextPayload = {
       ...data,
@@ -230,10 +276,8 @@ export default function TenantForm() {
           ...(data?.business?.commercialRegistration || {}),
           crNumber: crNumberVal,
         },
-        address: {
-          ...(data?.business?.address || {}),
-          country: data?.business?.address?.country || 'SA',
-        },
+        address: syncedAddress,
+        nationalAddress: syncedNational,
       },
       settings: nextSettings,
       businessTypes: watchedBusinessTypes,
@@ -498,121 +542,141 @@ export default function TenantForm() {
               <label className="label">{language === 'ar' ? 'السجل التجاري' : isSaudiTenant ? 'CR Number' : 'Business Registration Number'}</label>
               <input {...register('business.crNumber')} className="input" />
             </div>
-            {isEdit && (
-              <>
-                <div>
-                  <label className="label">{language === 'ar' ? 'المدينة' : 'City'}</label>
-                  <input {...register('business.address.city')} className="input" />
-                </div>
-                <div>
-                  <label className="label">{language === 'ar' ? 'المدينة (AR)' : 'City (AR)'}</label>
-                  <input {...register('business.address.cityAr')} className="input" dir="rtl" />
-                </div>
-                <div>
-                  <label className="label">{language === 'ar' ? 'الحي' : 'District'}</label>
-                  <input {...register('business.address.district')} className="input" />
-                </div>
-                <div>
-                  <label className="label">{language === 'ar' ? 'الحي (AR)' : 'District (AR)'}</label>
-                  <input {...register('business.address.districtAr')} className="input" dir="rtl" />
-                </div>
-                <div>
-                  <label className="label">{language === 'ar' ? 'الشارع' : 'Street'}</label>
-                  <input {...register('business.address.street')} className="input" />
-                </div>
-                <div>
-                  <label className="label">{language === 'ar' ? 'الشارع (AR)' : 'Street (AR)'}</label>
-                  <input {...register('business.address.streetAr')} className="input" dir="rtl" />
-                </div>
-                <div>
-                  <label className="label">{language === 'ar' ? 'الرمز البريدي' : 'Postal Code'}</label>
-                  <input {...register('business.address.postalCode')} className="input" />
-                </div>
-                <div>
-                  <label className="label">{language === 'ar' ? 'رقم المبنى' : 'Building Number'}</label>
-                  <input {...register('business.address.buildingNumber')} className="input" />
-                </div>
-                <div>
-                  <label className="label">{language === 'ar' ? 'الرقم الإضافي' : 'Additional Number'}</label>
-                  <input {...register('business.address.additionalNumber')} className="input" />
-                </div>
-                <div>
-                  <label className="label">{language === 'ar' ? 'الدولة' : 'Country'}</label>
-                  <select
-                    {...register('business.address.country', {
-                      onChange: (e) => {
-                        const code = e.target.value;
-                        if (code) {
-                          setValue('settings.currency', currencyForCountry(code));
-                          setValue('settings.timezone', timezoneForCountry(code));
-                        }
-                      },
-                    })}
-                    className="select"
-                  >
-                    <option value="">{language === 'ar' ? 'اختر الدولة' : 'Select Country'}</option>
-                    {COUNTRY_OPTIONS.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {language === 'ar' ? c.nameAr : c.nameEn} ({c.code}) — {c.currency}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">{language === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label>
-                  <input type="email" {...register('business.contactEmail')} className="input" />
-                </div>
-              </>
-            )}
+            {/* Seller address — required for ZATCA on create and edit */}
+            <div>
+              <label className="label">City / Region <span className="text-slate-400" dir="rtl">المدينة / المنطقة</span></label>
+              <input {...register('business.address.city')} className="input" placeholder="Riyadh" />
+            </div>
+            <div>
+              <label className="label">City (AR) <span className="text-slate-400" dir="rtl">المدينة (عربي)</span></label>
+              <input {...register('business.address.cityAr')} className="input" dir="rtl" placeholder="الرياض" />
+            </div>
+            <div>
+              <label className="label">Neighborhood / District <span className="text-slate-400" dir="rtl">الحي</span></label>
+              <input {...register('business.address.district')} className="input" />
+            </div>
+            <div>
+              <label className="label">District (AR) <span className="text-slate-400" dir="rtl">الحي (عربي)</span></label>
+              <input {...register('business.address.districtAr')} className="input" dir="rtl" />
+            </div>
+            <div>
+              <label className="label">Street <span className="text-slate-400" dir="rtl">الشارع</span></label>
+              <input {...register('business.address.street')} className="input" />
+            </div>
+            <div>
+              <label className="label">Street (AR) <span className="text-slate-400" dir="rtl">الشارع (عربي)</span></label>
+              <input {...register('business.address.streetAr')} className="input" dir="rtl" />
+            </div>
+            <div>
+              <label className="label">Postal Code <span className="text-slate-400" dir="rtl">الرمز البريدي</span></label>
+              <input {...register('business.address.postalCode')} className="input" />
+            </div>
+            <div>
+              <label className="label">Building No <span className="text-slate-400" dir="rtl">رقم المبنى</span></label>
+              <input {...register('business.address.buildingNumber')} className="input" />
+            </div>
+            <div>
+              <label className="label">Secondary No <span className="text-slate-400" dir="rtl">الرقم الفرعي</span></label>
+              <input {...register('business.address.additionalNumber')} className="input" placeholder="2883" />
+            </div>
+            <div>
+              <label className="label">Short Address <span className="text-slate-400" dir="rtl">العنوان المختصر</span></label>
+              <input {...register('business.address.shortAddress')} className="input font-mono" placeholder="REMA7670" maxLength={8} />
+            </div>
+            <div>
+              <label className="label">Country <span className="text-slate-400" dir="rtl">الدولة</span></label>
+              <select
+                {...register('business.address.country', {
+                  onChange: (e) => {
+                    const code = e.target.value;
+                    if (code) {
+                      setValue('settings.currency', currencyForCountry(code));
+                      setValue('settings.timezone', timezoneForCountry(code));
+                    }
+                  },
+                })}
+                className="select"
+              >
+                <option value="">{language === 'ar' ? 'اختر الدولة' : 'Select Country'}</option>
+                {COUNTRY_OPTIONS.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {language === 'ar' ? c.nameAr : c.nameEn} ({c.code}) — {c.currency}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Email <span className="text-slate-400" dir="rtl">البريد</span></label>
+              <input type="email" {...register('business.contactEmail')} className="input" />
+            </div>
           </div>
         </motion.div>
 
         {/* National Address — Saudi Post / ZATCA-specific, SAR tenants only */}
         {isSaudiTenant && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 }} className="card p-6">
-          <div className="flex items-center gap-3 mb-6">
+          <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg"><MapPin className="w-5 h-5 text-blue-600" /></div>
-            <h3 className="text-lg font-semibold">{language === 'ar' ? 'العنوان الوطني' : 'National Address'}</h3>
+            <div>
+              <h3 className="text-lg font-semibold">National Address / العنوان الوطني</h3>
+              <p className="text-xs text-slate-500">Saudi Post (SPL) — required for ZATCA seller party</p>
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="label">{language === 'ar' ? 'رقم الإثبات' : 'Proof Number'}</label>
-              <input {...register('business.nationalAddress.proofNumber')} className="input" />
+              <label className="label">National Address Proof Number <span className="text-slate-400" dir="rtl">رقم إثبات العنوان الوطني</span></label>
+              <input {...register('business.nationalAddress.proofNumber')} className="input font-mono" />
             </div>
             <div>
-              <label className="label">{language === 'ar' ? 'الرقم الإضافي / حساب العميل' : 'Customer Account'}</label>
-              <input {...register('business.nationalAddress.customerAccount')} className="input" />
+              <label className="label">Customer Account <span className="text-slate-400" dir="rtl">حساب العميل</span></label>
+              <input {...register('business.nationalAddress.customerAccount')} className="input font-mono" />
             </div>
             <div>
-              <label className="label">{language === 'ar' ? 'تاريخ الإصدار الأصلي' : 'Original Date'}</label>
+              <label className="label">Original Date <span className="text-slate-400" dir="rtl">تاريخ الإصدار الأصلي</span></label>
               <input type="date" {...register('business.nationalAddress.originalDate')} className="input" />
             </div>
             <div>
-              <label className="label">{language === 'ar' ? 'تاريخ الانتهاء' : 'Expiration Date'}</label>
+              <label className="label">Expiration Date <span className="text-slate-400" dir="rtl">تاريخ الانتهاء</span></label>
               <input type="date" {...register('business.nationalAddress.expirationDate')} className="input" />
             </div>
             <div>
-              <label className="label">{language === 'ar' ? 'تاريخ التسجيل' : 'Registration Date'}</label>
+              <label className="label">Registration Date <span className="text-slate-400" dir="rtl">تاريخ التسجيل</span></label>
               <input type="date" {...register('business.nationalAddress.regDate')} className="input" />
             </div>
             <div>
-              <label className="label">{language === 'ar' ? 'العنوان المختصر' : 'Short Address'}</label>
-              <input {...register('business.nationalAddress.shortAddress')} className="input" />
+              <label className="label">Short Address <span className="text-slate-400" dir="rtl">العنوان المختصر</span></label>
+              <input {...register('business.nationalAddress.shortAddress')} className="input font-mono" placeholder="REMA7670" maxLength={8} />
             </div>
             <div>
-              <label className="label">{language === 'ar' ? 'رقم المبنى' : 'Building No'}</label>
+              <label className="label">Building No <span className="text-slate-400" dir="rtl">رقم المبنى</span></label>
               <input {...register('business.nationalAddress.buildingNo')} className="input" />
             </div>
             <div>
-              <label className="label">{language === 'ar' ? 'الحي' : 'Neighborhood'}</label>
+              <label className="label">Secondary No <span className="text-slate-400" dir="rtl">الرقم الفرعي</span></label>
+              <input {...register('business.nationalAddress.secondaryNo')} className="input" placeholder="2883" />
+            </div>
+            <div>
+              <label className="label">Neighborhood / District <span className="text-slate-400" dir="rtl">الحي</span></label>
               <input {...register('business.nationalAddress.neighborhood')} className="input" />
             </div>
             <div>
-              <label className="label">{language === 'ar' ? 'المنطقة' : 'Region'}</label>
+              <label className="label">Neighborhood (AR) <span className="text-slate-400" dir="rtl">الحي (عربي)</span></label>
+              <input {...register('business.nationalAddress.neighborhoodAr')} className="input" dir="rtl" />
+            </div>
+            <div>
+              <label className="label">City / Region <span className="text-slate-400" dir="rtl">المدينة / المنطقة</span></label>
               <input {...register('business.nationalAddress.region')} className="input" />
             </div>
+            <div>
+              <label className="label">City / Region (AR) <span className="text-slate-400" dir="rtl">المدينة / المنطقة (عربي)</span></label>
+              <input {...register('business.nationalAddress.regionAr')} className="input" dir="rtl" />
+            </div>
+            <div>
+              <label className="label">Postal Code <span className="text-slate-400" dir="rtl">الرمز البريدي</span></label>
+              <input {...register('business.nationalAddress.postalCode')} className="input" />
+            </div>
             <div className="md:col-span-2">
-              <label className="label">{language === 'ar' ? 'رابط QR للتحقق' : 'QR Verification URL'}</label>
+              <label className="label">QR Verification URL <span className="text-slate-400" dir="rtl">رابط QR للتحقق</span></label>
               <input {...register('business.nationalAddress.qrCodeUrl')} className="input" placeholder="https://proof.address.gov.sa/VerifyProofNA.aspx" />
             </div>
           </div>

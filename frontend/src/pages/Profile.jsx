@@ -224,18 +224,23 @@ export default function Profile() {
           buildingNumber: business.address?.buildingNumber || '',
           additionalNumber: business.address?.additionalNumber || '',
           postalCode: business.address?.postalCode || '',
+          shortAddress: business.address?.shortAddress || nationalAddress.shortAddress || '',
           country: business.address?.country || getTenantCountryCode(tenant),
         },
         nationalAddress: {
           proofNumber: nationalAddress.proofNumber || '',
           customerAccount: nationalAddress.customerAccount || '',
-          originalDate: nationalAddress.originalDate ? nationalAddress.originalDate.split('T')[0] : '',
-          expirationDate: nationalAddress.expirationDate ? nationalAddress.expirationDate.split('T')[0] : '',
-          regDate: nationalAddress.regDate ? nationalAddress.regDate.split('T')[0] : '',
-          shortAddress: nationalAddress.shortAddress || '',
-          buildingNo: nationalAddress.buildingNo || '',
-          neighborhood: nationalAddress.neighborhood || '',
-          region: nationalAddress.region || '',
+          originalDate: nationalAddress.originalDate ? String(nationalAddress.originalDate).split('T')[0] : '',
+          expirationDate: nationalAddress.expirationDate ? String(nationalAddress.expirationDate).split('T')[0] : '',
+          regDate: nationalAddress.regDate ? String(nationalAddress.regDate).split('T')[0] : '',
+          shortAddress: nationalAddress.shortAddress || business.address?.shortAddress || '',
+          buildingNo: nationalAddress.buildingNo || business.address?.buildingNumber || '',
+          secondaryNo: nationalAddress.secondaryNo || business.address?.additionalNumber || '',
+          neighborhood: nationalAddress.neighborhood || business.address?.district || '',
+          neighborhoodAr: nationalAddress.neighborhoodAr || business.address?.districtAr || '',
+          region: nationalAddress.region || business.address?.city || '',
+          regionAr: nationalAddress.regionAr || business.address?.cityAr || '',
+          postalCode: nationalAddress.postalCode || business.address?.postalCode || '',
           qrCodeUrl: nationalAddress.qrCodeUrl || '',
         },
         commercialRegistration: {
@@ -467,7 +472,38 @@ export default function Profile() {
   })
 
   const onSaveProfile = (formData) => {
-    updateProfileMutation.mutate(formData)
+    const na = formData?.business?.nationalAddress || {}
+    const addr = formData?.business?.address || {}
+    const syncedAddress = {
+      ...addr,
+      buildingNumber: addr.buildingNumber || na.buildingNo || '',
+      additionalNumber: addr.additionalNumber || na.secondaryNo || '',
+      postalCode: addr.postalCode || na.postalCode || '',
+      district: addr.district || na.neighborhood || '',
+      districtAr: addr.districtAr || na.neighborhoodAr || '',
+      city: addr.city || na.region || '',
+      cityAr: addr.cityAr || na.regionAr || '',
+      shortAddress: addr.shortAddress || na.shortAddress || '',
+    }
+    const syncedNational = {
+      ...na,
+      buildingNo: na.buildingNo || syncedAddress.buildingNumber || '',
+      secondaryNo: na.secondaryNo || syncedAddress.additionalNumber || '',
+      postalCode: na.postalCode || syncedAddress.postalCode || '',
+      neighborhood: na.neighborhood || syncedAddress.district || '',
+      neighborhoodAr: na.neighborhoodAr || syncedAddress.districtAr || '',
+      region: na.region || syncedAddress.city || '',
+      regionAr: na.regionAr || syncedAddress.cityAr || '',
+      shortAddress: na.shortAddress || syncedAddress.shortAddress || '',
+    }
+    updateProfileMutation.mutate({
+      ...formData,
+      business: {
+        ...(formData.business || {}),
+        address: syncedAddress,
+        nationalAddress: syncedNational,
+      },
+    })
   }
 
   // --- CHANGE PASSWORD FORM ---
@@ -1445,12 +1481,26 @@ export default function Profile() {
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-sky-500/20">
                   <div>
+                    <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'الرقم الفرعي' : 'Secondary No'}</span>
+                    <span className="font-bold text-gray-900 dark:text-white">{nationalAddress.secondaryNo || business.address?.additionalNumber || '—'}</span>
+                  </div>
+                  <div>
                     <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'الحي' : 'Neighborhood'}</span>
                     <span className="font-bold text-gray-900 dark:text-white">{nationalAddress.neighborhood || business.address?.district || '—'}</span>
                   </div>
                   <div>
                     <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'المنطقة' : 'Region'}</span>
                     <span className="font-bold text-gray-900 dark:text-white">{nationalAddress.region || business.address?.city || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'الرمز البريدي' : 'Postal Code'}</span>
+                    <span className="font-bold text-gray-900 dark:text-white">{nationalAddress.postalCode || business.address?.postalCode || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'تاريخ التسجيل' : 'Registration Date'}</span>
+                    <span className="font-bold text-gray-900 dark:text-white">
+                      {nationalAddress.regDate ? new Date(nationalAddress.regDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB') : '—'}
+                    </span>
                   </div>
                   <div>
                     <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'تاريخ الإصدار الأصلي' : 'Original Date'}</span>
@@ -2204,27 +2254,59 @@ export default function Profile() {
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="label">{language === 'ar' ? 'العنوان المختصر' : 'Short Address'}</label>
-                      <input {...register('business.nationalAddress.shortAddress')} className="input font-mono" placeholder="RRRD2929" />
-                    </div>
-                    <div>
-                      <label className="label">{language === 'ar' ? 'رقم الإثبات' : 'Proof Number'}</label>
+                      <label className="label">National Address Proof Number <span className="text-slate-400" dir="rtl">رقم إثبات العنوان الوطني</span></label>
                       <input {...register('business.nationalAddress.proofNumber')} className="input font-mono" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'حساب العميل' : 'Customer Account'}</label>
+                      <label className="label">Customer Account <span className="text-slate-400" dir="rtl">حساب العميل</span></label>
                       <input {...register('business.nationalAddress.customerAccount')} className="input font-mono" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'تاريخ الإصدار الأصلي' : 'Original Date'}</label>
+                      <label className="label">Original Date <span className="text-slate-400" dir="rtl">تاريخ الإصدار الأصلي</span></label>
                       <input type="date" {...register('business.nationalAddress.originalDate')} className="input" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'تاريخ الانتهاء' : 'Expiration Date'}</label>
+                      <label className="label">Expiration Date <span className="text-slate-400" dir="rtl">تاريخ الانتهاء</span></label>
                       <input type="date" {...register('business.nationalAddress.expirationDate')} className="input" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'رابط QR للتحقق' : 'SPL Verification QR URL'}</label>
+                      <label className="label">Registration Date <span className="text-slate-400" dir="rtl">تاريخ التسجيل</span></label>
+                      <input type="date" {...register('business.nationalAddress.regDate')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">Short Address <span className="text-slate-400" dir="rtl">العنوان المختصر</span></label>
+                      <input {...register('business.nationalAddress.shortAddress')} className="input font-mono" placeholder="REMA7670" maxLength={8} />
+                    </div>
+                    <div>
+                      <label className="label">Building No <span className="text-slate-400" dir="rtl">رقم المبنى</span></label>
+                      <input {...register('business.nationalAddress.buildingNo')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">Secondary No <span className="text-slate-400" dir="rtl">الرقم الفرعي</span></label>
+                      <input {...register('business.nationalAddress.secondaryNo')} className="input" placeholder="2883" />
+                    </div>
+                    <div>
+                      <label className="label">Neighborhood / District <span className="text-slate-400" dir="rtl">الحي</span></label>
+                      <input {...register('business.nationalAddress.neighborhood')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">Neighborhood (AR) <span className="text-slate-400" dir="rtl">الحي (عربي)</span></label>
+                      <input {...register('business.nationalAddress.neighborhoodAr')} className="input" dir="rtl" />
+                    </div>
+                    <div>
+                      <label className="label">City / Region <span className="text-slate-400" dir="rtl">المدينة / المنطقة</span></label>
+                      <input {...register('business.nationalAddress.region')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">City / Region (AR) <span className="text-slate-400" dir="rtl">المدينة / المنطقة (عربي)</span></label>
+                      <input {...register('business.nationalAddress.regionAr')} className="input" dir="rtl" />
+                    </div>
+                    <div>
+                      <label className="label">Postal Code <span className="text-slate-400" dir="rtl">الرمز البريدي</span></label>
+                      <input {...register('business.nationalAddress.postalCode')} className="input" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="label">QR Verification URL <span className="text-slate-400" dir="rtl">رابط QR للتحقق</span></label>
                       <input {...register('business.nationalAddress.qrCodeUrl')} className="input" placeholder="https://proof.address.gov.sa/..." />
                     </div>
                   </div>

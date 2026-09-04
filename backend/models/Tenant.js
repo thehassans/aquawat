@@ -83,7 +83,9 @@ const businessDetailsSchema = new mongoose.Schema({
     postalCode: { type: String },
     country: { type: String, default: 'SA' },
     buildingNumber: { type: String },
-    additionalNumber: { type: String }
+    additionalNumber: { type: String },
+    /** SPL short national address (e.g. REMA7670) */
+    shortAddress: { type: String, default: '' },
   },
   contactPhone: { type: String },
   contactEmail: { type: String },
@@ -97,7 +99,7 @@ const businessDetailsSchema = new mongoose.Schema({
     iban: { type: String, default: '' },
   },
 
-  // National Address (Saudi National Address)
+  // National Address (Saudi National Address / SPL — ZATCA seller)
   nationalAddress: {
     proofNumber: { type: String, default: '' },
     originalDate: { type: Date },
@@ -106,8 +108,13 @@ const businessDetailsSchema = new mongoose.Schema({
     regDate: { type: Date },
     shortAddress: { type: String, default: '' },
     buildingNo: { type: String, default: '' },
+    /** Secondary / additional number (رقم فرعي) */
+    secondaryNo: { type: String, default: '' },
     neighborhood: { type: String, default: '' },
+    neighborhoodAr: { type: String, default: '' },
     region: { type: String, default: '' },
+    regionAr: { type: String, default: '' },
+    postalCode: { type: String, default: '' },
     qrCodeUrl: { type: String, default: '' },
   },
 
