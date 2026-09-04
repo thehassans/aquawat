@@ -384,7 +384,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const { language } = useSelector((state) => state.ui)
   const { tenant, user } = useSelector((state) => state.auth)
   const { settings: salesSettings } = useSalesSettings()
-  const { showAccount: showAccountColumn, showAnalytic: showAnalyticColumn } = resolveInvoiceLineColumnSettings(salesSettings)
+  const { showAccount: showAccountColumnSetting, showAnalytic: showAnalyticColumn } = resolveInvoiceLineColumnSettings(salesSettings)
+  const [forceShowAccountColumn, setForceShowAccountColumn] = useState(false)
+  const showAccountColumn = showAccountColumnSetting || forceShowAccountColumn
   const sellProductColSpan = sellLineProductColSpan({ showAccount: showAccountColumn, showAnalytic: showAnalyticColumn })
   const sellProductColClass = SELL_PRODUCT_COL_CLASS[sellProductColSpan] || SELL_PRODUCT_COL_CLASS[3]
   const { t } = useTranslation(language)
@@ -1499,6 +1501,92 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const prePostHasWarnings = Boolean(prePostResult?.hasWarnings)
   const prePostChecks = Array.isArray(prePostResult?.checks) ? prePostResult.checks : []
 
+  const scrollAndFocus = (selector, { highlight = true } = {}) => {
+    const el = typeof document !== 'undefined' ? document.querySelector(selector) : null
+    if (!el) return null
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    if (highlight) {
+      el.classList.add('ring-2', 'ring-teal-500/60', 'ring-offset-2', 'dark:ring-offset-[#0b0f16]')
+      window.setTimeout(() => {
+        el.classList.remove('ring-2', 'ring-teal-500/60', 'ring-offset-2', 'dark:ring-offset-[#0b0f16]')
+      }, 1800)
+    }
+    const focusable = el.matches('input,select,textarea,button,[tabindex]')
+      ? el
+      : el.querySelector('input,select,textarea,button,[tabindex]')
+    if (focusable && typeof focusable.focus === 'function') {
+      window.setTimeout(() => focusable.focus({ preventScroll: true }), 280)
+    }
+    return el
+  }
+
+  const handlePrePostFix = (check) => {
+    if (!check?.id) return
+    setFormTab('lines')
+    const detail = check.detail || {}
+    const firstBadLine = Array.isArray(detail.badLines) && detail.badLines[0]
+      ? detail.badLines[0]
+      : (Array.isArray(detail.incomeMissing) && detail.incomeMissing[0]
+        ? detail.incomeMissing[0]
+        : (Array.isArray(detail.taxMissing) && detail.taxMissing[0]
+          ? detail.taxMissing[0]
+          : null))
+
+    window.setTimeout(() => {
+      switch (check.id) {
+        case 'customer':
+        case 'credit_limit':
+          scrollAndFocus('#invoice-customer-section')
+          break
+        case 'b2b_vat':
+          scrollAndFocus('#invoice-buyer-vat')
+          break
+        case 'lines':
+          scrollAndFocus('#invoice-lines-section')
+          if (!(lineItems || []).some((l) => String(l?.productName || '').trim() || Number(l?.unitPrice) > 0)) {
+            append(getEmptyLine(tenant))
+          }
+          break
+        case 'line_detail':
+        case 'total':
+          scrollAndFocus(firstBadLine ? `#invoice-line-${firstBadLine - 1}` : '#invoice-lines-section')
+          break
+        case 'income_account':
+          setForceShowAccountColumn(true)
+          window.setTimeout(() => {
+            scrollAndFocus(
+              firstBadLine
+                ? `#invoice-line-${firstBadLine - 1}-income`
+                : '#invoice-lines-section',
+            )
+          }, 50)
+          break
+        case 'tax':
+          scrollAndFocus(firstBadLine ? `#invoice-line-${firstBadLine - 1}` : '#invoice-lines-section')
+          toast(
+            language === 'ar'
+              ? 'عيّن نسبة الضريبة على البند'
+              : 'Set a tax rate on the line',
+            { icon: 'ℹ' },
+          )
+          break
+        case 'lock_date':
+          scrollAndFocus('#invoice-issue-date')
+          break
+        case 'duplicate':
+          toast(
+            language === 'ar'
+              ? 'تكرار محتمل — يمكنك الترحيل على أي حال'
+              : 'Possible duplicate — you can still Post anyway',
+            { icon: '⚠' },
+          )
+          break
+        default:
+          scrollAndFocus('#invoice-sell-form')
+      }
+    }, 60)
+  }
+
   const buildPayload = (data) => {
     const namedLines = (data.lineItems || []).filter((line) => String(line?.productName || '').trim())
     if (!namedLines.length) {
@@ -1858,7 +1946,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     hasWarnings={prePostHasWarnings}
                     loading={prePostLoading && !prePostResult}
                     language={language}
-                    className="min-w-[220px] max-w-sm sm:max-w-xs"
+                    className="min-w-[240px] w-full max-w-md sm:w-[320px]"
+                    onFix={handlePrePostFix}
                   />
                   <button
                     type="button"
@@ -2087,21 +2176,47 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               <label className={fieldLabelClass}>
                 {language === 'ar' ? 'تاريخ ووقت الإصدار' : 'Issue date & time'}
               </label>
-              <input type="datetime-local" {...register('issueDate')} className={`mt-1 max-w-sm ${fieldControlClass}`} />
+              <input type="datetime-local" id="invoice-issue-date" {...register('issueDate')} className={`mt-1 max-w-sm ${fieldControlClass}`} />
             </div>
           )}
           </fieldset>
 
-          <div className={`${sectionCardClass} space-y-2.5 !p-3.5`}>
-            <div className="flex items-center justify-between gap-3">
+          <div id="invoice-customer-section" className={`${sectionCardClass} space-y-2.5 !p-3.5`}>
+            <div className="flex flex-wrap items-end justify-between gap-3">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
                 {language === 'ar' ? 'العميل' : 'Customer'}
               </h3>
-              {invoiceType === 'B2C' ? (
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                  {language === 'ar' ? 'نقدي / تجزئة' : 'Cash / retail'}
-                </span>
-              ) : null}
+              <div className="flex flex-wrap items-center gap-2">
+                {invoiceType === 'B2C' ? (
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                    {language === 'ar' ? 'نقدي / تجزئة' : 'Cash / retail'}
+                  </span>
+                ) : null}
+                {!isTravelContext ? (
+                <div className="min-w-[9.5rem]">
+                  <label className="text-[10px] font-medium uppercase tracking-wide text-slate-400" htmlFor="invoice-issue-date">
+                    {language === 'ar' ? 'تاريخ الإصدار' : 'Issue date'}
+                  </label>
+                  <input
+                    id="invoice-issue-date"
+                    type="date"
+                    className={`mt-1 ${fieldControlClass} !rounded-xl !border-slate-200/70 !bg-slate-50/60 !px-2.5 !py-1.5 !text-[12px]`}
+                    value={extractDateOnly(values?.issueDate) || ''}
+                    onChange={(e) => {
+                      const only = e.target.value
+                      if (!only) {
+                        setValue('issueDate', '', { shouldDirty: true })
+                        return
+                      }
+                      setValue('issueDate', `${only}T12:00`, { shouldDirty: true })
+                      const dueOnly = computeDueDateOnlyFromPaymentTerms(only, getValues('paymentTerms') || 'immediate')
+                      if (dueOnly) setValue('dueDate', dueOnly, { shouldDirty: true })
+                    }}
+                    disabled={isInvoicePosted}
+                  />
+                </div>
+                ) : null}
+              </div>
             </div>
             <PartnerCombobox
               role="customer"
@@ -2153,6 +2268,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 <div>
                   <FieldLabel en="Customer VAT / TRN" ar="الرقم الضريبي للعميل" />
                   <input
+                    id="invoice-buyer-vat"
                     className={`${compactFieldClass} ${
                       String(watch('buyer.vatNumber') || '').trim() && !isValidSaudiVat(watch('buyer.vatNumber'))
                         ? '!border-rose-400 !ring-1 !ring-rose-300'
@@ -2264,7 +2380,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             />
           )}
 
-          <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
+          <div id="invoice-lines-section" className={`${sectionCardClass} !p-0 overflow-hidden`}>
             <div className="flex items-center justify-between gap-3 px-4 py-3">
               <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
                 {language === 'ar' ? 'البنود' : 'Lines'}
@@ -2327,7 +2443,11 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
 
                 <div className="min-w-0 divide-y divide-slate-100 dark:divide-white/5">
                   {fields.map((field, index) => (
-                <div key={field.fieldId || field.id || `line-${index}`} className="group px-3 py-2.5 transition hover:bg-slate-50/70 dark:hover:bg-white/[0.02] sm:px-4">
+                <div
+                  key={field.fieldId || field.id || `line-${index}`}
+                  id={`invoice-line-${index}`}
+                  className="group px-3 py-2.5 transition hover:bg-slate-50/70 dark:hover:bg-white/[0.02] sm:px-4"
+                >
                   <LineItemTranslator
                     index={index}
                     control={control}
@@ -2476,6 +2596,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         {showAccountColumn ? (
                           <div className="col-span-2 min-w-0 lg:col-span-2">
                             <select
+                              id={`invoice-line-${index}-income`}
                               {...register(`lineItems.${index}.incomeAccountId`)}
                               disabled={isInvoicePosted}
                               className={`${lineGhostInputClass} cursor-pointer truncate disabled:opacity-60`}
