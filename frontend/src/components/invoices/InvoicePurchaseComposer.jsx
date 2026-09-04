@@ -539,7 +539,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         queryClient.invalidateQueries(['invoice', invoiceId])
       }
       if (res.data?.offline) {
-        navigate('/app/dashboard/accounting/invoices')
+        navigate('/app/dashboard/accounting/invoices?tab=purchase')
       } else {
         navigate(`/app/dashboard/accounting/invoices/${res.data?._id || invoiceId}`)
       }
@@ -1084,7 +1084,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       <div className="mx-auto w-full max-w-6xl space-y-2.5">
         <AccountingDocumentShell
           language={language}
-          backTo={isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : (isRefundDoc ? '/app/dashboard/accounting/vendor-refunds' : '/app/dashboard/accounting/vendor-bills')}
+          backTo={isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : (isRefundDoc ? '/app/dashboard/accounting/vendor-refunds' : '/app/dashboard/accounting/invoices?tab=purchase')}
           eyebrow={isRefundDoc ? (language === 'ar' ? 'مرتجع مورد' : 'Vendor refund') : (language === 'ar' ? 'فاتورة مورد' : 'Vendor bill')}
           title={initialInvoice?.invoiceNumber || (language === 'ar' ? 'مسودة جديدة' : 'New draft')}
           subtitle={language === 'ar' ? 'منشئ المستند' : 'Document builder'}
@@ -2265,7 +2265,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                   : 'Tap Preview to review before saving'}
               </p>
               <div className="flex justify-end gap-3">
-                <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : (isRefundDoc ? '/app/dashboard/accounting/vendor-refunds' : '/app/dashboard/accounting/vendor-bills'))} className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:bg-transparent dark:text-slate-300">{t('cancel')}</button>
+                <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : (isRefundDoc ? '/app/dashboard/accounting/vendor-refunds' : '/app/dashboard/accounting/invoices?tab=purchase'))} className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:bg-transparent dark:text-slate-300">{t('cancel')}</button>
                 <button type="submit" disabled={saveMutation.isPending || isBillPosted} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 disabled:opacity-50 dark:bg-white dark:text-slate-900">
                   {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" /> : <><Eye className="w-4 h-4" />{language === 'ar' ? 'معاينة' : 'Preview'}</>}
                 </button>

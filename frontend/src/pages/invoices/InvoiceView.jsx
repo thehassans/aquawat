@@ -555,7 +555,13 @@ export default function InvoiceView() {
                     await api.delete(`/invoices/${id}`)
                     toast.success(language === 'ar' ? 'تم الحذف' : 'Deleted')
                     queryClient.invalidateQueries(['invoices'])
-                    navigate('/app/dashboard/accounting/invoices')
+                    queryClient.invalidateQueries(['vendor-bills'])
+                    queryClient.invalidateQueries(['customer-invoices'])
+                    navigate(
+                      invoice?.flow === 'purchase'
+                        ? '/app/dashboard/accounting/invoices?tab=purchase'
+                        : '/app/dashboard/accounting/invoices',
+                    )
                   } catch (error) {
                     toast.error(error?.response?.data?.error || (language === 'ar' ? 'فشل الحذف' : 'Delete failed'))
                   }

@@ -49,7 +49,7 @@ export const ACCOUNTING_MENU = [
     labelEn: 'Vendors',
     labelAr: 'الموردون',
     children: [
-      { href: `${A}/vendor-bills`, labelEn: 'Bills', labelAr: 'فواتير المشتريات' },
+      { href: `${A}/invoices?tab=purchase`, labelEn: 'Bills', labelAr: 'فواتير المشتريات' },
       { href: `${A}/vendor-refunds`, labelEn: 'Refunds', labelAr: 'المرتجعات' },
       { href: `${A}/vendor-payments`, labelEn: 'Payments', labelAr: 'المدفوعات' },
       { href: `${A}/aged-ap`, labelEn: 'Aged Payable', labelAr: 'أعمار الدائنين' },

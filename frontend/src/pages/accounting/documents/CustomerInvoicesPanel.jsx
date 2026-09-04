@@ -100,7 +100,7 @@ const isOverdueRow = (row) => {
   return dueOnly < todayOnly
 }
 
-export default function CustomerInvoicesPanel({ language: languageProp }) {
+export default function CustomerInvoicesPanel({ language: languageProp, embedded = false }) {
   const { language: uiLanguage } = useSelector((s) => s.ui)
   const { tenant } = useSelector((s) => s.auth)
   const language = languageProp || uiLanguage
@@ -303,6 +303,7 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
 
   return (
     <div className="space-y-4">
+      {!embedded ? (
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
@@ -321,6 +322,16 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
           />
         </div>
       </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <ExportMenu
+            columns={exportColumns}
+            filename="customer-invoices"
+            getRows={() => Promise.resolve(selectedRows.length ? selectedRows : rows)}
+            label={isAr ? 'تصدير' : 'Export'}
+          />
+        </div>
+      )}
 
       <div className={filterBarClass}>
         <div className="relative min-w-[180px] flex-1">
@@ -406,6 +417,7 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
             {isAr ? 'مسح الفلتر' : 'Clear filter'}
           </button>
         ) : null}
+        {!embedded ? (
         <button
           type="button"
           className="btn btn-primary btn-sm ms-auto"
@@ -414,6 +426,7 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
           <Plus className="h-4 w-4" />
           {isAr ? 'فاتورة جديدة' : 'New invoice'}
         </button>
+        ) : null}
       </div>
 
       <AccountingDocumentBatchBar

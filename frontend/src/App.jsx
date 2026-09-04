@@ -16,7 +16,8 @@ import AuthLayout from './layouts/AuthLayout'
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 
 // Lazy-load invoice/quotation modules (previously eager — large PDF/composer chunks)
-const CustomerInvoicesPanel = lazy(() => import('./pages/accounting/documents/CustomerInvoicesPanel'))
+const AccountingInvoicesHub = lazy(() => import('./pages/accounting/documents/AccountingInvoicesHub'))
+const VendorBillsPanel = lazy(() => import('./pages/accounting/documents/VendorBillsPanel'))
 const InvoiceCreate = lazy(() => import('./pages/invoices/InvoiceCreate'))
 const InvoiceCreateSell = lazy(() => import('./pages/invoices/InvoiceCreateSellPage'))
 const InvoiceCreatePurchase = lazy(() => import('./pages/invoices/InvoiceCreatePurchasePage'))
@@ -1119,7 +1120,8 @@ function App() {
         <Route path="finance" element={<Finance />} />
         <Route path="accounting" element={<AccountingLayout />}>
           <Route index element={<Accounting />} />
-          <Route path="invoices" element={<CustomerInvoicesPanel />} />
+          <Route path="invoices" element={<AccountingInvoicesHub />} />
+          <Route path="vendor-bills" element={<VendorBillsPanel />} />
           <Route path="invoices/settings" element={<InvoiceSettingsPage />} />
           <Route path="invoices/new" element={<InvoiceCreate />} />
           <Route path="invoices/new/sell" element={<InvoiceCreateSell />} />

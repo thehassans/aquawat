@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, Eye, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useSelector } from 'react-redux'
 import api from '../../../lib/api'
 import Money from '../../../components/ui/Money'
 import ExportMenu from '../../../components/ui/ExportMenu'
@@ -40,7 +41,9 @@ const trimName = (party) => {
   return en || ar || '—'
 }
 
-export default function VendorBillsPanel({ language = 'en' }) {
+export default function VendorBillsPanel({ language: languageProp, embedded = false }) {
+  const { language: uiLanguage } = useSelector((s) => s.ui)
+  const language = languageProp || uiLanguage
   const isAr = language === 'ar'
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -197,6 +200,7 @@ export default function VendorBillsPanel({ language = 'en' }) {
             <Download className="h-4 w-4" />
             {isAr ? 'SEPA' : 'SEPA export'}
           </button>
+          {!embedded ? (
           <button
             type="button"
             className="btn btn-primary btn-sm"
@@ -205,6 +209,7 @@ export default function VendorBillsPanel({ language = 'en' }) {
             <Plus className="h-4 w-4" />
             {isAr ? 'فاتورة جديدة' : 'New bill'}
           </button>
+          ) : null}
       </div>
 
       <div className={filterBarClass}>

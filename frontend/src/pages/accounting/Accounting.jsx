@@ -792,7 +792,14 @@ export default function Accounting() {
                       to="/app/dashboard/accounting/invoices"
                       className="text-xs font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-300"
                     >
-                      {isAr ? 'الكل' : 'View all'}
+                      {isAr ? 'مبيعات' : 'Sales'}
+                    </Link>
+                    <span className="text-slate-300">·</span>
+                    <Link
+                      to="/app/dashboard/accounting/invoices?tab=purchase"
+                      className="text-xs font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-300"
+                    >
+                      {isAr ? 'مشتريات' : 'Purchase'}
                     </Link>
                     <button
                       type="button"

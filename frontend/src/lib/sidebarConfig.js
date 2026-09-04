@@ -250,6 +250,7 @@ export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, bus
             { path: '/app/dashboard/purchases', label: language === 'ar' ? 'نظرة عامة' : 'Overview', end: true },
             { path: '/app/dashboard/purchases/orders', label: language === 'ar' ? 'طلبات الشراء' : 'Purchase Orders' },
             { path: '/app/dashboard/purchases/grn', label: language === 'ar' ? 'إشعارات الاستلام' : 'Receipts (GRN)' },
+            { path: '/app/dashboard/accounting/invoices?tab=purchase', label: language === 'ar' ? 'فواتير الشراء' : 'Purchase Invoices', perm: { module: 'invoicing', action: 'read' } },
             { path: '/app/dashboard/purchases/suppliers', label: language === 'ar' ? 'الموردون وطلباتهم' : 'Suppliers & POs' },
             { path: '/app/dashboard/purchases/reports', label: language === 'ar' ? 'تقارير المشتريات' : 'Purchases Reports' },
             { path: '/app/dashboard/purchases/returns', label: language === 'ar' ? 'مرتجع المشتريات' : 'Purchase Return' },
@@ -405,7 +406,8 @@ export function getNavSections({ language = 'en', t = (k) => k, tenant = {}, bus
         { path: '/app/dashboard/finance', icon: Landmark, label: language === 'ar' ? 'المالية' : 'Finance', perm: { module: 'finance', action: 'read' } },
         { path: '/app/dashboard/accounting', icon: Calculator, label: language === 'ar' ? 'المحاسبة' : 'Accounting', perm: { module: 'finance', action: 'read' }, end: true, children: [
           { path: '/app/dashboard/accounting', label: language === 'ar' ? 'لوحة التحكم' : 'Dashboard', end: true },
-          { path: '/app/dashboard/accounting/invoices', label: language === 'ar' ? 'العملاء · الفواتير' : 'Customers · Invoices', perm: { module: 'invoicing', action: 'read' } },
+          { path: '/app/dashboard/accounting/invoices', label: language === 'ar' ? 'الفواتير' : 'Invoices', perm: { module: 'invoicing', action: 'read' } },
+          { path: '/app/dashboard/accounting/invoices?tab=purchase', label: language === 'ar' ? 'فواتير المشتريات' : 'Purchase invoices', perm: { module: 'invoicing', action: 'read' } },
           { path: '/app/dashboard/accounting/aged-ar', label: language === 'ar' ? 'أعمار المدينين' : 'Aged receivable' },
           { path: '/app/dashboard/accounting/aged-ap', label: language === 'ar' ? 'أعمار الدائنين' : 'Aged payable' },
           { path: '/app/dashboard/accounting/journals-board', label: language === 'ar' ? 'قيود اليومية' : 'Journal entries' },
