@@ -1,7 +1,7 @@
 import PurchaseOrder from '../../models/PurchaseOrder.js';
 import Partner from '../../models/Partner.js';
 import Invoice from '../../models/Invoice.js';
-import { isValidSaudiVat } from '../../utils/saudiVat.js';
+import { isValidSaudiVat, normalizeSaudiVatDigits } from '../../utils/saudiVat.js';
 import { getPartnerBalances } from '../ledger/balances.js';
 
 /**
@@ -102,13 +102,13 @@ export function assertSellerAddressReady(address = {}, { requireVat = false, vat
   if (!String(addr.postalCode || '').trim()) missing.push('postalCode');
   if (!String(addr.country || '').trim()) missing.push('country');
   if (requireVat) {
-    const vat = String(vatNumber || '').trim();
+    const vat = normalizeSaudiVatDigits(vatNumber);
     if (!vat) missing.push('VAT number');
     else if (!isValidSaudiVat(vat)) {
       return {
         ok: false,
         code: 'INVALID_SELLER_VAT',
-        error: 'Company VAT must be a valid 15-digit Saudi VAT number (starts and ends with 3)',
+        error: 'Company VAT must be a valid 15-digit Saudi VAT number (starts and ends with 3). Update it under Company Profile.',
         missing: ['VAT number'],
       };
     }

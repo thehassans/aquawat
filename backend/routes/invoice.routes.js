@@ -51,6 +51,7 @@ import {
   evaluateInvoicePrePost,
   assertInvoicePrePostReady,
 } from '../services/sales/invoicePrePostValidation.js';
+import { isValidSaudiVat, normalizeSaudiVatDigits } from '../utils/saudiVat.js';
 
 async function runSellPrePostGate(req, {
   payload,
@@ -104,11 +105,17 @@ function prepareSellInvoiceTermsAndSeller(invoiceData, {
   });
 
   if (!skipSellerCheck && isZatcaCurrency(tenant) && (invoiceData.flow || 'sell') === 'sell') {
+    const tenantVat = normalizeSaudiVatDigits(tenant?.business?.vatNumber);
+    const sellerVat = normalizeSaudiVatDigits(invoiceData.seller?.vatNumber);
+    const pickVat = isValidSaudiVat(tenantVat) ? tenantVat : (sellerVat || tenantVat);
+    if (invoiceData.seller) {
+      invoiceData.seller.vatNumber = pickVat || '';
+    }
     const sellerCheck = assertSellerAddressReady(
       invoiceData.seller?.address || tenant?.business?.address,
       {
         requireVat: true,
-        vatNumber: invoiceData.seller?.vatNumber || tenant?.business?.vatNumber,
+        vatNumber: pickVat,
       },
     );
     if (!sellerCheck.ok) {
@@ -121,6 +128,24 @@ function prepareSellInvoiceTermsAndSeller(invoiceData, {
   }
 
   return invoiceData;
+}
+
+/** B2C / simplified: drop invalid buyer tax IDs so mongoose party validators don't block posting. */
+function sanitizeBuyerForTransactionType(buyer = {}, transactionType = 'B2C') {
+  const next = { ...(buyer || {}) };
+  const txn = String(transactionType || '').toUpperCase() === 'B2B' ? 'B2B' : 'B2C';
+  if (txn === 'B2C') {
+    const vat = normalizeSaudiVatDigits(next.vatNumber);
+    if (!vat || !isValidSaudiVat(vat)) {
+      next.vatNumber = '';
+    } else {
+      next.vatNumber = vat;
+    }
+  } else {
+    const vat = normalizeSaudiVatDigits(next.vatNumber);
+    if (vat) next.vatNumber = vat;
+  }
+  return next;
 }
 
 const router = express.Router();
@@ -1807,6 +1832,9 @@ router.post('/', invoiceWriteLimiter, checkTrialLimits('invoices'), checkPermiss
 
     resolvePaymentStatus(req.body);
 
+    const sanitizedBuyer = sanitizeBuyerForTransactionType(buyer, transactionType);
+    const sellerVatNorm = normalizeSaudiVatDigits(tenant.business?.vatNumber) || tenant.business?.vatNumber || '';
+
     const invoiceData = {
       ...req.body,
       tenantId: req.user.tenantId,
@@ -1814,13 +1842,13 @@ router.post('/', invoiceWriteLimiter, checkTrialLimits('invoices'), checkPermiss
       transactionType,
       invoiceTypeCode,
       issueDate,
-      buyer,
+      buyer: sanitizedBuyer,
       customerId: cleanObjectId(customer?._id || req.body.customerId),
       status: resolvedStatus,
       seller: {
         name: tenant.business.legalNameEn,
         nameAr: tenant.business.legalNameAr,
-        vatNumber: tenant.business.vatNumber,
+        vatNumber: sellerVatNorm,
         crNumber: tenant.business.crNumber,
         address: tenant.business.address
       },
@@ -2042,6 +2070,9 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
       }
     }
 
+    const sanitizedBuyer = sanitizeBuyerForTransactionType(buyer, transactionType);
+    const sellerVatNorm = normalizeSaudiVatDigits(tenant.business?.vatNumber) || tenant.business?.vatNumber || '';
+
     const invoiceData = {
       ...req.body,
       tenantId: req.user.tenantId,
@@ -2054,13 +2085,13 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
       pdfTemplateId,
       invoiceTypeCode,
       issueDate,
-      buyer,
+      buyer: sanitizedBuyer,
       customerId: cleanObjectId(customer?._id || req.body.customerId),
       status: resolveInitialSellInvoiceStatus(req.body?.status, tenant),
       seller: {
         name: tenant.business.legalNameEn,
         nameAr: tenant.business.legalNameAr,
-        vatNumber: tenant.business.vatNumber,
+        vatNumber: sellerVatNorm,
         crNumber: tenant.business.crNumber,
         address: tenant.business.address,
         contactPhone: tenant.business.contactPhone,

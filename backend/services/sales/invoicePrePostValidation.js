@@ -5,11 +5,13 @@
 import mongoose from 'mongoose';
 import Invoice from '../../models/Invoice.js';
 import Partner from '../../models/Partner.js';
-import { isValidSaudiVat } from '../../utils/saudiVat.js';
+import Tenant from '../../models/Tenant.js';
+import { isValidSaudiVat, normalizeSaudiVatDigits } from '../../utils/saudiVat.js';
 import { extractDateOnly } from '../../utils/dateOnly.js';
 import { getAccountingLockDates } from '../accountingService.js';
 import { evaluateCustomerCredit } from './creditLimit.js';
 import { resolveProductGlAccounts } from '../inventory/productAccounting.js';
+import { isZatcaCurrency } from '../../utils/zatcaCurrency.js';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -96,6 +98,33 @@ export async function evaluateInvoicePrePost({
     message: b2bMsg,
     messageAr: b2bMsgAr,
     detail: { transactionType: txn, vat: vat || null },
+  }));
+
+  // 2b. Seller (company) VAT — required for ZATCA SAR tenants on both B2B and B2C
+  let sellerVatOk = true;
+  let sellerVatMsg = 'Company VAT not required for this currency';
+  let sellerVatMsgAr = 'ضريبة المنشأة غير مطلوبة لهذه العملة';
+  const tenantDoc = await Tenant.findById(tid).select('business.vatNumber settings.currency').lean();
+  if (tenantDoc && isZatcaCurrency(tenantDoc)) {
+    const sellerVat = normalizeSaudiVatDigits(tenantDoc?.business?.vatNumber);
+    if (!sellerVat) {
+      sellerVatOk = false;
+      sellerVatMsg = 'Set a valid company VAT (15 digits, starts/ends with 3) in Company Profile';
+      sellerVatMsgAr = 'أدخل الرقم الضريبي للمنشأة (١٥ رقماً يبدأ وينتهي بـ ٣) في الملف التعريفي';
+    } else if (!isValidSaudiVat(sellerVat)) {
+      sellerVatOk = false;
+      sellerVatMsg = 'Company VAT must be a valid 15-digit Saudi VAT number (starts and ends with 3)';
+      sellerVatMsgAr = 'الرقم الضريبي للمنشأة يجب أن يكون ١٥ رقماً ويبدأ وينتهي بـ ٣';
+    } else {
+      sellerVatMsg = 'Company VAT is valid';
+      sellerVatMsgAr = 'الرقم الضريبي للمنشأة صالح';
+    }
+  }
+  checks.push(checkResult({
+    id: 'seller_vat',
+    ok: sellerVatOk,
+    message: sellerVatMsg,
+    messageAr: sellerVatMsgAr,
   }));
 
   // 3. At least one line

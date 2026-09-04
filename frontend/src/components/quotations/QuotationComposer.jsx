@@ -26,6 +26,7 @@ import {
   resolveProductSalePrice,
   hasArabicScript,
 } from '../../lib/productType'
+import { resolveTransactionTypeFromParty } from '../../lib/transactionType'
 import ProductTypeToggle from '../ui/ProductTypeToggle'
 import RichTextNoteField from '../invoices/RichTextNoteField'
 import MarqueeEventFields from '../marquee/MarqueeEventFields'
@@ -123,7 +124,7 @@ const buildQuotationFormValues = ({ quotation, tenant, defaultBusinessContext, d
     ),
     issueDate: formatDateForInput(quotation?.issueDate) || formatDateForInput(new Date()),
     validUntil: formatDateForInput(quotation?.validUntil),
-    transactionType: quotation?.transactionType || 'B2B',
+    transactionType: quotation?.transactionType || 'B2C',
     customerId: quotation?.customerId?._id || quotation?.customerId || '',
     salesTeamId: quotation?.salesTeamId?._id || quotation?.salesTeamId || '',
     subject: quotation?.subject || '',
@@ -490,6 +491,10 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
 
   const fillBuyerFromParty = (customer) => {
     if (!customer) return
+    if (!isEdit) {
+      const nextTxn = resolveTransactionTypeFromParty(customer, watch('transactionType') || 'B2C')
+      setValue('transactionType', nextTxn, { shouldDirty: true })
+    }
     setCustomerLookupId(String(customer._id))
     setValue('customerId', customer._id)
     setValue('buyer.name', customer.name || customer.nameEn || '')
@@ -765,7 +770,11 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                 </label>
                 <input type="date" {...register('validUntil')} className={`${lineGhostInputClass} mt-0.5 border border-slate-200/80 bg-slate-50/60 px-2 dark:border-white/10 dark:bg-white/[0.03]`} />
               </div>
-              <div className="ms-auto inline-flex rounded-xl bg-slate-100/90 p-0.5 dark:bg-white/5">
+              <div className="ms-auto flex flex-col items-end gap-1">
+                <span className="text-[10px] font-medium text-slate-400">
+                  {language === 'ar' ? 'يتبع نوع العميل (شركة = B2B)' : 'Follows customer (company = B2B)'}
+                </span>
+                <div className="inline-flex rounded-xl bg-slate-100/90 p-0.5 dark:bg-white/5">
                 {['B2B', 'B2C'].map((type) => {
                   const active = watch('transactionType') === type
                   return (
@@ -783,6 +792,7 @@ export default function QuotationComposer({ quotationId = '', initialQuotation =
                     </button>
                   )
                 })}
+                </div>
               </div>
               <input type="hidden" {...register('transactionType')} />
             </div>

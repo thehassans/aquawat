@@ -13,6 +13,7 @@ import {
 const FIXABLE = new Set([
   'customer',
   'b2b_vat',
+  'seller_vat',
   'lines',
   'line_detail',
   'total',
@@ -42,14 +43,12 @@ export default function InvoicePrePostChecklist({
   const failCount = failed.length
   const warnCount = warnings.length
 
-  const [open, setOpen] = useState(() => {
-    if (typeof defaultOpen === 'boolean') return defaultOpen
-    return failCount > 0 || warnCount > 0
-  })
+  const [open, setOpen] = useState(() => (typeof defaultOpen === 'boolean' ? defaultOpen : false))
 
   useEffect(() => {
     if (failCount > 0) setOpen(true)
-  }, [failCount])
+    else if (canPost && warnCount === 0) setOpen(false)
+  }, [failCount, canPost, warnCount])
 
   const title = isAr ? 'قبل الترحيل' : 'Before posting'
   const statusLabel = loading

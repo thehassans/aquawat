@@ -17,7 +17,8 @@ import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, isGccArabicMarket
 import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
 import { INVOICE_PAYMENT_TERMS, computeDueDateFromPaymentTerms, computeDueDateOnlyFromPaymentTerms, isImmediatePaymentTerm, formPaymentStatusFromInvoice, applyFormPaymentToPayload } from '../../lib/invoicePaymentTerms'
 import { extractDateOnly, dateOnlyToUtcNoon } from '../../lib/dateOnly'
-import { isValidSaudiVat, isEmptyOrValidSaudiVat, saudiVatErrorMessage } from '../../lib/saudiVat'
+import { isValidSaudiVat, isEmptyOrValidSaudiVat, saudiVatErrorMessage, normalizeSaudiVatDigits } from '../../lib/saudiVat'
+import { resolveTransactionTypeFromParty, invoiceTypeCodeForTransaction } from '../../lib/transactionType'
 import InvoiceLivePreview from './InvoiceLivePreview'
 import DocumentPreSaveModal from './DocumentPreSaveModal'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
@@ -295,8 +296,8 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
   invoiceSubtype: invoice?.invoiceSubtype || (hasTravel ? 'travel_ticket' : 'standard'),
   pdfTemplateId: invoice?.pdfTemplateId || getInvoiceTemplateId(tenant, invoice?.businessContext || defaultBusinessContext),
   issueDate: invoice?.issueDate ? toDatetimeLocalInput(invoice.issueDate) : '',
-  transactionType: invoice?.transactionType || 'B2B',
-  invoiceTypeCode: invoice?.invoiceTypeCode || (invoice?.transactionType === 'B2C' ? '0200000' : '0100000'),
+  transactionType: invoice?.transactionType || 'B2C',
+  invoiceTypeCode: invoice?.invoiceTypeCode || (invoice?.transactionType === 'B2B' ? '0100000' : '0200000'),
   paymentMethod: invoice?.paymentMethod || 'cash',
   paidAmount: toNumber(invoice?.paidAmount, 0),
   paymentStatus: formPaymentStatusFromInvoice(invoice),
@@ -394,7 +395,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const isPk = isPakistanTenant(tenant)
   const taxLabel = getTaxLabel(tenant)
   const taxIdLabel = getTaxIdLabel(tenant)
-  const [invoiceType, setInvoiceType] = useState('B2B')
+  const [invoiceType, setInvoiceType] = useState(() => (
+    initialInvoice?.transactionType === 'B2B' ? 'B2B' : 'B2C'
+  ))
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const isEdit = Boolean(invoiceId)
   const [selectedCustomer, setSelectedCustomer] = useState(() => {
@@ -715,13 +718,22 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     replace(mapSellLineItems(initialInvoice))
   }, [fields.length, initialInvoice, isEdit, replace])
 
-  const applyTransactionType = (nextType) => {
+  const applyTransactionType = (nextType, { clearBuyerTax = true } = {}) => {
     const type = nextType === 'B2C' ? 'B2C' : 'B2B'
     setInvoiceType(type)
     setValue('transactionType', type, { shouldDirty: true })
-    setValue('invoiceTypeCode', type === 'B2B' ? '0100000' : '0200000', { shouldDirty: true })
+    setValue('invoiceTypeCode', invoiceTypeCodeForTransaction(type), { shouldDirty: true })
     if (type === 'B2C') {
       clearErrors(['buyer.name', 'buyer.vatNumber', 'buyer.crNumber'])
+      if (clearBuyerTax) {
+        const vat = normalizeSaudiVatDigits(getValues('buyer.vatNumber'))
+        if (!isValidSaudiVat(vat)) {
+          setValue('buyer.vatNumber', '', { shouldDirty: true })
+          setValue('buyer.crNumber', '', { shouldDirty: true })
+        } else {
+          setValue('buyer.vatNumber', vat, { shouldDirty: true })
+        }
+      }
       if (!String(getValues('buyer.name') || '').trim()) {
         setValue(
           'buyer.name',
@@ -732,9 +744,63 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     }
   }
 
+  const syncTxnFromParty = (customer) => {
+    if (!customer) return
+    // Always align new invoices (incl. from sales order) with contact type
+    if (isEdit && initialInvoice?.transactionType) return
+    const next = resolveTransactionTypeFromParty(customer, invoiceType)
+    if (next !== invoiceType) applyTransactionType(next, { clearBuyerTax: next === 'B2C' })
+  }
+
+  const fillBuyerFromParty = (customer) => {
+    if (!customer) return
+    syncTxnFromParty(customer)
+    const buyerOpts = { shouldDirty: true, shouldValidate: resolveTransactionTypeFromParty(customer, invoiceType) === 'B2B' }
+    setValue('customerId', customer._id, buyerOpts)
+    setValue('buyer.name', customer.name || customer.nameEn || '', buyerOpts)
+    setValue('buyer.nameAr', customer.nameAr || customer.name || customer.nameEn || '', buyerOpts)
+    const rawVat = customer.vatNumber || customer.taxNumber || customer.vat || customer.trn || ''
+    const vatNorm = normalizeSaudiVatDigits(rawVat)
+    const nextTxn = resolveTransactionTypeFromParty(customer, invoiceType)
+    setValue(
+      'buyer.vatNumber',
+      nextTxn === 'B2C' && !isValidSaudiVat(vatNorm) ? '' : (vatNorm || rawVat || ''),
+      { ...buyerOpts, shouldDirty: true },
+    )
+    setValue(
+      'buyer.crNumber',
+      nextTxn === 'B2C' && !isValidSaudiVat(vatNorm)
+        ? ''
+        : (customer.crNumber || customer.commercialRegistration?.crNumber || customer.cr || ''),
+      { ...buyerOpts, shouldDirty: true },
+    )
+    setValue('buyer.address.city', customer.address?.city || '', buyerOpts)
+    setValue('buyer.address.cityAr', customer.address?.cityAr || '', buyerOpts)
+    setValue('buyer.address.district', customer.address?.district || '', buyerOpts)
+    setValue('buyer.address.districtAr', customer.address?.districtAr || '', buyerOpts)
+    setValue('buyer.address.street', customer.address?.street || '', buyerOpts)
+    setValue('buyer.address.streetAr', customer.address?.streetAr || '', buyerOpts)
+    setValue('buyer.address.postalCode', customer.address?.postalCode || '', buyerOpts)
+    setValue('buyer.address.country', customer.address?.country || getTenantCountryCode(tenant), buyerOpts)
+    setValue('buyer.address.buildingNumber', customer.address?.buildingNumber || '', buyerOpts)
+    setValue('buyer.address.additionalNumber', customer.address?.additionalNumber || '', buyerOpts)
+    setValue('buyer.address.shortAddress', customer.address?.shortAddress || '', buyerOpts)
+    setValue('buyer.contactPhone', customer.phone || customer.mobile || getValues('buyer.contactPhone') || '', buyerOpts)
+    setValue('buyer.contactEmail', customer.email || getValues('buyer.contactEmail') || '', buyerOpts)
+    const terms = String(customer.paymentTermsCustomer || customer.paymentTerms || '').trim()
+    if (terms) {
+      setValue('paymentTerms', terms, { shouldDirty: true })
+      const issueRaw = getValues('issueDate')
+      const dueOnly = computeDueDateOnlyFromPaymentTerms(issueRaw || new Date(), terms)
+      if (dueOnly) setValue('dueDate', dueOnly, { shouldDirty: true })
+    }
+    setSelectedCustomer(customer)
+    clearErrors(['buyer.name', 'buyer.vatNumber', 'buyer.crNumber'])
+  }
+
   useEffect(() => {
     setValue('transactionType', invoiceType)
-    setValue('invoiceTypeCode', invoiceType === 'B2B' ? '0100000' : '0200000')
+    setValue('invoiceTypeCode', invoiceTypeCodeForTransaction(invoiceType))
     if (isTravelContext) {
       if (invoiceSubtype !== 'travel_ticket') {
         setValue('invoiceSubtype', 'travel_ticket')
@@ -991,46 +1057,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     }).catch(() => {})
     return () => { cancelled = true }
   }, [initialInvoice?.customerId])
-
-  const fillBuyerFromParty = (customer) => {
-    if (!customer) return
-    const buyerOpts = { shouldDirty: true, shouldValidate: invoiceType === 'B2B' }
-    setValue('customerId', customer._id, buyerOpts)
-    setValue('buyer.name', customer.name || customer.nameEn || '', buyerOpts)
-    setValue('buyer.nameAr', customer.nameAr || customer.name || customer.nameEn || '', buyerOpts)
-    setValue(
-      'buyer.vatNumber',
-      customer.vatNumber || customer.taxNumber || customer.vat || customer.trn || '',
-      { ...buyerOpts, shouldDirty: true },
-    )
-    setValue(
-      'buyer.crNumber',
-      customer.crNumber || customer.commercialRegistration?.crNumber || customer.cr || '',
-      { ...buyerOpts, shouldDirty: true },
-    )
-    setValue('buyer.address.city', customer.address?.city || '', buyerOpts)
-    setValue('buyer.address.cityAr', customer.address?.cityAr || '', buyerOpts)
-    setValue('buyer.address.district', customer.address?.district || '', buyerOpts)
-    setValue('buyer.address.districtAr', customer.address?.districtAr || '', buyerOpts)
-    setValue('buyer.address.street', customer.address?.street || '', buyerOpts)
-    setValue('buyer.address.streetAr', customer.address?.streetAr || '', buyerOpts)
-    setValue('buyer.address.postalCode', customer.address?.postalCode || '', buyerOpts)
-    setValue('buyer.address.country', customer.address?.country || getTenantCountryCode(tenant), buyerOpts)
-    setValue('buyer.address.buildingNumber', customer.address?.buildingNumber || '', buyerOpts)
-    setValue('buyer.address.additionalNumber', customer.address?.additionalNumber || '', buyerOpts)
-    setValue('buyer.address.shortAddress', customer.address?.shortAddress || '', buyerOpts)
-    setValue('buyer.contactPhone', customer.phone || customer.mobile || getValues('buyer.contactPhone') || '', buyerOpts)
-    setValue('buyer.contactEmail', customer.email || getValues('buyer.contactEmail') || '', buyerOpts)
-    const terms = String(customer.paymentTermsCustomer || customer.paymentTerms || '').trim()
-    if (terms) {
-      setValue('paymentTerms', terms, { shouldDirty: true })
-      const issueRaw = getValues('issueDate')
-      const dueOnly = computeDueDateOnlyFromPaymentTerms(issueRaw || new Date(), terms)
-      if (dueOnly) setValue('dueDate', dueOnly, { shouldDirty: true })
-    }
-    setSelectedCustomer(customer)
-    clearErrors(['buyer.name', 'buyer.vatNumber', 'buyer.crNumber'])
-  }
 
   const applySalesOrder = (so) => {
     if (!so?._id) return
@@ -1541,6 +1567,15 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         case 'b2b_vat':
           scrollAndFocus('#invoice-buyer-vat')
           break
+        case 'seller_vat':
+          toast(
+            language === 'ar'
+              ? 'حدّث الرقم الضريبي للمنشأة من الملف التعريفي'
+              : 'Update company VAT in Company Profile',
+            { icon: 'ℹ' },
+          )
+          navigate('/app/dashboard/profile')
+          break
         case 'lines':
           scrollAndFocus('#invoice-lines-section')
           if (!(lineItems || []).some((l) => String(l?.productName || '').trim() || Number(l?.unitPrice) > 0)) {
@@ -1595,9 +1630,23 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     }
     const namedTotals = calculateInvoiceSummary({ lineItems: namedLines, invoiceDiscount: Math.max(0, toNumber(data?.invoiceDiscount, 0)) })
     const transactionType = invoiceType
-    const invoiceTypeCode = transactionType === 'B2C' ? '0200000' : '0100000'
+    const invoiceTypeCode = invoiceTypeCodeForTransaction(transactionType)
+    const buyerPayload = { ...(data.buyer || {}) }
+    if (transactionType === 'B2C') {
+      const vat = normalizeSaudiVatDigits(buyerPayload.vatNumber)
+      if (!isValidSaudiVat(vat)) {
+        buyerPayload.vatNumber = ''
+        buyerPayload.crNumber = buyerPayload.crNumber || ''
+      } else {
+        buyerPayload.vatNumber = vat
+      }
+    } else {
+      const vat = normalizeSaudiVatDigits(buyerPayload.vatNumber)
+      if (vat) buyerPayload.vatNumber = vat
+    }
     const payload = {
       ...data,
+      buyer: buyerPayload,
       flow: 'sell',
       businessContext,
       invoiceSubtype: isTravelContext ? 'travel_ticket' : invoiceSubtype,
@@ -1948,6 +1997,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     language={language}
                     className="min-w-[240px] w-full max-w-md sm:w-[320px]"
                     onFix={handlePrePostFix}
+                    defaultOpen={false}
                   />
                   <button
                     type="button"
@@ -2103,13 +2153,18 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 })}
               </div>
 
-              <div className={segmentWrapClass}>
-                <button type="button" onClick={() => applyTransactionType('B2B')} className={segmentBtnClass(invoiceType === 'B2B')}>
-                  B2B
-                </button>
-                <button type="button" onClick={() => applyTransactionType('B2C')} className={segmentBtnClass(invoiceType === 'B2C')}>
-                  B2C
-                </button>
+              <div className="ms-auto flex flex-col items-end gap-0.5">
+                <span className="text-[9px] font-medium uppercase tracking-wide text-slate-400">
+                  {language === 'ar' ? 'يتبع نوع العميل' : 'From customer type'}
+                </span>
+                <div className={segmentWrapClass}>
+                  <button type="button" onClick={() => applyTransactionType('B2B')} className={segmentBtnClass(invoiceType === 'B2B')}>
+                    B2B
+                  </button>
+                  <button type="button" onClick={() => applyTransactionType('B2C')} className={segmentBtnClass(invoiceType === 'B2C')}>
+                    B2C
+                  </button>
+                </div>
               </div>
 
               <div className="ms-auto flex min-w-0 max-w-full items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
