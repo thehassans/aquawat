@@ -88,6 +88,8 @@ const invoiceLineSchema = new mongoose.Schema({
   lineTotalWithTax: { type: Number },
   agencyPrice: { type: Number, default: 0, min: 0 },
   customerPrice: { type: Number, default: 0, min: 0 },
+  /** Snapshot of unit inventory cost (AVCO) for margin / COGS */
+  costPrice: { type: Number, default: 0, min: 0 },
   isTravelMargin: { type: Boolean, default: false },
   marginTaxable: { type: Number, default: 0 },
   sourceDnItemId: { type: mongoose.Schema.Types.ObjectId, set: cleanObjectId },

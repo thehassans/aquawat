@@ -30,23 +30,26 @@ export const STOCK_ACCOUNT_DEFS = [
     code: '1310',
     name: 'Stock Interim (Received)',
     nameAr: 'مخزون وسيط — استلام',
-    type: 'liability',
-    subtype: 'other_liability',
+    // Balance-sheet clearing in the 1xxx asset range (Odoo Anglo-Saxon style).
+    // Credit balance = GRNI; never classify as liability while coded 1xxx.
+    type: 'asset',
+    subtype: 'other_asset',
   },
   {
     code: '1320',
     name: 'Stock Interim (Delivered)',
     nameAr: 'مخزون وسيط — تسليم',
-    type: 'expense',
-    subtype: 'cogs',
+    // Clearing asset: delivery Dr 1320 / Cr 1300; invoice Dr 5000 / Cr 1320.
+    type: 'asset',
+    subtype: 'other_asset',
   },
 ];
 
 export async function ensureStockAccountingAccounts(tenantId, userId = null) {
   await ensureDefaultChartOfAccounts(tenantId, userId);
   for (const def of STOCK_ACCOUNT_DEFS) {
-    const exists = await ChartOfAccount.findOne({ tenantId, code: def.code });
-    if (!exists) {
+    const existing = await ChartOfAccount.findOne({ tenantId, code: def.code });
+    if (!existing) {
       await ChartOfAccount.create({
         ...def,
         tenantId,
@@ -56,6 +59,17 @@ export async function ensureStockAccountingAccounts(tenantId, userId = null) {
         balance: 0,
         createdBy: userId || undefined,
       });
+      continue;
+    }
+    // Heal misclassified system interims without changing code / _id (JE lines stay valid).
+    const patch = {};
+    if (String(existing.type) !== def.type) patch.type = def.type;
+    if (String(existing.subtype || '') !== def.subtype) patch.subtype = def.subtype;
+    if (String(existing.name || '') !== def.name) patch.name = def.name;
+    if (String(existing.nameAr || '') !== def.nameAr) patch.nameAr = def.nameAr;
+    if (!existing.isSystem) patch.isSystem = true;
+    if (Object.keys(patch).length) {
+      await ChartOfAccount.updateOne({ _id: existing._id, tenantId }, { $set: patch });
     }
   }
   await ensureDefaultStockJournal(tenantId, userId);

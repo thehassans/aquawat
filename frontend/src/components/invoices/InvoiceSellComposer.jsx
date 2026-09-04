@@ -96,6 +96,8 @@ const getEmptyLine = (tenant) => {
     customerPrice: '',
     taxRate: defaultRate,
     agencyPrice: '',
+    costPrice: '',
+    unitCost: '',
     isTravelMargin: false,
     sourcePoItemId: '',
     sourceDnItemId: '',
@@ -171,6 +173,8 @@ const mapSellLineItems = (invoice, tenant) => {
       customerPrice: Math.max(0, toNumber(plain?.customerPrice, 0)),
       taxRate: Math.max(0, toNumber(plain?.taxRate, defaultRate)),
       agencyPrice: Math.max(0, toNumber(plain?.agencyPrice, 0)),
+      costPrice: Math.max(0, toNumber(plain?.costPrice ?? plain?.unitCost, 0)),
+      unitCost: Math.max(0, toNumber(plain?.unitCost ?? plain?.costPrice, 0)),
       isTravelMargin: Boolean(plain?.isTravelMargin),
       productType: normalizeProductType(plain?.productType),
       incomeAccountId: idOf(plain?.incomeAccountId),
@@ -1346,6 +1350,11 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     setValue(`lineItems.${index}.taxRate`, tax, opts)
     setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType), opts)
     setValue(`lineItems.${index}.unitPrice`, resolveProductSalePrice(product), opts)
+    const unitCost = Number(product.averageLandedCost) > 0
+      ? Number(product.averageLandedCost)
+      : Number(product.costPrice || product.cost || 0)
+    setValue(`lineItems.${index}.costPrice`, Number.isFinite(unitCost) ? unitCost : 0, opts)
+    setValue(`lineItems.${index}.unitCost`, Number.isFinite(unitCost) ? unitCost : 0, opts)
     if (product.incomeAccountId) {
       setValue(`lineItems.${index}.incomeAccountId`, product.incomeAccountId, opts)
     }
@@ -1403,10 +1412,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     return lineItems.reduce((sum, line, index) => {
       const summaryLine = totals.lines[index] || {}
       const revenue = Number(summaryLine.lineTotal || 0)
-      const cost = Number(line.unitCost || line.costPrice || 0) * Number(line.quantity || 0)
+      const product = line.productId
+        ? productList.find((p) => String(p._id) === String(line.productId))
+        : null
+      const unitCost = Number(line.unitCost || line.costPrice || 0)
+        || Number(product?.averageLandedCost || 0)
+        || Number(product?.costPrice || 0)
+      const cost = unitCost * Number(line.quantity || 0)
       return sum + (revenue - cost)
     }, 0)
-  }, [showMargin, lineItems, totals.lines])
+  }, [showMargin, lineItems, totals.lines, productList])
 
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [formTab, setFormTab] = useState('lines')
@@ -1474,6 +1489,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           taxRate: isTravelContext ? Math.max(0, toNumber(line.taxRate, 15)) : toNumber(line.taxRate, 15),
           agencyPrice: isTravelContext ? agencyPrice : 0,
           customerPrice: isTravelContext ? (customerPriceRaw > 0 ? customerPriceRaw : unitPriceNum) : 0,
+          costPrice: Math.max(0, toNumber(line.costPrice ?? line.unitCost, 0)),
           isTravelMargin,
           marginTaxable: isTravelMargin ? Math.max(0, toNumber(summaryLine.marginTaxable, 0)) : 0,
           taxAmount: toNumber(summaryLine.taxAmount, 0),

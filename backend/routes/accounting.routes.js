@@ -169,6 +169,11 @@ router.get('/accounts', checkPermission('finance', 'read'), async (req, res) => 
       ];
     }
     const accounts = await ChartOfAccount.find(filter).sort({ code: 1 }).lean();
+    // Heal stock interim type misclassifications (1310/1320 must stay assets in 1xxx)
+    try {
+      const { ensureStockAccountingAccounts } = await import('../services/inventory/stockAccounting.js');
+      await ensureStockAccountingAccounts(tenantId);
+    } catch { /* non-fatal */ }
     // Overlay live balances from shared ledger (excludes reversed pairs)
     const { getAccountBalances } = await import('../services/ledger/balances.js');
     const live = await getAccountBalances({

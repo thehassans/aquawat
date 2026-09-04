@@ -1922,9 +1922,10 @@ export async function postSalesInvoiceJournal({
 }
 
 /**
- * Post COGS for sold goods when stock was not already valued via a delivery note.
- * Dr COGS / Cr Inventory using product cost (costPrice → averageLandedCost).
- * Separate sourceModel so it does not collide with the AR/revenue Invoice journal.
+ * Post COGS for sold goods.
+ * - No delivery valuation: Dr 5000 COGS / Cr 1300 Inventory (or product valuation acct)
+ * - Delivery already valued (interim 1320): Dr 5000 COGS / Cr 1320 Stock Interim Delivered
+ * Cost = moving average (product.averageLandedCost → costPrice → line cost).
  */
 export async function postSalesInvoiceCogsJournal({
   tenantId,
@@ -1936,15 +1937,22 @@ export async function postSalesInvoiceCogsJournal({
   if (String(invoice.flow || 'sell') === 'purchase') return null;
   if (String(invoice.invoiceType) === '381') return null;
 
-  // Delivery notes already post stock valuation / COGS — avoid double-posting.
+  const existing = await findExistingSourceEntry(tenantId, 'InvoiceCogs', invoice._id);
+  if (existing) return existing;
+
   const hasDelivery = Boolean(invoice.sourceDeliveryNoteId)
     || (Array.isArray(invoice.deliveryNoteIds) && invoice.deliveryNoteIds.length > 0)
     || (Array.isArray(invoice.documentReferences)
       && invoice.documentReferences.some((r) => /delivery/i.test(String(r?.model || r?.type || ''))));
-  if (hasDelivery) return null;
 
-  const existing = await findExistingSourceEntry(tenantId, 'InvoiceCogs', invoice._id);
-  if (existing) return existing;
+  let stockGlOn = false;
+  try {
+    const { isStockAccountingEnabled, ensureStockAccountingAccounts } = await import('./inventory/stockAccounting.js');
+    await ensureStockAccountingAccounts(tenantId, userId);
+    stockGlOn = await isStockAccountingEnabled(tenantId);
+  } catch {
+    stockGlOn = false;
+  }
 
   const lineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
   if (!lineItems.length) return null;
@@ -1952,7 +1960,16 @@ export async function postSalesInvoiceCogsJournal({
   const Product = (await import('../models/Product.js')).default;
   const { resolveProductGlAccounts } = await import('./inventory/productAccounting.js');
 
-  const cogsByAccount = new Map(); // key: `${cogsId}|${invId}` → { cogs, inventory, amount }
+  const companyCogs = await getAccountByCode(tenantId, '5000');
+  const companyInventory = await getAccountByCode(tenantId, '1300');
+  const stockInterimOut = await getAccountByCode(tenantId, '1320');
+  if (!companyCogs) return null;
+
+  // After delivery valuation, clear interim → COGS. Otherwise relieve inventory.
+  const preferInterimCredit = hasDelivery && stockGlOn && stockInterimOut
+    && String(stockInterimOut._id) !== String(companyCogs._id);
+
+  const cogsByAccount = new Map(); // key → { cogs, credit, amount }
   let totalCogs = 0;
 
   for (const li of lineItems) {
@@ -1970,9 +1987,11 @@ export async function postSalesInvoiceCogsJournal({
       if (product) {
         if (String(product.productType || '').toLowerCase() === 'service') continue;
         if (product.trackInventory === false) continue;
-        if (!Number.isFinite(unitCost) || unitCost <= 0) {
-          unitCost = Number(product.averageLandedCost) || Number(product.costPrice) || 0;
-        }
+        // Moving average first, then standard cost, then line snapshot
+        const avco = Number(product.averageLandedCost);
+        const std = Number(product.costPrice);
+        if (Number.isFinite(avco) && avco > 0) unitCost = avco;
+        else if (Number.isFinite(std) && std > 0) unitCost = std;
       }
     }
     if (!Number.isFinite(unitCost) || unitCost <= 0) continue;
@@ -1985,13 +2004,18 @@ export async function postSalesInvoiceCogsJournal({
       stockValuationAccountId: li.inventoryAccountId,
       productType: 'goods',
     });
-    if (!resolved.cogs || !resolved.inventory) continue;
-    if (String(resolved.cogs._id) === String(resolved.inventory._id)) continue;
 
-    const key = `${resolved.cogs._id}|${resolved.inventory._id}`;
+    const cogsAcct = companyCogs || resolved.cogs;
+    let creditAcct = preferInterimCredit
+      ? stockInterimOut
+      : (resolved.inventory || companyInventory);
+    if (!cogsAcct || !creditAcct) continue;
+    if (String(cogsAcct._id) === String(creditAcct._id)) continue;
+
+    const key = `${cogsAcct._id}|${creditAcct._id}`;
     const prev = cogsByAccount.get(key) || {
-      cogs: resolved.cogs,
-      inventory: resolved.inventory,
+      cogs: cogsAcct,
+      credit: creditAcct,
       amount: 0,
     };
     prev.amount = round2(prev.amount + amount);
@@ -2002,7 +2026,9 @@ export async function postSalesInvoiceCogsJournal({
   if (!cogsByAccount.size || totalCogs <= 0) return null;
 
   const lines = [];
-  const desc = `COGS for invoice ${invoice.invoiceNumber || ''}`;
+  const desc = preferInterimCredit
+    ? `COGS clear interim for invoice ${invoice.invoiceNumber || ''}`
+    : `COGS for invoice ${invoice.invoiceNumber || ''}`;
   for (const group of cogsByAccount.values()) {
     lines.push({
       accountId: group.cogs._id,
@@ -2012,8 +2038,8 @@ export async function postSalesInvoiceCogsJournal({
       description: desc,
     });
     lines.push({
-      accountId: group.inventory._id,
-      accountCode: group.inventory.code,
+      accountId: group.credit._id,
+      accountCode: group.credit.code,
       debit: 0,
       credit: group.amount,
       description: desc,
