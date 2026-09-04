@@ -1176,11 +1176,26 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
       : { [sortField]: sortDirection, _id: -1 };
    
    const findQuery = Invoice.find(query)
-        .select('-zatca.signedXml -zatca.qrCodeData -travelDetails.passengers -travelDetails.segments -searchText')
-        .populate('createdBy', 'firstName lastName firstNameAr lastNameAr email')
+        .select([
+          'invoiceNumber', 'status', 'paymentStatus', 'paymentMethod', 'paidAmount',
+          'issueDate', 'dueDate', 'createdAt', 'updatedAt',
+          'subtotal', 'totalTax', 'grandTotal', 'totalDiscount', 'invoiceDiscount',
+          'flow', 'transactionType', 'invoiceType', 'invoiceTypeCode', 'invoiceSubtype',
+          'businessContext', 'currency',
+          'buyer.name', 'buyer.nameAr', 'buyer.vatNumber', 'buyer.crNumber',
+          'customerId', 'supplierId',
+          'zatca.submissionStatus', 'zatca.reportingStatus', 'zatca.clearedAt', 'zatca.reportedAt',
+          'createdByName', 'createdByNameAr', 'createdBy',
+          'sourcePurchaseOrderId', 'pdfTemplateId', 'printFormat',
+          // Minimal line fields for travel VAT list display only (avoid shipping full line payloads)
+          'lineItems.isTravelMargin', 'lineItems.lineTotalWithTax', 'lineItems.customerPrice',
+          'lineItems.quantity', 'lineItems.taxCategory', 'lineItems.taxRate',
+          'lineItems.marginTaxable', 'lineItems.taxAmount',
+        ].join(' '))
         .sort(sortSpec)
         .limit(pageSize)
-        .lean();
+        .lean()
+        .maxTimeMS(12_000);
     if (!cursorId) {
       findQuery.skip((pageNumber - 1) * pageSize);
     }

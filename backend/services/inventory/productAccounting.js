@@ -102,6 +102,82 @@ export async function resolveProductGlAccounts(tenantId, productLike = {}) {
 }
 
 /**
+ * Batch resolve income accounts for many invoice lines (pre-post / posting hot path).
+ * Loads products + categories once and reuses company defaults.
+ */
+export async function resolveIncomeAccountsForLines(tenantId, lines = []) {
+  const tid = toObjectId(tenantId);
+  const list = Array.isArray(lines) ? lines : [];
+  const {
+    ensureAccountingDefaults,
+    getAccountByCode,
+    ACCOUNT_CODE_MAP,
+  } = await import('../accountingService.js');
+
+  const productIds = [...new Set(
+    list.map((li) => li?.productId).filter(Boolean).map((id) => String(id)),
+  )];
+  const products = productIds.length
+    ? await Product.find({ _id: { $in: productIds }, tenantId: tid })
+      .select('incomeAccountId expenseAccountId stockValuationAccountId categoryId productType')
+      .lean()
+    : [];
+  const productById = new Map(products.map((p) => [String(p._id), p]));
+
+  const categoryIds = [...new Set(
+    products.map((p) => p.categoryId).filter(Boolean).map((id) => String(id)),
+  )];
+  let categoryById = new Map();
+  if (categoryIds.length) {
+    const InvProductCategory = (await import('../../models/inventory/InvProductCategory.js')).default;
+    const cats = await InvProductCategory.find({ _id: { $in: categoryIds }, tenantId: tid })
+      .select('incomeAccountId expenseAccountId stockValuationAccountId')
+      .lean();
+    categoryById = new Map(cats.map((c) => [String(c._id), c]));
+  }
+
+  const { ids: defaultIds } = await ensureAccountingDefaults(tid);
+  const accountCache = new Map();
+  const loadCached = async (id) => {
+    if (!id) return null;
+    const key = String(id);
+    if (accountCache.has(key)) return accountCache.get(key);
+    const acc = await loadActiveAccount(tid, id);
+    accountCache.set(key, acc);
+    return acc;
+  };
+
+  const codeCache = new Map();
+  const loadByCode = async (code) => {
+    if (!code) return null;
+    if (codeCache.has(code)) return codeCache.get(code);
+    const acc = await getAccountByCode(tid, code);
+    codeCache.set(code, acc);
+    return acc;
+  };
+
+  const results = [];
+  for (let i = 0; i < list.length; i += 1) {
+    const li = list[i] || {};
+    const product = (li.productId && productById.get(String(li.productId))) || {
+      incomeAccountId: li.incomeAccountId,
+      categoryId: li.categoryId,
+      productType: li.productType || 'goods',
+    };
+    const category = product?.categoryId ? categoryById.get(String(product.categoryId)) : null;
+    const income = await loadCached(li.incomeAccountId)
+      || await loadCached(product?.incomeAccountId)
+      || await loadCached(category?.incomeAccountId)
+      || await loadCached(defaultIds?.incomeAccountId)
+      || await loadByCode(product?.productType === 'service'
+        ? ACCOUNT_CODE_MAP.services
+        : ACCOUNT_CODE_MAP.sales);
+    results.push({ index: i, income, product });
+  }
+  return results;
+}
+
+/**
  * Fill missing product account ObjectIds from category / company defaults (mutates plain object or doc).
  */
 export async function assignDefaultProductAccounts(tenantId, productLike = {}) {

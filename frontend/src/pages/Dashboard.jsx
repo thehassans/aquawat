@@ -59,8 +59,8 @@ import { isAppAccessValid } from '../lib/appStoreTrial'
 
 const DashboardCharts = lazy(() => import('../components/dashboard/DashboardCharts'))
 
-const DASHBOARD_REFRESH_MS = 60 * 1000 // 60s
-const DASHBOARD_CHART_REFRESH_MS = 120 * 1000 // 2m
+const DASHBOARD_REFRESH_MS = 180 * 1000 // 3m — SaaS: less API contention with invoice work
+const DASHBOARD_CHART_REFRESH_MS = 300 * 1000 // 5m
 
 function useDashboardPollInterval(ms) {
   const pageVisible = usePageVisible()

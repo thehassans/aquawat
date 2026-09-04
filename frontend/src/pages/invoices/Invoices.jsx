@@ -189,7 +189,7 @@ export default function Invoices() {
       }
     }).then(res => res.data),
     placeholderData: keepPreviousData,
-    staleTime: 30 * 1000,
+    staleTime: 90 * 1000,
   })
 
   useEffect(() => {

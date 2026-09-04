@@ -31,30 +31,14 @@ const ROUTE_IMPORTS = {
 
 function resolvePrefetchKeys(tenant) {
   const types = getTenantBusinessTypes(tenant)
-  const keys = ['dashboard', 'invoices', 'settings', 'profile', 'customers']
+  // Keep idle prefetch lean — only the hottest SaaS paths
+  const keys = ['dashboard', 'invoices', 'invoiceSell', 'customers', 'sales']
 
   if (types.some((t) => ['trading', 'bakala', 'pharmacy', 'grocery', 'furniture_shop'].includes(t))) {
-    keys.push(
-      'invoiceSell',
-      'quotations',
-      'quotationNew',
-      'reports',
-      'sales',
-      'salesOrders',
-      'inventory',
-      'products',
-      'warehouses',
-      'purchases',
-      'purchaseOrders',
-      'grn',
-      'accounting'
-    )
+    keys.push('quotations', 'products', 'salesOrders')
   }
   if (types.some((t) => ['bakala', 'pharmacy', 'grocery'].includes(t))) {
     keys.push('pos')
-  }
-  if (types.includes('trading')) {
-    keys.push('users')
   }
 
   return [...new Set(keys)]

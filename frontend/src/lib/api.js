@@ -133,7 +133,11 @@ api.interceptors.request.use(async (config) => {
   }
 
   const execute = async (cfg) => {
-    if (!isBackgroundRefresh && !cfg._skipStaleFirst && !cfg.headers?.['X-No-Stale-Cache']) {
+    // Online SaaS path: skip IndexedDB stale-first to avoid double-fetch fighting React Query.
+    // Keep stale-first only when offline or when a caller opts in.
+    const preferStale = Boolean(cfg._preferStaleCache)
+      || (typeof navigator !== 'undefined' && navigator.onLine === false)
+    if (!isBackgroundRefresh && preferStale && !cfg._skipStaleFirst && !cfg.headers?.['X-No-Stale-Cache']) {
       const stale = await resolveStaleCacheResponse(cfg, { allowExpired: true })
       if (stale) {
         setTimeout(() => {

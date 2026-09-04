@@ -31,6 +31,7 @@ export const queryClient = new QueryClient({
       gcTime: 15 * MINUTE,
       placeholderData: keepPreviousData,
       networkMode: 'online',
+      structuralSharing: true,
       retry: (failureCount, error) => {
         const status = error?.response?.status
         if (status === 401 || status === 403 || status === 404) return false

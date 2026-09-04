@@ -1,9 +1,10 @@
 import { createPortal } from 'react-dom'
-import { useEffect } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Edit3, Eye, Save, X } from 'lucide-react'
-import InvoiceLivePreview from './InvoiceLivePreview'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
+
+const InvoiceLivePreview = lazy(() => import('./InvoiceLivePreview'))
 
 /**
  * Full-viewport preview: portals to document.body so SalesComposerChrome
@@ -103,15 +104,23 @@ export default function DocumentPreSaveModal({
                 transition={{ delay: 0.08, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
                 className="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-[0_20px_60px_-28px_rgba(15,23,42,0.35)] ring-1 ring-slate-900/5 dark:bg-dark-800 dark:ring-white/10"
               >
-                <InvoiceLivePreview
-                  invoice={previewDoc}
-                  tenant={tenant}
-                  language={language}
-                  templateId={templateId}
-                  documentType={documentType}
-                  bilingual={resolveInvoiceBilingual(tenant, true)}
-                  secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || undefined}
-                />
+                <Suspense
+                  fallback={(
+                    <div className="flex min-h-[40vh] items-center justify-center text-sm text-slate-400">
+                      {isAr ? 'جارٍ تحميل المعاينة…' : 'Loading preview…'}
+                    </div>
+                  )}
+                >
+                  <InvoiceLivePreview
+                    invoice={previewDoc}
+                    tenant={tenant}
+                    language={language}
+                    templateId={templateId}
+                    documentType={documentType}
+                    bilingual={resolveInvoiceBilingual(tenant, true)}
+                    secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || undefined}
+                  />
+                </Suspense>
               </motion.div>
             </div>
 

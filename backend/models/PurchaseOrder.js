@@ -159,6 +159,8 @@ const purchaseOrderSchema = new mongoose.Schema({
 purchaseOrderSchema.index({ tenantId: 1, poNumber: 1 }, { unique: true });
 purchaseOrderSchema.index({ tenantId: 1, status: 1 });
 purchaseOrderSchema.index({ tenantId: 1, orderDate: -1 });
+purchaseOrderSchema.index({ tenantId: 1, flow: 1, customerId: 1, status: 1 });
+purchaseOrderSchema.index({ tenantId: 1, supplierId: 1, status: 1, orderDate: -1 });
 
 const PurchaseOrder = mongoose.model('PurchaseOrder', purchaseOrderSchema);
 export default PurchaseOrder;

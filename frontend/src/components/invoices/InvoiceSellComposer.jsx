@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
-import { useFieldArray, useForm } from 'react-hook-form'
+import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Plus, Save, Trash2, UploadCloud, FileText, Receipt, Eye } from 'lucide-react'
 import InvoicePrePostChecklist from './InvoicePrePostChecklist'
@@ -19,7 +19,6 @@ import { INVOICE_PAYMENT_TERMS, computeDueDateFromPaymentTerms, computeDueDateOn
 import { extractDateOnly, dateOnlyToUtcNoon } from '../../lib/dateOnly'
 import { isValidSaudiVat, isEmptyOrValidSaudiVat, saudiVatErrorMessage, normalizeSaudiVatDigits } from '../../lib/saudiVat'
 import { resolveTransactionTypeFromParty, invoiceTypeCodeForTransaction } from '../../lib/transactionType'
-import InvoiceLivePreview from './InvoiceLivePreview'
 import DocumentPreSaveModal from './DocumentPreSaveModal'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
 import TravelInvoiceFields from './TravelInvoiceFields'
@@ -28,7 +27,6 @@ import BoutiqueInvoiceFields, {
   emptyBoutiqueDetails,
   sanitizeBoutiqueDetails,
 } from './BoutiqueInvoiceFields'
-import ThermalReceipt from '../ui/ThermalReceipt'
 import CreatableSelect from 'react-select/creatable'
 import { getAvailableUomOptions, getDefaultUom } from '../../lib/uomOptions'
 import { generateZatcaQrValue } from '../../lib/zatcaQr'
@@ -498,11 +496,53 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   }, [salesSettings, invoiceId, getValues, setValue])
 
   const { fields, append, remove, replace } = useFieldArray({ control, name: 'lineItems', keyName: 'fieldId' })
-  const values = watch()
-  const lineItems = Array.isArray(values.lineItems) ? values.lineItems : []
-  const businessContext = values.businessContext || defaultBusinessContext
-  const invoiceSubtype = values.invoiceSubtype || 'standard'
-  const selectedTemplateId = Number(values.pdfTemplateId || getInvoiceTemplateId(tenant, businessContext))
+  // Scoped watches — avoid full-form watch() re-rendering the whole composer on every keystroke
+  const lineItemsRaw = useWatch({ control, name: 'lineItems' })
+  const lineItems = Array.isArray(lineItemsRaw) ? lineItemsRaw : []
+  const businessContext = useWatch({ control, name: 'businessContext' }) || defaultBusinessContext
+  const invoiceSubtype = useWatch({ control, name: 'invoiceSubtype' }) || 'standard'
+  const pdfTemplateIdWatched = useWatch({ control, name: 'pdfTemplateId' })
+  const selectedTemplateId = Number(pdfTemplateIdWatched || getInvoiceTemplateId(tenant, businessContext))
+  const invoiceDiscountWatched = useWatch({ control, name: 'invoiceDiscount' })
+  const paidAmountWatched = useWatch({ control, name: 'paidAmount' })
+  const paymentStatusWatched = useWatch({ control, name: 'paymentStatus' })
+  const paymentMethodWatched = useWatch({ control, name: 'paymentMethod' })
+  const printFormatWatched = useWatch({ control, name: 'printFormat' })
+  const issueDateWatched = useWatch({ control, name: 'issueDate' })
+  const buyerWatched = useWatch({ control, name: 'buyer' })
+  const travelDetailsWatched = useWatch({ control, name: 'travelDetails' })
+  const boutiqueDetailsWatched = useWatch({ control, name: 'boutiqueDetails' })
+  const notesWatched = useWatch({ control, name: 'notes' })
+  const termsWatched = useWatch({ control, name: 'termsAndConditions' })
+  const includeBankWatched = useWatch({ control, name: 'includeBankDetails' })
+  const bankDetailsWatched = useWatch({ control, name: 'bankDetails' })
+  const customerIdWatched = useWatch({ control, name: 'customerId' })
+  const values = useMemo(() => ({
+    lineItems,
+    businessContext,
+    invoiceSubtype,
+    pdfTemplateId: selectedTemplateId,
+    invoiceDiscount: invoiceDiscountWatched,
+    paidAmount: paidAmountWatched,
+    paymentStatus: paymentStatusWatched,
+    paymentMethod: paymentMethodWatched,
+    printFormat: printFormatWatched,
+    issueDate: issueDateWatched,
+    buyer: buyerWatched,
+    travelDetails: travelDetailsWatched,
+    boutiqueDetails: boutiqueDetailsWatched,
+    notes: notesWatched,
+    termsAndConditions: termsWatched,
+    includeBankDetails: includeBankWatched,
+    bankDetails: bankDetailsWatched,
+    customerId: customerIdWatched,
+  }), [
+    lineItems, businessContext, invoiceSubtype, selectedTemplateId,
+    invoiceDiscountWatched, paidAmountWatched, paymentStatusWatched, paymentMethodWatched,
+    printFormatWatched, issueDateWatched, buyerWatched, travelDetailsWatched,
+    boutiqueDetailsWatched, notesWatched, termsWatched, includeBankWatched,
+    bankDetailsWatched, customerIdWatched,
+  ])
   const isTradingContext = businessContext === 'trading'
   const isTravelContext = businessContext === 'travel_agency'
   const isRestaurantContext = businessContext === 'restaurant'
@@ -837,13 +877,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   }, [isTravelContext, lineItems, setValue])
 
   const { data: products = [] } = useQuery({
-    queryKey: ['products-list'],
+    queryKey: ['products', { limit: 100, for: 'invoice-sell' }],
     queryFn: async () => {
-      const res = await api.get('/products', { params: { limit: 500 } })
+      const res = await api.get('/products', { params: { limit: 100, isActive: true } })
       const list = res.data?.products ?? res.data?.items ?? res.data
       return Array.isArray(list) ? list : []
     },
     enabled: isTradingContext,
+    staleTime: 5 * 60_000,
   })
 
   const productList = Array.isArray(products) ? products : []
@@ -1342,17 +1383,21 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           ? (language === 'ar' ? 'تم تحديث فاتورة البيع بنجاح' : 'Sell invoice updated successfully')
           : (language === 'ar' ? 'تم إنشاء فاتورة البيع بنجاح' : 'Sell invoice created successfully')
       )
-      queryClient.invalidateQueries(['invoices'])
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
       if (isEdit) {
-        queryClient.invalidateQueries(['invoice', invoiceId])
+        queryClient.invalidateQueries({ queryKey: ['invoice', invoiceId] })
       }
-      queryClient.invalidateQueries(['dashboard'])
-      queryClient.invalidateQueries(['dashboard-revenue'])
-      queryClient.invalidateQueries(['travel-bookings'])
-      queryClient.invalidateQueries(['travel-bookings-lookup'])
-      queryClient.invalidateQueries(['manpower-assignments-lookup'])
-      queryClient.invalidateQueries(['customers'])
-      queryClient.invalidateQueries(['customers-lookup'])
+      // Defer non-critical caches so navigation to the invoice feels instant
+      window.setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+        if (isTravelContext) {
+          queryClient.invalidateQueries({ queryKey: ['travel-bookings'] })
+          queryClient.invalidateQueries({ queryKey: ['travel-bookings-lookup'] })
+        }
+        if (isManpowerContext) {
+          queryClient.invalidateQueries({ queryKey: ['manpower-assignments-lookup'] })
+        }
+      }, 0)
       if (res.data?.offline) {
         navigate('/app/dashboard/accounting/invoices')
       } else {

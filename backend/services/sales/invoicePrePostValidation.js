@@ -10,7 +10,7 @@ import { isValidSaudiVat, normalizeSaudiVatDigits } from '../../utils/saudiVat.j
 import { extractDateOnly } from '../../utils/dateOnly.js';
 import { getAccountingLockDates } from '../accountingService.js';
 import { evaluateCustomerCredit } from './creditLimit.js';
-import { resolveProductGlAccounts } from '../inventory/productAccounting.js';
+import { resolveIncomeAccountsForLines } from '../inventory/productAccounting.js';
 import { isZatcaCurrency } from '../../utils/zatcaCurrency.js';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -173,25 +173,19 @@ export async function evaluateInvoicePrePost({
     detail: { badLines },
   }));
 
-  // 6. Income account resolve per line
+  // 6. Income account resolve per line (batched)
   const incomeMissing = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const li = lines[i];
-    try {
-      const resolved = await resolveProductGlAccounts(tid, {
-        _id: li.productId || undefined,
-        incomeAccountId: li.incomeAccountId,
-        productType: li.productType || 'goods',
-        categoryId: li.categoryId,
-      });
-      if (!resolved?.income?._id) incomeMissing.push(i + 1);
-      else if (!li.incomeAccountId && resolved.income._id) {
-        // Soft-stamp for callers that persist the payload after validation
-        li.incomeAccountId = resolved.income._id;
+  try {
+    const resolvedRows = await resolveIncomeAccountsForLines(tid, lines);
+    for (const row of resolvedRows) {
+      const li = lines[row.index];
+      if (!row?.income?._id) incomeMissing.push(row.index + 1);
+      else if (li && !li.incomeAccountId && row.income._id) {
+        li.incomeAccountId = row.income._id;
       }
-    } catch {
-      incomeMissing.push(i + 1);
     }
+  } catch {
+    for (let i = 0; i < lines.length; i += 1) incomeMissing.push(i + 1);
   }
   const incomeOk = hasLines && incomeMissing.length === 0;
   checks.push(checkResult({

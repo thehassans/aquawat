@@ -49,47 +49,27 @@ export default defineConfig(({ mode }) => {
           generatedCode: { symbols: false },
 
           manualChunks(id) {
-            // ── Core React runtime ──────────────────────────────────────────
+            // Fewer chunks = fewer round-trips on first paint (SaaS cold load)
             if (id.includes('node_modules/react/') ||
                 id.includes('node_modules/react-dom/') ||
-                id.includes('node_modules/react-router-dom/') ||
+                id.includes('node_modules/react-router') ||
                 id.includes('node_modules/scheduler/')) {
-              return 'react-vendor';
+              return 'react-vendor'
             }
-            // ── State management ────────────────────────────────────────────
-            if (id.includes('@reduxjs/toolkit') || id.includes('react-redux') || id.includes('immer')) {
-              return 'redux-vendor';
+            if (id.includes('@reduxjs/toolkit') || id.includes('react-redux') || id.includes('immer')
+                || id.includes('@tanstack/react-query') || id.includes('axios')) {
+              return 'data-vendor'
             }
-            // ── Server state / async data fetching ─────────────────────────
-            if (id.includes('@tanstack/react-query')) return 'query-vendor';
-            // ── UI primitives ───────────────────────────────────────────────
-            if (id.includes('lucide-react')) return 'ui-vendor';
-            if (id.includes('framer-motion')) return 'motion-vendor';
-            if (id.includes('react-hot-toast')) return 'toast-vendor';
-            // ── Charts — lazy-loaded, large ─────────────────────────────────
-            if (id.includes('recharts') || id.includes('d3-')) return 'chart-vendor';
-            // ── HTTP client ─────────────────────────────────────────────────
-            if (id.includes('axios')) return 'axios-vendor';
-            // ── Forms ───────────────────────────────────────────────────────
-            if (id.includes('react-hook-form') || id.includes('@hookform')) return 'form-vendor';
-            // ── Date utilities — heavy, only loaded when needed ─────────────
-            if (id.includes('date-fns')) return 'date-vendor';
-            // ── PDF generation — large, on-demand ──────────────────────────
-            if (id.includes('jspdf')) return 'pdf-vendor';
-            // ── Spreadsheet — large, on-demand ─────────────────────────────
-            if (id.includes('xlsx')) return 'xlsx-vendor';
-            // ── QR code ─────────────────────────────────────────────────────
-            if (id.includes('qrcode')) return 'qr-vendor';
-            // ── Radix UI ────────────────────────────────────────────────────
-            if (id.includes('@radix-ui')) return 'radix-vendor';
-            // ── IndexedDB / idb ─────────────────────────────────────────────
-            if (id.includes('/idb/')) return 'idb-vendor';
-            if (id.includes('socket.io-client')) return 'socket-vendor';
-            if (id.includes('react-select')) return 'select-vendor';
-            // ── Virtual scrolling ───────────────────────────────────────────────
-            if (id.includes('react-window')) return 'ui-vendor';
-            // ── Built-in translator ─────────────────────────────────────
-            if (id.includes('builtInTranslator')) return 'translator-vendor';
+            if (id.includes('lucide-react') || id.includes('@radix-ui') || id.includes('framer-motion')
+                || id.includes('react-hot-toast') || id.includes('react-select') || id.includes('react-window')) {
+              return 'ui-vendor'
+            }
+            if (id.includes('recharts') || id.includes('d3-')) return 'chart-vendor'
+            if (id.includes('jspdf')) return 'pdf-vendor'
+            if (id.includes('xlsx')) return 'xlsx-vendor'
+            if (id.includes('qrcode')) return 'qr-vendor'
+            if (id.includes('date-fns')) return 'date-vendor'
+            if (id.includes('/idb/') || id.includes('socket.io-client')) return 'offline-vendor'
           },
         },
       },
