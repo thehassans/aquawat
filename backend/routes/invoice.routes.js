@@ -47,6 +47,45 @@ import { syncMarqueeBookingFromDocument } from '../utils/marqueeSync.js';
 import { applyDeliveredInvoicingPolicy } from '../services/sales/invoicingPolicy.js';
 import { deliverDigitalProductsByEmail } from '../services/sales/digitalFulfillment.js';
 import { assertSellerAddressReady } from '../services/sales/creditLimit.js';
+import {
+  evaluateInvoicePrePost,
+  assertInvoicePrePostReady,
+} from '../services/sales/invoicePrePostValidation.js';
+
+async function runSellPrePostGate(req, {
+  payload,
+  excludeInvoiceId = null,
+  statusHint = null,
+} = {}) {
+  const status = String(statusHint || payload?.status || '').toLowerCase();
+  if (status === 'draft') return null;
+  try {
+    return await assertInvoicePrePostReady({
+      tenantId: req.user.tenantId,
+      payload: {
+        ...payload,
+        customerId: payload.customerId || req.body?.customerId,
+        buyer: payload.buyer || req.body?.buyer,
+        lineItems: payload.lineItems || req.body?.lineItems,
+        transactionType: payload.transactionType || req.body?.transactionType,
+        issueDate: payload.issueDate || req.body?.issueDate,
+        grandTotal: payload.grandTotal ?? req.body?.grandTotal,
+      },
+      excludeInvoiceId,
+      allowDuplicate: true,
+    });
+  } catch (err) {
+    if (err.code === 'INVOICE_PRE_POST_FAILED') {
+      const e = new Error(err.message);
+      e.status = 400;
+      e.code = err.code;
+      e.checks = err.checks;
+      e.blockingFailed = err.blockingFailed;
+      throw e;
+    }
+    throw err;
+  }
+}
 
 function prepareSellInvoiceTermsAndSeller(invoiceData, {
   customer,
@@ -1657,6 +1696,29 @@ router.post('/', invoiceWriteLimiter, checkTrialLimits('invoices'), checkPermiss
       }
     }
 
+    const resolvedStatus = resolveInitialSellInvoiceStatus(req.body?.status, tenant);
+    try {
+      await runSellPrePostGate(req, {
+        payload: {
+          ...req.body,
+          buyer,
+          customerId: cleanObjectId(customer?._id || req.body.customerId),
+          status: resolvedStatus,
+        },
+        statusHint: resolvedStatus,
+      });
+    } catch (gateErr) {
+      if (gateErr.status === 400) {
+        return res.status(400).json({
+          error: gateErr.message,
+          code: gateErr.code,
+          checks: gateErr.checks,
+          blockingFailed: gateErr.blockingFailed,
+        });
+      }
+      throw gateErr;
+    }
+
     // Ensure invoice lines from a sell SO carry sourcePoItemId (sale_line_ids)
     {
       const poId = cleanObjectId(req.body.sourcePurchaseOrderId || req.body.purchaseOrderId);
@@ -1754,7 +1816,7 @@ router.post('/', invoiceWriteLimiter, checkTrialLimits('invoices'), checkPermiss
       issueDate,
       buyer,
       customerId: cleanObjectId(customer?._id || req.body.customerId),
-      status: resolveInitialSellInvoiceStatus(req.body?.status, tenant),
+      status: resolvedStatus,
       seller: {
         name: tenant.business.legalNameEn,
         nameAr: tenant.business.legalNameAr,
@@ -2034,6 +2096,25 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
     }
 
     try {
+      const sellStatus = resolveInitialSellInvoiceStatus(req.body?.status, tenant);
+      invoiceData.status = sellStatus;
+      await runSellPrePostGate(req, {
+        payload: invoiceData,
+        statusHint: sellStatus,
+      });
+    } catch (gateErr) {
+      if (gateErr.status === 400) {
+        return res.status(400).json({
+          error: gateErr.message,
+          code: gateErr.code,
+          checks: gateErr.checks,
+          blockingFailed: gateErr.blockingFailed,
+        });
+      }
+      throw gateErr;
+    }
+
+    try {
       prepareSellInvoiceTermsAndSeller(invoiceData, {
         customer,
         tenant,
@@ -2234,6 +2315,30 @@ router.get('/purchase/vendor-account-predictions', checkPermission('invoicing', 
     const { predictVendorLineAccounts } = await import('../services/vendorApService.js');
     const predictions = await predictVendorLineAccounts(req.user.tenantId, supplierId);
     res.json(predictions);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   POST /api/invoices/sell/pre-post-check
+router.post('/sell/pre-post-check', checkPermission('invoicing', 'read'), async (req, res) => {
+  try {
+    const body = req.body || {};
+    const result = await evaluateInvoicePrePost({
+      tenantId: req.user.tenantId,
+      payload: {
+        customerId: body.customerId,
+        buyer: body.buyer,
+        lineItems: body.lineItems,
+        transactionType: body.transactionType,
+        issueDate: body.issueDate,
+        grandTotal: body.grandTotal,
+        status: body.status || 'approved',
+      },
+      excludeInvoiceId: cleanObjectId(body.excludeInvoiceId || body.invoiceId),
+      language: req.query.lang || req.tenant?.settings?.language || 'en',
+    });
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -2715,7 +2820,43 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
       resolvePaymentStatus(req.body);
     }
 
+    const confirmPost = Boolean(req.body.confirmPost);
+    delete req.body.confirmPost;
+
     Object.assign(invoice, req.body);
+
+    if (invoice.flow === 'sell') {
+      const wantsPost = confirmPost
+        || (req.body.status && String(req.body.status).toLowerCase() !== 'draft');
+      if (wantsPost && String(invoice.status) === 'draft') {
+        invoice.status = resolveInitialSellInvoiceStatus(req.body.status, tenant);
+      }
+      try {
+        await runSellPrePostGate(req, {
+          payload: {
+            customerId: invoice.customerId,
+            buyer: invoice.buyer,
+            lineItems: invoice.lineItems,
+            transactionType: invoice.transactionType,
+            issueDate: invoice.issueDate,
+            grandTotal: invoice.grandTotal,
+            status: invoice.status,
+          },
+          excludeInvoiceId: invoice._id,
+          statusHint: invoice.status,
+        });
+      } catch (gateErr) {
+        if (gateErr.status === 400) {
+          return res.status(400).json({
+            error: gateErr.message,
+            code: gateErr.code,
+            checks: gateErr.checks,
+            blockingFailed: gateErr.blockingFailed,
+          });
+        }
+        throw gateErr;
+      }
+    }
 
     if (invoice.flow === 'sell') {
       let customerForTerms = null;

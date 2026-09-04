@@ -20,6 +20,9 @@ export default function DocumentPreSaveModal({
   documentType = 'invoice',
   templateId,
   title,
+  confirmLabel,
+  confirmDisabled = false,
+  warningText,
 }) {
   const isAr = language === 'ar'
 
@@ -113,7 +116,13 @@ export default function DocumentPreSaveModal({
             </div>
 
             <div className="absolute inset-x-0 bottom-0 z-20 border-t border-slate-200/90 bg-white/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl dark:border-white/10 dark:bg-[#0b0f16]/95">
-              <div className="mx-auto flex max-w-4xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mx-auto flex max-w-4xl flex-col gap-2">
+                {warningText ? (
+                  <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-200">
+                    {warningText}
+                  </p>
+                ) : null}
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <button
                   type="button"
                   onClick={onClose}
@@ -134,7 +143,7 @@ export default function DocumentPreSaveModal({
                   <button
                     type="button"
                     onClick={onConfirm}
-                    disabled={isPending}
+                    disabled={isPending || confirmDisabled}
                     className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-[0_12px_32px_-12px_rgba(15,23,42,0.55)] transition hover:bg-slate-800 disabled:opacity-50 sm:flex-none dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
                   >
                     {isPending ? (
@@ -142,8 +151,9 @@ export default function DocumentPreSaveModal({
                     ) : (
                       <Save className="h-4 w-4" strokeWidth={1.75} />
                     )}
-                    {saveLabel}
+                    {confirmLabel || saveLabel}
                   </button>
+                </div>
                 </div>
               </div>
             </div>

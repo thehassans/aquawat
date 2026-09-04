@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Plus, Save, Trash2, UploadCloud, FileText, Receipt, Eye } from 'lucide-react'
+import InvoicePrePostChecklist from './InvoicePrePostChecklist'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { useTranslation } from '../../lib/translations'
@@ -1428,6 +1429,75 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const [pendingPayload, setPendingPayload] = useState(null)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelPending, setCancelPending] = useState(false)
+  const [prePostDebounced, setPrePostDebounced] = useState(null)
+
+  // Live pre-post checklist (server evaluates lock date, credit, income accounts, duplicates)
+  useEffect(() => {
+    if (isInvoicePosted) {
+      setPrePostDebounced(null)
+      return undefined
+    }
+    const t = setTimeout(() => {
+      const namedLines = (lineItems || []).filter((line) =>
+        String(line?.productName || line?.description || '').trim()
+        || Number(line?.unitPrice) > 0
+        || line?.productId,
+      )
+      const namedTotals = calculateInvoiceSummary({
+        lineItems: namedLines.length ? namedLines : lineItems,
+        invoiceDiscount: Math.max(0, toNumber(values?.invoiceDiscount, 0)),
+      })
+      setPrePostDebounced({
+        customerId: values?.customerId || selectedCustomer?._id || '',
+        buyer: values?.buyer || {},
+        lineItems: (namedLines.length ? namedLines : lineItems || []).map((line, index) => {
+          const summaryLine = namedTotals.lines[index] || {}
+          return {
+            productId: line.productId || undefined,
+            productName: line.productName || '',
+            description: line.description || '',
+            productType: line.productType || 'goods',
+            categoryId: line.categoryId || undefined,
+            unitPrice: toNumber(line.unitPrice, 0),
+            quantity: toNumber(line.quantity, 1),
+            taxRate: line.taxRate,
+            taxCategory: line.taxCategory || 'S',
+            incomeAccountId: line.incomeAccountId || undefined,
+            lineTotalWithTax: toNumber(summaryLine.lineTotalWithTax, 0),
+          }
+        }),
+        transactionType: invoiceType,
+        issueDate: values?.issueDate || new Date(),
+        grandTotal: namedTotals.grandTotal,
+        excludeInvoiceId: isEdit ? invoiceId : undefined,
+        status: 'approved',
+      })
+    }, 400)
+    return () => clearTimeout(t)
+  }, [
+    isInvoicePosted,
+    isEdit,
+    invoiceId,
+    invoiceType,
+    selectedCustomer?._id,
+    values?.customerId,
+    values?.buyer,
+    values?.issueDate,
+    values?.invoiceDiscount,
+    lineItems,
+  ])
+
+  const { data: prePostResult, isFetching: prePostLoading } = useQuery({
+    queryKey: ['invoice-pre-post-check', prePostDebounced],
+    queryFn: () => api.post('/invoices/sell/pre-post-check', prePostDebounced).then((r) => r.data),
+    enabled: Boolean(prePostDebounced) && !isInvoicePosted,
+    staleTime: 5_000,
+    retry: 1,
+  })
+
+  const prePostCanPost = Boolean(prePostResult?.canPost)
+  const prePostHasWarnings = Boolean(prePostResult?.hasWarnings)
+  const prePostChecks = Array.isArray(prePostResult?.checks) ? prePostResult.checks : []
 
   const buildPayload = (data) => {
     const namedLines = (data.lineItems || []).filter((line) => String(line?.productName || '').trim())
@@ -1601,10 +1671,21 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           iban: data?.bankDetails?.iban || '',
         }
       : { bankName: '', accountName: '', accountNumber: '', iban: '' }
+    // Confirm / Post — lift draft and run server pre-post gate
+    payload.confirmPost = true
+    if (payload.status === 'draft') delete payload.status
     return payload
   }
 
   const onSubmit = (data) => {
+    if (!isInvoicePosted && prePostResult && !prePostResult.canPost) {
+      const first = prePostResult.blockingFailed?.[0]
+      const msg = language === 'ar'
+        ? (first?.messageAr || first?.message || 'أصلح فحوصات ما قبل الترحيل')
+        : (first?.message || 'Fix pre-post checks before posting')
+      toast.error(msg)
+      return
+    }
     const payload = buildPayload(data)
     if (!payload) return
     setPendingPayload(payload)
@@ -1612,8 +1693,17 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   }
 
   const handleConfirmSave = () => {
+    if (!isInvoicePosted && prePostResult && !prePostResult.canPost) {
+      const first = prePostResult.blockingFailed?.[0]
+      toast.error(language === 'ar'
+        ? (first?.messageAr || first?.message || 'أصلح فحوصات ما قبل الترحيل')
+        : (first?.message || 'Fix pre-post checks before posting'))
+      return
+    }
     const payload = pendingPayload || buildPayload(getValues())
     if (!payload) return
+    payload.confirmPost = true
+    if (payload.status === 'draft') delete payload.status
     saveMutation.mutate(payload)
   }
 
@@ -1761,18 +1851,33 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           actionBar={(
             <>
               {!isInvoicePosted ? (
-                <button
-                  type="button"
-                  className={primaryActionClass}
-                  onClick={() => {
-                    const form = document.getElementById('invoice-sell-form')
-                    form?.requestSubmit()
-                  }}
-                  disabled={saveMutation.isPending}
-                >
-                  <Save className="h-3.5 w-3.5" />
-                  {language === 'ar' ? 'تأكيد / ترحيل' : 'Confirm / Post'}
-                </button>
+                <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-end">
+                  <InvoicePrePostChecklist
+                    checks={prePostChecks}
+                    canPost={prePostCanPost}
+                    hasWarnings={prePostHasWarnings}
+                    loading={prePostLoading && !prePostResult}
+                    language={language}
+                    className="min-w-[220px] max-w-sm sm:max-w-xs"
+                  />
+                  <button
+                    type="button"
+                    className={primaryActionClass}
+                    onClick={() => {
+                      const form = document.getElementById('invoice-sell-form')
+                      form?.requestSubmit()
+                    }}
+                    disabled={saveMutation.isPending || !prePostCanPost}
+                    title={!prePostCanPost
+                      ? (language === 'ar' ? 'أصلح العناصر الحمراء أولاً' : 'Fix red checklist items first')
+                      : undefined}
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    {prePostHasWarnings && prePostCanPost
+                      ? (language === 'ar' ? 'ترحيل على أي حال' : 'Post anyway')
+                      : (language === 'ar' ? 'تأكيد / ترحيل' : 'Confirm / Post')}
+                  </button>
+                </div>
               ) : transactionTypeDirty ? (
                 <button
                   type="button"
@@ -3047,7 +3152,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               </p>
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : '/app/dashboard/accounting/invoices')} className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:bg-transparent dark:text-slate-300">{t('cancel')}</button>
-                <button type="submit" disabled={saveMutation.isPending || isInvoicePosted} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 disabled:opacity-50 dark:bg-white dark:text-slate-900">
+                <button type="submit" disabled={saveMutation.isPending || isInvoicePosted || !prePostCanPost} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 disabled:opacity-50 dark:bg-white dark:text-slate-900">
                   {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" /> : <><Eye className="w-4 h-4" />{language === 'ar' ? 'معاينة' : 'Preview'}</>}
                 </button>
               </div>
@@ -3142,6 +3247,19 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         documentType="invoice"
         templateId={selectedTemplateId}
         title={language === 'ar' ? 'معاينة الفاتورة قبل الحفظ' : 'Invoice Live Preview'}
+        confirmDisabled={!isInvoicePosted && !prePostCanPost}
+        confirmLabel={
+          prePostHasWarnings && prePostCanPost
+            ? (language === 'ar' ? 'ترحيل على أي حال' : 'Post anyway')
+            : (language === 'ar' ? 'تأكيد / ترحيل' : 'Confirm / Post')
+        }
+        warningText={
+          prePostHasWarnings
+            ? (language === 'ar'
+              ? (prePostResult?.warnings?.[0]?.messageAr || prePostResult?.warnings?.[0]?.message)
+              : (prePostResult?.warnings?.[0]?.message))
+            : undefined
+        }
       />
       <CancelInvoiceModal
         isOpen={cancelOpen}
