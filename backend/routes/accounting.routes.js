@@ -1330,6 +1330,45 @@ router.post('/customers/check-duplicate', checkPermission('finance', 'read'), as
   }
 });
 
+router.get('/customers/duplicates', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { findCustomerDuplicateGroups } = await import('../services/sales/customerMergeService.js');
+    const data = await findCustomerDuplicateGroups(tenantIdOf(req));
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/customers/merge/preview', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const { previewCustomerMerge } = await import('../services/sales/customerMergeService.js');
+    const data = await previewCustomerMerge(tenantIdOf(req), {
+      primaryId: req.body?.primaryId,
+      secondaryIds: req.body?.secondaryIds || [],
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(error?.status || 500).json({ error: error.message });
+  }
+});
+
+router.post('/customers/merge', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const { mergeCustomers } = await import('../services/sales/customerMergeService.js');
+    const data = await mergeCustomers(tenantIdOf(req), {
+      primaryId: req.body?.primaryId,
+      secondaryIds: req.body?.secondaryIds || [],
+      fieldChoices: req.body?.fieldChoices || {},
+      addressChoices: req.body?.addressChoices || {},
+      userId: req.user?._id,
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(error?.status || 500).json({ error: error.message });
+  }
+});
+
 router.get('/customers/:id', checkPermission('finance', 'read'), async (req, res) => {
   try {
     const { getAccountingCustomerDetail } = await import('../services/customerDirectoryService.js');

@@ -303,6 +303,7 @@ const ExpenseForm = lazy(() => import('./pages/ExpenseForm'))
 const CustomerList = lazy(() => import('./pages/customers/CustomerList'))
 const CustomerForm = lazy(() => import('./pages/customers/CustomerForm'))
 const CustomerStatement = lazy(() => import('./pages/customers/CustomerStatement'))
+const CustomerMergePage = lazy(() => import('./pages/customers/CustomerMergePage'))
 const CustomersLayout = lazy(() => import('./pages/customers/CustomersLayout'))
 import { PartnerHubRedirect } from './components/inventory/PartnerHubRedirect'
 const Users = lazy(() => import('./pages/Users'))
@@ -810,6 +811,8 @@ function App() {
         <Route path="customers" element={<CustomersLayout />}>
           <Route index element={<PartnerHubRedirect types="customer"><CustomerList /></PartnerHubRedirect>} />
           <Route path="statement" element={<CustomerStatement />} />
+          <Route path="merge" element={<CustomerMergePage />} />
+          <Route path="duplicates" element={<CustomerMergePage />} />
           <Route path="new" element={<CustomerForm />} />
           <Route path=":id/statement" element={<CustomerStatement />} />
           <Route path=":id/edit" element={<CustomerForm />} />

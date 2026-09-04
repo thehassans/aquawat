@@ -15,6 +15,7 @@ import {
   Trash2,
   User,
   Users,
+  AlertTriangle,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api, { getImageUrl } from '../../lib/api'
@@ -111,6 +112,7 @@ export default function PartnerForm() {
   const [logoUrl, setLogoUrl] = useState('')
   const [logoUploading, setLogoUploading] = useState(false)
   const [bankAccounts, setBankAccounts] = useState([emptyBankRow()])
+  const [dupModal, setDupModal] = useState(null)
 
   const { register, handleSubmit, reset, watch, setValue, formState: { errors, isSubmitting } } = useForm({
     defaultValues: {
@@ -391,7 +393,7 @@ export default function PartnerForm() {
       setTab('sales')
       return
     }
-    if (data.isCustomer) {
+    if (data.isCustomer && !isEditing) {
       try {
         const { data: dup } = await api.post('/accounting/customers/check-duplicate', {
           name: data.nameEn,
@@ -399,14 +401,10 @@ export default function PartnerForm() {
           nameAr: data.nameAr,
           vatNumber: data.vatNumber,
           phone: data.mobile || data.phone,
-          excludeId: isEditing ? id : undefined,
         })
         if (dup?.hasDuplicates && dup.warnings?.length) {
-          const first = dup.warnings[0]
-          const msg = ar
-            ? (`هذا العميل قد يكون موجوداً — ${first.customer?.nameAr || first.customer?.name || ''} — المتابعة؟`)
-            : (`This customer may already exist — ${first.customer?.nameEn || first.customer?.name || ''} — continue anyway?`)
-          if (!window.confirm(msg)) return
+          setDupModal({ warnings: dup.warnings, pendingData: data })
+          return
         }
       } catch {
         // non-blocking if check fails
@@ -979,6 +977,71 @@ export default function PartnerForm() {
           </p>
         ) : null}
       </div>
+
+      {dupModal ? (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl dark:bg-dark-900">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                  {ar ? 'عميل مشابه موجود' : 'Possible duplicate customer'}
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  {ar
+                    ? 'وجدنا سجلاً بنفس الرقم الضريبي أو الهاتف أو اسم مشابه.'
+                    : 'We found a record with the same VAT, phone, or a similar name.'}
+                </p>
+                <ul className="mt-3 max-h-40 space-y-2 overflow-y-auto">
+                  {(dupModal.warnings || []).slice(0, 5).map((w, i) => (
+                    <li key={i} className="rounded-xl border border-slate-100 px-3 py-2 text-xs dark:border-white/10">
+                      <p className="font-semibold text-slate-800 dark:text-slate-100">
+                        {ar
+                          ? (w.customer?.nameAr || w.customer?.name)
+                          : (w.customer?.nameEn || w.customer?.name)}
+                      </p>
+                      <p className="text-slate-500">{ar ? (w.messageAr || w.message) : w.message}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                className={outlinedBtnClass}
+                onClick={() => setDupModal(null)}
+              >
+                {ar ? 'إلغاء' : 'Cancel'}
+              </button>
+              {dupModal.warnings?.[0]?.customer?._id ? (
+                <button
+                  type="button"
+                  className={outlinedBtnClass}
+                  onClick={() => {
+                    const existingId = dupModal.warnings[0].customer._id
+                    setDupModal(null)
+                    navigate(`/app/dashboard/customers/${existingId}${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`)
+                  }}
+                >
+                  {ar ? 'استخدام الموجود' : 'Use existing'}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className={primaryBtnClass}
+                onClick={() => {
+                  const payload = dupModal.pendingData
+                  setDupModal(null)
+                  mutation.mutate(payload)
+                }}
+              >
+                {ar ? 'إنشاء على أي حال' : 'Create anyway'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

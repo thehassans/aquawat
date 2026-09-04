@@ -2,11 +2,17 @@ import Partner from '../models/Partner.js';
 
 /** Role filters for customer / supplier API facades */
 export function asCustomerQuery(extra = {}) {
-  return { isCustomer: true, ...extra };
+  const { includeMerged = false, ...rest } = extra || {};
+  const q = { isCustomer: true, ...rest };
+  if (!includeMerged) q.mergedIntoId = null;
+  return q;
 }
 
 export function asVendorQuery(extra = {}) {
-  return { isVendor: true, ...extra };
+  const { includeMerged = false, ...rest } = extra || {};
+  const q = { isVendor: true, ...rest };
+  if (!includeMerged) q.mergedIntoId = null;
+  return q;
 }
 
 /** Shape Partner → legacy Customer JSON */

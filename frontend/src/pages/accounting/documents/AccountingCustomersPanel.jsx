@@ -51,7 +51,15 @@ export default function AccountingCustomersPanel({ language = 'en' }) {
     }).then((r) => r.data),
   })
 
-  const rows = data?.customers || []
+  const { data: dupSummary } = useAccountingQuery({
+    queryKey: ['customer-duplicates'],
+    queryFn: () => api.get('/accounting/customers/duplicates').then((r) => r.data),
+    staleTime: 60_000,
+  })
+  const dupGroups = Number(dupSummary?.groupCount || 0)
+  const dupCount = Number(dupSummary?.duplicateCustomerCount || 0)
+
+  const rows = data?.rows || data?.customers || []
   const pagination = data?.pagination || { page: 1, pages: 0, total: 0 }
   const totals = data?.totals || {}
 
@@ -83,6 +91,30 @@ export default function AccountingCustomersPanel({ language = 'en' }) {
           {isAr ? 'عميل جديد' : 'New customer'}
         </button>
       </div>
+
+      {dupGroups > 0 ? (
+        <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-amber-500/30 dark:bg-amber-950/30">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div>
+              <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">
+                {isAr
+                  ? `${dupCount} عميل محتمل التكرار`
+                  : `${dupCount} possible duplicates found`}
+              </p>
+              <p className="text-xs text-amber-800/80 dark:text-amber-200/70">
+                {isAr ? 'راجع وادمج لتوحيد الذمم' : 'Review and merge to unify receivables'}
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/app/dashboard/customers/merge"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-700 px-4 py-2 text-xs font-bold text-white"
+          >
+            {isAr ? 'مراجعة' : 'Review'}
+          </Link>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[

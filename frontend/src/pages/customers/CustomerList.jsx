@@ -33,6 +33,8 @@ import {
   Layers,
   Sparkles,
   Contact,
+  AlertTriangle,
+  GitMerge,
 } from 'lucide-react'
 import { Menu, Transition } from '@headlessui/react'
 import { Fragment } from 'react'
@@ -86,6 +88,14 @@ export default function CustomerList() {
     queryKey: ['customer-stats'],
     queryFn: () => api.get('/customers/stats').then((res) => res.data),
   })
+
+  const { data: dupSummary } = useQuery({
+    queryKey: ['customer-duplicates'],
+    queryFn: () => api.get('/accounting/customers/duplicates').then((r) => r.data),
+    staleTime: 60_000,
+  })
+  const dupCount = Number(dupSummary?.duplicateCustomerCount || 0)
+  const dupGroups = Number(dupSummary?.groupCount || 0)
 
   const deleteMutation = useMutation({
     mutationFn: (id) => api.delete(`/customers/${id}`),
@@ -254,6 +264,33 @@ export default function CustomerList() {
           </Link>
         </div>
       </div>
+
+      {dupGroups > 0 ? (
+        <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-amber-500/30 dark:bg-amber-950/30">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div>
+              <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">
+                {isAr
+                  ? `${dupCount} عميل محتمل التكرار في ${dupGroups} مجموعة`
+                  : `${dupCount} possible duplicates found in ${dupGroups} group${dupGroups === 1 ? '' : 's'}`}
+              </p>
+              <p className="mt-0.5 text-xs text-amber-800/80 dark:text-amber-200/70">
+                {isAr
+                  ? 'نفس الرقم الضريبي أو الهاتف أو اسم مشابه — راجع وادمج لتوحيد الأرصدة'
+                  : 'Same VAT, phone, or similar name — review and merge so balances stay accurate'}
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/app/dashboard/customers/merge"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-700 px-4 py-2 text-xs font-bold text-white hover:bg-amber-800"
+          >
+            <GitMerge className="h-3.5 w-3.5" />
+            {isAr ? 'مراجعة' : 'Review'}
+          </Link>
+        </div>
+      ) : null}
 
       {/* Ultra-Premium Bento Metric KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

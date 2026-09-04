@@ -74,6 +74,7 @@ export async function listAccountingCustomers(tenantId, {
   const filter = {
     tenantId,
     $or: [{ isCustomer: true }, { isCustomer: { $exists: false } }],
+    mergedIntoId: null,
   };
 
   if (isActive === 'true' || isActive === true) filter.isActive = true;
@@ -222,7 +223,7 @@ export async function checkCustomerDuplicate(tenantId, {
   const vat = String(vatNumber || '').trim();
   if (vat) {
     assertSaudiVatNumber(vat);
-    const q = { tenantId, vatNumber: vat, isCustomer: true };
+    const q = { tenantId, vatNumber: vat, isCustomer: true, mergedIntoId: null };
     if (excludeId) q._id = { $ne: excludeId };
     const hits = await Partner.find(q).select('name nameEn nameAr vatNumber phone').limit(5).lean();
     for (const h of hits) {
@@ -240,6 +241,7 @@ export async function checkCustomerDuplicate(tenantId, {
     const candidates = await Partner.find({
       tenantId,
       isCustomer: true,
+      mergedIntoId: null,
       ...(excludeId ? { _id: { $ne: excludeId } } : {}),
     }).select('name nameEn nameAr phone mobile vatNumber').limit(400).lean();
     for (const h of candidates) {
@@ -260,6 +262,7 @@ export async function checkCustomerDuplicate(tenantId, {
     const candidates = await Partner.find({
       tenantId,
       isCustomer: true,
+      mergedIntoId: null,
       ...(excludeId ? { _id: { $ne: excludeId } } : {}),
     }).select('name nameEn nameAr phone vatNumber').limit(500).lean();
     for (const h of candidates) {

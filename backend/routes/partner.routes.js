@@ -47,7 +47,7 @@ router.get('/search', async (req, res) => {
     const type = String(req.query.type || '').trim();
     const limit = Math.min(30, Math.max(1, parseInt(req.query.limit, 10) || 15));
 
-    const match = { ...req.tenantFilter, isActive: { $ne: false } };
+    const match = { ...req.tenantFilter, isActive: { $ne: false }, mergedIntoId: null };
     if (type === 'business' || type === 'company') match.type = 'business';
     if (type === 'individual') match.type = 'individual';
     if (q) {

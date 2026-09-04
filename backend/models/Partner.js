@@ -189,10 +189,23 @@ const partnerSchema = new mongoose.Schema({
 
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
+  /** Soft-archive after customer merge (kept for audit; not hard-deleted) */
+  mergedIntoId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Partner',
+    default: null,
+    index: true,
+  },
+  mergedAt: { type: Date, default: null },
+  mergedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  mergeNote: { type: String, default: '' },
+
   /** Migration provenance — droppable after legacy collections are retired */
   legacyCustomerId: { type: mongoose.Schema.Types.ObjectId, default: null },
   legacySupplierId: { type: mongoose.Schema.Types.ObjectId, default: null },
   mergedFromSupplierIds: [{ type: mongoose.Schema.Types.ObjectId }],
+  /** Partner ids that were merged into this primary customer */
+  mergedFromCustomerIds: [{ type: mongoose.Schema.Types.ObjectId }],
 }, {
   timestamps: true,
   collection: 'partners',

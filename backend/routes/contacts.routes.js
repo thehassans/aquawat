@@ -123,7 +123,8 @@ router.get('/', async (req, res) => {
 
     const partnerMatch = {
       ...req.tenantFilter,
-      ...activeMatch
+      ...activeMatch,
+      mergedIntoId: null,
     };
 
     const isPartnerHub = requestedTypes.includes('customer')
