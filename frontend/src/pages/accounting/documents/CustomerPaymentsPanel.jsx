@@ -18,6 +18,7 @@ import {
   salesTableClass,
   softChipClass,
 } from '../../sales/salesUi'
+import { formatDateOnlyDisplay } from '../../../lib/dateOnly'
 
 const METHODS = [
   { id: 'bank_transfer', en: 'Bank transfer', ar: 'تحويل بنكي' },
@@ -196,7 +197,7 @@ function NewPaymentForm({ language, onCancel, onCreated }) {
                     <tr key={id}>
                       <td className="px-3 py-2 font-mono text-xs">{inv.invoiceNumber}</td>
                       <td className="px-3 py-2">
-                        {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString(isAr ? 'ar-SA' : 'en-GB') : '—'}
+                        {formatDateOnlyDisplay(inv.dueDate, isAr ? 'ar-SA' : 'en-GB') || '—'}
                       </td>
                       <td className="px-3 py-2 text-end"><Money value={inv.residual} /></td>
                       <td className="px-3 py-2 text-end">

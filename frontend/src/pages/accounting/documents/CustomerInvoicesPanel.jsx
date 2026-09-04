@@ -22,6 +22,7 @@ import {
   isDraftDocument,
   paymentStatusLabel,
 } from '../../../lib/accountingDocumentStatus'
+import { extractDateOnly, formatDateOnlyDisplay } from '../../../lib/dateOnly'
 import {
   docLinkClass,
   emptyStateClass,
@@ -53,14 +54,16 @@ const computeNextActivity = (row, isAr) => {
   if (String(row.paymentStatus || '').toLowerCase() === 'paid') {
     return { label: isAr ? 'لا نشاط' : 'No follow-up', tone: 'muted' }
   }
-  const due = row.dueDate ? new Date(row.dueDate) : null
-  if (!due || Number.isNaN(due.getTime())) {
+  const dueOnly = extractDateOnly(row.dueDate)
+  if (!dueOnly) {
     return { label: '—', tone: 'muted' }
   }
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  due.setHours(0, 0, 0, 0)
-  const diffDays = Math.round((due.getTime() - today.getTime()) / 86400000)
+  const todayOnly = extractDateOnly(new Date())
+  const diffDays = (() => {
+    const [y1, m1, d1] = dueOnly.split('-').map(Number)
+    const [y2, m2, d2] = todayOnly.split('-').map(Number)
+    return Math.round((Date.UTC(y1, m1 - 1, d1) - Date.UTC(y2, m2 - 1, d2)) / 86400000)
+  })()
   if (diffDays < 0) {
     const overdue = Math.abs(diffDays)
     return {
@@ -91,12 +94,10 @@ const zatcaToneClass = (tone) => {
 const isOverdueRow = (row) => {
   if (isDraftDocument(row)) return false
   if (String(row.paymentStatus || '').toLowerCase() === 'paid') return false
-  const due = row.dueDate ? new Date(row.dueDate) : null
-  if (!due || Number.isNaN(due.getTime())) return false
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  due.setHours(0, 0, 0, 0)
-  return due.getTime() < today.getTime()
+  const dueOnly = extractDateOnly(row.dueDate)
+  const todayOnly = extractDateOnly(new Date())
+  if (!dueOnly || !todayOnly) return false
+  return dueOnly < todayOnly
 }
 
 export default function CustomerInvoicesPanel({ language: languageProp }) {
@@ -539,10 +540,10 @@ export default function CustomerInvoicesPanel({ language: languageProp }) {
                       </td>
                       <td className={salesTdClass}>{trimName(row.buyer)}</td>
                       <td className={salesTdClass}>
-                        {row.issueDate ? new Date(row.issueDate).toLocaleDateString(isAr ? 'ar-SA' : 'en-GB') : '—'}
+                        {formatDateOnlyDisplay(row.issueDate, isAr ? 'ar-SA' : 'en-GB') || '—'}
                       </td>
                       <td className={salesTdClass}>
-                        {row.dueDate ? new Date(row.dueDate).toLocaleDateString(isAr ? 'ar-SA' : 'en-GB') : '—'}
+                        {formatDateOnlyDisplay(row.dueDate, isAr ? 'ar-SA' : 'en-GB') || '—'}
                       </td>
                       <td className={salesTdClass}>
                         <Money value={Number(row.taxableAmount ?? row.subtotal ?? 0)} />

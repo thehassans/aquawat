@@ -31,6 +31,7 @@ import {
   salesTableClass,
   softChipClass,
 } from '../../sales/salesUi'
+import { formatDateOnlyDisplay } from '../../../lib/dateOnly'
 
 const trimName = (party) => {
   const en = String(party?.name || party?.nameEn || '').trim()
@@ -320,10 +321,10 @@ export default function VendorBillsPanel({ language = 'en' }) {
                     </td>
                     <td className={salesTdClass}>{trimName(row.seller)}</td>
                     <td className={salesTdClass}>
-                      {row.issueDate ? new Date(row.issueDate).toLocaleDateString(isAr ? 'ar-SA' : 'en-GB') : '—'}
+                      {formatDateOnlyDisplay(row.issueDate, isAr ? 'ar-SA' : 'en-GB') || '—'}
                     </td>
                     <td className={salesTdClass}>
-                      {row.dueDate ? new Date(row.dueDate).toLocaleDateString(isAr ? 'ar-SA' : 'en-GB') : '—'}
+                      {formatDateOnlyDisplay(row.dueDate, isAr ? 'ar-SA' : 'en-GB') || '—'}
                     </td>
                     <td className={salesTdClass}>{row.contractNumber || row.purchaseOrderNumber || '—'}</td>
                     <td className={`${salesTdClass} tabular-nums`}>

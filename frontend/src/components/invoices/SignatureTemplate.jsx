@@ -1,6 +1,6 @@
 import React from 'react'
 import DocumentExtras from './DocumentExtras'
-import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
+import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr, formatPartyAddress } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { resolveTaxInvoiceQr } from '../../lib/taxInvoiceQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -21,9 +21,11 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
   const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
   const {
     headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, companyNtn, companyStrn,
+    companyAddress,
     counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyNtn, counterpartyStrn,
     counterpartyLabelEn, taxLabel, taxIdLabel
   } = parties
+  const sellerAddressText = formatPartyAddress(companyAddress, { language: 'en' })
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -106,6 +108,7 @@ export default function SignatureTemplate({ invoice, tenant, language = 'en', bi
             <h2 className="text-xl font-normal text-slate-900 tracking-wide">{companyNameEn || headerCompanyName}</h2>
             {bilingual && companyNameAr && <h2 className="text-lg font-normal text-slate-600 mt-1" dir="rtl">{companyNameAr}</h2>}
             <div className="mt-4 text-xs font-sans text-slate-500 tracking-wide space-y-1">
+              {sellerAddressText ? <p className="max-w-xs leading-relaxed">{sellerAddressText}</p> : null}
               {companyNtn ? <p>NTN: {companyNtn}</p> : (companyVat ? <p>{taxIdLabel}: {companyVat}</p> : null)}
               {companyStrn && <p>STRN: {companyStrn}</p>}
               {companyCr && <p>Commercial Registry: {companyCr}</p>}

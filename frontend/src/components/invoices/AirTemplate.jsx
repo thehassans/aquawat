@@ -1,6 +1,6 @@
 import React from 'react'
 import DocumentExtras from './DocumentExtras'
-import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
+import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr, formatPartyAddress } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { resolveTaxInvoiceQr } from '../../lib/taxInvoiceQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -20,9 +20,11 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
   const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
   const {
     headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, companyNtn, companyStrn,
+    companyAddress,
     counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyNtn, counterpartyStrn,
     counterpartyLabelEn, taxLabel, taxIdLabel
   } = parties
+  const sellerAddressText = formatPartyAddress(companyAddress, { language: 'en' })
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -88,6 +90,7 @@ export default function AirTemplate({ invoice, tenant, language = 'en', bilingua
             {bilingual && companyNameAr && <h2 className="text-2xl font-light text-slate-500 mt-2 tracking-wide" dir="rtl">{companyNameAr}</h2>}
             
             <div className="mt-8 text-sm text-slate-400 space-y-2 font-light">
+              {sellerAddressText ? <p className="max-w-sm leading-relaxed text-slate-500">{sellerAddressText}</p> : null}
               {companyNtn ? <p className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>NTN {companyNtn}</p> : (companyVat ? <p className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>{taxIdLabel} {companyVat}</p> : null)}
               {companyStrn && <p className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>STRN {companyStrn}</p>}
               {companyCr && <p className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>CR {companyCr}</p>}

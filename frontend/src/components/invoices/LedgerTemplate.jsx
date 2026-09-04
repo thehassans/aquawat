@@ -1,6 +1,6 @@
 import React from 'react'
 import DocumentExtras from './DocumentExtras'
-import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
+import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr, formatPartyAddress } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { resolveTaxInvoiceQr } from '../../lib/taxInvoiceQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -21,9 +21,11 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
   const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
   const {
     headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, companyNtn, companyStrn,
+    companyAddress,
     counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyCr, counterpartyNtn, counterpartyStrn,
     counterpartyLabelEn, taxLabel, taxIdLabel
   } = parties
+  const sellerAddressText = formatPartyAddress(companyAddress, { language: 'en' })
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -80,6 +82,7 @@ export default function LedgerTemplate({ invoice, tenant, language = 'en', bilin
           <div>
             <h2 className="text-xl font-bold text-slate-900 tracking-tight">{companyNameEn || headerCompanyName}</h2>
             {bilingual && companyNameAr && <h2 className="text-lg font-bold text-slate-700" dir="rtl">{companyNameAr}</h2>}
+            {sellerAddressText ? <p className="mt-1 max-w-sm text-xs text-slate-500">{sellerAddressText}</p> : null}
           </div>
         </div>
         <div className="text-right">

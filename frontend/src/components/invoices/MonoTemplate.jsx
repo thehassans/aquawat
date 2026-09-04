@@ -1,5 +1,5 @@
 import React from 'react'
-import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
+import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr, formatPartyAddress } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { resolveTaxInvoiceQr } from '../../lib/taxInvoiceQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -20,9 +20,11 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
   const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
   const {
     headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, companyNtn, companyStrn,
+    companyAddress,
     counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyNtn, counterpartyStrn,
     counterpartyLabelEn, taxLabel, taxIdLabel
   } = parties
+  const sellerAddressText = formatPartyAddress(companyAddress, { language: 'en' })
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -84,6 +86,7 @@ export default function MonoTemplate({ invoice, tenant, language = 'en', bilingu
             <div>
               <h2 className="text-2xl font-black text-black uppercase tracking-tight">{companyNameEn || headerCompanyName}</h2>
               {bilingual && companyNameAr && <h2 className="text-xl font-bold text-black mt-1" dir="rtl">{companyNameAr}</h2>}
+              {sellerAddressText ? <p className="mt-1 max-w-xs text-[10px] font-bold uppercase tracking-wide text-black/70">{sellerAddressText}</p> : null}
             </div>
           </div>
           <div className="flex-1 text-right">

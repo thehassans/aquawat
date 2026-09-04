@@ -66,3 +66,11 @@ export function compareDateOnly(a, b) {
   if (left === right) return 0
   return left < right ? -1 : 1
 }
+
+/** Format YYYY-MM-DD for UI without timezone day-shift. */
+export function formatDateOnlyDisplay(value, locale = 'en-GB') {
+  const only = extractDateOnly(value)
+  if (!only) return ''
+  const [y, m, d] = only.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString(locale, { timeZone: 'UTC' })
+}

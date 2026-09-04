@@ -913,7 +913,13 @@ const getInvoiceTitle = (invoice, language = 'en', documentType = 'invoice') => 
   }
 
   // Prefer ZATCA kind (standard / simplified / credit / debit) over context suffixes.
-  const base = getZatcaDocumentTitle(invoice, language, documentType)
+  let base
+  try {
+    base = getZatcaDocumentTitle(invoice, language, documentType)
+  } catch {
+    // Legacy rows may lack transactionType / invoiceTypeCode — keep PDF generation usable.
+    base = language === 'ar' ? 'فاتورة ضريبية' : 'Tax Invoice'
+  }
   if (String(invoice?.invoiceType || '') === '381' || String(invoice?.invoiceType || '') === '383') {
     return base
   }
