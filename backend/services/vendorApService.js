@@ -2,6 +2,7 @@ import Invoice from '../models/Invoice.js';
 import Partner from '../models/Partner.js';
 import Tenant from '../models/Tenant.js';
 import { roundMoney } from '../utils/money.js';
+import { getPartnerBalances } from './ledger/balances.js';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -93,7 +94,7 @@ export async function getVendorApStats(tenantId, supplierId) {
     status: { $nin: ['cancelled'] },
   };
 
-  const [billAgg, refundAgg] = await Promise.all([
+  const [billAgg, refundAgg, balances] = await Promise.all([
     Invoice.aggregate([
       { $match: { ...match, invoiceType: '388' } },
       {
@@ -106,17 +107,23 @@ export async function getVendorApStats(tenantId, supplierId) {
       },
     ]),
     Invoice.countDocuments({ ...match, invoiceType: '381' }),
+    getPartnerBalances({
+      tenantId,
+      partnerType: 'vendor',
+      partnerIds: [supplierId],
+    }),
   ]);
 
   const row = billAgg[0] || {};
   const billedTotal = round2(row.billedTotal || 0);
   const paidTotal = round2(row.paidTotal || 0);
+  const partner = (balances.partners || []).find((p) => String(p.partnerId) === String(supplierId));
 
   return {
     billCount: row.billCount || 0,
     billedTotal,
     paidTotal,
-    outstanding: round2(Math.max(0, billedTotal - paidTotal)),
+    outstanding: round2(partner?.openResidual ?? Math.max(0, billedTotal - paidTotal)),
     refundCount: refundAgg || 0,
   };
 }
@@ -134,7 +141,7 @@ export async function getCustomerArStats(tenantId, customerId) {
     status: { $nin: ['cancelled'] },
   };
 
-  const [invoiceAgg, creditNoteAgg] = await Promise.all([
+  const [invoiceAgg, creditNoteAgg, balances] = await Promise.all([
     Invoice.aggregate([
       { $match: { ...match, invoiceType: '388' } },
       {
@@ -147,17 +154,23 @@ export async function getCustomerArStats(tenantId, customerId) {
       },
     ]),
     Invoice.countDocuments({ ...match, invoiceType: '381' }),
+    getPartnerBalances({
+      tenantId,
+      partnerType: 'customer',
+      partnerIds: [customerId],
+    }),
   ]);
 
   const row = invoiceAgg[0] || {};
   const invoicedTotal = round2(row.invoicedTotal || 0);
   const paidTotal = round2(row.paidTotal || 0);
+  const partner = (balances.partners || []).find((p) => String(p.partnerId) === String(customerId));
 
   return {
     invoiceCount: row.invoiceCount || 0,
     invoicedTotal,
     paidTotal,
-    outstanding: round2(Math.max(0, invoicedTotal - paidTotal)),
+    outstanding: round2(partner?.openResidual ?? Math.max(0, invoicedTotal - paidTotal)),
     creditNoteCount: creditNoteAgg || 0,
   };
 }

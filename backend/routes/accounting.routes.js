@@ -189,6 +189,19 @@ router.get('/accounts', checkPermission('finance', 'read'), async (req, res) => 
         storedBalance: Number(a.balance || 0),
       };
     });
+    // Heal stored CoA drift so Cash / AR never diverge from live rebuild
+    const driftedIds = enriched
+      .filter((a) => Math.abs(Number(a.balance || 0) - Number(a.storedBalance || 0)) > 0.01)
+      .map((a) => a._id);
+    if (driftedIds.length) {
+      const { syncStoredAccountBalances } = await import('../services/ledger/balances.js');
+      await syncStoredAccountBalances(tenantId, { accountIds: driftedIds });
+      for (const a of enriched) {
+        if (driftedIds.some((id) => String(id) === String(a._id))) {
+          a.storedBalance = Number(a.balance || 0);
+        }
+      }
+    }
     res.json(enriched);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1377,27 +1390,57 @@ router.get('/reports/customer-summary', checkPermission('finance', 'read'), asyn
 
 router.get('/reports/receivable-consistency', checkPermission('finance', 'read'), async (req, res) => {
   try {
-    const { assertReceivableConsistency, buildTrialBalance, buildBalanceSheet, buildAgedReceivables } = await import('../services/accountingService.js');
+    const {
+      assertReceivableConsistency,
+      buildTrialBalance,
+      buildBalanceSheet,
+      buildAgedReceivables,
+      getAccountingDashboard,
+      syncStoredAccountBalances,
+    } = await import('../services/accountingService.js');
+    const { listAccountingCustomers } = await import('../services/customerDirectoryService.js');
     const tenantId = tenantIdOf(req);
     const asOf = req.query.asOf || null;
-    const [core, tb, bs, aged] = await Promise.all([
+
+    let storedSync = null;
+    if (String(req.query.repairStored || '') === '1') {
+      storedSync = await syncStoredAccountBalances(tenantId);
+    }
+
+    const [core, tb, bs, aged, dash, customers] = await Promise.all([
       assertReceivableConsistency(tenantId, { asOf }),
       buildTrialBalance(tenantId, { asOf }),
       buildBalanceSheet(tenantId, { asOf }),
       buildAgedReceivables(tenantId, { asOf }),
+      getAccountingDashboard(tenantId),
+      listAccountingCustomers(tenantId, { limit: 1 }),
     ]);
     const tbAr = (tb.rows || []).find((r) => String(r.code) === '1200');
     const bsAr = (bs.assets || []).find((r) => String(r.code) === '1200');
+    const customerReceivables = customers?.totals?.receivablesSum ?? null;
+    const cashTb = round2(
+      (tb.rows || [])
+        .filter((r) => r.code === '1000' || r.code === '1100')
+        .reduce((s, r) => s + Number(r.balance || 0), 0),
+    );
     const report = {
       ...core,
       trialBalance1200: tbAr?.balance ?? null,
       balanceSheet1200: bsAr?.balance ?? null,
       agedArTotal: aged?.buckets?.total ?? null,
+      dashboardAr: dash?.arBalance ?? null,
+      customerDirectoryReceivables: customerReceivables,
+      dashboardCash: dash?.cashBalance ?? null,
+      trialCash: cashTb,
+      storedSync,
       equal: {
+        dashboardVsTb: Math.abs((dash?.arBalance || 0) - (tbAr?.balance || 0)) < 0.05,
         glVsTb: Math.abs((core.glAr || 0) - (tbAr?.balance || 0)) < 0.05,
         glVsBs: Math.abs((core.glAr || 0) - (bsAr?.balance || 0)) < 0.05,
         glVsAged: Math.abs((core.glAr || 0) - (aged?.buckets?.total || 0)) < 0.05,
         glVsPartners: core.ok,
+        glVsCustomerDirectory: Math.abs((core.glAr || 0) - (customerReceivables || 0)) < 0.05,
+        cashDashboardVsTb: Math.abs((dash?.cashBalance || 0) - cashTb) < 0.05,
       },
     };
     report.allEqual = Object.values(report.equal).every(Boolean);
@@ -1407,6 +1450,9 @@ router.get('/reports/receivable-consistency', checkPermission('finance', 'read')
   }
 });
 
+function round2(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
 router.get('/reports/supplier-summary', checkPermission('finance', 'read'), async (req, res) => {
   try {
     const data = await buildSupplierSummaryReport(tenantIdOf(req), {

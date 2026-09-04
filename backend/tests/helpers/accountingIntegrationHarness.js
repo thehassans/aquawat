@@ -14,16 +14,22 @@ import {
 } from '../../services/accountingService.js';
 import { autoMatchBankStatementLines } from '../../services/bankReconciliationService.js';
 
-export const uri = process.env.ACCOUNTING_TEST_MONGODB_URI
-  || process.env.STOCK_TEST_MONGODB_URI
-  || process.env.MONGODB_URI;
+export function getAccountingTestUri() {
+  return process.env.ACCOUNTING_TEST_MONGODB_URI
+    || process.env.STOCK_TEST_MONGODB_URI
+    || process.env.MONGODB_URI;
+}
+
+/** @deprecated use getAccountingTestUri() — kept for older tests */
+export const uri = getAccountingTestUri();
 
 export async function resolveAccountingSkip() {
-  if (!uri) {
+  const mongoUri = getAccountingTestUri();
+  if (!mongoUri) {
     return 'Set ACCOUNTING_TEST_MONGODB_URI (or MONGODB_URI) to run accounting integration tests';
   }
   try {
-    await mongoose.connect(uri);
+    await mongoose.connect(mongoUri);
     await mongoose.connection.db.admin().command({ ping: 1 });
     return false;
   } catch (error) {
@@ -34,7 +40,9 @@ export async function resolveAccountingSkip() {
 
 export async function connectAccountingMongo() {
   if (mongoose.connection.readyState === 1) return;
-  await mongoose.connect(uri);
+  const mongoUri = getAccountingTestUri();
+  if (!mongoUri) throw new Error('MONGODB_URI missing');
+  await mongoose.connect(mongoUri);
 }
 
 export async function disconnectAccountingMongo() {

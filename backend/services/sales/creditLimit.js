@@ -2,6 +2,7 @@ import PurchaseOrder from '../../models/PurchaseOrder.js';
 import Partner from '../../models/Partner.js';
 import Invoice from '../../models/Invoice.js';
 import { isValidSaudiVat } from '../../utils/saudiVat.js';
+import { getPartnerBalances } from '../ledger/balances.js';
 
 /**
  * Credit exposure = AR balance + uninvoiced confirmed sell orders + this SO total.
@@ -24,7 +25,13 @@ export async function evaluateCustomerCredit({ tenantId, customerId, orderTotal,
     return { ok: true, exposure: 0, creditLimit: 0, skipped: true, partner };
   }
 
-  const arBalance = Number(partner.currentBalance || 0);
+  const partnerBal = await getPartnerBalances({
+    tenantId,
+    partnerType: 'customer',
+    partnerIds: [customerId],
+  });
+  const open = (partnerBal.partners || []).find((p) => String(p.partnerId) === String(customerId));
+  const arBalance = Math.max(0, Number(open?.openResidual ?? partner.currentBalance ?? 0));
 
   const confirmedStatuses = [
     'approved',

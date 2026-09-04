@@ -125,20 +125,22 @@ export async function listAccountingCustomers(tenantId, {
   const balances = await getPartnerBalances({
     tenantId,
     partnerType: 'customer',
-    partnerIds,
   });
   const balById = new Map(
-    (balances.partners || []).map((b) => [String(b.partnerId), b]),
+    (balances.partners || [])
+      .filter((b) => b.partnerId)
+      .map((b) => [String(b.partnerId), b]),
   );
 
   let rows = allPartners.map((p) => {
     const bal = balById.get(String(p._id)) || null;
     const outstanding = round2(bal?.openResidual || 0);
-    const overdue = round2(
+    const overdue = round2(Math.max(
+      0,
       (bal?.aging?.d31_60 || 0)
       + (bal?.aging?.d61_90 || 0)
-      + (bal?.aging?.d90_plus || 0),
-    );
+      + (bal?.aging?.d90_plus || bal?.aging?.d90plus || 0),
+    ));
     const vat = String(p.vatNumber || '').trim();
     return {
       _id: p._id,
@@ -168,7 +170,7 @@ export async function listAccountingCustomers(tenantId, {
   });
 
   if (hasOpenBalance === true || hasOpenBalance === 'true') {
-    rows = rows.filter((r) => r.outstanding >= 0.01);
+    rows = rows.filter((r) => Math.abs(r.outstanding) >= 0.01);
   }
   if (overdueOnly === true || overdueOnly === 'true') {
     rows = rows.filter((r) => r.overdue >= 0.01);
@@ -188,7 +190,8 @@ export async function listAccountingCustomers(tenantId, {
   const total = rows.length;
   const paged = rows.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
-  const receivablesSum = round2(rows.reduce((s, r) => s + r.outstanding, 0));
+  // KPI must equal COA 1200 / aged AR total (includes unallocated GL)
+  const receivablesSum = round2(balances.totals?.openResidual || 0);
 
   return {
     customers: paged,
@@ -202,7 +205,7 @@ export async function listAccountingCustomers(tenantId, {
       receivablesSum,
       overdueSum: round2(rows.reduce((s, r) => s + r.overdue, 0)),
       customerCount: total,
-      withOpenBalance: rows.filter((r) => r.outstanding >= 0.01).length,
+      withOpenBalance: rows.filter((r) => Math.abs(r.outstanding) >= 0.01).length,
     },
   };
 }
@@ -324,7 +327,7 @@ export async function getAccountingCustomerDetail(tenantId, customerId) {
       .lean(),
   ]);
 
-  const bal = (balances.partners || [])[0] || null;
+  const bal = (balances.partners || []).find((p) => String(p.partnerId) === String(customerId)) || null;
   const creditNotes = invoices.filter((i) => String(i.invoiceType) === '381' || String(i.status) === 'credited');
 
   const paidInvoices = invoices.filter((i) => String(i.paymentStatus) === 'paid' && i.issueDate && i.dueDate);

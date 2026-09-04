@@ -40,15 +40,20 @@ async function main() {
     buildBalanceSheet,
     buildAgedReceivables,
     getAccountingDashboard,
+    syncStoredAccountBalances,
   } = await import('../services/accountingService.js');
+  const { listAccountingCustomers } = await import('../services/customerDirectoryService.js');
 
   const tenantId = tenant._id;
-  const [core, tb, bs, aged, dash] = await Promise.all([
+  const storedSync = await syncStoredAccountBalances(tenantId);
+
+  const [core, tb, bs, aged, dash, customers] = await Promise.all([
     assertReceivableConsistency(tenantId),
     buildTrialBalance(tenantId),
     buildBalanceSheet(tenantId),
     buildAgedReceivables(tenantId),
     getAccountingDashboard(tenantId),
+    listAccountingCustomers(tenantId, { limit: 1 }),
   ]);
 
   const tbAr = (tb.rows || []).find((r) => String(r.code) === '1200');
@@ -68,8 +73,10 @@ async function main() {
     partnerSum: core.partnerSum,
     agedArTotal: aged?.buckets?.total ?? null,
     dashboardAr: dash?.arBalance ?? null,
+    customerDirectoryReceivables: customers?.totals?.receivablesSum ?? null,
     dashboardCash: dash?.cashBalance ?? null,
     trialCash: cashTb,
+    storedSync,
   };
 
   const tol = 0.05;
@@ -78,6 +85,7 @@ async function main() {
     'TB 1200 == BS 1200': Math.abs((lines.trialBalance1200 || 0) - (lines.balanceSheet1200 || 0)) <= tol,
     'TB 1200 == partner open sum': Math.abs((lines.trialBalance1200 || 0) - (lines.partnerSum || 0)) <= tol,
     'TB 1200 == aged AR total': Math.abs((lines.trialBalance1200 || 0) - (lines.agedArTotal || 0)) <= tol,
+    'TB 1200 == customers KPI': Math.abs((lines.trialBalance1200 || 0) - (lines.customerDirectoryReceivables || 0)) <= tol,
     'dashboard cash == TB cash+bank': Math.abs((lines.dashboardCash || 0) - (lines.trialCash || 0)) <= tol,
   };
 
@@ -93,6 +101,6 @@ function round2(n) {
 
 main().catch(async (err) => {
   console.error(err);
-  try { await mongoose.disconnect(); } catch {}
+  try { await mongoose.disconnect(); } catch { /* ignore */ }
   process.exit(1);
 });

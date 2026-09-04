@@ -48,8 +48,24 @@ export function agingBucket(ageDays) {
 }
 
 export function emptyAgingBuckets() {
-  return { d0_30: 0, d31_60: 0, d61_90: 0, d90_plus: 0, total: 0 };
+  // d90plus alias kept for API consumers that use the unpunctuated key
+  return { d0_30: 0, d31_60: 0, d61_90: 0, d90_plus: 0, d90plus: 0, total: 0 };
 }
+
+function withAgingAliases(buckets) {
+  const b = buckets || emptyAgingBuckets();
+  const d90 = round2(b.d90_plus || b.d90plus || 0);
+  return {
+    d0_30: round2(b.d0_30 || 0),
+    d31_60: round2(b.d31_60 || 0),
+    d61_90: round2(b.d61_90 || 0),
+    d90_plus: d90,
+    d90plus: d90,
+    total: round2(b.total || 0),
+  };
+}
+
+const CONTROL_CODE = { customer: '1200', vendor: '2000' };
 
 /**
  * Status / reversal pair filter for journal balance rebuilds.
@@ -267,229 +283,375 @@ export async function getAccountBalances({
 }
 
 /**
- * Partner open AR/AP from invoices (residual = grandTotal − paidAmount).
- * Aging from due date (fallback issue date).
+ * Partner AR/AP balances from GL control-account journal lines (1200 / 2000).
+ * openResidual + aging come from posted journal lines (same filter as getAccountBalances),
+ * so Σ partners.openResidual === COA control-account natural balance.
+ * totalInvoiced / totalPaid come from a parallel invoice aggregation.
  */
 export async function getPartnerBalances({
   tenantId,
   partnerIds = null,
   partnerType = 'customer',
   asOf = null,
+  includeDraft = false,
+  includeReversed = false,
+  includeVoid = false,
 } = {}) {
   if (!tenantId) throw new Error('tenantId is required');
   const flow = partnerType === 'vendor' ? 'purchase' : 'sell';
+  const controlCode = CONTROL_CODE[partnerType] || CONTROL_CODE.customer;
   const asOfDate = endOfDay(asOf) || endOfDay(new Date());
+  const tid = new mongoose.Types.ObjectId(String(tenantId));
 
-  const match = {
-    tenantId: new mongoose.Types.ObjectId(String(tenantId)),
-    flow,
-    status: { $nin: ['draft', 'cancelled', 'credited'] },
-    paymentStatus: { $nin: ['paid', 'cancelled'] },
-    issueDate: { $lte: asOfDate },
-  };
+  const controlAccounts = await ChartOfAccount.find({
+    tenantId: tid,
+    code: controlCode,
+    isActive: true,
+  }).select('_id code type').lean();
 
-  const partnerField = flow === 'sell' ? 'customerId' : 'supplierId';
-  if (Array.isArray(partnerIds) && partnerIds.length) {
-    match[partnerField] = {
-      $in: partnerIds.map((id) => new mongoose.Types.ObjectId(String(id))),
+  if (!controlAccounts.length) {
+    return {
+      asOf: asOfDate,
+      partnerType,
+      flow,
+      controlCode,
+      buckets: withAgingAliases(emptyAgingBuckets()),
+      partners: [],
+      invoices: [],
+      totals: { openResidual: 0, partnerCount: 0, invoiceCount: 0, glControlBalance: 0 },
     };
   }
 
-  const invoiceRows = await Invoice.aggregate([
-    { $match: match },
+  const accountIds = controlAccounts.map((a) => a._id);
+  const isAr = partnerType !== 'vendor';
+
+  const entryMatch = {
+    tenantId: tid,
+    ...journalStatusMatch({ includeDraft, includeReversed, includeVoid }),
+    entryDate: { $lte: asOfDate },
+  };
+
+  const partnerIdFilter = Array.isArray(partnerIds) && partnerIds.length
+    ? partnerIds.map((id) => new mongoose.Types.ObjectId(String(id)))
+    : null;
+
+  /**
+   * amount = signed contribution to natural control balance:
+   *   AR (asset): debit − credit
+   *   AP (liability): credit − debit
+   */
+  const amountExpr = isAr
+    ? { $subtract: [{ $ifNull: ['$lines.debit', 0] }, { $ifNull: ['$lines.credit', 0] }] }
+    : { $subtract: [{ $ifNull: ['$lines.credit', 0] }, { $ifNull: ['$lines.debit', 0] }] };
+
+  const lineMatch = {
+    'lines.accountId': { $in: accountIds },
+  };
+  // When filtering partners, still keep unallocated (null) so Σ stays = GL
+  if (partnerIdFilter) {
+    lineMatch.$or = [
+      { 'lines.partnerId': { $in: partnerIdFilter } },
+      { 'lines.partnerId': null },
+      { 'lines.partnerId': { $exists: false } },
+    ];
+  }
+
+  const glFacet = await JournalEntry.aggregate([
+    { $match: entryMatch },
+    { $unwind: '$lines' },
+    { $match: lineMatch },
     {
       $addFields: {
-        residual: {
-          $round: [
-            {
-              $max: [
-                0,
-                { $subtract: [{ $ifNull: ['$grandTotal', 0] }, { $ifNull: ['$paidAmount', 0] }] },
-              ],
-            },
-            2,
-          ],
-        },
-        partnerId: { $ifNull: [`$${partnerField}`, '$customerId'] },
-        dueForAge: { $ifNull: ['$dueDate', '$issueDate'] },
+        amount: amountExpr,
+        dueForAge: { $ifNull: ['$lines.dueDate', '$entryDate'] },
       },
     },
-    { $match: { residual: { $gte: 0.01 } } },
     {
-      $project: {
-        invoiceId: '$_id',
-        invoiceNumber: 1,
-        invoiceType: 1,
-        issueDate: 1,
-        dueDate: 1,
-        dueForAge: 1,
-        grandTotal: 1,
-        paidAmount: 1,
-        residual: 1,
-        partnerId: 1,
-        paymentStatus: 1,
-        paymentSchedule: 1,
+      $addFields: {
+        ageDays: {
+          $max: [
+            0,
+            {
+              $dateDiff: {
+                startDate: '$dueForAge',
+                endDate: asOfDate,
+                unit: 'day',
+              },
+            },
+          ],
+        },
+      },
+    },
+    {
+      $addFields: {
+        bucket: {
+          $switch: {
+            branches: [
+              { case: { $lte: ['$ageDays', 30] }, then: 'd0_30' },
+              { case: { $lte: ['$ageDays', 60] }, then: 'd31_60' },
+              { case: { $lte: ['$ageDays', 90] }, then: 'd61_90' },
+            ],
+            default: 'd90_plus',
+          },
+        },
+      },
+    },
+    {
+      $facet: {
+        byPartner: [
+          {
+            $group: {
+              _id: '$lines.partnerId',
+              openResidual: { $sum: '$amount' },
+              lineCount: { $sum: 1 },
+              d0_30: { $sum: { $cond: [{ $eq: ['$bucket', 'd0_30'] }, '$amount', 0] } },
+              d31_60: { $sum: { $cond: [{ $eq: ['$bucket', 'd31_60'] }, '$amount', 0] } },
+              d61_90: { $sum: { $cond: [{ $eq: ['$bucket', 'd61_90'] }, '$amount', 0] } },
+              d90_plus: { $sum: { $cond: [{ $eq: ['$bucket', 'd90_plus'] }, '$amount', 0] } },
+            },
+          },
+        ],
+        byBucket: [
+          {
+            $group: {
+              _id: '$bucket',
+              total: { $sum: '$amount' },
+            },
+          },
+        ],
+        grand: [
+          {
+            $group: {
+              _id: null,
+              openResidual: { $sum: '$amount' },
+              lineCount: { $sum: 1 },
+            },
+          },
+        ],
       },
     },
   ]);
 
-  const partnerIdSet = [
-    ...new Set(invoiceRows.map((r) => String(r.partnerId || '')).filter((id) => id && id !== 'undefined')),
-  ];
-  const partners = partnerIdSet.length
-    ? await Customer.find({ _id: { $in: partnerIdSet }, tenantId })
+  const facet = glFacet[0] || { byPartner: [], byBucket: [], grand: [] };
+  const glControlBalance = round2(facet.grand?.[0]?.openResidual || 0);
+
+  const buckets = emptyAgingBuckets();
+  for (const row of facet.byBucket || []) {
+    const key = row._id;
+    if (key && Object.prototype.hasOwnProperty.call(buckets, key)) {
+      buckets[key] = round2(row.total);
+    }
+  }
+  buckets.total = glControlBalance;
+  const bucketsOut = withAgingAliases(buckets);
+
+  const partnerField = flow === 'sell' ? 'customerId' : 'supplierId';
+  const invoiceMatch = {
+    tenantId: tid,
+    flow,
+    status: { $nin: ['draft', 'cancelled', 'credited'] },
+    issueDate: { $lte: asOfDate },
+  };
+  if (partnerIdFilter) {
+    invoiceMatch[partnerField] = { $in: partnerIdFilter };
+  }
+
+  const [invoiceStats, openInvoiceRows] = await Promise.all([
+    Invoice.aggregate([
+      { $match: invoiceMatch },
+      {
+        $group: {
+          _id: `$${partnerField}`,
+          totalInvoiced: { $sum: { $ifNull: ['$grandTotal', 0] } },
+          totalPaid: { $sum: { $ifNull: ['$paidAmount', 0] } },
+          invoiceCount: { $sum: 1 },
+        },
+      },
+    ]),
+    Invoice.aggregate([
+      {
+        $match: {
+          ...invoiceMatch,
+          paymentStatus: { $nin: ['paid', 'cancelled'] },
+        },
+      },
+      {
+        $addFields: {
+          residual: {
+            $round: [
+              {
+                $subtract: [
+                  { $ifNull: ['$grandTotal', 0] },
+                  { $ifNull: ['$paidAmount', 0] },
+                ],
+              },
+              2,
+            ],
+          },
+          dueForAge: { $ifNull: ['$dueDate', '$issueDate'] },
+        },
+      },
+      { $match: { residual: { $ne: 0 } } },
+      {
+        $project: {
+          invoiceId: '$_id',
+          invoiceNumber: 1,
+          invoiceType: 1,
+          issueDate: 1,
+          dueDate: 1,
+          dueForAge: 1,
+          grandTotal: 1,
+          paidAmount: 1,
+          residual: 1,
+          partnerId: `$${partnerField}`,
+          paymentStatus: 1,
+        },
+      },
+    ]),
+  ]);
+
+  const invStatsById = Object.fromEntries(
+    (invoiceStats || []).map((r) => [String(r._id || ''), r]),
+  );
+
+  const partnerIdSet = new Set();
+  for (const row of facet.byPartner || []) {
+    if (row._id) partnerIdSet.add(String(row._id));
+  }
+  for (const id of Object.keys(invStatsById)) {
+    if (id && id !== 'null' && id !== 'undefined') partnerIdSet.add(id);
+  }
+  if (partnerIdFilter) {
+    for (const id of partnerIdFilter) partnerIdSet.add(String(id));
+  }
+
+  const partnerDocs = partnerIdSet.size
+    ? await Customer.find({ _id: { $in: [...partnerIdSet] }, tenantId: tid })
       .select('name nameEn nameAr displayName phone mobile vatNumber')
       .lean()
     : [];
-  const partnerById = Object.fromEntries(partners.map((p) => [String(p._id), p]));
+  const partnerById = Object.fromEntries(partnerDocs.map((p) => [String(p._id), p]));
 
-  const buckets = emptyAgingBuckets();
   const byPartner = new Map();
-  const invoiceDetails = [];
-
   const ensurePartner = (id) => {
-    const key = String(id || 'unknown');
+    const key = id ? String(id) : 'unallocated';
     if (!byPartner.has(key)) {
-      const p = partnerById[key];
+      const p = id ? partnerById[String(id)] : null;
       byPartner.set(key, {
         partnerId: id || null,
-        partnerName: p?.displayName || p?.nameEn || p?.name || p?.nameAr || '—',
-        partnerNameAr: p?.nameAr || '',
+        partnerName: id
+          ? (p?.displayName || p?.nameEn || p?.name || p?.nameAr || '—')
+          : 'Unallocated',
+        partnerNameAr: id ? (p?.nameAr || '') : 'غير مخصص',
         phone: p?.mobile || p?.phone || '',
         vatNumber: p?.vatNumber || '',
         totalInvoiced: 0,
         totalPaid: 0,
         openResidual: 0,
-        aging: emptyAgingBuckets(),
+        aging: withAgingAliases(emptyAgingBuckets()),
         invoiceCount: 0,
+        lineCount: 0,
       });
     }
     return byPartner.get(key);
   };
 
-  /** Expand an invoice residual across payment-schedule tranches (FIFO against paidAmount). */
-  const expandTranches = (inv) => {
-    const residual = round2(inv.residual);
-    const schedule = Array.isArray(inv.paymentSchedule) ? inv.paymentSchedule : [];
-    if (schedule.length < 2) {
-      const due = new Date(inv.dueForAge || inv.dueDate || inv.issueDate || asOfDate);
-      const ageDays = Math.max(0, Math.floor((asOfDate - due) / MS_PER_DAY));
-      return [{
-        residual,
-        dueDate: inv.dueDate || inv.dueForAge || null,
-        ageDays,
-        bucket: agingBucket(ageDays),
-        trancheSequence: null,
-      }];
-    }
-
-    let paidLeft = round2(inv.paidAmount || 0);
-    const sorted = [...schedule].sort((a, b) => (
-      (Number(a.sequence) || 0) - (Number(b.sequence) || 0)
-      || new Date(a.dueDate || 0) - new Date(b.dueDate || 0)
-    ));
-    const parts = [];
-    for (const tr of sorted) {
-      const trancheAmt = round2(tr.amount || 0);
-      if (trancheAmt < 0.01) continue;
-      const applied = Math.min(paidLeft, trancheAmt);
-      paidLeft = round2(Math.max(0, paidLeft - applied));
-      const trResidual = round2(trancheAmt - applied);
-      if (trResidual < 0.01) continue;
-      const due = new Date(tr.dueDate || inv.dueForAge || inv.dueDate || inv.issueDate || asOfDate);
-      const ageDays = Math.max(0, Math.floor((asOfDate - due) / MS_PER_DAY));
-      parts.push({
-        residual: trResidual,
-        dueDate: tr.dueDate || inv.dueDate || null,
-        ageDays,
-        bucket: agingBucket(ageDays),
-        trancheSequence: tr.sequence || parts.length + 1,
-      });
-    }
-
-    const partsSum = round2(parts.reduce((s, p) => s + p.residual, 0));
-    if (parts.length && Math.abs(partsSum - residual) > 0.05) {
-      // Keep partner/GL totals aligned to invoice residual
-      const scale = residual > 0 && partsSum > 0 ? residual / partsSum : 1;
-      for (const p of parts) p.residual = round2(p.residual * scale);
-    }
-    if (!parts.length) {
-      const due = new Date(inv.dueForAge || inv.dueDate || inv.issueDate || asOfDate);
-      const ageDays = Math.max(0, Math.floor((asOfDate - due) / MS_PER_DAY));
-      return [{
-        residual,
-        dueDate: inv.dueDate || inv.dueForAge || null,
-        ageDays,
-        bucket: agingBucket(ageDays),
-        trancheSequence: null,
-      }];
-    }
-    return parts;
-  };
-
-  for (const inv of invoiceRows) {
-    const residual = round2(inv.residual);
-    if (residual < 0.01) continue;
-
-    const partner = partnerById[String(inv.partnerId || '')];
-    const row = ensurePartner(inv.partnerId);
-    row.totalInvoiced = round2(row.totalInvoiced + Number(inv.grandTotal || 0));
-    row.totalPaid = round2(row.totalPaid + Number(inv.paidAmount || 0));
-    row.openResidual = round2(row.openResidual + residual);
-    row.invoiceCount += 1;
-
-    const tranches = expandTranches(inv);
-    for (const tr of tranches) {
-      buckets[tr.bucket] = round2(buckets[tr.bucket] + tr.residual);
-      buckets.total = round2(buckets.total + tr.residual);
-      row.aging[tr.bucket] = round2(row.aging[tr.bucket] + tr.residual);
-      row.aging.total = round2(row.aging.total + tr.residual);
-
-      invoiceDetails.push({
-        invoiceId: inv.invoiceId || inv._id,
-        invoiceNumber: inv.invoiceNumber,
-        invoiceType: inv.invoiceType,
-        partnerId: inv.partnerId || null,
-        partnerName: partner?.displayName || partner?.name || partner?.nameAr || '—',
-        issueDate: inv.issueDate,
-        dueDate: tr.dueDate,
-        grandTotal: round2(inv.grandTotal),
-        paidAmount: round2(inv.paidAmount),
-        residual: tr.residual,
-        ageDays: tr.ageDays,
-        bucket: tr.bucket,
-        paymentStatus: inv.paymentStatus,
-        trancheSequence: tr.trancheSequence,
-      });
-    }
+  for (const row of facet.byPartner || []) {
+    const partner = ensurePartner(row._id || null);
+    partner.openResidual = round2(row.openResidual);
+    partner.lineCount = row.lineCount || 0;
+    partner.aging = withAgingAliases({
+      d0_30: row.d0_30,
+      d31_60: row.d31_60,
+      d61_90: row.d61_90,
+      d90_plus: row.d90_plus,
+      total: row.openResidual,
+    });
   }
 
-  // Enrich with lifetime invoiced/paid even when currently paid (optional partners list)
-  if (Array.isArray(partnerIds) && partnerIds.length) {
-    for (const id of partnerIds) ensurePartner(id);
+  for (const [id, stats] of Object.entries(invStatsById)) {
+    if (!id || id === 'null' || id === 'undefined') continue;
+    const partner = ensurePartner(id);
+    partner.totalInvoiced = round2(stats.totalInvoiced);
+    partner.totalPaid = round2(stats.totalPaid);
+    partner.invoiceCount = stats.invoiceCount || 0;
   }
 
-  const partnersOut = [...byPartner.values()].sort((a, b) => b.openResidual - a.openResidual);
-  invoiceDetails.sort((a, b) => b.ageDays - a.ageDays || b.residual - a.residual);
+  const invoiceDetails = (openInvoiceRows || []).map((inv) => {
+    const due = new Date(inv.dueForAge || inv.dueDate || inv.issueDate || asOfDate);
+    const ageDays = Math.max(0, Math.floor((asOfDate - due) / MS_PER_DAY));
+    const bucket = agingBucket(ageDays);
+    const p = partnerById[String(inv.partnerId || '')];
+    return {
+      invoiceId: inv.invoiceId || inv._id,
+      invoiceNumber: inv.invoiceNumber,
+      invoiceType: inv.invoiceType,
+      partnerId: inv.partnerId || null,
+      partnerName: p?.displayName || p?.name || p?.nameAr || '—',
+      issueDate: inv.issueDate,
+      dueDate: inv.dueDate || inv.dueForAge || null,
+      grandTotal: round2(inv.grandTotal),
+      paidAmount: round2(inv.paidAmount),
+      residual: round2(inv.residual),
+      ageDays,
+      bucket,
+      paymentStatus: inv.paymentStatus,
+      trancheSequence: null,
+      source: 'invoice',
+    };
+  }).sort((a, b) => b.ageDays - a.ageDays || Math.abs(b.residual) - Math.abs(a.residual));
+
+  const partnersOut = [...byPartner.values()]
+    .filter((p) => Math.abs(p.openResidual) >= 0.005
+      || p.totalInvoiced >= 0.005
+      || (partnerIdFilter && p.partnerId && partnerIdFilter.some((id) => String(id) === String(p.partnerId))))
+    .sort((a, b) => Math.abs(b.openResidual) - Math.abs(a.openResidual));
 
   return {
     asOf: asOfDate,
     partnerType,
     flow,
-    buckets,
+    controlCode,
+    source: 'gl_control_account',
+    buckets: bucketsOut,
     partners: partnersOut,
     invoices: invoiceDetails,
     totals: {
-      openResidual: buckets.total,
-      partnerCount: partnersOut.filter((p) => p.openResidual >= 0.01).length,
+      openResidual: glControlBalance,
+      glControlBalance,
+      partnerCount: partnersOut.filter((p) => Math.abs(p.openResidual) >= 0.01).length,
       invoiceCount: invoiceDetails.length,
     },
   };
 }
 
 /**
- * Assert GL AR (code 1200 natural) == sum of partner open residuals (±tolerance).
- * Used by consistency script / tests.
+ * Rewrite ChartOfAccount.balance from live journal rebuild (excludes reversal pairs).
+ * Fixes stored vs TB/BS drift after orphaned reverses / imports.
+ */
+export async function syncStoredAccountBalances(tenantId, { accountIds = null } = {}) {
+  const live = await getAccountBalances({
+    tenantId,
+    accountIds,
+    activeOnly: false,
+    includeReversed: false,
+  });
+  let updated = 0;
+  for (const row of live.rows || []) {
+    const next = round2(row.naturalBalance ?? row.balance ?? 0);
+    const prev = round2(row.storedBalance ?? 0);
+    if (Math.abs(next - prev) < 0.005) continue;
+    await ChartOfAccount.updateOne(
+      { _id: row.accountId, tenantId },
+      { $set: { balance: next } },
+    );
+    updated += 1;
+  }
+  return { updated, total: (live.rows || []).length };
+}
+
+/**
+ * Assert GL AR (1200) == partner open sum == aged total (±tolerance).
  */
 export async function assertReceivableConsistency(tenantId, { tolerance = 0.05, asOf = null } = {}) {
   const [gl, partners] = await Promise.all([

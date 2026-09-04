@@ -15,11 +15,18 @@ import {
   getAccountBalances,
   getPartnerBalances,
   assertReceivableConsistency,
+  syncStoredAccountBalances,
   isDebitNature,
   emptyAgingBuckets,
   agingBucket,
 } from './ledger/balances.js';
 
+export {
+  getAccountBalances,
+  getPartnerBalances,
+  assertReceivableConsistency,
+  syncStoredAccountBalances,
+};
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 /** Standard SaaS/SME chart of accounts — bilingual for GCC. */
@@ -971,6 +978,12 @@ export async function postJournalEntry(tenantId, entryId, userId, { bypassLockCh
   entry.totalCredit = round2(lines.reduce((s, l) => s + l.credit, 0));
   await entry.save();
   await syncJournalItemsFromMove(entry, { state: 'posted' });
+  // Heal stored CoA drift for touched accounts (live rebuild is source of truth)
+  try {
+    await syncStoredAccountBalances(tenantId, {
+      accountIds: [...new Set(lines.map((l) => l.accountId).filter(Boolean))],
+    });
+  } catch { /* non-fatal */ }
   return entry;
 }
 
@@ -1065,6 +1078,11 @@ export async function reverseJournalEntry(tenantId, entryId, userId, reason = ''
   await entry.save();
   // Keep original JournalItems posted; reversal items provide the counter-lines.
   // Net of all posted items matches COA balances.
+  try {
+    await syncStoredAccountBalances(tenantId, {
+      accountIds: [...new Set(reverseLines.map((l) => l.accountId).filter(Boolean))],
+    });
+  } catch { /* non-fatal */ }
 
   return postedReversal || reversal;
 }
@@ -4131,19 +4149,28 @@ export async function getBankAccountsCatalog(tenantId) {
     isActive: true,
     $or: [{ subtype: 'bank' }, { subtype: 'cash' }, { type: 'asset', code: /^11/ }],
   }).sort({ code: 1 }).lean();
+  const live = await getAccountBalances({
+    tenantId,
+    accountIds: accounts.map((a) => a._id),
+    activeOnly: false,
+    includeReversed: false,
+  });
+  const liveById = Object.fromEntries((live.rows || []).map((r) => [String(r.accountId), r]));
   const Journal = (await import('../models/Journal.js')).default;
   const journals = await Journal.find({ tenantId, type: 'bank', active: { $ne: false } }).lean();
   const journalById = Object.fromEntries(journals.map((j) => [String(j._id), j]));
   const rows = accounts.map((acc) => {
     const link = meta.find((m) => String(m.accountId) === String(acc._id)) || {};
     const journal = link.journalId ? journalById[String(link.journalId)] : journals.find((j) => String(j.defaultDebitAccountId) === String(acc._id));
+    const liveRow = liveById[String(acc._id)];
     return {
       accountId: acc._id,
       code: acc.code,
       name: acc.name,
       nameAr: acc.nameAr,
       subtype: acc.subtype,
-      balance: acc.balance,
+      balance: liveRow ? Number(liveRow.naturalBalance) : Number(acc.balance || 0),
+      storedBalance: Number(acc.balance || 0),
       iban: link.iban || '',
       bic: link.bic || '',
       journalId: journal?._id || link.journalId || null,
@@ -5933,13 +5960,15 @@ export async function getAccountingDashboard(tenantId) {
     recent,
     agedAr: {
       buckets: agedAr.buckets,
-      openCount: (agedAr.rows || []).length,
-      total: agedAr.buckets?.total || 0,
+      openCount: agedAr.totals?.partnerCount
+        ?? (agedAr.partners || []).filter((p) => Math.abs(Number(p.openResidual) || 0) >= 0.01).length,
+      total: agedAr.buckets?.total ?? agedAr.totals?.openResidual ?? 0,
     },
     agedAp: {
       buckets: agedAp.buckets,
-      openCount: (agedAp.rows || []).length,
-      total: agedAp.buckets?.total || 0,
+      openCount: agedAp.totals?.partnerCount
+        ?? (agedAp.partners || []).filter((p) => Math.abs(Number(p.openResidual) || 0) >= 0.01).length,
+      total: agedAp.buckets?.total ?? agedAp.totals?.openResidual ?? 0,
     },
   };
 }
@@ -7316,6 +7345,7 @@ export default {
   buildSupplierSummaryReport,
   buildSupplierAccountReport,
   assertReceivableConsistency,
+  syncStoredAccountBalances,
   getAccountBalances,
   getPartnerBalances,
 };
