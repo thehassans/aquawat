@@ -54,7 +54,17 @@ const partnerSchema = new mongoose.Schema({
   customerCode: { type: String, trim: true },
   supplierCode: { type: String, trim: true },
 
-  vatNumber: { type: String, trim: true },
+  vatNumber: {
+    type: String,
+    trim: true,
+    validate: {
+      validator(v) {
+        if (v == null || String(v).trim() === '') return true;
+        return /^3\d{13}3$/.test(String(v).trim());
+      },
+      message: 'VAT number must be exactly 15 digits starting and ending with 3',
+    },
+  },
   crNumber: { type: String, trim: true },
 
   address: {

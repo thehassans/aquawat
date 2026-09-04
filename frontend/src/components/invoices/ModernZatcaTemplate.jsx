@@ -17,6 +17,7 @@ import {
   getZatcaDocumentTitle,
   resolveCommercialDocumentNumber,
   shouldShowZatcaQr,
+  formatPartyAddress,
 } from '../../lib/commercialDocumentLabels'
 import ProductTypeMark from './ProductTypeMark'
 import LetterheadChrome from './LetterheadChrome'
@@ -195,6 +196,9 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
   const isPurchaseOrder = documentType === 'purchase_order'
   const showZatcaQr = shouldShowZatcaQr(documentType)
 
+  const companyAddressText = formatPartyAddress(companyAddress || {}, { language: 'en' })
+  const companyAddressArText = formatPartyAddress(companyAddress || {}, { language: 'ar' })
+
   return (
     <LetterheadChrome
       tenant={tenant}
@@ -207,6 +211,19 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
         <img src={invoiceBranding.letterheadImage} alt="" className="absolute inset-0 w-full h-full object-cover z-0 pointer-events-none" />
       )}
       <div className="inv-branded-body relative z-10" style={brandBodyStyle}>
+        {(companyAddressText || companyVat || companyPhone) && (
+          <div className="border-b border-slate-100 px-4 py-2 text-[11px] text-slate-600">
+            {companyAddressText ? <p>{companyAddressText}</p> : null}
+            {bilingual && companyAddressArText && companyAddressArText !== companyAddressText ? (
+              <p dir="rtl">{companyAddressArText}</p>
+            ) : null}
+            <p className="mt-0.5 flex flex-wrap gap-x-3">
+              {companyVat ? <span>VAT: {companyVat}</span> : null}
+              {companyCr ? <span>CR: {companyCr}</span> : null}
+              {companyPhone ? <span>{companyPhone}</span> : null}
+            </p>
+          </div>
+        )}
         <style>{`
           .inv-branded-body .text-gray-900,
           .inv-branded-body .text-gray-800,
@@ -249,11 +266,19 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                   : <EnAr en="Boutique Rental Invoice" ar="فاتورة إيجار بوتيك" enClassName="uppercase tracking-wider" />
                 : isQuotation
                 ? <EnAr en="Quotation" ar="عرض سعر" enClassName="uppercase tracking-wider" />
-                : <EnAr
-                    en={getZatcaDocumentTitle(invoice, 'en', documentType)}
-                    ar={getZatcaDocumentTitle(invoice, 'ar', documentType)}
-                    enClassName="uppercase tracking-wider"
-                  />}
+                : (() => {
+                    try {
+                      return (
+                        <EnAr
+                          en={getZatcaDocumentTitle(invoice, 'en', documentType)}
+                          ar={getZatcaDocumentTitle(invoice, 'ar', documentType)}
+                          enClassName="uppercase tracking-wider"
+                        />
+                      )
+                    } catch (err) {
+                      return <span className="text-rose-700">{String(err.message || err)}</span>
+                    }
+                  })()}
             </span>
           </div>
         </div>

@@ -2871,6 +2871,20 @@ router.post('/:id/sign', checkPermission('invoicing', 'approve'), async (req, re
     if (invoice.flow === 'purchase') {
       return res.status(400).json({ error: 'Cannot sign purchase invoices' });
     }
+
+    if (invoice.flow === 'sell' && String(invoice.transactionType || '').toUpperCase() === 'B2B') {
+      const { assertB2bInvoiceReady } = await import('../services/sales/creditLimit.js');
+      const b2b = assertB2bInvoiceReady({
+        ...(invoice.buyer?.toObject?.() || invoice.buyer || {}),
+        name: invoice.buyer?.name,
+        vatNumber: invoice.buyer?.vatNumber,
+        crNumber: invoice.buyer?.crNumber,
+        address: invoice.buyer?.address,
+      });
+      if (!b2b.ok) {
+        return res.status(400).json({ error: b2b.error, code: b2b.code, missing: b2b.missing });
+      }
+    }
     
     if (invoice.zatca?.submissionStatus !== 'pending' && invoice.zatca?.signedXml) {
       return res.status(400).json({ error: 'Invoice already signed' });

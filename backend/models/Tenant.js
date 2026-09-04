@@ -59,7 +59,17 @@ const businessDetailsSchema = new mongoose.Schema({
   legalNameAr: { type: String, required: true },
   legalNameEn: { type: String, required: true },
   tradeName: { type: String },
-  vatNumber: { type: String, default: '' },
+  vatNumber: {
+    type: String,
+    default: '',
+    validate: {
+      validator(v) {
+        if (v == null || String(v).trim() === '') return true;
+        return /^3\d{13}3$/.test(String(v).trim());
+      },
+      message: 'Company VAT must be exactly 15 digits starting and ending with 3',
+    },
+  },
   /** Bangladesh NBR Business Identification Number (BIN) */
   binNumber: { type: String, default: '' },
   crNumber: { type: String, default: '' },

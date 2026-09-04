@@ -1,14 +1,19 @@
 /** Invoice payment-term presets (Odoo-style) with due-date and schedule calculation. */
 
-const round2 = (n) => Math.round(Number(n || 0) * 100) / 100;
+import {
+  addDaysToDateOnly,
+  dateOnlyToUtcNoon,
+  endOfMonthDateOnly,
+  extractDateOnly,
+} from './dateOnly.js'
 
-const endOfMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+const round2 = (n) => Math.round(Number(n || 0) * 100) / 100
 
+/** @deprecated Prefer addDaysToDateOnly for calendar math */
 export const addDays = (date, days) => {
-  const d = date instanceof Date ? new Date(date) : new Date(date || Date.now());
-  d.setDate(d.getDate() + Number(days || 0));
-  return d;
-};
+  const only = addDaysToDateOnly(extractDateOnly(date) || extractDateOnly(new Date()), days)
+  return dateOnlyToUtcNoon(only) || new Date()
+}
 
 export const INVOICE_PAYMENT_TERMS = [
   { id: 'immediate', labelEn: 'Immediate Payment', labelAr: 'دفع فوري', kind: 'days', days: 0 },
@@ -43,48 +48,63 @@ export const INVOICE_PAYMENT_TERMS = [
   { id: 'net90', labelEn: '90 Days', labelAr: '90 يوم', kind: 'days', days: 90 },
   { id: 'end_of_month', labelEn: 'End of Current Month', labelAr: 'نهاية الشهر الحالي', kind: 'eom_current' },
   { id: 'cod', labelEn: 'Cash on Delivery', labelAr: 'الدفع عند الاستلام', kind: 'days', days: 0 },
-];
+]
 
-export const findPaymentTerm = (paymentTermsId) => INVOICE_PAYMENT_TERMS.find((t) => t.id === paymentTermsId) || null;
+export const findPaymentTerm = (paymentTermsId) => INVOICE_PAYMENT_TERMS.find((t) => t.id === paymentTermsId) || null
 
-function computeSimpleDueDate(base, term) {
-  if (term.kind === 'days') return addDays(base, Number(term.days || 0));
-  if (term.kind === 'eom_current') return endOfMonth(base);
+function dueFromDateOnly(dateOnly) {
+  return dateOnlyToUtcNoon(dateOnly)
+}
+
+function computeSimpleDueDateOnly(baseOnly, term) {
+  if (term.kind === 'days') return addDaysToDateOnly(baseOnly, Number(term.days || 0))
+  if (term.kind === 'eom_current') return endOfMonthDateOnly(baseOnly)
   if (term.kind === 'eom_following') {
-    const nextMonth = new Date(base.getFullYear(), base.getMonth() + 1, 1);
-    return endOfMonth(nextMonth);
+    const [y, m] = baseOnly.split('-').map(Number)
+    const next = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
+    return endOfMonthDateOnly(next)
   }
   if (term.kind === 'eom_next_plus_10') {
-    const nextMonth = new Date(base.getFullYear(), base.getMonth() + 1, 1);
-    return addDays(endOfMonth(nextMonth), 10);
+    const [y, m] = baseOnly.split('-').map(Number)
+    const next = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
+    return addDaysToDateOnly(endOfMonthDateOnly(next), 10)
   }
-  return null;
+  return null
 }
 
 export const computeDueDateFromPaymentTerms = (issueDate, paymentTermsId) => {
-  const base = issueDate instanceof Date ? new Date(issueDate) : new Date(issueDate || Date.now())
-  if (Number.isNaN(base.getTime())) return null
+  const baseOnly = extractDateOnly(issueDate) || extractDateOnly(new Date())
+  if (!baseOnly) return null
 
   const term = findPaymentTerm(paymentTermsId)
   if (!term) return null
 
   if (term.kind === 'installments' && term.installments?.length) {
-    return term.installments.reduce((max, inst) => {
-      const due = addDays(base, Number(inst.days || 0))
-      return !max || due > max ? due : max
-    }, null)
+    let maxOnly = null
+    for (const inst of term.installments) {
+      const dueOnly = addDaysToDateOnly(baseOnly, Number(inst.days || 0))
+      if (!maxOnly || dueOnly > maxOnly) maxOnly = dueOnly
+    }
+    return dueFromDateOnly(maxOnly)
   }
 
   if (term.kind === 'early_discount') {
-    return addDays(base, Number(term.standardDays || 30))
+    return dueFromDateOnly(addDaysToDateOnly(baseOnly, Number(term.standardDays || 30)))
   }
 
-  return computeSimpleDueDate(base, term)
+  const dueOnly = computeSimpleDueDateOnly(baseOnly, term)
+  return dueOnly ? dueFromDateOnly(dueOnly) : null
+}
+
+/** Returns YYYY-MM-DD for form date inputs (timezone-safe). */
+export const computeDueDateOnlyFromPaymentTerms = (issueDate, paymentTermsId) => {
+  const due = computeDueDateFromPaymentTerms(issueDate, paymentTermsId)
+  return extractDateOnly(due)
 }
 
 export const computePaymentSchedule = (issueDate, paymentTermsId, amount = 0) => {
-  const base = issueDate instanceof Date ? new Date(issueDate) : new Date(issueDate || Date.now())
-  if (Number.isNaN(base.getTime())) return { tranches: [], dueDate: null, termKind: null }
+  const baseOnly = extractDateOnly(issueDate) || extractDateOnly(new Date())
+  if (!baseOnly) return { tranches: [], dueDate: null, termKind: null }
 
   const term = findPaymentTerm(paymentTermsId)
   if (!term) return { tranches: [], dueDate: null, termKind: null }
@@ -92,15 +112,18 @@ export const computePaymentSchedule = (issueDate, paymentTermsId, amount = 0) =>
   const amt = Math.max(0, Number(amount) || 0)
 
   if (term.kind === 'installments' && term.installments?.length) {
-    const tranches = term.installments.map((inst, index) => ({
-      sequence: index + 1,
-      percent: Number(inst.percent || 0),
-      days: Number(inst.days || 0),
-      labelEn: inst.labelEn || '',
-      labelAr: inst.labelAr || '',
-      dueDate: addDays(base, Number(inst.days || 0)),
-      amount: round2(amt * (Number(inst.percent || 0) / 100)),
-    }))
+    const tranches = term.installments.map((inst, index) => {
+      const dueOnly = addDaysToDateOnly(baseOnly, Number(inst.days || 0))
+      return {
+        sequence: index + 1,
+        percent: Number(inst.percent || 0),
+        days: Number(inst.days || 0),
+        labelEn: inst.labelEn || '',
+        labelAr: inst.labelAr || '',
+        dueDate: dueFromDateOnly(dueOnly),
+        amount: round2(amt * (Number(inst.percent || 0) / 100)),
+      }
+    })
     const dueDate = tranches.reduce((max, row) => (!max || row.dueDate > max ? row.dueDate : max), null)
     return { tranches, dueDate, termKind: 'installments', termId: term.id }
   }
@@ -109,8 +132,8 @@ export const computePaymentSchedule = (issueDate, paymentTermsId, amount = 0) =>
     const discountPercent = Number(term.discountPercent || 0)
     const discountWithinDays = Number(term.discountWithinDays || 0)
     const standardDays = Number(term.standardDays || 30)
-    const deadline = addDays(base, discountWithinDays)
-    const standardDue = addDays(base, standardDays)
+    const deadline = dueFromDateOnly(addDaysToDateOnly(baseOnly, discountWithinDays))
+    const standardDue = dueFromDateOnly(addDaysToDateOnly(baseOnly, standardDays))
     const discountedAmount = round2(amt * (1 - discountPercent / 100))
     return {
       tranches: [
@@ -146,7 +169,8 @@ export const computePaymentSchedule = (issueDate, paymentTermsId, amount = 0) =>
     }
   }
 
-  const dueDate = computeSimpleDueDate(base, term)
+  const dueOnly = computeSimpleDueDateOnly(baseOnly, term)
+  const dueDate = dueOnly ? dueFromDateOnly(dueOnly) : null
   const tranches = dueDate
     ? [{
       sequence: 1,
@@ -187,7 +211,6 @@ const IMMEDIATE_PAYMENT_TERM_IDS = new Set(['immediate', 'cod'])
 
 export const isImmediatePaymentTerm = (id) => IMMEDIATE_PAYMENT_TERM_IDS.has(String(id || ''))
 
-/** Map stored invoice status to the Paid / Unpaid form control. */
 export const formPaymentStatusFromInvoice = (invoice, { defaultTerms = 'immediate' } = {}) => {
   const status = String(invoice?.paymentStatus || '').toLowerCase()
   if (status === 'paid') return 'paid'
@@ -195,7 +218,6 @@ export const formPaymentStatusFromInvoice = (invoice, { defaultTerms = 'immediat
   return isImmediatePaymentTerm(invoice?.paymentTerms || defaultTerms) ? 'paid' : 'pending'
 }
 
-/** Apply the Paid / Unpaid control to a create/update payload. */
 export const applyFormPaymentToPayload = (payload, { paymentStatus, paidAmount, grandTotal } = {}) => {
   const total = Math.max(0, Number(grandTotal) || 0)
   if (paymentStatus === 'paid') {

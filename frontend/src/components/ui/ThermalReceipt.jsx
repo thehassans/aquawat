@@ -18,6 +18,7 @@ import {
 } from '../../lib/saudiTenant'
 import { generateFbrQrValue } from '../../lib/fbrQr'
 import { generateGccQrValue } from '../../lib/gccQr'
+import { getZatcaDocumentTitle } from '../../lib/commercialDocumentLabels'
 
 const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false, isUpdated = false }, ref) => {
   const { tenant } = useSelector(state => state.auth)
@@ -267,11 +268,25 @@ const ThermalReceipt = forwardRef(({ order, type = 'laundry', isKitchen = false,
           <div className="border-t border-dashed border-gray-300 w-full my-2"></div>
           
           <div className="text-[10px] font-extrabold text-black tracking-wider">
-            {bilingualAr
-              ? 'SIMPLIFIED TAX INVOICE | فاتورة ضريبية مبسطة'
-              : isBangladesh
-                ? `MUSHAK ${mushakForm} — VAT TAX INVOICE`
-                : 'SALES RECEIPT'}
+            {(() => {
+              if (isBangladesh) return `MUSHAK ${mushakForm} — VAT TAX INVOICE`
+              if (isZatcaApplicable || order?.transactionType || order?.invoiceTypeCode || order?.invoiceNumber) {
+                try {
+                  const inv = {
+                    ...order,
+                    transactionType: order.transactionType || (order.invoiceTypeCode?.startsWith?.('02') ? 'B2C' : 'B2B'),
+                    invoiceTypeCode: order.invoiceTypeCode || (order.transactionType === 'B2C' ? '0200000' : '0100000'),
+                    flow: order.flow || 'sell',
+                  }
+                  const en = getZatcaDocumentTitle(inv, 'en')
+                  const ar = getZatcaDocumentTitle(inv, 'ar')
+                  return bilingualAr ? `${en.toUpperCase()} | ${ar}` : en.toUpperCase()
+                } catch (err) {
+                  return String(err.message || 'ZATCA title error')
+                }
+              }
+              return bilingualAr ? 'SALES RECEIPT | إيصال مبيعات' : 'SALES RECEIPT'
+            })()}
             {isUpdated && (
               <div className="mt-0.5 text-black font-extrabold">
                 {bilingualAr ? 'UPDATED | محدثة' : 'UPDATED'}

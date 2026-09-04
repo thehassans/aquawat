@@ -1,13 +1,18 @@
 /** Invoice payment-term presets — keep in sync with frontend/src/lib/invoicePaymentTerms.js */
 
+import {
+  addDaysToDateOnly,
+  dateOnlyToUtcNoon,
+  endOfMonthDateOnly,
+  extractDateOnly,
+} from './dateOnly.js';
+
 const round2 = (n) => Math.round(Number(n || 0) * 100) / 100;
 
-const endOfMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
-
+/** @deprecated Prefer addDaysToDateOnly + dateOnlyToUtcNoon for invoice due dates */
 export const addDays = (date, days) => {
-  const d = date instanceof Date ? new Date(date) : new Date(date || Date.now());
-  d.setDate(d.getDate() + Number(days || 0));
-  return d;
+  const only = addDaysToDateOnly(extractDateOnly(date) || extractDateOnly(new Date()), days);
+  return dateOnlyToUtcNoon(only) || new Date();
 };
 
 export const INVOICE_PAYMENT_TERMS = [
@@ -51,50 +56,58 @@ export function findPaymentTerm(paymentTermsId) {
   return INVOICE_PAYMENT_TERMS.find((t) => t.id === paymentTermsId) || null;
 }
 
-function computeSimpleDueDate(base, term) {
+function dueFromDateOnly(dateOnly) {
+  return dateOnlyToUtcNoon(dateOnly);
+}
+
+function computeSimpleDueDateOnly(baseOnly, term) {
   if (term.kind === 'days') {
-    return addDays(base, Number(term.days || 0));
+    return addDaysToDateOnly(baseOnly, Number(term.days || 0));
   }
   if (term.kind === 'eom_current') {
-    return endOfMonth(base);
+    return endOfMonthDateOnly(baseOnly);
   }
   if (term.kind === 'eom_following') {
-    const nextMonth = new Date(base.getFullYear(), base.getMonth() + 1, 1);
-    return endOfMonth(nextMonth);
+    const [y, m] = baseOnly.split('-').map(Number);
+    const next = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+    return endOfMonthDateOnly(next);
   }
   if (term.kind === 'eom_next_plus_10') {
-    const nextMonth = new Date(base.getFullYear(), base.getMonth() + 1, 1);
-    const eom = endOfMonth(nextMonth);
-    return addDays(eom, 10);
+    const [y, m] = baseOnly.split('-').map(Number);
+    const next = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+    return addDaysToDateOnly(endOfMonthDateOnly(next), 10);
   }
   return null;
 }
 
 export function computeDueDateFromPaymentTerms(issueDate, paymentTermsId) {
-  const base = issueDate instanceof Date ? new Date(issueDate) : new Date(issueDate || Date.now());
-  if (Number.isNaN(base.getTime())) return null;
+  const baseOnly = extractDateOnly(issueDate) || extractDateOnly(new Date());
+  if (!baseOnly) return null;
 
   const term = findPaymentTerm(paymentTermsId);
   if (!term) return null;
 
   if (term.kind === 'installments' && Array.isArray(term.installments) && term.installments.length) {
-    return term.installments.reduce((max, inst) => {
-      const due = addDays(base, Number(inst.days || 0));
-      return !max || due > max ? due : max;
-    }, null);
+    let maxOnly = null;
+    for (const inst of term.installments) {
+      const dueOnly = addDaysToDateOnly(baseOnly, Number(inst.days || 0));
+      if (!maxOnly || dueOnly > maxOnly) maxOnly = dueOnly;
+    }
+    return dueFromDateOnly(maxOnly);
   }
 
   if (term.kind === 'early_discount') {
-    return addDays(base, Number(term.standardDays || 30));
+    return dueFromDateOnly(addDaysToDateOnly(baseOnly, Number(term.standardDays || 30)));
   }
 
-  return computeSimpleDueDate(base, term);
+  const dueOnly = computeSimpleDueDateOnly(baseOnly, term);
+  return dueOnly ? dueFromDateOnly(dueOnly) : null;
 }
 
 /** Build receivable tranches for staggered or conditional payment terms. */
 export function computePaymentSchedule(issueDate, paymentTermsId, amount = 0) {
-  const base = issueDate instanceof Date ? new Date(issueDate) : new Date(issueDate || Date.now());
-  if (Number.isNaN(base.getTime())) {
+  const baseOnly = extractDateOnly(issueDate) || extractDateOnly(new Date());
+  if (!baseOnly) {
     return { tranches: [], dueDate: null, termKind: null };
   }
 
@@ -104,15 +117,18 @@ export function computePaymentSchedule(issueDate, paymentTermsId, amount = 0) {
   const amt = Math.max(0, Number(amount) || 0);
 
   if (term.kind === 'installments' && Array.isArray(term.installments) && term.installments.length) {
-    const tranches = term.installments.map((inst, index) => ({
-      sequence: index + 1,
-      percent: Number(inst.percent || 0),
-      days: Number(inst.days || 0),
-      labelEn: inst.labelEn || '',
-      labelAr: inst.labelAr || '',
-      dueDate: addDays(base, Number(inst.days || 0)),
-      amount: round2(amt * (Number(inst.percent || 0) / 100)),
-    }));
+    const tranches = term.installments.map((inst, index) => {
+      const dueOnly = addDaysToDateOnly(baseOnly, Number(inst.days || 0));
+      return {
+        sequence: index + 1,
+        percent: Number(inst.percent || 0),
+        days: Number(inst.days || 0),
+        labelEn: inst.labelEn || '',
+        labelAr: inst.labelAr || '',
+        dueDate: dueFromDateOnly(dueOnly),
+        amount: round2(amt * (Number(inst.percent || 0) / 100)),
+      };
+    });
     const dueDate = tranches.reduce((max, row) => (!max || row.dueDate > max ? row.dueDate : max), null);
     return { tranches, dueDate, termKind: 'installments', termId: term.id };
   }
@@ -121,8 +137,8 @@ export function computePaymentSchedule(issueDate, paymentTermsId, amount = 0) {
     const discountPercent = Number(term.discountPercent || 0);
     const discountWithinDays = Number(term.discountWithinDays || 0);
     const standardDays = Number(term.standardDays || 30);
-    const deadline = addDays(base, discountWithinDays);
-    const standardDue = addDays(base, standardDays);
+    const deadline = dueFromDateOnly(addDaysToDateOnly(baseOnly, discountWithinDays));
+    const standardDue = dueFromDateOnly(addDaysToDateOnly(baseOnly, standardDays));
     const discountedAmount = round2(amt * (1 - discountPercent / 100));
     return {
       tranches: [
@@ -134,8 +150,8 @@ export function computePaymentSchedule(issueDate, paymentTermsId, amount = 0) {
           amount: discountedAmount,
           labelEn: `${discountPercent}% discount`,
           labelAr: `خصم ${discountPercent}%`,
-          noteEn: `Pay by ${deadline.toISOString().slice(0, 10)} for discount`,
-          noteAr: `ادفع قبل ${deadline.toISOString().slice(0, 10)} للخصم`,
+          noteEn: `Pay by ${extractDateOnly(deadline)} for discount`,
+          noteAr: `ادفع قبل ${extractDateOnly(deadline)} للخصم`,
         },
         {
           sequence: 2,
@@ -162,7 +178,8 @@ export function computePaymentSchedule(issueDate, paymentTermsId, amount = 0) {
     };
   }
 
-  const dueDate = computeSimpleDueDate(base, term);
+  const dueOnly = computeSimpleDueDateOnly(baseOnly, term);
+  const dueDate = dueOnly ? dueFromDateOnly(dueOnly) : null;
   const tranches = dueDate
     ? [{
       sequence: 1,
@@ -195,9 +212,6 @@ export function describePaymentTerm(term, language = 'en') {
   return term.kind || '';
 }
 
-/**
- * Resolve payment-term id: explicit body → customer terms → company default.
- */
 export function resolveInvoicePaymentTerms({
   paymentTerms,
   customer = null,
@@ -216,11 +230,6 @@ export function resolveInvoicePaymentTerms({
   return 'net30';
 }
 
-/**
- * Apply payment terms + due date for sell invoices.
- * Prefers customer payment terms over the composer default `immediate`.
- * Keeps dueDate when the client sent a non-immediate term (manual combo).
- */
 export function applyInvoicePaymentTerms(invoiceData, {
   customer = null,
   companyDefault = 'net30',
@@ -237,7 +246,6 @@ export function applyInvoicePaymentTerms(invoiceData, {
     customer?.paymentTermsCustomer || customer?.paymentTerms || '',
   ).trim();
 
-  // Composer defaults to `immediate`; treat that as unset when the customer has terms.
   const effectiveBodyTerms = (rawBodyTerms && rawBodyTerms !== 'immediate')
     ? rawBodyTerms
     : (customerTerms || rawBodyTerms || '');
@@ -259,7 +267,8 @@ export function applyInvoicePaymentTerms(invoiceData, {
   if (!hadManualDue) {
     invoiceData.dueDate = undefined;
   } else if (bodyDueDate !== undefined) {
-    invoiceData.dueDate = bodyDueDate;
+    const only = extractDateOnly(bodyDueDate);
+    invoiceData.dueDate = only ? dateOnlyToUtcNoon(only) : bodyDueDate;
   }
 
   return ensureInvoiceDueDate(invoiceData);
@@ -276,6 +285,16 @@ export function ensureInvoiceDueDate(invoiceData) {
   } else if (!invoiceData.dueDate) {
     const due = computeDueDateFromPaymentTerms(issueDate, invoiceData.paymentTerms);
     if (due) invoiceData.dueDate = due;
+  } else {
+    const only = extractDateOnly(invoiceData.dueDate);
+    if (only) invoiceData.dueDate = dateOnlyToUtcNoon(only);
+  }
+
+  // Never allow due before issue (date-only).
+  const issueOnly = extractDateOnly(issueDate);
+  const dueOnly = extractDateOnly(invoiceData.dueDate);
+  if (issueOnly && dueOnly && dueOnly < issueOnly) {
+    invoiceData.dueDate = dateOnlyToUtcNoon(issueOnly);
   }
 
   if (schedule.tranches?.length) {
@@ -304,9 +323,6 @@ export function ensureInvoiceDueDate(invoiceData) {
   return invoiceData;
 }
 
-/**
- * Resolve cash received vs early-payment discount when settling an invoice.
- */
 export function computePaymentSettlement(invoice, {
   amount,
   paymentDate = new Date(),
@@ -324,13 +340,12 @@ export function computePaymentSettlement(invoice, {
 
   const disc = invoice?.earlyPaymentDiscount;
   if (disc?.deadline && disc.discountedAmount != null) {
-    const deadline = new Date(disc.deadline);
-    deadline.setHours(23, 59, 59, 999);
-    const payDate = new Date(paymentDate);
+    const deadlineOnly = extractDateOnly(disc.deadline);
+    const payOnly = extractDateOnly(paymentDate);
     const discountedTotal = round2(Number(disc.discountedAmount || 0));
     const isFullSettlement = differenceMode === 'mark_paid' || payAmt >= remaining - 0.005;
 
-    if (payDate <= deadline && isFullSettlement && remaining > 0.005) {
+    if (deadlineOnly && payOnly && payOnly <= deadlineOnly && isFullSettlement && remaining > 0.005) {
       const cashDue = round2(Math.max(0, discountedTotal - paid));
       discountAmount = round2(Math.max(0, remaining - cashDue));
       cashAmount = round2(Math.min(payAmt, cashDue));

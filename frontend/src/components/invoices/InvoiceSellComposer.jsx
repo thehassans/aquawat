@@ -14,7 +14,9 @@ import { calculateInvoiceSummary, toNumber } from '../../lib/invoiceDocument'
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, isGccArabicMarket } from '../../lib/invoiceLanguage'
 import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
-import { INVOICE_PAYMENT_TERMS, computeDueDateFromPaymentTerms, isImmediatePaymentTerm, formPaymentStatusFromInvoice, applyFormPaymentToPayload } from '../../lib/invoicePaymentTerms'
+import { INVOICE_PAYMENT_TERMS, computeDueDateFromPaymentTerms, computeDueDateOnlyFromPaymentTerms, isImmediatePaymentTerm, formPaymentStatusFromInvoice, applyFormPaymentToPayload } from '../../lib/invoicePaymentTerms'
+import { extractDateOnly, dateOnlyToUtcNoon } from '../../lib/dateOnly'
+import { isValidSaudiVat, isEmptyOrValidSaudiVat, saudiVatErrorMessage } from '../../lib/saudiVat'
 import InvoiceLivePreview from './InvoiceLivePreview'
 import DocumentPreSaveModal from './DocumentPreSaveModal'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
@@ -360,10 +362,9 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
   paymentTerms: invoice?.paymentTerms || 'immediate',
   printFormat: invoice?.printFormat === 'thermal' ? 'thermal' : 'a4',
   dueDate: (() => {
-    if (invoice?.dueDate) return toDatetimeLocalInput(invoice.dueDate).slice(0, 10)
-    const issue = invoice?.issueDate ? new Date(invoice.issueDate) : new Date()
-    const due = computeDueDateFromPaymentTerms(issue, invoice?.paymentTerms || 'immediate')
-    return due ? due.toISOString().slice(0, 10) : ''
+    if (invoice?.dueDate) return extractDateOnly(invoice.dueDate) || ''
+    const issue = invoice?.issueDate || new Date()
+    return computeDueDateOnlyFromPaymentTerms(issue, invoice?.paymentTerms || 'immediate') || ''
   })(),
 })
 
@@ -465,7 +466,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     return tenantBusinessTypes.find((type) => selectableContexts.includes(type)) || 'trading'
   }, [tenant, tenantBusinessTypes])
 
-  const { register, control, handleSubmit, watch, setValue, getValues, reset, clearErrors } = useForm({
+  const { register, control, handleSubmit, watch, setValue, getValues, reset, clearErrors, formState: { errors } } = useForm({
     defaultValues: buildSellInvoiceFormValues({
       invoice: initialInvoice || (isProformaCreate ? { invoiceSubtype: 'proforma' } : null),
       tenant,
@@ -838,7 +839,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     if (invoiceType === 'B2B' && invoiceSubtype !== 'travel_ticket') {
       const buyerErrs = {}
       if (!String(getValues('buyer.name') || '').trim()) buyerErrs.name = { type: 'required' }
-      if (!String(getValues('buyer.vatNumber') || '').trim()) buyerErrs.vatNumber = { type: 'required' }
+      const vat = String(getValues('buyer.vatNumber') || '').trim()
+      if (!vat) buyerErrs.vatNumber = { type: 'required' }
+      else if (!isValidSaudiVat(vat)) buyerErrs.vatNumber = { type: 'validate', message: saudiVatErrorMessage(language) }
       if (!String(getValues('buyer.crNumber') || '').trim()) buyerErrs.crNumber = { type: 'required' }
       if (Object.keys(buyerErrs).length) {
         toast.error(describeSellFormErrors({ buyer: buyerErrs }, language, selectedCustomer))
@@ -988,8 +991,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     setValue('customerId', customer._id, buyerOpts)
     setValue('buyer.name', customer.name || customer.nameEn || '', buyerOpts)
     setValue('buyer.nameAr', customer.nameAr || customer.name || customer.nameEn || '', buyerOpts)
-    setValue('buyer.vatNumber', customer.vatNumber || customer.taxNumber || '', buyerOpts)
-    setValue('buyer.crNumber', customer.crNumber || '', buyerOpts)
+    setValue(
+      'buyer.vatNumber',
+      customer.vatNumber || customer.taxNumber || customer.vat || customer.trn || '',
+      { ...buyerOpts, shouldDirty: true },
+    )
+    setValue(
+      'buyer.crNumber',
+      customer.crNumber || customer.commercialRegistration?.crNumber || customer.cr || '',
+      { ...buyerOpts, shouldDirty: true },
+    )
     setValue('buyer.address.city', customer.address?.city || '', buyerOpts)
     setValue('buyer.address.cityAr', customer.address?.cityAr || '', buyerOpts)
     setValue('buyer.address.district', customer.address?.district || '', buyerOpts)
@@ -1007,9 +1018,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     if (terms) {
       setValue('paymentTerms', terms, { shouldDirty: true })
       const issueRaw = getValues('issueDate')
-      const issue = issueRaw ? new Date(issueRaw) : new Date()
-      const due = computeDueDateFromPaymentTerms(issue, terms)
-      if (due) setValue('dueDate', due.toISOString().slice(0, 10), { shouldDirty: true })
+      const dueOnly = computeDueDateOnlyFromPaymentTerms(issueRaw || new Date(), terms)
+      if (dueOnly) setValue('dueDate', dueOnly, { shouldDirty: true })
     }
     setSelectedCustomer(customer)
     clearErrors(['buyer.name', 'buyer.vatNumber', 'buyer.crNumber'])
@@ -1433,12 +1443,11 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       dueDate: (() => {
         const raw = typeof data?.dueDate === 'string' ? data.dueDate.trim() : ''
         if (raw) {
-          const parsed = new Date(raw)
-          if (!Number.isNaN(parsed.getTime())) return parsed
+          const only = extractDateOnly(raw)
+          if (only) return dateOnlyToUtcNoon(only)
         }
         const issueRaw = typeof data?.issueDate === 'string' ? data.issueDate.trim() : ''
-        const issue = issueRaw ? new Date(issueRaw) : new Date()
-        return computeDueDateFromPaymentTerms(issue, data?.paymentTerms || 'immediate') || undefined
+        return computeDueDateFromPaymentTerms(issueRaw || new Date(), data?.paymentTerms || 'immediate') || undefined
       })(),
       printFormat: data?.printFormat === 'thermal' ? 'thermal' : 'a4',
       paymentTerms: data?.paymentTerms || 'immediate',
@@ -1625,12 +1634,11 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     dueDate: (() => {
       const raw = typeof values?.dueDate === 'string' ? values.dueDate.trim() : ''
       if (raw) {
-        const parsed = new Date(raw)
-        if (!Number.isNaN(parsed.getTime())) return parsed
+        const only = extractDateOnly(raw)
+        if (only) return dateOnlyToUtcNoon(only)
       }
       const issueRaw = typeof values?.issueDate === 'string' ? values.issueDate.trim() : ''
-      const issue = issueRaw ? new Date(issueRaw) : new Date()
-      return computeDueDateFromPaymentTerms(issue, values?.paymentTerms || 'immediate') || undefined
+      return computeDueDateFromPaymentTerms(issueRaw || new Date(), values?.paymentTerms || 'immediate') || undefined
     })(),
     printFormat: values?.printFormat === 'thermal' ? 'thermal' : 'a4',
     createdByName: initialInvoice?.createdByName || [user?.firstName, user?.lastName].filter(Boolean).join(' '),
@@ -1638,6 +1646,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     createdBy: initialInvoice?.createdBy || user,
     flow: 'sell',
     transactionType: invoiceType,
+    invoiceTypeCode: invoiceType === 'B2C' ? '0200000' : '0100000',
     invoiceSubtype: isTravelContext ? 'travel_ticket' : invoiceSubtype,
     pdfTemplateId: selectedTemplateId,
     invoiceDiscount: Math.max(0, toNumber(values?.invoiceDiscount, 0)),
@@ -1830,7 +1839,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               } else if (invoiceSubtype !== 'travel_ticket') {
                 const buyerErrs = {}
                 if (!String(getValues('buyer.name') || '').trim()) buyerErrs.name = { type: 'required' }
-                if (!String(getValues('buyer.vatNumber') || '').trim()) buyerErrs.vatNumber = { type: 'required' }
+                const vatVal = String(getValues('buyer.vatNumber') || '').trim()
+                if (!vatVal) buyerErrs.vatNumber = { type: 'required' }
+                else if (!isValidSaudiVat(vatVal)) buyerErrs.vatNumber = { type: 'validate', message: saudiVatErrorMessage(language) }
                 if (!String(getValues('buyer.crNumber') || '').trim()) buyerErrs.crNumber = { type: 'required' }
                 if (Object.keys(buyerErrs).length) {
                   toast.error(describeSellFormErrors({ buyer: buyerErrs }, language, selectedCustomer))
@@ -2021,11 +2032,22 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 <div>
                   <FieldLabel en="Customer VAT / TRN" ar="الرقم الضريبي للعميل" />
                   <input
-                    className={compactFieldClass}
-                    {...register('buyer.vatNumber')}
+                    className={`${compactFieldClass} ${
+                      String(watch('buyer.vatNumber') || '').trim() && !isValidSaudiVat(watch('buyer.vatNumber'))
+                        ? '!border-rose-400 !ring-1 !ring-rose-300'
+                        : ''
+                    }`}
+                    {...register('buyer.vatNumber', {
+                      validate: (v) => isEmptyOrValidSaudiVat(v) || saudiVatErrorMessage(language),
+                    })}
                     placeholder="3XXXXXXXXXXXXX3"
                     disabled={isInvoicePosted && !transactionTypeDirty}
                   />
+                  {errors?.buyer?.vatNumber ? (
+                    <p className="mt-1 text-[11px] font-medium text-rose-600">
+                      {errors.buyer.vatNumber.message || saudiVatErrorMessage(language)}
+                    </p>
+                  ) : null}
                 </div>
                 <div>
                   <FieldLabel en="Customer CR" ar="السجل التجاري للعميل" />
@@ -2891,9 +2913,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                         onClick={() => {
                           setValue('paymentTerms', term.id, { shouldDirty: true })
                           const issueRaw = getValues('issueDate')
-                          const issue = issueRaw ? new Date(issueRaw) : new Date()
-                          const due = computeDueDateFromPaymentTerms(issue, term.id)
-                          if (due) setValue('dueDate', due.toISOString().slice(0, 10), { shouldDirty: true })
+                          const dueOnly = computeDueDateOnlyFromPaymentTerms(issueRaw || new Date(), term.id)
+                          if (dueOnly) setValue('dueDate', dueOnly, { shouldDirty: true })
                           setValue('paymentStatus', isImmediatePaymentTerm(term.id) ? 'paid' : 'pending', { shouldDirty: true })
                           if (isImmediatePaymentTerm(term.id)) {
                             setValue('paidAmount', totals.grandTotal, { shouldDirty: true })
@@ -2921,9 +2942,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       const id = e.target.value
                       setValue('paymentTerms', id, { shouldDirty: true })
                       const issueRaw = getValues('issueDate')
-                      const issue = issueRaw ? new Date(issueRaw) : new Date()
-                      const due = computeDueDateFromPaymentTerms(issue, id)
-                      if (due) setValue('dueDate', due.toISOString().slice(0, 10), { shouldDirty: true })
+                      const dueOnly = computeDueDateOnlyFromPaymentTerms(issueRaw || new Date(), id)
+                      if (dueOnly) setValue('dueDate', dueOnly, { shouldDirty: true })
                       setValue('paymentStatus', isImmediatePaymentTerm(id) ? 'paid' : 'pending', { shouldDirty: true })
                     }}
                   >

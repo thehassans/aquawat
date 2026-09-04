@@ -3,6 +3,7 @@ import momentHijri from 'moment-hijri';
 import { statsRead } from '../utils/mongoReadPreference.js';
 import { syncIssueTimeFromDate } from '../utils/zatcaTimestamp.js';
 import { roundMoney } from '../utils/money.js';
+import { compareDateOnly } from '../utils/dateOnly.js';
 
 const travelSegmentSchema = new mongoose.Schema({
   from: { type: String },
@@ -99,7 +100,16 @@ const invoiceLineSchema = new mongoose.Schema({
 const partySchema = new mongoose.Schema({
   name: { type: String, required: true },
   nameAr: { type: String },
-  vatNumber: { type: String },
+  vatNumber: {
+    type: String,
+    validate: {
+      validator(v) {
+        if (v == null || String(v).trim() === '') return true;
+        return /^3\d{13}3$/.test(String(v).trim());
+      },
+      message: 'VAT number must be exactly 15 digits starting and ending with 3',
+    },
+  },
   crNumber: { type: String },
   address: {
     street: { type: String },
@@ -428,6 +438,13 @@ invoiceSchema.pre('validate', function(next) {
   }
   if (this.isModified('supplyDate') && this.supplyDate) {
     this.supplyDateHijri = momentHijri(this.supplyDate).format('iYYYY/iMM/iDD');
+  }
+
+  // dueDate must never be before invoice issue date (calendar date-only).
+  if (this.issueDate && this.dueDate) {
+    if (compareDateOnly(this.dueDate, this.issueDate) < 0) {
+      this.invalidate('dueDate', 'Due date cannot be before invoice date');
+    }
   }
   
   const lines = Array.isArray(this.lineItems) ? this.lineItems : [];

@@ -3,33 +3,18 @@ import Invoice from '../models/Invoice.js';
 import AccountPayment from '../models/AccountPayment.js';
 import { getPartnerBalances } from './ledger/balances.js';
 
+import { isValidSaudiVat, assertSaudiVat, isEmptyOrValidSaudiVat } from '../utils/saudiVat.js';
+
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
-/** Saudi VAT: exactly 15 digits, starts and ends with 3. Empty is allowed. */
+/** @deprecated use isEmptyOrValidSaudiVat from utils/saudiVat.js */
 export function isValidSaudiVatNumber(vat) {
-  const raw = String(vat || '').trim();
-  if (!raw) return true;
-  return /^3\d{13}3$/.test(raw);
+  return isEmptyOrValidSaudiVat(vat);
 }
 
-export function assertSaudiVatNumber(vat, { required = false } = {}) {
-  const raw = String(vat || '').trim();
-  if (!raw) {
-    if (required) {
-      const err = new Error('VAT number is required');
-      err.status = 400;
-      err.code = 'VAT_REQUIRED';
-      throw err;
-    }
-    return '';
-  }
-  if (!isValidSaudiVatNumber(raw)) {
-    const err = new Error('VAT number must be exactly 15 digits starting and ending with 3');
-    err.status = 400;
-    err.code = 'VAT_INVALID';
-    throw err;
-  }
-  return raw;
+/** @deprecated use assertSaudiVat from utils/saudiVat.js */
+export function assertSaudiVatNumber(vat, opts) {
+  return assertSaudiVat(vat, opts);
 }
 
 function normalizePhone(phone) {

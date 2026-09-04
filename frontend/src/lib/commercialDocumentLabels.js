@@ -14,8 +14,8 @@ export const shouldShowZatcaQr = (documentType) =>
   && documentType !== 'sales_order'
 
 export const getCommercialDocumentTitle = (documentType, language = 'en', { uppercase = false, flow = 'sell', invoice = null } = {}) => {
-  let en = 'Tax Invoice'
-  let ar = 'فاتورة ضريبية'
+  let en = ''
+  let ar = ''
   if (documentType === 'purchase_order') {
     en = 'Purchase Order'
     ar = 'طلب شراء'
@@ -38,7 +38,7 @@ export const getCommercialDocumentTitle = (documentType, language = 'en', { uppe
     en = 'Debit Note'
     ar = 'إشعار مدين'
   } else {
-    const kind = resolveZatcaInvoiceKind(invoice)
+    const kind = resolveZatcaInvoiceKind(invoice, { required: true })
     if (kind === 'simplified') {
       en = 'Simplified Tax Invoice'
       ar = 'فاتورة ضريبية مبسطة'
@@ -48,30 +48,71 @@ export const getCommercialDocumentTitle = (documentType, language = 'en', { uppe
     } else if (kind === 'debit_note') {
       en = 'Debit Note'
       ar = 'إشعار مدين'
-    } else {
+    } else if (kind === 'standard') {
       en = 'Tax Invoice'
       ar = 'فاتورة ضريبية'
+    } else {
+      throw new Error(`Unsupported ZATCA invoice kind: ${kind}`)
     }
   }
   const value = language === 'ar' ? ar : en
   return uppercase ? value.toUpperCase() : value
 }
 
-/** ZATCA document kind derived from invoice fields — never hardcode labels at call sites. */
-export function resolveZatcaInvoiceKind(invoice) {
-  if (!invoice) return 'standard'
+/**
+ * ZATCA document kind derived from invoice fields.
+ * @param {{ required?: boolean }} [opts] When required, throws if kind cannot be determined (no silent Tax Invoice default).
+ */
+export function resolveZatcaInvoiceKind(invoice, { required = false } = {}) {
+  if (!invoice) {
+    if (required) throw new Error('Invoice is required to resolve ZATCA document title')
+    return null
+  }
   const docType = String(invoice.invoiceType || '').trim()
   if (docType === '381') return 'credit_note'
   if (docType === '383') return 'debit_note'
+
   const zatcaType = String(invoice?.zatca?.invoiceType || '').toLowerCase()
   if (zatcaType === 'simplified' || zatcaType === 'standard') {
     return zatcaType === 'simplified' ? 'simplified' : 'standard'
   }
+
   const code = String(invoice.invoiceTypeCode || '')
-  if (code.startsWith('02') || String(invoice.transactionType || '').toUpperCase() === 'B2C') {
-    return 'simplified'
+  const txn = String(invoice.transactionType || '').toUpperCase()
+  if (code.startsWith('02') || txn === 'B2C' || txn === 'SIMPLIFIED') return 'simplified'
+  if (code.startsWith('01') || txn === 'B2B' || txn === 'STANDARD') return 'standard'
+
+  // Some UIs store a display label on invoiceType
+  const label = String(invoice.invoiceType || '').toLowerCase()
+  if (label.includes('simplified') || label.includes('b2c') || label.includes('مبسطة')) return 'simplified'
+  if (label.includes('standard') || label.includes('b2b') || label === '388') return 'standard'
+
+  if (required) {
+    throw new Error('Cannot resolve ZATCA invoice kind: set transactionType (B2B/B2C) or invoiceTypeCode (01…/02…)')
   }
-  return 'standard'
+  return null
+}
+
+export function formatPartyAddress(address = {}, { bilingual = false, language = 'en' } = {}) {
+  if (!address || typeof address !== 'object') return ''
+  const en = [
+    address.buildingNumber,
+    address.street,
+    address.district,
+    address.city,
+    address.postalCode,
+    address.country,
+  ].filter(Boolean).join(', ')
+  const ar = [
+    address.buildingNumber,
+    address.streetAr || address.street,
+    address.districtAr || address.district,
+    address.cityAr || address.city,
+    address.postalCode,
+    address.country,
+  ].filter(Boolean).join('، ')
+  if (bilingual && ar && ar !== en) return { en, ar }
+  return language === 'ar' ? (ar || en) : (en || ar)
 }
 
 export function getZatcaDocumentTitle(invoice, language = 'en', documentType = 'invoice') {

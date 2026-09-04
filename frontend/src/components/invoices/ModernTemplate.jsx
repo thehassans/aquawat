@@ -1,5 +1,15 @@
 import React from 'react'
-import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
+import {
+  getCommercialCounterpartyLabel,
+  getCommercialDocumentNumberLabel,
+  getCommercialDocumentTitle,
+  resolveCommercialDocumentNumber,
+  resolveInvoiceParties,
+  shouldShowZatcaQr,
+  formatPartyAddress,
+  getZatcaDocumentTitle,
+  resolveZatcaInvoiceKind,
+} from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { resolveTaxInvoiceQr } from '../../lib/taxInvoiceQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -21,9 +31,12 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
   const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
   const {
     headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, companyNtn, companyStrn,
+    companyAddress, companyPhone,
     counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyNtn, counterpartyStrn,
     counterpartyLabelEn, counterpartyLabelAr, taxLabel, taxIdLabel
   } = parties
+  const sellerAddressText = formatPartyAddress(companyAddress, { language, bilingual: false })
+  const sellerAddressAr = formatPartyAddress(companyAddress, { language: 'ar', bilingual: false })
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -88,6 +101,16 @@ export default function ModernTemplate({ invoice, tenant, language = 'en', bilin
               <h2 className="text-2xl font-bold text-slate-900 tracking-tight">{companyNameEn || headerCompanyName}</h2>
               {bilingual && companyNameAr && <h2 className="text-xl font-bold text-slate-900 mt-1" dir="rtl">{companyNameAr}</h2>}
               <div className="mt-3 text-sm text-slate-500 space-y-1">
+                {sellerAddressText ? (
+                  <p className="flex items-start gap-1.5 max-w-sm">
+                    <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                    <span>{sellerAddressText}</span>
+                  </p>
+                ) : null}
+                {bilingual && sellerAddressAr && sellerAddressAr !== sellerAddressText ? (
+                  <p className="max-w-sm" dir="rtl">{sellerAddressAr}</p>
+                ) : null}
+                {companyPhone ? <p className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" />{companyPhone}</p> : null}
                 {companyNtn ? <p>NTN: <span className="text-slate-900 font-medium">{companyNtn}</span></p> : (companyVat ? <p>{taxIdLabel}: <span className="text-slate-900 font-medium">{companyVat}</span></p> : null)}
                 {companyStrn && <p>STRN: <span className="text-slate-900 font-medium">{companyStrn}</span></p>}
                 {companyCr && <p>CR: <span className="text-slate-900 font-medium">{companyCr}</span></p>}

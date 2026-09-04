@@ -2078,7 +2078,26 @@ export default function Profile() {
                     </div>
                     <div>
                       <label className="label">{language === 'ar' ? 'الرقم الضريبي (VAT)' : 'VAT Number'}</label>
-                      <input {...register('business.vatNumber')} className="input font-mono" placeholder="3XXXXXXXXXX00003" />
+                      <input
+                        {...register('business.vatNumber', {
+                          validate: (v) => {
+                            const raw = String(v || '').trim()
+                            if (!raw) return true
+                            return /^3\d{13}3$/.test(raw)
+                              || (language === 'ar'
+                                ? 'الرقم الضريبي يجب أن يكون 15 رقماً ويبدأ وينتهي بـ 3'
+                                : 'VAT number must be 15 digits and start/end with 3')
+                          },
+                        })}
+                        className={`input font-mono ${errors?.business?.vatNumber ? 'border-rose-400 ring-1 ring-rose-300' : ''}`}
+                        placeholder="3XXXXXXXXXXXXX3"
+                        maxLength={15}
+                      />
+                      {errors?.business?.vatNumber ? (
+                        <p className="mt-1 text-xs text-rose-600">{errors.business.vatNumber.message}</p>
+                      ) : (
+                        <p className="mt-1 text-[11px] text-slate-400">{language === 'ar' ? '١٥ رقماً، يبدأ وينتهي بـ ٣' : '15 digits, starts and ends with 3'}</p>
+                      )}
                     </div>
                     <div>
                       <label className="label">{language === 'ar' ? 'رقم السجل التجاري (CR)' : 'Commercial Reg. (CR)'}</label>
@@ -2115,12 +2134,20 @@ export default function Profile() {
                       <input {...register('business.address.city')} className="input" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'الحي' : 'District'}</label>
+                      <label className="label">{language === 'ar' ? 'الشارع (عربي)' : 'Street (Arabic)'}</label>
+                      <input {...register('business.address.streetAr')} className="input" dir="rtl" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الشارع (إنجليزي)' : 'Street (English)'}</label>
+                      <input {...register('business.address.street')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'الحي (عربي)' : 'District (Arabic)'}</label>
                       <input {...register('business.address.districtAr')} className="input" dir="rtl" />
                     </div>
                     <div>
-                      <label className="label">{language === 'ar' ? 'الشارع' : 'Street'}</label>
-                      <input {...register('business.address.streetAr')} className="input" dir="rtl" />
+                      <label className="label">{language === 'ar' ? 'الحي (إنجليزي)' : 'District (English)'}</label>
+                      <input {...register('business.address.district')} className="input" />
                     </div>
                     <div>
                       <label className="label">{language === 'ar' ? 'رقم المبنى' : 'Building Number'}</label>

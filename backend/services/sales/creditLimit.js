@@ -1,6 +1,7 @@
 import PurchaseOrder from '../../models/PurchaseOrder.js';
 import Partner from '../../models/Partner.js';
 import Invoice from '../../models/Invoice.js';
+import { isValidSaudiVat } from '../../utils/saudiVat.js';
 
 /**
  * Credit exposure = AR balance + uninvoiced confirmed sell orders + this SO total.
@@ -84,8 +85,6 @@ export async function evaluateCustomerCredit({ tenantId, customerId, orderTotal,
 }
 
 /** B2B partners require VAT + CR before invoicing */
-const isValidSaudiVatNumber = (vat) => /^3\d{13}3$/.test(String(vat || '').trim());
-
 export function assertSellerAddressReady(address = {}, { requireVat = false, vatNumber = '' } = {}) {
   const addr = address && typeof address === 'object' ? address : {};
   const missing = [];
@@ -98,7 +97,7 @@ export function assertSellerAddressReady(address = {}, { requireVat = false, vat
   if (requireVat) {
     const vat = String(vatNumber || '').trim();
     if (!vat) missing.push('VAT number');
-    else if (!isValidSaudiVatNumber(vat)) {
+    else if (!isValidSaudiVat(vat)) {
       return {
         ok: false,
         code: 'INVALID_SELLER_VAT',
@@ -119,15 +118,6 @@ export function assertSellerAddressReady(address = {}, { requireVat = false, vat
 }
 
 export function assertB2bInvoiceReady(partnerOrBuyer = {}) {
-  const isCompany = Boolean(
-    partnerOrBuyer.isCompany
-    || partnerOrBuyer.entityType === 'business'
-    || partnerOrBuyer.entityType === 'company'
-    || partnerOrBuyer.type === 'company'
-    || partnerOrBuyer.type === 'business',
-  );
-  if (!isCompany) return { ok: true, isCompany: false };
-
   const name = String(partnerOrBuyer.name || partnerOrBuyer.nameEn || partnerOrBuyer.displayName || '').trim();
   const addr = partnerOrBuyer.address || {};
   const addressLine = typeof partnerOrBuyer.address === 'string'
@@ -140,28 +130,38 @@ export function assertB2bInvoiceReady(partnerOrBuyer = {}) {
   const cr = String(partnerOrBuyer.crNumber || partnerOrBuyer.commercialRegistration?.crNumber || '').trim();
   const missing = [];
   if (!name) missing.push('Customer name');
-  if (!addressLine) missing.push('Address');
   if (!vat) missing.push('VAT number');
   if (!cr) missing.push('CR number');
+  // Address strongly recommended for ZATCA B2B; keep as hard requirement when company-like.
+  const isCompany = Boolean(
+    partnerOrBuyer.isCompany
+    || partnerOrBuyer.entityType === 'business'
+    || partnerOrBuyer.entityType === 'company'
+    || partnerOrBuyer.type === 'company'
+    || partnerOrBuyer.type === 'business'
+    || vat
+    || cr,
+  );
+  if (isCompany && !addressLine) missing.push('Address');
   if (missing.length) {
     return {
       ok: false,
-      isCompany: true,
+      isCompany,
       code: 'B2B_IDENTITY_REQUIRED',
-      error: `B2B tax invoice requires ${missing.join(', ')} before ZATCA clearance`,
+      error: `B2B tax invoice requires ${missing.join(', ')} before posting`,
       missing,
     };
   }
-  if (!isValidSaudiVatNumber(vat)) {
+  if (!isValidSaudiVat(vat)) {
     return {
       ok: false,
-      isCompany: true,
+      isCompany,
       code: 'INVALID_BUYER_VAT',
       error: 'B2B tax invoice requires a valid 15-digit Saudi customer VAT number (starts and ends with 3)',
       missing: ['VAT number'],
     };
   }
-  return { ok: true, isCompany: true };
+  return { ok: true, isCompany };
 }
 
 export async function sumInvoicedQtyForPoLine({ tenantId, sourcePoItemId }) {
