@@ -15,6 +15,7 @@ import {
   getAccountBalances,
   getPartnerBalances,
   assertReceivableConsistency,
+  assertPayableConsistency,
   syncStoredAccountBalances,
   isDebitNature,
   emptyAgingBuckets,
@@ -25,6 +26,7 @@ export {
   getAccountBalances,
   getPartnerBalances,
   assertReceivableConsistency,
+  assertPayableConsistency,
   syncStoredAccountBalances,
 };
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;

@@ -74,6 +74,7 @@ export const SETTINGS_EFFECTS = {
   demandWindowDays: 'replenishment_suggestions_demand_window',
   replenishmentServiceLevel: 'replenishment_suggestions_service_level_z',
   replenishmentReviewDays: 'replenishment_suggestions_review_horizon',
+  threeWayMatch: 'po_grn_bill_match_tolerances_and_status',
 };
 
 const CARRIER_FLAG_TO_PROVIDER = {
