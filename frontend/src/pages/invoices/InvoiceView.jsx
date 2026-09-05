@@ -454,6 +454,16 @@ export default function InvoiceView() {
                 {language === 'ar' ? 'تسجيل دفعة' : (isPurchaseBill ? 'Register payment' : 'Register payment')}
               </button>
             )}
+            {canOpenEditor && String(invoice?.status || '').toLowerCase() === 'draft' ? (
+              <button
+                type="button"
+                onClick={() => navigate(`/app/dashboard/accounting/invoices/${id}/edit`)}
+                className="btn btn-action-dark btn-sm"
+              >
+                <Send className="w-4 h-4" />
+                {language === 'ar' ? 'ترحيل' : 'Post'}
+              </button>
+            ) : null}
             {canOpenEditor && (
               <button type="button" onClick={() => navigate(`/app/dashboard/accounting/invoices/${id}/edit`)} className={ghostActionClass}>
                 <Edit className="w-4 h-4" />

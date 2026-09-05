@@ -223,6 +223,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const purchaseProductColSpan = purchaseLineProductColSpan({ showAccount: showAccountColumn, showAnalytic: showAnalyticColumn })
   const purchaseProductColClass = PURCHASE_PRODUCT_COL_CLASS[purchaseProductColSpan] || PURCHASE_PRODUCT_COL_CLASS[3]
   const { t } = useTranslation(language)
+  const [activeInvoiceId, setActiveInvoiceId] = useState(invoiceId || '')
   const [transactionType, setTransactionType] = useState('B2B')
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const [selectedSupplier, setSelectedSupplier] = useState(() => {
@@ -578,14 +579,15 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   }, [isEdit])
 
   const saveMutation = useMutation({
-    mutationFn: async (payload) => {
+    mutationFn: async ({ payload, id, mode = 'post' }) => {
       const { _pendingAttachment, ...body } = payload
-      const res = isEdit
-        ? await api.put(`/invoices/${invoiceId}`, body)
+      const targetId = id || activeInvoiceId || invoiceId
+      const res = targetId
+        ? await api.put(`/invoices/${targetId}`, body)
         : await api.post('/invoices/purchase', body)
-      const savedId = res.data?._id || invoiceId
+      const savedId = res.data?._id || targetId
       const file = billAttachment || ocrAttachment
-      if (savedId && file) {
+      if (savedId && file && mode !== 'draft') {
         const fd = new FormData()
         fd.append('file', file)
         try {
@@ -593,25 +595,33 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
             headers: { 'Content-Type': 'multipart/form-data' },
           })
         } catch {
-          // Bill is saved; attachment failure is non-blocking but surfaced
           toast.error(language === 'ar' ? 'تم حفظ الفاتورة لكن فشل رفع المرفق' : 'Bill saved but attachment upload failed')
         }
       }
-      return res
+      return { ...res, _mode: mode, _savedId: savedId }
     },
     onSuccess: (res) => {
-      isSubmittedRef.current = true;
+      isSubmittedRef.current = true
       setShowPreviewModal(false)
-      toast.success(isEdit ? (language === 'ar' ? 'تم تحديث فاتورة الشراء بنجاح' : 'Purchase invoice updated successfully') : (language === 'ar' ? 'تم إنشاء فاتورة الشراء بنجاح' : 'Purchase invoice created successfully'))
+      const savedId = res._savedId || res.data?._id || activeInvoiceId || invoiceId
+      if (savedId) setActiveInvoiceId(String(savedId))
       queryClient.invalidateQueries(['invoices'])
       queryClient.invalidateQueries(['vendor-bills'])
-      if (isEdit) {
-        queryClient.invalidateQueries(['invoice', invoiceId])
+      if (savedId) queryClient.invalidateQueries(['invoice', savedId])
+
+      if (res._mode === 'draft') {
+        toast.success(language === 'ar' ? 'تم حفظ المسودة' : 'Draft saved')
+        navigate(isRefundDoc ? '/app/dashboard/accounting/vendor-refunds' : '/app/dashboard/accounting/invoices?tab=purchase')
+        return
       }
+
+      toast.success(
+        language === 'ar' ? 'تم ترحيل فاتورة الشراء بنجاح' : 'Purchase invoice posted successfully',
+      )
       if (res.data?.offline) {
         navigate('/app/dashboard/accounting/invoices?tab=purchase')
       } else {
-        navigate(`/app/dashboard/accounting/invoices/${res.data?._id || invoiceId}`)
+        navigate(`/app/dashboard/accounting/invoices/${savedId}`)
       }
     },
     onError: (error) => {
@@ -624,7 +634,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         )
         return
       }
-      toast.error(data?.error || (isEdit ? 'Failed to update purchase invoice' : 'Failed to create purchase invoice'))
+      toast.error(data?.error || (language === 'ar' ? 'فشل حفظ فاتورة الشراء' : 'Failed to save purchase invoice'))
     },
   })
 
@@ -1006,18 +1016,18 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const [cancelPending, setCancelPending] = useState(false)
   const [resetDraftPending, setResetDraftPending] = useState(false)
 
-  const buildPayload = (data) => {
+  const buildPayload = (data, { asDraft = false } = {}) => {
     const namedLines = (data.lineItems || []).filter((line) => String(line?.productName || '').trim() || toNumber(line?.unitPrice, 0) > 0)
     if (!namedLines.length) {
       toast.error(language === 'ar' ? 'أضف بنداً واحداً على الأقل قبل الحفظ' : 'Add at least one line item before saving')
       return null
     }
     const vendorInvNo = String(data.vendorInvoiceNumber || data.contractNumber || '').trim()
-    if (!vendorInvNo && !isManualRefund && !isVendorRefund(initialInvoice || {})) {
+    if (!asDraft && !vendorInvNo && !isManualRefund && !isVendorRefund(initialInvoice || {})) {
       toast.error(language === 'ar' ? 'رقم فاتورة المورد إلزامي (للتدقيق والزكاة)' : 'Vendor invoice number is required (ZATCA audit)')
       return null
     }
-    if (!isPk) {
+    if (!asDraft && !isPk) {
       const missingTax = namedLines.find((line) => !String(line?.taxCode || '').trim())
       if (missingTax) {
         toast.error(language === 'ar' ? 'رمز الضريبة إلزامي على كل بند' : 'Tax code is required on every bill line')
@@ -1037,7 +1047,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         return null
       }
     }
-    if (!ocrAttachment && !billAttachment && !(initialInvoice?.attachments || []).length && !isEdit && !isManualRefund) {
+    if (!asDraft && !ocrAttachment && !billAttachment && !(initialInvoice?.attachments || []).length && !isEdit && !isManualRefund) {
       toast.error(language === 'ar' ? 'أرفق صورة/PDF فاتورة المورد (مطلوب للتدقيق)' : 'Attach supplier invoice PDF/photo (required for audit)')
       return null
     }
@@ -1174,7 +1184,26 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           iban: data?.bankDetails?.iban || '',
         }
       : { bankName: '', accountName: '', accountNumber: '', iban: '' }
+    delete payload.invoiceNumber
+    if (asDraft) {
+      payload.status = 'draft'
+      delete payload.confirmPost
+    } else {
+      payload.confirmPost = true
+      if (payload.status === 'draft') delete payload.status
+    }
     return payload
+  }
+
+  const persistDraft = () => {
+    if (isBillPosted) return
+    const payload = buildPayload(getValues(), { asDraft: true })
+    if (!payload) return
+    saveMutation.mutate({
+      payload,
+      id: activeInvoiceId || invoiceId || undefined,
+      mode: 'draft',
+    })
   }
 
   const onSubmit = (data) => {
@@ -1182,7 +1211,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       toast.error(language === 'ar' ? 'أصلح أخطاء المطابقة الثلاثية قبل الحفظ' : 'Fix three-way match errors before saving')
       return
     }
-    const payload = buildPayload(data)
+    const payload = buildPayload(data, { asDraft: false })
     if (!payload) return
     setPendingPayload(payload)
     setShowPreviewModal(true)
@@ -1197,11 +1226,15 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       toast.error(language === 'ar' ? 'أصلح أخطاء المطابقة الثلاثية قبل الحفظ' : 'Fix three-way match errors before saving')
       return
     }
-    const payload = pendingPayload || buildPayload(getValues())
+    const payload = pendingPayload || buildPayload(getValues(), { asDraft: false })
     if (!payload) return
     payload.confirmPost = true
     if (payload.status === 'draft') delete payload.status
-    saveMutation.mutate(payload)
+    saveMutation.mutate({
+      payload,
+      id: activeInvoiceId || invoiceId || undefined,
+      mode: 'post',
+    })
   }
 
   const previewInvoice = {
@@ -1225,7 +1258,12 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           iban: values?.bankDetails?.iban || '',
         }
       : { bankName: '', accountName: '', accountNumber: '', iban: '' },
-    invoiceNumber: initialInvoice?.invoiceNumber || 'DRAFT-PREVIEW',
+    invoiceNumber: (() => {
+      const num = String(initialInvoice?.invoiceNumber || '').trim()
+      const status = String(initialInvoice?.status || 'draft').toLowerCase()
+      if (status === 'draft' || !num || /^DR[-_]/i.test(num) || /^DRAFT/i.test(num)) return ''
+      return num
+    })(),
     issueDate: (() => {
       const raw = typeof values?.issueDate === 'string' ? values.issueDate.trim() : ''
       if (raw) {
@@ -1312,6 +1350,15 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const ribbonStep = resolveInvoiceRibbonStep(initialInvoice || { status: 'draft', flow: 'purchase', invoiceType: isRefundDoc ? '381' : '388' })
   const statusSteps = isRefundDoc ? VENDOR_REFUND_STATUS_STEPS : BILL_STATUS_STEPS
   const lineCount = (lineItems || []).filter((line) => line?.productName || line?.productId || Number(line?.unitPrice) > 0).length
+  const draftNumberLabel = language === 'ar' ? 'مسودة' : 'Draft'
+  const shellTitle = (() => {
+    const status = String(initialInvoice?.status || 'draft').toLowerCase()
+    const num = String(initialInvoice?.invoiceNumber || '').trim()
+    if (!isEdit || status === 'draft' || /^DR[-_]/i.test(num) || /^DRAFT/i.test(num)) {
+      return draftNumberLabel
+    }
+    return num || draftNumberLabel
+  })()
 
   const applyOcrToForm = (extracted) => {
     if (!extracted) return
@@ -1350,7 +1397,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           language={language}
           backTo={isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : (isRefundDoc ? '/app/dashboard/accounting/vendor-refunds' : '/app/dashboard/accounting/invoices?tab=purchase')}
           eyebrow={isRefundDoc ? (language === 'ar' ? 'مرتجع مورد' : 'Vendor refund') : (language === 'ar' ? 'فاتورة شراء' : 'Purchase invoice')}
-          title={initialInvoice?.invoiceNumber || (language === 'ar' ? 'مسودة جديدة' : 'New draft')}
+          title={shellTitle}
           subtitle={language === 'ar' ? 'منشئ المستند' : 'Document builder'}
           statusSteps={statusSteps}
           activeStatusStep={ribbonStep}
@@ -1364,18 +1411,29 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
           actionBar={(
             <>
               {!isBillPosted ? (
-                <button
-                  type="button"
-                  className={ghostActionClass}
-                  onClick={() => {
-                    const form = document.getElementById('invoice-purchase-form')
-                    form?.requestSubmit()
-                  }}
-                  disabled={saveMutation.isPending}
-                >
-                  <Eye className="h-3.5 w-3.5" />
-                  {language === 'ar' ? 'معاينة' : 'Preview'}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className={ghostActionClass}
+                    onClick={persistDraft}
+                    disabled={saveMutation.isPending}
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    {language === 'ar' ? 'حفظ مسودة' : 'Save draft'}
+                  </button>
+                  <button
+                    type="button"
+                    className={ghostActionClass}
+                    onClick={() => {
+                      const form = document.getElementById('invoice-purchase-form')
+                      form?.requestSubmit()
+                    }}
+                    disabled={saveMutation.isPending}
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    {language === 'ar' ? 'معاينة' : 'Preview'}
+                  </button>
+                </div>
               ) : null}
               {isEdit && canResetInvoiceToDraft(initialInvoice, tenant?.zatca?.phase || 2) ? (
                 <button
@@ -2742,14 +2800,16 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         isOpen={showPreviewModal}
         onClose={() => setShowPreviewModal(false)}
         onConfirm={handleConfirmSave}
+        onSaveDraft={persistDraft}
         isPending={saveMutation.isPending}
+        isDraftPending={saveMutation.isPending}
         document={previewInvoice}
         tenant={tenant}
         language={language}
         documentType="purchase_invoice"
         templateId={selectedTemplateId}
         title={language === 'ar' ? 'معاينة فاتورة الشراء قبل الحفظ' : 'Purchase Invoice Live Preview'}
-        confirmLabel={language === 'ar' ? 'تأكيد / ترحيل' : 'Confirm / Post'}
+        confirmLabel={language === 'ar' ? 'تأكيد وترحيل' : 'Confirm & Post'}
       />
       <CancelInvoiceModal
         isOpen={cancelOpen}

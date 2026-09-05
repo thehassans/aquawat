@@ -935,7 +935,7 @@ function resolveInitialSellInvoiceStatus(requestedStatus, tenant) {
   return 'pending';
 }
 
-/** Draft placeholders (DR-*) must not consume the official INV- sequence. */
+/** Draft placeholders (DR-*) must not consume official INV/BILL/VR sequences. */
 function isPlaceholderSellInvoiceNumber(invoiceNumber) {
   const n = String(invoiceNumber || '').trim();
   if (!n) return true;
@@ -975,6 +975,18 @@ async function allocateSellDraftNumber(tenantId) {
 async function allocateSellInvoiceNumber(tenantId) {
   const year = new Date().getFullYear();
   return allocateSellSeriesNumber(tenantId, { prefix: `INV-${year}-` });
+}
+
+async function allocatePurchaseDraftNumber(tenantId, invoiceType = '388') {
+  const year = new Date().getFullYear();
+  const prefix = String(invoiceType) === '381' ? `DR-VR-${year}-` : `DR-BILL-${year}-`;
+  return allocateSellSeriesNumber(tenantId, { prefix });
+}
+
+async function allocatePurchaseInvoiceNumber(tenantId, invoiceType = '388') {
+  const year = new Date().getFullYear();
+  const prefix = String(invoiceType) === '381' ? `VR-${year}-` : `BILL-${year}-`;
+  return allocateSellSeriesNumber(tenantId, { prefix });
 }
 
 async function attachDraftQr(invoice, seller, tenant) {
@@ -2915,24 +2927,16 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
     }
 
     const invoiceType = String(req.body.invoiceType || '388') === '381' ? '381' : '388';
-    const year = new Date().getFullYear();
-    const seriesPrefix = invoiceType === '381' ? `VR-${year}-` : `BILL-${year}-`;
-    const lastInSeries = await Invoice.findOne({
-      tenantId: req.user.tenantId,
-      invoiceNumber: new RegExp(`^${seriesPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
-    })
-      .sort({ createdAt: -1 })
-      .select('invoiceNumber')
-      .lean();
-    const lastSeq = lastInSeries?.invoiceNumber
-      ? (parseInt(String(lastInSeries.invoiceNumber).split('-').pop(), 10) || 0)
-      : 0;
-    const invoiceNumber = `${seriesPrefix}${String(lastSeq + 1).padStart(6, '0')}`;
+    const createAsDraft = normalizeText(req.body?.status).toLowerCase() === 'draft'
+      && !Boolean(req.body?.confirmPost);
+    const invoiceNumber = createAsDraft
+      ? await allocatePurchaseDraftNumber(req.user.tenantId, invoiceType)
+      : await allocatePurchaseInvoiceNumber(req.user.tenantId, invoiceType);
 
     const vendorInvoiceNumber = String(
       req.body.vendorInvoiceNumber || req.body.contractNumber || '',
     ).trim();
-    if (invoiceType === '388' && !vendorInvoiceNumber) {
+    if (invoiceType === '388' && !vendorInvoiceNumber && !createAsDraft) {
       return res.status(400).json({
         error: 'Vendor invoice number is required (supplier document number for ZATCA audit)',
         code: 'VENDOR_INVOICE_NUMBER_REQUIRED',
@@ -3028,9 +3032,13 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
     ensureInvoiceDueDate(invoiceData);
 
     if (invoiceData.flow === 'purchase') {
-      invoiceData.status = ['approved', 'pending', 'sent'].includes(String(invoiceData.status || '').toLowerCase())
-        ? invoiceData.status
-        : 'approved';
+      if (createAsDraft) {
+        invoiceData.status = 'draft';
+      } else {
+        invoiceData.status = ['approved', 'pending', 'sent'].includes(String(invoiceData.status || '').toLowerCase())
+          ? invoiceData.status
+          : 'approved';
+      }
     }
 
     resolvePaymentStatus(invoiceData);
@@ -3098,7 +3106,9 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
     }
 
     try {
-      await postPurchaseInvoiceLedgers(invoice, req, tenant);
+      if (!createAsDraft) {
+        await postPurchaseInvoiceLedgers(invoice, req, tenant);
+      }
     } catch (jErr) {
       console.error('[invoice] purchase stock journal', jErr?.message || jErr);
     }
@@ -3331,6 +3341,31 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
           });
         }
         throw gateErr;
+      }
+    }
+
+    if (invoice.flow === 'purchase') {
+      const wantsPost = confirmPost
+        || (req.body.status && String(req.body.status).toLowerCase() !== 'draft');
+      if (wantsPost && String(invoice.status) === 'draft') {
+        const vendorNo = String(invoice.vendorInvoiceNumber || invoice.contractNumber || '').trim();
+        if (String(invoice.invoiceType || '388') === '388' && !vendorNo) {
+          return res.status(400).json({
+            error: 'Vendor invoice number is required (supplier document number for ZATCA audit)',
+            code: 'VENDOR_INVOICE_NUMBER_REQUIRED',
+          });
+        }
+        invoice.status = ['approved', 'pending', 'sent'].includes(String(req.body.status || '').toLowerCase())
+          ? req.body.status
+          : 'approved';
+        if (isPlaceholderSellInvoiceNumber(invoice.invoiceNumber)) {
+          invoice.invoiceNumber = await allocatePurchaseInvoiceNumber(
+            req.user.tenantId,
+            invoice.invoiceType || '388',
+          );
+        }
+      } else if (!wantsPost && req.body.status != null) {
+        invoice.status = 'draft';
       }
     }
 
