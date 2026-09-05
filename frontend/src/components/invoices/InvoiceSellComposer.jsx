@@ -3664,4 +3664,3 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   )
 }
 
-                        
