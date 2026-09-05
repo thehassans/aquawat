@@ -1,4 +1,4 @@
-import InvoicePurchaseComposer from '../../components/invoices/InvoicePurchaseComposer'
+import InvoicePurchaseComposer from '../../../components/invoices/InvoicePurchaseComposer'
 
 /** Vendors → Refunds → New refund (requires original bill). */
 export default function VendorRefundCreatePage() {
