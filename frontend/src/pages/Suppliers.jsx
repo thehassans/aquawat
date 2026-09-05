@@ -71,6 +71,13 @@ export default function Suppliers() {
             <Contact className="h-3.5 w-3.5" />
             {language === 'ar' ? 'عرض الشركاء الموحّد' : 'Open unified Partners hub'}
           </Link>
+          <Link
+            to="/app/dashboard/accounting/vendors"
+            className="mt-1 ms-0 inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700 hover:text-teal-900 dark:text-teal-400"
+          >
+            <Wallet className="h-3.5 w-3.5" />
+            {language === 'ar' ? 'دليل الموردين مع الذمم الدائنة' : 'Vendor directory with live payables'}
+          </Link>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExportMenu

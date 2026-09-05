@@ -62,6 +62,12 @@ export const PURCHASES_MENU = [
     labelAr: 'الموردون',
     children: [
       {
+        id: 'vendors-ap',
+        label: 'Vendor directory (AP)',
+        labelAr: 'دليل الموردين (دائن)',
+        href: '/app/dashboard/accounting/vendors',
+      },
+      {
         id: 'suppliers',
         label: 'Suppliers & POs',
         labelAr: 'الموردون وطلباتهم',
