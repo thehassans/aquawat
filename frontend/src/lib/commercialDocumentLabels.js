@@ -1,4 +1,5 @@
 import { getTaxIdLabel } from './saudiTenant.js'
+import { normalizeSaudiVatDigits } from './saudiVat.js'
 
 export const isPurchaseOrderDocument = (documentType) => documentType === 'purchase_order'
 export const isVendorBillDocument = (documentType) => documentType === 'vendor_bill'
@@ -169,7 +170,7 @@ export const getCounterpartyFallbackName = (documentType, language = 'en', flow 
   return language === 'ar' ? 'عميل نقدي' : 'Cash Customer'
 }
 
-export const resolveCommercialDocumentNumber = (invoice, documentType) => {
+export const resolveCommercialDocumentNumber = (invoice, documentType, language = 'en') => {
   if (documentType === 'purchase_order') {
     return invoice?.poNumber || invoice?.invoiceNumber || 'PO-DRAFT'
   }
@@ -179,7 +180,26 @@ export const resolveCommercialDocumentNumber = (invoice, documentType) => {
   if (documentType === 'sales_order') {
     return invoice?.poNumber || invoice?.invoiceNumber || 'SO-DRAFT'
   }
-  return invoice?.quotationNumber || invoice?.invoiceNumber || 'DRAFT-PREVIEW'
+  const status = String(invoice?.status || '').toLowerCase()
+  const num = String(invoice?.quotationNumber || invoice?.invoiceNumber || '').trim()
+  const isDraftPlaceholder = !num
+    || /^DR[-_]/i.test(num)
+    || /^DRAFT/i.test(num)
+    || num === 'DRAFT-PREVIEW'
+  if (status === 'draft' || isDraftPlaceholder) {
+    return language === 'ar' ? 'مسودة' : 'Draft'
+  }
+  return num
+}
+
+/** List / badge label: drafts show "Draft", posted show real number. */
+export const resolveInvoiceListNumber = (invoice, language = 'en') => {
+  const status = String(invoice?.status || '').toLowerCase()
+  const num = String(invoice?.invoiceNumber || '').trim()
+  if (status === 'draft' || !num || /^DR[-_]/i.test(num) || /^DRAFT/i.test(num)) {
+    return { label: language === 'ar' ? 'مسودة' : 'Draft', isDraft: true, raw: num }
+  }
+  return { label: num, isDraft: false, raw: num }
 }
 
 const hasArabicText = (value = '') => /[\u0600-\u06FF]/.test(String(value || ''))
@@ -232,10 +252,15 @@ export const resolveInvoiceParties = ({ invoice, tenant, invoiceBranding = {}, l
     cur === 'QAR' ? (tenant?.gtaQatar?.crNumber || '') : ''
   )
 
+  // Prefer live tenant VAT for sell so header chip and PDF/preview always match (15 digits).
   const rawCompanyVat = isPurchaseFlow
     ? (tenant?.business?.vatNumber || '')
-    : (invoice?.seller?.vatNumber || countryTaxId || tenant?.business?.vatNumber || '')
-  const companyVat = isDummyVat(rawCompanyVat) ? '' : String(rawCompanyVat).trim()
+    : (tenant?.business?.vatNumber || invoice?.seller?.vatNumber || countryTaxId || '')
+  const companyVat = (() => {
+    if (isDummyVat(rawCompanyVat)) return ''
+    const digits = normalizeSaudiVatDigits(rawCompanyVat)
+    return digits || String(rawCompanyVat).trim()
+  })()
 
   const rawCompanyCr = isPurchaseFlow
     ? (tenant?.business?.crNumber || '')

@@ -405,6 +405,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const typeOverrideRef = useRef(null)
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const isEdit = Boolean(invoiceId)
+  const [activeInvoiceId, setActiveInvoiceId] = useState(() => invoiceId || '')
+  const [autoSaveState, setAutoSaveState] = useState('idle') // idle | saving | saved | error
+  const [lastSavedAt, setLastSavedAt] = useState(() => (
+    initialInvoice?.updatedAt ? new Date(initialInvoice.updatedAt) : null
+  ))
+  const autoSaveInFlightRef = useRef(false)
+  const dirtySinceSaveRef = useRef(false)
+
   const [selectedCustomer, setSelectedCustomer] = useState(() => {
     const c = initialInvoice?.customerId
     return c && typeof c === 'object' ? c : null
@@ -485,7 +493,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     return tenantBusinessTypes.find((type) => selectableContexts.includes(type)) || 'trading'
   }, [tenant, tenantBusinessTypes])
 
-  const { register, control, handleSubmit, watch, setValue, getValues, reset, clearErrors, formState: { errors } } = useForm({
+  const { register, control, handleSubmit, watch, setValue, getValues, reset, clearErrors, formState: { errors, isDirty } } = useForm({
     defaultValues: buildSellInvoiceFormValues({
       invoice: initialInvoice || (isProformaCreate ? { invoiceSubtype: 'proforma' } : null),
       tenant,
@@ -493,6 +501,20 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       hasTravel: tenantBusinessTypes.includes('travel_agency'),
     })
   })
+
+  useEffect(() => {
+    if (invoiceId) setActiveInvoiceId(invoiceId)
+  }, [invoiceId])
+
+  useEffect(() => {
+    if (isDirty) dirtySinceSaveRef.current = true
+  }, [isDirty])
+
+  useEffect(() => {
+    if (initialInvoice?.updatedAt) {
+      setLastSavedAt(new Date(initialInvoice.updatedAt))
+    }
+  }, [initialInvoice?.updatedAt, initialInvoice?._id])
 
   useEffect(() => {
     if (invoiceId || !salesSettings) return
@@ -1027,6 +1049,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const transactionTypeDirty = isEdit && invoiceType !== originalTransactionType
 
   const saveTransactionTypeOnly = () => {
+    if (isInvoicePosted) {
+      toast.error(
+        language === 'ar'
+          ? 'فاتورة مرحّلة — النوع مقفل. أعدها إلى مسودة لتغيير النوع ثم رحّلها مجدداً.'
+          : 'Posted invoice — document type is locked. Reset to draft to change type, then post again.',
+      )
+      return
+    }
     if (invoiceType === 'B2B' && invoiceSubtype !== 'travel_ticket') {
       const buyerErrs = {}
       if (!String(getValues('buyer.name') || '').trim()) buyerErrs.name = { type: 'required' }
@@ -1047,17 +1077,21 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       )
     }
     saveMutation.mutate({
-      transactionType: invoiceType,
-      invoiceTypeCode: invoiceType === 'B2C' ? '0200000' : '0100000',
-      zatca: {
-        invoiceType: zatcaInvoiceKindForTransaction(invoiceType),
+      payload: {
+        transactionType: invoiceType,
+        invoiceTypeCode: invoiceType === 'B2C' ? '0200000' : '0100000',
+        zatca: {
+          invoiceType: zatcaInvoiceKindForTransaction(invoiceType),
+        },
+        buyer: getValues('buyer'),
+        customerId: getValues('customerId') || undefined,
+        transactionTypeOverridden: Boolean(typeOverrideRef.current),
+        transactionTypeOverrideReason: typeOverrideRef.current?.reason || undefined,
+        transactionTypeOverrideFrom: typeOverrideRef.current?.from || undefined,
+        transactionTypeOverrideTo: typeOverrideRef.current?.to || undefined,
       },
-      buyer: getValues('buyer'),
-      customerId: getValues('customerId') || undefined,
-      transactionTypeOverridden: Boolean(typeOverrideRef.current),
-      transactionTypeOverrideReason: typeOverrideRef.current?.reason || undefined,
-      transactionTypeOverrideFrom: typeOverrideRef.current?.from || undefined,
-      transactionTypeOverrideTo: typeOverrideRef.current?.to || undefined,
+      id: activeInvoiceId || invoiceId,
+      mode: 'type',
     })
   }
 
@@ -1434,51 +1468,27 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     latestValues.current = values
   }, [values])
 
-  useEffect(() => {
-    return () => {
-      if (!isEdit && !isSubmittedRef.current) {
-        const data = latestValues.current
-        const hasData = data.buyer?.name || data.restaurantOrderId || data.travelBookingId || data.manpowerAssignmentId || (data.lineItems && data.lineItems.some(l => l.productName || l.unitPrice > 0))
-        if (hasData) {
-          const payload = {
-            ...data,
-            flow: 'sell',
-            businessContext: data.businessContext || 'trading',
-            invoiceSubtype: data.invoiceSubtype || 'standard',
-            pdfTemplateId: Number(data.pdfTemplateId) || 1,
-            transactionType: data.transactionType || 'B2B',
-            invoiceTypeCode: data.transactionType === 'B2C' ? '0200000' : '0100000',
-            issueDate: new Date(),
-            status: 'draft',
-            lineItems: (data.lineItems || []).map((line, index) => ({
-              ...line,
-              lineNumber: index + 1,
-              taxCategory: 'S',
-            }))
-          }
-          api.post('/invoices/sell', payload).catch(() => {})
-        }
-      }
-    }
-  }, [isEdit])
+  // Abandon auto-save replaced by periodic draft auto-save (see below)
 
   const saveMutation = useMutation({
-    mutationFn: (data) => isEdit
-      ? api.put(`/invoices/${invoiceId}`, data, { timeout: 120000 })
-      : api.post('/invoices/sell', data, { timeout: 120000 }),
-    onSuccess: (res) => {
-      isSubmittedRef.current = true;
+    mutationFn: ({ payload, id }) => {
+      const targetId = id || activeInvoiceId
+      return targetId
+        ? api.put(`/invoices/${targetId}`, payload, { timeout: 120000 })
+        : api.post('/invoices/sell', payload, { timeout: 120000 })
+    },
+    onSuccess: (res, variables) => {
+      isSubmittedRef.current = true
       setShowPreviewModal(false)
-      toast.success(
-        isEdit
-          ? (language === 'ar' ? 'تم تحديث فاتورة البيع بنجاح' : 'Sell invoice updated successfully')
-          : (language === 'ar' ? 'تم إنشاء فاتورة البيع بنجاح' : 'Sell invoice created successfully')
-      )
+      const savedId = res.data?._id || variables?.id || activeInvoiceId
+      if (savedId) setActiveInvoiceId(String(savedId))
+      dirtySinceSaveRef.current = false
+      setLastSavedAt(new Date())
+      setAutoSaveState('saved')
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
-      if (isEdit) {
-        queryClient.invalidateQueries({ queryKey: ['invoice', invoiceId] })
+      if (savedId) {
+        queryClient.invalidateQueries({ queryKey: ['invoice', savedId] })
       }
-      // Defer non-critical caches so navigation to the invoice feels instant
       window.setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['dashboard'] })
         if (isTravelContext) {
@@ -1489,13 +1499,62 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           queryClient.invalidateQueries({ queryKey: ['manpower-assignments-lookup'] })
         }
       }, 0)
+
+      const mode = variables?.mode || 'post'
+      if (mode === 'draft') {
+        toast.success(language === 'ar' ? 'تم حفظ المسودة' : 'Draft saved')
+        navigate('/app/dashboard/accounting/invoices')
+        return
+      }
+      toast.success(
+        language === 'ar' ? 'تم ترحيل فاتورة البيع بنجاح' : 'Sell invoice posted successfully'
+      )
       if (res.data?.offline) {
         navigate('/app/dashboard/accounting/invoices')
       } else {
-        navigate(`/app/dashboard/accounting/invoices/${res.data?._id || invoiceId}`)
+        navigate(`/app/dashboard/accounting/invoices/${savedId}`)
       }
     },
     onError: (error) => toast.error(formatInvError(error, language) || (isEdit ? 'Failed to update invoice' : 'Failed to create invoice')),
+  })
+
+  const draftMutation = useMutation({
+    mutationFn: ({ payload, id }) => {
+      const targetId = id || activeInvoiceId
+      return targetId
+        ? api.put(`/invoices/${targetId}`, payload, { timeout: 120000 })
+        : api.post('/invoices/sell', payload, { timeout: 120000 })
+    },
+    onSuccess: (res, variables) => {
+      const savedId = String(res.data?._id || variables?.id || activeInvoiceId || '')
+      if (savedId) setActiveInvoiceId(savedId)
+      dirtySinceSaveRef.current = false
+      setLastSavedAt(new Date())
+      setAutoSaveState('saved')
+      isSubmittedRef.current = true
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      if (savedId) queryClient.invalidateQueries({ queryKey: ['invoice', savedId] })
+
+      if (variables?.silent) {
+        if (!invoiceId && savedId) {
+          navigate(`/app/dashboard/accounting/invoices/${savedId}/edit`, { replace: true })
+        }
+        return
+      }
+
+      setShowPreviewModal(false)
+      toast.success(language === 'ar' ? 'تم حفظ المسودة' : 'Draft saved')
+      navigate('/app/dashboard/accounting/invoices')
+    },
+    onError: (error, variables) => {
+      setAutoSaveState('error')
+      if (!variables?.silent) {
+        toast.error(formatInvError(error, language) || (language === 'ar' ? 'فشل حفظ المسودة' : 'Failed to save draft'))
+      }
+    },
+    onSettled: () => {
+      autoSaveInFlightRef.current = false
+    },
   })
 
   const onSelectProduct = (index, productId) => {
@@ -1766,13 +1825,27 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     }, 60)
   }
 
-  const buildPayload = (data) => {
+  const buildPayload = (data, { asDraft = false, requireLines = !asDraft, silent = false } = {}) => {
     const namedLines = (data.lineItems || []).filter((line) => String(line?.productName || '').trim())
-    if (!namedLines.length) {
-      toast.error(language === 'ar' ? 'أضف بنداً واحداً على الأقل قبل الحفظ' : 'Add at least one billing line before saving')
+    if (requireLines && !namedLines.length) {
+      if (!silent) {
+        toast.error(language === 'ar' ? 'أضف بنداً واحداً على الأقل قبل الحفظ' : 'Add at least one billing line before saving')
+      }
       return null
     }
-    const namedTotals = calculateInvoiceSummary({ lineItems: namedLines, invoiceDiscount: Math.max(0, toNumber(data?.invoiceDiscount, 0)) })
+    if (asDraft && !namedLines.length) {
+      const hasContent = Boolean(
+        data.customerId
+        || String(data.buyer?.name || '').trim()
+        || data.restaurantOrderId
+        || data.travelBookingId
+        || data.manpowerAssignmentId
+        || (data.lineItems || []).some((l) => sellLineHasContent(l))
+      )
+      if (!hasContent) return null
+    }
+    const linesForTotals = namedLines.length ? namedLines : []
+    const namedTotals = calculateInvoiceSummary({ lineItems: linesForTotals, invoiceDiscount: Math.max(0, toNumber(data?.invoiceDiscount, 0)) })
     const transactionType = invoiceType
     const invoiceTypeCode = invoiceTypeCodeForTransaction(transactionType)
     const buyerPayload = { ...(data.buyer || {}) }
@@ -1829,7 +1902,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       printFormat: data?.printFormat === 'thermal' ? 'thermal' : 'a4',
       paymentTerms: data?.paymentTerms || 'immediate',
       paymentMethod: data?.paymentMethod || 'cash',
-      lineItems: namedLines.map((line, index) => {
+      lineItems: linesForTotals.map((line, index) => {
         const summaryLine = namedTotals.lines[index] || {}
         const agencyPrice = Math.max(0, toNumber(line.agencyPrice, 0))
         const isTravelMargin = isTravelContext ? true : Boolean(line.isTravelMargin)
@@ -1968,14 +2041,37 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     payload.termsAndConditionsAr = showTermsPanel ? (data?.termsAndConditionsAr || '') : ''
     payload.notes = showNotesPanel ? (data?.notes || '') : ''
     payload.notesAr = showNotesPanel ? (data?.notesAr || '') : ''
-    // Confirm / Post — lift draft and run server pre-post gate
-    payload.confirmPost = true
-    if (payload.status === 'draft') delete payload.status
+    // Never let the client allocate / override official numbers
+    delete payload.invoiceNumber
+    if (asDraft) {
+      payload.status = 'draft'
+      delete payload.confirmPost
+    } else {
+      payload.confirmPost = true
+      if (payload.status === 'draft') delete payload.status
+    }
     return payload
   }
 
+  const persistDraft = ({ navigateAway = true, silent = false } = {}) => {
+    if (isInvoicePosted) return
+    const payload = buildPayload(getValues(), { asDraft: true, requireLines: false, silent })
+    if (!payload) return
+    if (silent) {
+      if (autoSaveInFlightRef.current || draftMutation.isPending || saveMutation.isPending) return
+      autoSaveInFlightRef.current = true
+      setAutoSaveState('saving')
+    }
+    draftMutation.mutate({
+      payload,
+      id: activeInvoiceId || undefined,
+      silent,
+      navigateAway,
+    })
+  }
+
   const onSubmit = (data) => {
-    const payload = buildPayload(data)
+    const payload = buildPayload(data, { asDraft: false })
     if (!payload) return
     setPendingPayload(payload)
     setPreviewConfirmAttempted(false)
@@ -1987,12 +2083,28 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       setPreviewConfirmAttempted(true)
       return
     }
-    const payload = pendingPayload || buildPayload(getValues())
+    const payload = pendingPayload || buildPayload(getValues(), { asDraft: false })
     if (!payload) return
     payload.confirmPost = true
     if (payload.status === 'draft') delete payload.status
-    saveMutation.mutate(payload)
+    saveMutation.mutate({ payload, id: activeInvoiceId || undefined, mode: 'post' })
   }
+
+  const handleSaveDraft = () => {
+    persistDraft({ navigateAway: true, silent: false })
+  }
+
+  // Periodic draft auto-save (25s after changes). Posted invoices never auto-save.
+  useEffect(() => {
+    if (isInvoicePosted) return undefined
+    if (!dirtySinceSaveRef.current && !isDirty) return undefined
+    const timer = window.setTimeout(() => {
+      if (isInvoicePosted || autoSaveInFlightRef.current) return
+      if (!dirtySinceSaveRef.current && !isDirty) return
+      persistDraft({ navigateAway: false, silent: true })
+    }, 25000)
+    return () => window.clearTimeout(timer)
+  }, [isDirty, values, isInvoicePosted, activeInvoiceId])
 
   const previewInvoice = {
     ...values,
@@ -2018,7 +2130,13 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     notesAr: showNotesPanel ? (values?.notesAr || '') : '',
     termsAndConditions: showTermsPanel ? (values?.termsAndConditions || '') : '',
     termsAndConditionsAr: showTermsPanel ? (values?.termsAndConditionsAr || '') : '',
-    invoiceNumber: initialInvoice?.invoiceNumber || 'DRAFT-PREVIEW',
+    status: initialInvoice?.status || 'draft',
+    invoiceNumber: (() => {
+      const num = String(initialInvoice?.invoiceNumber || '').trim()
+      const status = String(initialInvoice?.status || 'draft').toLowerCase()
+      if (status === 'draft' || !num || /^DR[-_]/i.test(num) || /^DRAFT/i.test(num)) return ''
+      return num
+    })(),
     issueDate: (() => {
       const raw = typeof values?.issueDate === 'string' ? values.issueDate.trim() : ''
       if (raw) {
@@ -2065,7 +2183,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     seller: {
       name: tenant?.business?.legalNameEn || initialInvoice?.seller?.name || '',
       nameAr: tenant?.business?.legalNameAr || initialInvoice?.seller?.nameAr || '',
-      vatNumber: tenant?.business?.vatNumber || initialInvoice?.seller?.vatNumber || '',
+      vatNumber: (() => {
+        const raw = tenant?.business?.vatNumber || initialInvoice?.seller?.vatNumber || ''
+        return normalizeSaudiVatDigits(raw) || String(raw).trim()
+      })(),
       crNumber: tenant?.business?.crNumber || tenant?.business?.commercialRegistration?.crNumber || initialInvoice?.seller?.crNumber || '',
       address: (() => {
         const business = tenant?.business || {}
@@ -2128,11 +2249,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
     }`
 
+  const companyVatForDisplay = (() => {
+    const raw = tenant?.business?.vatNumber || tenant?.fbr?.ntn || tenant?.business?.ntn || ''
+    if (isPk) return String(raw).trim()
+    return normalizeSaudiVatDigits(raw) || String(raw).trim()
+  })()
   const sellerLine = [
     tenant?.business?.legalNameEn || tenant?.name,
-    tenant?.business?.vatNumber || tenant?.fbr?.ntn || tenant?.business?.ntn
-      ? `${isPk ? 'NTN' : 'VAT'} ${tenant?.business?.vatNumber || tenant?.fbr?.ntn || tenant?.business?.ntn}`
-      : null,
+    companyVatForDisplay ? `${isPk ? 'NTN' : 'VAT'} ${companyVatForDisplay}` : null,
     tenant?.business?.crNumber ? `CR ${tenant.business.crNumber}` : null,
   ].filter(Boolean).join(' · ')
 
@@ -2140,6 +2264,25 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const ribbonStep = resolveInvoiceRibbonStep(initialInvoice || { status: 'draft' })
   const statusSteps = isCreditNoteDoc ? CREDIT_NOTE_STATUS_STEPS : INVOICE_STATUS_STEPS
   const lineCount = (lineItems || []).filter(sellLineHasContent).length
+  const draftNumberLabel = language === 'ar' ? 'مسودة' : 'Draft'
+  const shellTitle = (() => {
+    const status = String(initialInvoice?.status || 'draft').toLowerCase()
+    const num = String(initialInvoice?.invoiceNumber || '').trim()
+    if (!isEdit || status === 'draft' || /^DR[-_]/i.test(num) || /^DRAFT/i.test(num)) {
+      return draftNumberLabel
+    }
+    return num || draftNumberLabel
+  })()
+  const savedAgoLabel = (() => {
+    if (autoSaveState === 'saving' || draftMutation.isPending) {
+      return language === 'ar' ? 'جارٍ الحفظ…' : 'Saving...'
+    }
+    if (!lastSavedAt) return null
+    const mins = Math.max(0, Math.round((Date.now() - lastSavedAt.getTime()) / 60000))
+    if (mins <= 0) return language === 'ar' ? 'تم الحفظ للتو' : 'Saved just now'
+    if (mins === 1) return language === 'ar' ? 'حُفظت قبل دقيقة' : 'Saved 1 min ago'
+    return language === 'ar' ? `حُفظت قبل ${mins} دقائق` : `Saved ${mins} min ago`
+  })()
 
   return (
     <div className="space-y-4">
@@ -2148,8 +2291,12 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           language={language}
           backTo={isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : '/app/dashboard/accounting/invoices'}
           eyebrow={isCreditNoteDoc ? (language === 'ar' ? 'إشعار دائن' : 'Credit note') : (language === 'ar' ? 'فاتورة مبيعات' : 'Customer invoice')}
-          title={initialInvoice?.invoiceNumber || (language === 'ar' ? 'مسودة جديدة' : 'New draft')}
-          subtitle={language === 'ar' ? 'منشئ المستند' : 'Document builder'}
+          title={shellTitle}
+          subtitle={
+            !isInvoicePosted && savedAgoLabel
+              ? savedAgoLabel
+              : (language === 'ar' ? 'منشئ المستند' : 'Document builder')
+          }
           statusSteps={statusSteps}
           activeStatusStep={ribbonStep}
           tabs={[
@@ -2174,29 +2321,26 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   />
                   <button
                     type="button"
+                    className={ghostActionClass}
+                    onClick={handleSaveDraft}
+                    disabled={saveMutation.isPending || draftMutation.isPending}
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    {language === 'ar' ? 'حفظ مسودة' : 'Save draft'}
+                  </button>
+                  <button
+                    type="button"
                     className={primaryActionClass}
                     onClick={() => {
                       const form = document.getElementById('invoice-sell-form')
                       form?.requestSubmit()
                     }}
-                    disabled={saveMutation.isPending}
+                    disabled={saveMutation.isPending || draftMutation.isPending}
                   >
-                    <Save className="h-3.5 w-3.5" />
-                    {prePostHasWarnings && prePostCanPost
-                      ? (language === 'ar' ? 'ترحيل على أي حال' : 'Post anyway')
-                      : (language === 'ar' ? 'تأكيد / ترحيل' : 'Confirm / Post')}
+                    <Eye className="h-3.5 w-3.5" />
+                    {language === 'ar' ? 'معاينة' : 'Preview'}
                   </button>
                 </div>
-              ) : transactionTypeDirty ? (
-                <button
-                  type="button"
-                  className={primaryActionClass}
-                  onClick={saveTransactionTypeOnly}
-                  disabled={saveMutation.isPending}
-                >
-                  <Save className="h-3.5 w-3.5" />
-                  {language === 'ar' ? 'حفظ نوع الفاتورة' : 'Save document type'}
-                </button>
               ) : null}
               {isInvoicePosted && canRegisterPaymentOnInvoice(initialInvoice) ? (
                 <button
@@ -2324,8 +2468,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           {isInvoicePosted ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
               {language === 'ar'
-                ? 'فاتورة مرحّلة — البنود مقفلة؛ يمكنك تغيير نوع الفاتورة (مع سبب) ثم الحفظ.'
-                : 'Posted invoice — lines are locked; you can change document type and save.'}
+                ? 'فاتورة مرحّلة — مقفلة. للتصحيح أنشئ إشعار دائن أو أعدها إلى مسودة.'
+                : 'Posted invoice — locked. For corrections, create a credit note or reset to draft.'}
             </div>
           ) : null}
           <div className={`${sectionCardClass} !p-3 space-y-2`}>
@@ -2451,7 +2595,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 <button
                   type="button"
                   onClick={toggleTransactionType}
-                  className="ms-auto text-xs font-medium text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline dark:text-slate-400 dark:hover:text-slate-200"
+                  disabled={isInvoicePosted}
+                  className="ms-auto text-xs font-medium text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-40 dark:text-slate-400 dark:hover:text-slate-200"
                 >
                   {language === 'ar' ? 'تغيير النوع' : 'Change type'}
                 </button>
@@ -3621,7 +3766,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           setPreviewConfirmAttempted(false)
         }}
         onConfirm={handleConfirmSave}
+        onSaveDraft={() => persistDraft({ navigateAway: true, silent: false })}
         isPending={saveMutation.isPending}
+        isDraftPending={draftMutation.isPending}
         document={previewInvoice}
         tenant={tenant}
         language={language}
@@ -3635,7 +3782,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         confirmLabel={
           prePostHasWarnings && prePostCanPost
             ? (language === 'ar' ? 'ترحيل على أي حال' : 'Post anyway')
-            : (language === 'ar' ? 'تأكيد / ترحيل' : 'Confirm / Post')
+            : (language === 'ar' ? 'تأكيد وترحيل' : 'Confirm & Post')
         }
         warningText={
           prePostHasWarnings && prePostCanPost

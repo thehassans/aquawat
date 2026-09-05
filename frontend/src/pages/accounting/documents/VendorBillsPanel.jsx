@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Search, Eye, Download, CreditCard } from 'lucide-react'
+import { Plus, Search, Eye, Download, CreditCard, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useSelector } from 'react-redux'
 import api from '../../../lib/api'
@@ -23,6 +23,7 @@ import {
   emptyStateClass,
   fieldControlClass,
   filterBarClass,
+  filterControlClass,
   listShellClass,
   rowActionBtnClass,
   rowActionsWrapClass,
@@ -33,6 +34,7 @@ import {
   softChipClass,
 } from '../../sales/salesUi'
 import { formatDateOnlyDisplay } from '../../../lib/dateOnly'
+import EmptyState from '../../../components/ui/EmptyState'
 
 const trimName = (party) => {
   const en = String(party?.name || party?.nameEn || '').trim()
@@ -258,6 +260,16 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
 
   return (
     <div className="space-y-4">
+      {!embedded ? (
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+            {isAr ? 'المحاسبة · الموردون' : 'Accounting · Vendors'}
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
+            {isAr ? 'فواتير المشتريات' : 'Bills'}
+          </h1>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center justify-end gap-2">
           <ExportMenu
             columns={exportColumns}
@@ -276,13 +288,15 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
           </button>
           <button
             type="button"
-            className="btn btn-secondary btn-sm"
+            className="btn btn-secondary btn-sm opacity-70"
             onClick={handleSepaExport}
             disabled={!selectedIds.size}
-            title={isAr ? 'تصدير SEPA (أوروبا)' : 'SEPA export (Europe)'}
+            title={isAr
+              ? 'تصدير SEPA اختياري (أوروبا) — السعودية تحتاج SARIE / صيغة البنك'
+              : 'Optional legacy SEPA (Europe) — KSA needs SARIE / bank-specific formats'}
           >
             <Download className="h-4 w-4" />
-            {isAr ? 'SEPA' : 'SEPA'}
+            {isAr ? 'تصدير (SEPA · اختياري)' : 'Export (SEPA · optional)'}
           </button>
           {!embedded ? (
           <button
@@ -303,21 +317,21 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1) }}
             placeholder={isAr ? 'بحث…' : 'Search…'}
-            className={`${fieldControlClass} ps-10`}
+            className={`${fieldControlClass} !py-2 ps-10`}
           />
         </div>
         <input
           type="date"
           value={dateFrom}
           onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
-          className={fieldControlClass}
+          className={filterControlClass}
           title={isAr ? 'من تاريخ' : 'From date'}
         />
         <input
           type="date"
           value={dateTo}
           onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
-          className={fieldControlClass}
+          className={filterControlClass}
           title={isAr ? 'إلى تاريخ' : 'To date'}
         />
         <select
@@ -329,7 +343,7 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
             setSearchParams(next)
             setPage(1)
           }}
-          className={fieldControlClass}
+          className={filterControlClass}
         >
           <option value="">{isAr ? 'كل الموردين' : 'All vendors'}</option>
           {(Array.isArray(suppliers) ? suppliers : []).map((s) => (
@@ -338,13 +352,13 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
             </option>
           ))}
         </select>
-        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className={fieldControlClass}>
+        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className={filterControlClass}>
           <option value="">{isAr ? 'كل الحالات' : 'All statuses'}</option>
           <option value="draft">{isAr ? 'مسودة' : 'Draft'}</option>
           <option value="approved">{isAr ? 'مرحّلة' : 'Posted'}</option>
           <option value="cancelled">{isAr ? 'ملغاة' : 'Cancelled'}</option>
         </select>
-        <select value={paymentFilter} onChange={(e) => { setPaymentFilter(e.target.value); setPage(1) }} className={fieldControlClass}>
+        <select value={paymentFilter} onChange={(e) => { setPaymentFilter(e.target.value); setPage(1) }} className={filterControlClass}>
           <option value="">{isAr ? 'كل المدفوعات' : 'All payments'}</option>
           <option value="pending">{isAr ? 'غير مدفوعة' : 'Unpaid'}</option>
           <option value="partial">{isAr ? 'جزئي' : 'Partial'}</option>
@@ -384,7 +398,19 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
         ) : (
           <ResponsiveDataList
             items={rows}
-            empty={<p className={emptyStateClass}>{isAr ? 'لا توجد فواتير مورد' : 'No vendor bills yet'}</p>}
+            empty={(
+              <EmptyState
+                icon={FileText}
+                language={language}
+                title="No vendor bills yet"
+                titleAr="لا توجد فواتير مورد بعد"
+                description="Create a bill from a received PO (Create Bill) or start a new purchase invoice. Bills post Dr Stock Interim / expense + VAT Input, Cr Accounts Payable."
+                descriptionAr="أنشئ فاتورة من أمر شراء مستلم أو فاتورة مشتريات جديدة. الترحيل: مدين مخزون وسيط/مصروف + ضريبة مدخلات، دائن ذمم دائنة."
+                action={() => navigate('/app/dashboard/accounting/invoices/new/purchase')}
+                actionLabel="New bill"
+                actionLabelAr="فاتورة مورد جديدة"
+              />
+            )}
             renderCard={(row) => (
               <div key={row._id} className="space-y-2 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-dark-800">
                 <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={`${docLinkClass} text-base`}>

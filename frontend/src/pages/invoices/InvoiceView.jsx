@@ -48,7 +48,7 @@ import {
   sectionCardClass,
   sectionEyebrowClass,
 } from '../sales/salesUi'
-import { getZatcaDocumentTitle } from '../../lib/commercialDocumentLabels'
+import { getZatcaDocumentTitle, resolveInvoiceListNumber } from '../../lib/commercialDocumentLabels'
 
 const blobToBase64 = (blob) => new Promise((resolve, reject) => {
   const reader = new FileReader()
@@ -415,7 +415,7 @@ export default function InvoiceView() {
                   ? (language === 'ar' ? 'فاتورة مشتريات' : 'Purchase invoice')
                   : (language === 'ar' ? 'فاتورة مبيعات' : 'Customer invoice')
         }
-        title={invoice?.invoiceNumber}
+        title={resolveInvoiceListNumber(invoice, language).label}
         subtitle={`${new Date(invoice?.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-GB')}${remainingBalance > 0.005 ? ` · ${language === 'ar' ? 'المتبقي' : 'Due'} ${remainingBalance.toFixed(2)}` : ''}`}
         statusSteps={statusSteps}
         activeStatusStep={ribbonStep}

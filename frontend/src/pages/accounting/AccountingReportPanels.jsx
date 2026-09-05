@@ -5,9 +5,13 @@ import Money from '../../components/ui/Money'
 import { useAccountingQuery } from '../../hooks/useAccountingQuery'
 import { ReportFilterRibbon, compareRange, variance } from './ReportFilterRibbon'
 import AccountingQueryState from './AccountingQueryState'
+import { extractDateOnly } from '../../lib/dateOnly'
 
-const todayIso = () => new Date().toISOString().slice(0, 10)
-const yearStartIso = () => new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10)
+const todayIso = () => extractDateOnly(new Date()) || new Date().toISOString().slice(0, 10)
+const yearStartIso = () => {
+  const y = Number((extractDateOnly(new Date()) || '').slice(0, 4)) || new Date().getFullYear()
+  return `${y}-01-01`
+}
 
 const moneyCols = (isAr) => [
   { key: 'amount', label: isAr ? 'المبلغ' : 'Amount', value: (r) => Number(r.amount || r.balance || 0).toFixed(2) },

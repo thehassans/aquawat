@@ -29,8 +29,14 @@ import {
   deferredStatusLabel,
 } from '../../lib/accountingLabels'
 
-const todayIso = () => new Date().toISOString().slice(0, 10)
-const yearStartIso = () => new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10)
+import { extractDateOnly } from '../../lib/dateOnly'
+
+/** Local calendar today (Asia/Riyadh) — never UTC toISOString slice. */
+const todayIso = () => extractDateOnly(new Date()) || new Date().toISOString().slice(0, 10)
+const yearStartIso = () => {
+  const y = Number((extractDateOnly(new Date()) || '').slice(0, 4)) || new Date().getFullYear()
+  return `${y}-01-01`
+}
 
 function DateRangeBar({ from, to, setFrom, setTo, language, extra }) {
   return (
@@ -2826,6 +2832,52 @@ function AgedReportPanel({ language, kind }) {
         skeletonRows={6}
       >
       {isFetching && data ? <p className="text-xs text-slate-400">…</p> : null}
+      {(Number(data?.unallocated?.amount) > 0.005 || Number(data?.totals?.unallocatedAmount) > 0.005) ? (
+        <div className="rounded-2xl border border-amber-200/80 bg-amber-50/70 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-950/30">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-amber-800/80 dark:text-amber-200/80">
+            {isAr
+              ? (kind === 'ap' ? 'مدفوعات غير مخصصة' : 'مقبوضات غير مخصصة')
+              : (kind === 'ap' ? 'Unallocated payments' : 'Unallocated receipts')}
+          </p>
+          <p className="mt-1 text-lg font-semibold text-amber-900 dark:text-amber-100">
+            <Money value={data?.unallocated?.amount ?? data?.totals?.unallocatedAmount ?? 0} />
+          </p>
+          <p className="mt-0.5 text-xs text-amber-700/80 dark:text-amber-200/70">
+            {isAr
+              ? 'ليست في قائمة الموردين/العملاء — رصيد قيد بدون شريك'
+              : 'Excluded from partner aging — GL control lines with no partner'}
+          </p>
+        </div>
+      ) : null}
+      {(Number(data?.totals?.advanceResidual) > 0.005 || (data?.advances || []).length > 0) ? (
+        <div className="rounded-2xl border border-sky-200/80 bg-sky-50/70 px-4 py-3 dark:border-sky-500/30 dark:bg-sky-950/30">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-sky-800/80 dark:text-sky-200/80">
+            {isAr
+              ? (kind === 'ap' ? 'دفعات مقدمة للموردين' : 'دفعات مقدمة من العملاء')
+              : (kind === 'ap' ? 'Advances to suppliers' : 'Customer advances')}
+          </p>
+          <p className="mt-1 text-lg font-semibold text-sky-900 dark:text-sky-100">
+            <Money value={data?.totals?.advanceResidual
+              ?? (data?.advances || []).reduce((s, a) => s + (Number(a.advanceAmount) || 0), 0)}
+            />
+          </p>
+          <p className="mt-0.5 text-xs text-sky-700/80 dark:text-sky-200/70">
+            {isAr
+              ? `${(data?.advances || []).length} شريك · لا تدخل في أعمار الديون`
+              : `${(data?.advances || []).length} partners · not included in aging buckets`}
+          </p>
+          {(data?.advances || []).length ? (
+            <ul className="mt-2 space-y-1 text-sm text-sky-900 dark:text-sky-100">
+              {(data.advances || []).slice(0, 8).map((a) => (
+                <li key={String(a.partnerId)} className="flex justify-between gap-2">
+                  <span>{a.partnerName}</span>
+                  <Money value={a.advanceAmount} />
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-5">
         {['d0_30', 'd31_60', 'd61_90', 'd90_plus'].map((key) => {
           const active = bucketFilter === key

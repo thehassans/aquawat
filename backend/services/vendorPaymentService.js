@@ -1,6 +1,7 @@
 import AccountPayment from '../models/AccountPayment.js';
 import Invoice from '../models/Invoice.js';
 import Partner from '../models/Partner.js';
+import '../models/Journal.js'; // ensure populate('journalId') resolves
 import { applyPaidAmountStatus } from '../utils/invoicePaymentStatus.js';
 import { paymentMethodLabel } from './customerPaymentService.js';
 
@@ -362,8 +363,12 @@ export async function backfillVendorPaymentsFromJournals(tenantId, { dryRun = tr
   const entries = await JournalEntry.find({
     tenantId,
     type: 'payment',
-    sourceModel: { $in: ['VendorBillPayment', 'VendorAdvance', 'PurchaseOrderAdvance'] },
     status: { $nin: ['void', 'reversed'] },
+    $or: [
+      { sourceModel: { $in: ['VendorBillPayment', 'VendorAdvance', 'PurchaseOrderAdvance', 'PurchaseOrderPayment'] } },
+      { memo: /Supplier payment for PO/i },
+      { memo: /Advance to Suppliers/i },
+    ],
   })
     .sort({ entryDate: 1 })
     .limit(Math.min(2000, Math.max(1, Number(limit) || 500)))
@@ -376,6 +381,9 @@ export async function backfillVendorPaymentsFromJournals(tenantId, { dryRun = tr
     wouldCreate: 0,
     created: 0,
     skippedExisting: 0,
+    linkedToBill: 0,
+    linkedToPoAdvance: 0,
+    ambiguous: 0,
     rows: [],
   };
 
@@ -398,13 +406,15 @@ export async function backfillVendorPaymentsFromJournals(tenantId, { dryRun = tr
     if (amount <= 0) continue;
 
     const isBillPay = entry.sourceModel === 'VendorBillPayment';
+    const isPoPay = entry.sourceModel === 'PurchaseOrderPayment'
+      || /Supplier payment for PO/i.test(String(entry.memo || ''));
     const invoice = (isBillPay && entry.sourceId)
       ? await Invoice.findOne({ _id: entry.sourceId, tenantId, flow: 'purchase' })
         .select('invoiceNumber supplierId seller paidAmount payments grandTotal')
         .lean()
       : null;
 
-    const partnerId = invoice?.supplierId
+    let partnerId = invoice?.supplierId
       || (entry.lines || []).find((l) => l.partnerId)?.partnerId
       || null;
     let partnerName = invoice?.seller?.name || '';
@@ -412,6 +422,15 @@ export async function backfillVendorPaymentsFromJournals(tenantId, { dryRun = tr
       const p = await Partner.findOne({ _id: partnerId, tenantId }).select('name nameEn nameAr').lean();
       partnerName = p?.nameEn || p?.name || p?.nameAr || '';
     }
+
+    const linkKind = invoice
+      ? 'bill'
+      : (isPoPay || entry.sourceModel === 'PurchaseOrderAdvance' || entry.sourceModel === 'VendorAdvance'
+        ? 'advance_or_po'
+        : 'ambiguous');
+    if (linkKind === 'bill') report.linkedToBill += 1;
+    else if (linkKind === 'advance_or_po') report.linkedToPoAdvance += 1;
+    else report.ambiguous += 1;
 
     const row = {
       numberHint: entry.sourceNumber ? `BF-${entry.sourceNumber}` : null,
@@ -424,6 +443,11 @@ export async function backfillVendorPaymentsFromJournals(tenantId, { dryRun = tr
       partnerName,
       reference: entry.reference || '',
       sourceModel: entry.sourceModel,
+      memo: entry.memo || '',
+      linkKind,
+      wouldLinkTo: invoice
+        ? `Bill ${invoice.invoiceNumber}`
+        : (isPoPay ? `PO advance (no bill) — ${entry.sourceNumber || entry.memo || ''}` : 'Unlinked / ambiguous'),
     };
     report.wouldCreate += 1;
     report.rows.push(row);

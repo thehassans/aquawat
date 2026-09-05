@@ -99,6 +99,22 @@ export default function AccountingVendorsPanel({ language = 'en' }) {
           </div>
         ))}
       </div>
+      {(Number(totals.advancesSum) > 0.005 || Number(totals.unallocatedAmount) > 0.005) ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {Number(totals.advancesSum) > 0.005 ? (
+            <div className="rounded-2xl border border-sky-200/80 bg-sky-50/60 p-3 dark:border-sky-500/30 dark:bg-sky-950/30">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-sky-700/80">{isAr ? 'دفعات مقدمة' : 'Advances to suppliers'}</p>
+              <p className="mt-1 text-lg font-semibold"><Money value={totals.advancesSum} /></p>
+            </div>
+          ) : null}
+          {Number(totals.unallocatedAmount) > 0.005 ? (
+            <div className="rounded-2xl border border-amber-200/80 bg-amber-50/60 p-3 dark:border-amber-500/30 dark:bg-amber-950/30">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-700/80">{isAr ? 'مدفوعات غير مخصصة' : 'Unallocated payments'}</p>
+              <p className="mt-1 text-lg font-semibold"><Money value={totals.unallocatedAmount} /></p>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className={`${filterBarClass} flex-wrap`}>
         <div className="relative min-w-[200px] flex-1">
@@ -159,7 +175,7 @@ export default function AccountingVendorsPanel({ language = 'en' }) {
                 titleAr="لا يوجد موردون"
                 description="Add a vendor to track payables, payment terms, and VAT identity."
                 descriptionAr="أضف مورداً لتتبع الذمم الدائنة وشروط الدفع والرقم الضريبي."
-                action={() => navigate('/app/dashboard/suppliers/new')}
+                action={() => navigate('/app/dashboard/suppliers/new?returnTo=/app/dashboard/accounting/vendors')}
                 actionLabel="New vendor"
                 actionLabelAr="مورد جديد"
               />
@@ -167,13 +183,19 @@ export default function AccountingVendorsPanel({ language = 'en' }) {
             renderCard={(row) => (
               <Link
                 key={row._id}
-                to={`/app/dashboard/suppliers/${row._id}`}
+                to={`/app/dashboard/suppliers/${row._id}?returnTo=/app/dashboard/accounting/vendors`}
                 className="block space-y-2 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-dark-800"
               >
                 <p className="font-semibold text-emerald-700">{isAr ? (row.nameAr || row.nameEn) : (row.nameEn || row.name)}</p>
                 {row.nameAr && !isAr ? <p className="text-xs text-slate-400">{row.nameAr}</p> : null}
                 <div className="flex flex-wrap gap-2 text-xs">
-                  <span className={softChipClass}><Money value={row.outstanding ?? row.payable} /></span>
+                  <span className={softChipClass}>
+                    <Money value={
+                      Number(row.outstanding) < -0.005
+                        ? Math.abs(Number(row.outstanding))
+                        : (row.payable ?? Math.max(0, Number(row.outstanding) || 0))
+                    } />
+                  </span>
                   {row.vatNumber ? (
                     <span className={`${softChipClass} !text-emerald-700`}>
                       <ShieldCheck className="h-3 w-3" /> {row.vatNumber}
@@ -212,7 +234,7 @@ export default function AccountingVendorsPanel({ language = 'en' }) {
                     <tr key={row._id} className={salesTrClass}>
                       <td className={salesTdClass}>
                         <Link
-                          to={`/app/dashboard/suppliers/${row._id}`}
+                          to={`/app/dashboard/suppliers/${row._id}?returnTo=/app/dashboard/accounting/vendors`}
                           className="font-semibold text-emerald-700 hover:underline"
                         >
                           {row.nameEn || row.name || '—'}
@@ -221,16 +243,31 @@ export default function AccountingVendorsPanel({ language = 'en' }) {
                       </td>
                       <td className={salesTdClass}>
                         {row.vatNumber ? (
-                          <span className={`inline-flex items-center gap-1 text-xs ${row.zatcaStatus === 'verified' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                            {row.zatcaStatus === 'verified' ? <ShieldCheck className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
-                            {row.vatNumber}
-                          </span>
+                      <span className={`inline-flex items-center gap-1 text-xs ${
+                        row.zatcaStatus === 'verified'
+                          ? 'text-emerald-700'
+                          : row.zatcaStatus === 'invalid'
+                            ? 'font-semibold text-rose-600'
+                            : 'text-amber-700'
+                      }`}>
+                        {row.zatcaStatus === 'verified' ? <ShieldCheck className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+                        {row.vatNumber}
+                      </span>
                         ) : (
                           <span className="text-slate-400">{isAr ? 'غير موثّق' : 'Unverified'}</span>
                         )}
                       </td>
                       <td className={salesTdClass}>{row.phone || '—'}</td>
-                      <td className={salesTdClass}><Money value={row.outstanding ?? row.payable} /></td>
+                      <td className={salesTdClass}>
+                        {Number(row.outstanding) < -0.005 ? (
+                          <span className="inline-flex flex-col items-end gap-0.5">
+                            <span className="text-[10px] font-semibold uppercase text-sky-700">{isAr ? 'مقدمة' : 'Advance'}</span>
+                            <Money value={Math.abs(Number(row.outstanding))} />
+                          </span>
+                        ) : (
+                          <Money value={row.payable ?? Math.max(0, Number(row.outstanding) || 0)} />
+                        )}
+                      </td>
                       <td className={salesTdClass}>
                         {row.overdue > 0.01 ? (
                           <span className="font-semibold text-rose-600"><Money value={row.overdue} /></span>

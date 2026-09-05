@@ -7,8 +7,8 @@ function backHref(pathname) {
   if (pathname.includes('/sales/orders')) return '/app/dashboard/sales/orders'
   if (pathname.includes('/general-voucher')) return '/app/dashboard/accounting/general-voucher'
   if (pathname.includes('/journal-books')) return '/app/dashboard/accounting/journal-books'
+  if (pathname.includes('/purchase')) return '/app/dashboard/accounting/vendor-bills'
   if (pathname.includes('/accounting/invoices')) return '/app/dashboard/accounting/invoices'
-  if (pathname.includes('/purchase')) return '/app/dashboard/accounting/invoices'
   return '/app/dashboard/accounting/invoices'
 }
 

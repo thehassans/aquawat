@@ -22,6 +22,7 @@ import {
   isDraftDocument,
   paymentStatusLabel,
 } from '../../../lib/accountingDocumentStatus'
+import { resolveInvoiceListNumber } from '../../../lib/commercialDocumentLabels'
 import { extractDateOnly, formatDateOnlyDisplay } from '../../../lib/dateOnly'
 import {
   docLinkClass,
@@ -460,6 +461,7 @@ export default function CustomerInvoicesPanel({ language: languageProp, embedded
               const overdue = isOverdueRow(row)
               const activity = computeNextActivity(row, isAr)
               const zatca = getZatcaStatusMeta(row, language, zatcaPhase)
+              const numberMeta = resolveInvoiceListNumber(row, language)
               return (
                 <div
                   key={row._id}
@@ -470,7 +472,11 @@ export default function CustomerInvoicesPanel({ language: languageProp, embedded
                   }`}
                 >
                   <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={`${docLinkClass} text-base`}>
-                    {row.invoiceNumber}
+                    {numberMeta.isDraft ? (
+                      <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                        {numberMeta.label}
+                      </span>
+                    ) : numberMeta.label}
                   </Link>
                   <p className="text-sm text-slate-500">{trimName(row.buyer)}</p>
                   {overdue && activity.overdueDays ? (
@@ -528,6 +534,7 @@ export default function CustomerInvoicesPanel({ language: languageProp, embedded
                   const activity = computeNextActivity(row, isAr)
                   const zatca = getZatcaStatusMeta(row, language, zatcaPhase)
                   const failed = ['rejected', 'warning'].includes(zatca.status)
+                  const numberMeta = resolveInvoiceListNumber(row, language)
                   return (
                     <tr
                       key={row._id}
@@ -538,12 +545,16 @@ export default function CustomerInvoicesPanel({ language: languageProp, embedded
                           type="checkbox"
                           checked={selectedIds.has(String(row._id))}
                           onChange={() => toggleSelect(row._id)}
-                          aria-label={row.invoiceNumber}
+                          aria-label={numberMeta.label}
                         />
                       </td>
                       <td className={salesTdClass}>
                         <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={docLinkClass}>
-                          {row.invoiceNumber}
+                          {numberMeta.isDraft ? (
+                            <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                              {numberMeta.label}
+                            </span>
+                          ) : numberMeta.label}
                         </Link>
                         {overdue && activity.overdueDays ? (
                           <div className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${nextActivityClass('danger')}`}>

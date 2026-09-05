@@ -34,6 +34,7 @@ import ExportMenu from '../../components/ui/ExportMenu'
 import ResponsiveDataList from '../../components/ui/ResponsiveDataList'
 import toast from 'react-hot-toast'
 import { downloadInvoicePdf, buildInvoicePdfBlob } from '../../lib/invoicePdfActions'
+import { resolveInvoiceListNumber } from '../../lib/commercialDocumentLabels'
 import { isThermalInvoice } from '../../lib/invoiceFormat'
 import { getTenantBusinessTypes } from '../../lib/businessTypes'
 import ThermalReceipt from '../../components/ui/ThermalReceipt'
@@ -940,11 +941,18 @@ export default function Invoices() {
               empty={<p className={emptyStateClass}>{language === 'ar' ? 'لا توجد فواتير' : 'No invoices'}</p>}
               renderCard={(invoice) => {
                 const party = getInvoiceParty(invoice)
+                const numberMeta = resolveInvoiceListNumber(invoice, language)
                 return (
                   <div key={invoice._id} className={`${filterBarClass} !space-y-3`}>
                     <div className="flex items-start justify-between gap-3">
                       <button type="button" onClick={() => navigate(`/app/dashboard/accounting/invoices/${invoice._id}`)} className="min-w-0 text-start">
-                        <p className={docLinkClass}>{invoice.invoiceNumber}</p>
+                        <p className={docLinkClass}>
+                          {numberMeta.isDraft ? (
+                            <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                              {numberMeta.label}
+                            </span>
+                          ) : numberMeta.label}
+                        </p>
                         <div className="mt-0.5 text-sm"><PartyNames party={party} /></div>
                         <p className="mt-0.5 text-xs text-slate-500">{new Date(invoice.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}</p>
                       </button>
@@ -997,14 +1005,16 @@ export default function Invoices() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data?.invoices?.map((invoice) => (
+                  {data?.invoices?.map((invoice) => {
+                    const numberMeta = resolveInvoiceListNumber(invoice, language)
+                    return (
                     <tr key={invoice._id} className={salesTrClass}>
                       <td className={salesTdClass}>
                         <input
                           type="checkbox"
                           checked={selectedIds.has(String(invoice._id))}
                           onChange={() => toggleSelect(invoice._id)}
-                          aria-label={invoice.invoiceNumber}
+                          aria-label={numberMeta.label}
                         />
                       </td>
                       <td className={salesTdClass}>
@@ -1014,7 +1024,11 @@ export default function Invoices() {
                           className={docLinkClass}
                         >
                           <FileText className="h-4 w-4 shrink-0 text-slate-400" strokeWidth={1.75} />
-                          {invoice.invoiceNumber}
+                          {numberMeta.isDraft ? (
+                            <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                              {numberMeta.label}
+                            </span>
+                          ) : numberMeta.label}
                         </button>
                       </td>
                       <td className={salesTdClass}>
@@ -1171,7 +1185,8 @@ export default function Invoices() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  )
+                  })}
                 </tbody>
               </table>
             </div>

@@ -774,15 +774,27 @@ export default function PartnerForm() {
                     <label>
                       <span className={fieldLabelClass}>{taxIdLabel || (ar ? 'الرقم الضريبي' : 'Tax ID / VAT')}</span>
                       <input
-                        className={fieldControlClass}
+                        className={`${fieldControlClass} ${
+                          watch('vatNumber') && !validatePartnerVat(watch('vatNumber'), tenantCountry).ok
+                            ? '!border-rose-400 ring-1 ring-rose-300'
+                            : ''
+                        }`}
                         {...register('vatNumber')}
-                        placeholder={tenantCountry === 'SA' ? '15 digits' : ''}
+                        placeholder={tenantCountry === 'SA' ? '3……………3 (15 digits)' : ''}
                       />
-                      <p className="mt-1 text-[11px] text-slate-400">
-                        {tenantCountry === 'SA'
-                          ? (ar ? 'زاتكا: 15 رقمًا' : 'ZATCA: exactly 15 digits')
-                          : null}
-                      </p>
+                      {watch('vatNumber') && !validatePartnerVat(watch('vatNumber'), tenantCountry).ok ? (
+                        <p className="mt-1 text-[11px] font-medium text-rose-600">
+                          {ar
+                            ? validatePartnerVat(watch('vatNumber'), tenantCountry).messageAr
+                            : validatePartnerVat(watch('vatNumber'), tenantCountry).message}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-[11px] text-slate-400">
+                          {tenantCountry === 'SA'
+                            ? (ar ? 'زاتكا: 15 رقمًا يبدأ وينتهي بـ 3' : 'ZATCA: 15 digits starting and ending with 3')
+                            : null}
+                        </p>
+                      )}
                     </label>
                     <label>
                       <span className={fieldLabelClass}>{ar ? 'السجل التجاري' : 'CR number'}</span>

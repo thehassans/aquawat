@@ -2289,6 +2289,22 @@ router.post('/vendor-payments/backfill', checkPermission('finance', 'update'), a
   }
 });
 
+/** Dry-run / apply: reclassify orphan PO→AP payments to Advance (1290) or reconstruct bills. */
+router.post('/vendor-payments/migrate-orphans', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const { migrateOrphanSupplierPayments } = await import('../services/orphanSupplierPaymentMigration.js');
+    const apply = req.body?.dryRun === false || req.query?.apply === '1';
+    const report = await migrateOrphanSupplierPayments(req.user.tenantId, {
+      dryRun: !apply,
+      strategy: req.body?.strategy || 'auto',
+      userId: req.user._id,
+    });
+    res.json(report);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ─── Vendor payment batches (CSV / bank file export) ─────────────────────────
 
 router.get('/payment-batches', checkPermission('finance', 'read'), async (req, res) => {

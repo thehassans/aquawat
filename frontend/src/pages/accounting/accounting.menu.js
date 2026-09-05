@@ -49,14 +49,13 @@ export const ACCOUNTING_MENU = [
     labelEn: 'Vendors',
     labelAr: 'الموردون',
     children: [
-      { href: `${A}/invoices?tab=purchase`, labelEn: 'Bills', labelAr: 'فواتير المشتريات' },
+      { href: `${A}/vendor-bills`, labelEn: 'Bills', labelAr: 'فواتير المشتريات' },
       { href: `${A}/vendor-refunds`, labelEn: 'Refunds', labelAr: 'المرتجعات' },
       { href: `${A}/vendor-payments`, labelEn: 'Payments', labelAr: 'المدفوعات' },
       { href: `${A}/payment-batches`, labelEn: 'Payment batches', labelAr: 'دفعات البنك' },
       { href: `${A}/aged-ap`, labelEn: 'Aged Payable', labelAr: 'أعمار الدائنين' },
       { href: `${A}/products`, labelEn: 'Products', labelAr: 'المنتجات' },
       { href: `${A}/vendors`, labelEn: 'Vendors', labelAr: 'الموردون' },
-      { href: '/app/dashboard/suppliers', labelEn: 'Vendor master', labelAr: 'بيانات الموردين' },
     ],
   },
   {
@@ -178,14 +177,23 @@ export function flattenAccountingMenuHrefs(menu = ACCOUNTING_MENU) {
   return hrefs
 }
 
-export function hubIsActive(hub, pathname) {
+export function hubIsActive(hub, pathname, search = '') {
+  const params = new URLSearchParams(typeof search === 'string' ? search.replace(/^\?/, '') : '')
+  const invoiceTab = String(params.get('tab') || params.get('flow') || '').toLowerCase()
+  const onPurchaseInvoices = pathname.includes('/accounting/invoices')
+    && ['purchase', 'purchases', 'vendor', 'bills', 'ap'].includes(invoiceTab)
+
+  if (hub.id === 'vendors' && onPurchaseInvoices) return true
+  if (hub.id === 'customers' && onPurchaseInvoices) return false
+
   if (hub.href) {
     if (hub.end) return pathname === hub.href || pathname === `${hub.href}/`
     return pathname === hub.href || pathname.startsWith(`${hub.href}/`)
   }
   return (hub.children || []).some((item) => {
     if (!item.href) return false
-    if (item.end) return pathname === item.href || pathname === `${item.href}/`
-    return pathname === item.href || pathname.startsWith(`${item.href}/`)
+    const path = item.href.split('?')[0]
+    if (item.end) return pathname === path || pathname === `${path}/`
+    return pathname === path || pathname.startsWith(`${path}/`)
   })
 }

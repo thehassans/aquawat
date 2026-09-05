@@ -76,9 +76,9 @@ export function transactionTypeReasonLine(txn, { hasValidVat = false, isWalkIn =
   if (txn === 'B2B') {
     return language === 'ar'
       ? 'الرقم الضريبي للعميل موجود — فاتورة ضريبية قياسية'
-      : 'Customer ka VAT number mojood hai — Standard Tax Invoice'
+      : 'Customer VAT number on file — Standard Tax Invoice'
   }
   return language === 'ar'
-    ? 'الرقم الضريبي للعميل غير موجود — فاتورة ضريبية مبسطة'
-    : 'Customer ka VAT number nahi — Simplified Tax Invoice'
+    ? 'لا يوجد رقم ضريبي للعميل — فاتورة ضريبية مبسطة'
+    : 'No VAT number on file — Simplified Tax Invoice'
 }

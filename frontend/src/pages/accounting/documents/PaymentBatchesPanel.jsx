@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, CheckCircle2, Search } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Download, CheckCircle2, Search, Plus, Layers } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../../lib/api'
 import Money from '../../../components/ui/Money'
 import ResponsiveDataList from '../../../components/ui/ResponsiveDataList'
+import EmptyState from '../../../components/ui/EmptyState'
 import { downloadPaymentBatchCsv, confirmPaymentBatch } from '../../../lib/vendorApTools'
 import { formatDateOnlyDisplay } from '../../../lib/dateOnly'
 import {
@@ -35,6 +37,7 @@ function statusLabel(status, isAr) {
 
 export default function PaymentBatchesPanel({ language: languageProp }) {
   const isAr = languageProp === 'ar'
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -71,13 +74,29 @@ export default function PaymentBatchesPanel({ language: languageProp }) {
     onError: (err) => toast.error(err.response?.data?.error || (isAr ? 'فشل التأكيد' : 'Confirm failed')),
   })
 
+  const goNewBatch = () => navigate('/app/dashboard/accounting/vendor-bills')
+
   return (
     <div className="space-y-4">
-      <p className="text-sm text-slate-500">
-        {isAr
-          ? 'مسودة → مُصدَّر (ملف CSV) → مؤكد بعد مطابقة كشف البنك. اختر فواتير من قائمة فواتير الموردين لإنشاء دفعة.'
-          : 'Draft → Exported (CSV file) → Confirmed after bank statement match. Create batches from Vendor Bills selection.'}
-      </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+            {isAr ? 'المحاسبة · الموردون' : 'Accounting · Vendors'}
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
+            {isAr ? 'دفعات البنك' : 'Payment batches'}
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {isAr
+              ? 'مسودة → مُصدَّر (ملف CSV) → مؤكد بعد مطابقة كشف البنك.'
+              : 'Draft → Exported (CSV) → Confirmed after bank statement match.'}
+          </p>
+        </div>
+        <button type="button" className="btn btn-primary btn-sm" onClick={goNewBatch}>
+          <Plus className="h-4 w-4" />
+          {isAr ? 'دفعة جديدة' : 'New batch'}
+        </button>
+      </div>
 
       <div className={filterBarClass}>
         <div className="relative min-w-[180px] flex-1">
@@ -107,7 +126,19 @@ export default function PaymentBatchesPanel({ language: languageProp }) {
         ) : (
           <ResponsiveDataList
             items={rows}
-            empty={<p className={emptyStateClass}>{isAr ? 'لا توجد دفعات بعد' : 'No payment batches yet'}</p>}
+            empty={(
+              <EmptyState
+                icon={Layers}
+                language={languageProp}
+                title="No payment batches yet"
+                titleAr="لا توجد دفعات بعد"
+                description="Select unpaid vendor bills and create a CSV payment batch for your bank (SARIE / bank format)."
+                descriptionAr="اختر فواتير مورد غير مدفوعة وأنشئ دفعة CSV للبنك (ساريا / صيغة البنك)."
+                action={goNewBatch}
+                actionLabel="New batch"
+                actionLabelAr="دفعة جديدة"
+              />
+            )}
             renderCard={(row) => (
               <div key={row._id} className="space-y-2 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-dark-800">
                 <div className="flex items-center justify-between gap-2">

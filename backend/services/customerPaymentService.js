@@ -1,6 +1,7 @@
 import AccountPayment from '../models/AccountPayment.js';
 import Invoice from '../models/Invoice.js';
 import Partner from '../models/Partner.js';
+import '../models/Journal.js'; // ensure populate('journalId') resolves
 import { applyPaidAmountStatus } from '../utils/invoicePaymentStatus.js';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -391,6 +392,8 @@ export async function backfillCustomerPaymentsFromJournals(tenantId, { dryRun = 
     wouldCreate: 0,
     created: 0,
     skippedExisting: 0,
+    linkedToInvoice: 0,
+    ambiguous: 0,
     rows: [],
   };
 
@@ -427,9 +430,13 @@ export async function backfillCustomerPaymentsFromJournals(tenantId, { dryRun = 
       partnerId: invoice?.customerId ? String(invoice.customerId) : null,
       partnerName: invoice?.buyer?.name || '',
       reference: entry.reference || '',
+      linkKind: invoice ? 'invoice' : 'ambiguous',
+      wouldLinkTo: invoice ? `Invoice ${invoice.invoiceNumber}` : 'Unlinked / ambiguous',
     };
     report.wouldCreate += 1;
     report.rows.push(row);
+    if (invoice) report.linkedToInvoice = (report.linkedToInvoice || 0) + 1;
+    else report.ambiguous = (report.ambiguous || 0) + 1;
 
     if (!dryRun) {
       const number = await nextPaymentNumber(tenantId, 'inbound');

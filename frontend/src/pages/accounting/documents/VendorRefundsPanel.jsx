@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Search, Eye } from 'lucide-react'
+import { Plus, Search, Eye, Undo2 } from 'lucide-react'
 import api from '../../../lib/api'
 import Money from '../../../components/ui/Money'
 import ResponsiveDataList from '../../../components/ui/ResponsiveDataList'
+import EmptyState from '../../../components/ui/EmptyState'
 import { documentStatusLabel } from '../../../lib/accountingDocumentStatus'
 import {
   docLinkClass,
@@ -86,7 +87,19 @@ export default function VendorRefundsPanel({ language = 'en' }) {
         ) : (
           <ResponsiveDataList
             items={rows}
-            empty={<p className={emptyStateClass}>{isAr ? 'لا توجد مرتجعات' : 'No vendor refunds yet'}</p>}
+            empty={(
+              <EmptyState
+                icon={Undo2}
+                language={language}
+                title="No vendor refunds yet"
+                titleAr="لا توجد مرتجعات مورد بعد"
+                description="Record a vendor credit note (refund) when goods are returned or a bill is corrected."
+                descriptionAr="سجّل إشعار دائن للمورد عند إرجاع البضاعة أو تصحيح فاتورة."
+                action={() => navigate('/app/dashboard/accounting/invoices/new/purchase?refund=1')}
+                actionLabel="New refund"
+                actionLabelAr="مرتجع جديد"
+              />
+            )}
             renderCard={(row) => (
               <div key={row._id} className="space-y-2 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-dark-800">
                 <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={`${docLinkClass} text-base`}>

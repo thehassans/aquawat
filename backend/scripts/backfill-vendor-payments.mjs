@@ -52,6 +52,9 @@ async function main() {
       wouldCreate: report.wouldCreate,
       created: report.created,
       skippedExisting: report.skippedExisting,
+      linkedToBill: report.linkedToBill,
+      linkedToPoAdvance: report.linkedToPoAdvance,
+      ambiguous: report.ambiguous,
       sample: report.rows.slice(0, 12),
     }, null, 2));
   }

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, AlertTriangle, Printer } from 'lucide-react'
+import { Plus, Search, AlertTriangle, Printer, Wallet } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../../lib/api'
 import Money from '../../../components/ui/Money'
 import ResponsiveDataList from '../../../components/ui/ResponsiveDataList'
+import EmptyState from '../../../components/ui/EmptyState'
 import { useAccountingQuery } from '../../../hooks/useAccountingQuery'
 import AccountingQueryState from '../AccountingQueryState'
 import { printVendorCheck } from '../../../lib/vendorApTools'
@@ -353,9 +354,21 @@ export default function VendorPaymentsPanel({ language = 'en' }) {
   const rows = data?.payments || []
 
   const backfill = useMutation({
-    mutationFn: () => api.post('/accounting/vendor-payments/backfill', { dryRun: false })
+    mutationFn: ({ dryRun }) => api.post('/accounting/vendor-payments/backfill', { dryRun })
       .then((r) => r.data),
-    onSuccess: (report) => {
+    onSuccess: (report, vars) => {
+      if (vars?.dryRun) {
+        const msg = isAr
+          ? `تجريبي: ${report.wouldCreate || 0} دفعة · مرتبطة بفاتورة ${report.linkedToBill || 0} · مقدمة/PO ${report.linkedToPoAdvance || 0} · غامضة ${report.ambiguous || 0}`
+          : `Dry-run: ${report.wouldCreate || 0} payments · bill-linked ${report.linkedToBill || 0} · PO/advance ${report.linkedToPoAdvance || 0} · ambiguous ${report.ambiguous || 0}`
+        toast(msg, { duration: 6000 })
+        if ((report.wouldCreate || 0) > 0 && window.confirm(isAr
+          ? `تطبيق الاستعادة لـ ${report.wouldCreate} دفعة؟`
+          : `Apply backfill for ${report.wouldCreate} payments?`)) {
+          backfill.mutate({ dryRun: false })
+        }
+        return
+      }
       toast.success(isAr
         ? `تمت استعادة ${report.created} دفعة`
         : `Backfilled ${report.created} payments`)
@@ -386,13 +399,7 @@ export default function VendorPaymentsPanel({ language = 'en' }) {
           type="button"
           className="btn btn-secondary btn-sm"
           disabled={backfill.isPending}
-          onClick={() => {
-            if (window.confirm(isAr
-              ? 'استعادة المدفوعات من قيود اليومية اليتيمة؟'
-              : 'Backfill payments from orphan payment journals?')) {
-              backfill.mutate()
-            }
-          }}
+          onClick={() => backfill.mutate({ dryRun: true })}
         >
           {isAr ? 'استعادة من القيود' : 'Backfill from journals'}
         </button>
@@ -425,13 +432,17 @@ export default function VendorPaymentsPanel({ language = 'en' }) {
           <ResponsiveDataList
             items={rows}
             empty={(
-              <div className="space-y-3 py-10 text-center">
-                <p className={emptyStateClass}>{isAr ? 'لا توجد مدفوعات بعد' : 'No vendor payments yet'}</p>
-                <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowForm(true)}>
-                  <Plus className="h-4 w-4" />
-                  {isAr ? 'دفعة جديدة' : 'New payment'}
-                </button>
-              </div>
+              <EmptyState
+                icon={Wallet}
+                language={language}
+                title="No vendor payments yet"
+                titleAr="لا توجد مدفوعات مورد بعد"
+                description="Record a payment against open bills, or backfill from orphan payment journals after reviewing the dry-run report."
+                descriptionAr="سجّل دفعة مقابل فواتير مفتوحة، أو استعد من قيود اليومية بعد مراجعة التقرير التجريبي."
+                action={() => setShowForm(true)}
+                actionLabel="New payment"
+                actionLabelAr="دفعة جديدة"
+              />
             )}
             renderCard={(row) => (
               <div key={row._id} className="space-y-2 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-dark-800">

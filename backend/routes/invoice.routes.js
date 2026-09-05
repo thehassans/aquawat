@@ -935,6 +935,48 @@ function resolveInitialSellInvoiceStatus(requestedStatus, tenant) {
   return 'pending';
 }
 
+/** Draft placeholders (DR-*) must not consume the official INV- sequence. */
+function isPlaceholderSellInvoiceNumber(invoiceNumber) {
+  const n = String(invoiceNumber || '').trim();
+  if (!n) return true;
+  if (/^DR[-_]/i.test(n)) return true;
+  if (/^DRAFT/i.test(n)) return true;
+  return false;
+}
+
+async function allocateSellSeriesNumber(tenantId, { prefix }) {
+  const escaped = String(prefix).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const lastInvoice = await Invoice.findOne({
+    tenantId,
+    invoiceNumber: new RegExp(`^${escaped}`),
+  })
+    .sort({ createdAt: -1 })
+    .select('invoiceNumber')
+    .lean();
+
+  let nextNum = 1;
+  let pad = 6;
+  if (lastInvoice?.invoiceNumber) {
+    const lastPart = String(lastInvoice.invoiceNumber).split('-').pop();
+    const parsed = parseInt(lastPart, 10);
+    if (!Number.isNaN(parsed)) {
+      nextNum = parsed + 1;
+      pad = Math.max(6, String(lastPart).length);
+    }
+  }
+  return `${prefix}${String(nextNum).padStart(pad, '0')}`;
+}
+
+async function allocateSellDraftNumber(tenantId) {
+  const year = new Date().getFullYear();
+  return allocateSellSeriesNumber(tenantId, { prefix: `DR-${year}-` });
+}
+
+async function allocateSellInvoiceNumber(tenantId) {
+  const year = new Date().getFullYear();
+  return allocateSellSeriesNumber(tenantId, { prefix: `INV-${year}-` });
+}
+
 async function attachDraftQr(invoice, seller, tenant) {
   // ZATCA only applies to SAR-denominated invoices. Skip the Saudi TLV QR
   // entirely for tenants configured with a different default currency.
@@ -2290,24 +2332,11 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
       }
     }
 
-    const lastInvoice = await Invoice.findOne({ tenantId: req.user.tenantId })
-      .sort({ createdAt: -1 })
-      .select('invoiceNumber');
-
-    let invoiceNumber = '';
-    if (lastInvoice && lastInvoice.invoiceNumber) {
-      const parts = lastInvoice.invoiceNumber.split('-');
-      const lastPart = parts.pop();
-      if (lastPart && !isNaN(parseInt(lastPart))) {
-        const nextNum = parseInt(lastPart) + 1;
-        const paddedNextNum = String(nextNum).padStart(lastPart.length, '0');
-        invoiceNumber = parts.length > 0 ? `${parts.join('-')}-${paddedNextNum}` : paddedNextNum;
-      }
-    }
-    
-    if (!invoiceNumber) {
-      invoiceNumber = `INV-${new Date().getFullYear()}-${String(1).padStart(6, '0')}`;
-    }
+    const createAsDraft = normalizeText(req.body?.status).toLowerCase() === 'draft'
+      && !Boolean(req.body?.confirmPost);
+    const invoiceNumber = createAsDraft
+      ? await allocateSellDraftNumber(req.user.tenantId)
+      : await allocateSellInvoiceNumber(req.user.tenantId);
 
     const transactionType = req.body.transactionType === 'B2B' ? 'B2B' : 'B2C';
     const overrideGate = requireOverrideReasonIfNeeded(req);
@@ -2451,6 +2480,7 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
         bodyPaymentTerms: req.body.paymentTerms,
         bodyDueDate: req.body.dueDate,
         dueDateOverride: Boolean(req.body.dueDateOverride),
+        skipSellerCheck: createAsDraft || invoiceData.status === 'draft',
       });
     } catch (prepErr) {
       if (prepErr.status === 400) {
@@ -3141,57 +3171,24 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
     const isFullyEditable = isPhase1
       || (['draft', 'pending'].includes(invoice.status) && !invoice.zatca?.signedXml);
 
-    // Posted / signed invoices: allow B2B ↔ B2C (+ buyer identity) only
+    // Posted / signed invoices: identity (buyer) only — document type is locked
     if (!isFullyEditable) {
-      const nextType = req.body.transactionType === 'B2B' ? 'B2B' : (req.body.transactionType === 'B2C' ? 'B2C' : null);
-      if (!nextType) {
-        return res.status(400).json({ error: 'Only unsigned draft or pending invoices can be modified' });
-      }
-
-      const prevType = invoice.transactionType === 'B2B' ? 'B2B' : 'B2C';
-      const typeChanged = prevType !== nextType;
-      if (typeChanged) {
-        const reason = String(req.body.transactionTypeOverrideReason || '').trim();
-        if (!reason) {
+      if (req.body.transactionType != null) {
+        const nextType = req.body.transactionType === 'B2B' ? 'B2B' : (req.body.transactionType === 'B2C' ? 'B2C' : null);
+        const prevType = invoice.transactionType === 'B2B' ? 'B2B' : 'B2C';
+        if (nextType && nextType !== prevType) {
           return res.status(400).json({
-            error: 'Reason is required when changing invoice type on a posted invoice',
-            code: 'TYPE_OVERRIDE_REASON_REQUIRED',
+            error: 'Posted invoices cannot change document type. Reset to draft first, then change type and post again.',
+            code: 'POSTED_TYPE_LOCKED',
           });
         }
-        appendTransactionTypeOverride(req, invoice, {
-          from: prevType,
-          to: nextType,
-          reason,
-        });
       }
-
-      invoice.transactionType = nextType;
-      invoice.invoiceTypeCode = req.body.invoiceTypeCode
-        || (nextType === 'B2C' ? '0200000' : '0100000');
-      syncZatcaInvoiceType(invoice, nextType);
 
       if (req.body.buyer && typeof req.body.buyer === 'object') {
         invoice.buyer = { ...(invoice.buyer?.toObject?.() || invoice.buyer || {}), ...req.body.buyer };
       }
       if (req.body.customerId !== undefined) {
         invoice.customerId = cleanObjectId(req.body.customerId) || null;
-      }
-
-      if (invoice.flow === 'sell' && nextType === 'B2B') {
-        const buyer = invoice.buyer || {};
-        const { assertB2bInvoiceReady } = await import('../services/sales/creditLimit.js');
-        const b2b = assertB2bInvoiceReady({
-          ...buyer,
-          isCompany: true,
-          entityType: 'business',
-          name: buyer.name || buyer.nameEn,
-          address: buyer.address,
-          vatNumber: buyer.vatNumber,
-          crNumber: buyer.crNumber,
-        });
-        if (!b2b.ok) {
-          return res.status(400).json({ error: b2b.error, code: b2b.code, missing: b2b.missing });
-        }
       }
 
       await invoice.save();
@@ -3304,6 +3301,11 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
         || (req.body.status && String(req.body.status).toLowerCase() !== 'draft');
       if (wantsPost && String(invoice.status) === 'draft') {
         invoice.status = resolveInitialSellInvoiceStatus(req.body.status, tenant);
+        if (isPlaceholderSellInvoiceNumber(invoice.invoiceNumber)) {
+          invoice.invoiceNumber = await allocateSellInvoiceNumber(req.user.tenantId);
+        }
+      } else if (!wantsPost && req.body.status != null) {
+        invoice.status = 'draft';
       }
       try {
         await runSellPrePostGate(req, {
@@ -3367,11 +3369,11 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
       ensureInvoiceDueDate(invoice);
     }
 
-    // Allow B2B ↔ B2C while draft/pending; enforce identity only when saving as B2B
+    // Allow B2B ↔ B2C while draft; enforce identity only when leaving draft (post)
     if (
       invoice.flow === 'sell'
       && String(invoice.transactionType || req.body.transactionType || '') === 'B2B'
-      && ['draft', 'pending'].includes(String(invoice.status || ''))
+      && String(invoice.status || '') !== 'draft'
     ) {
       const buyer = invoice.buyer || {};
       const { assertB2bInvoiceReady } = await import('../services/sales/creditLimit.js');

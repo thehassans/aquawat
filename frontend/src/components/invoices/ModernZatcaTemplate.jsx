@@ -10,6 +10,7 @@ import { Calendar, Hash, User, Phone, MapPin, CreditCard, FileText, Mail, Info }
 import { getAmountInWords } from '../../lib/amountInWords'
 import { localizeSecondaryText, setActiveInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 import { getTaxIdLabel, getTaxQrLabel } from '../../lib/saudiTenant'
+import { normalizeSaudiVatDigits } from '../../lib/saudiVat'
 import { formatInvoiceDateDisplay, resolveInvoiceDateCalendar } from '../../lib/invoiceDateFormat'
 import {
   getCommercialCounterpartyLabel,
@@ -100,8 +101,12 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
 
   const rawCompanyVat = isPurchaseFlow
     ? (tenant?.business?.vatNumber || '')
-    : (invoice?.seller?.vatNumber || tenant?.business?.vatNumber || '')
-  const companyVat = isDummyVat(rawCompanyVat) ? '' : String(rawCompanyVat).trim()
+    : (tenant?.business?.vatNumber || invoice?.seller?.vatNumber || '')
+  const companyVat = (() => {
+    if (isDummyVat(rawCompanyVat)) return ''
+    const digits = normalizeSaudiVatDigits(rawCompanyVat)
+    return digits || String(rawCompanyVat).trim()
+  })()
 
   const rawCompanyCr = isPurchaseFlow
     ? (tenant?.business?.crNumber || '')

@@ -606,7 +606,7 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
   const isQuotation = documentType === 'quotation'
   const isPurchaseOrder = documentType === 'purchase_order'
   const isSalesOrder = documentType === 'sales_order'
-  const documentNumber = resolveCommercialDocumentNumber(invoice, documentType)
+  const documentNumber = resolveCommercialDocumentNumber(invoice, documentType, language)
   const amountInWordsLines = bilingual
     ? uniqueLines(
         getAmountInWords(totals.grandTotal, currency, 'en'),

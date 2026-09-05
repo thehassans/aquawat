@@ -155,11 +155,20 @@ export async function listAccountingVendors(tenantId, {
     tenantId,
     partnerType: 'vendor',
   });
-  const balById = new Map(
-    (balances.partners || [])
-      .filter((b) => b.partnerId)
-      .map((b) => [String(b.partnerId), b]),
-  );
+  const balById = new Map();
+  for (const b of balances.partners || []) {
+    if (b.partnerId) balById.set(String(b.partnerId), b);
+  }
+  // Advances (negative AP) still belong to the vendor row for transparency
+  for (const b of balances.advances || []) {
+    if (!b.partnerId) continue;
+    const id = String(b.partnerId);
+    if (balById.has(id)) continue;
+    balById.set(id, {
+      ...b,
+      openResidual: round2(-(Number(b.advanceAmount) || Math.abs(b.openResidual) || 0)),
+    });
+  }
 
   let rows = allPartners.map((p) => {
     const bal = balById.get(String(p._id)) || null;
@@ -196,7 +205,7 @@ export async function listAccountingVendors(tenantId, {
       bank: p.bank || null,
       bankAccounts: p.bankAccounts || [],
       outstanding,
-      payable: outstanding,
+      payable: round2(Math.max(0, outstanding)),
       overdue,
       aging: bal?.aging || null,
       invoiceCountOpen: bal?.invoiceCount || 0,
@@ -205,11 +214,15 @@ export async function listAccountingVendors(tenantId, {
   });
 
   // Include GL-only partners (on 2000) that are not in the vendor master list
-  for (const bal of balances.partners || []) {
+  const glExtras = [...(balances.partners || []), ...(balances.advances || [])];
+  for (const bal of glExtras) {
     if (!bal.partnerId) continue;
     const id = String(bal.partnerId);
     if (rows.some((r) => String(r._id) === id)) continue;
-    if (Math.abs(bal.openResidual || 0) < 0.01) continue;
+    const open = bal.advanceAmount != null
+      ? round2(-(Number(bal.advanceAmount) || 0))
+      : round2(bal.openResidual || 0);
+    if (Math.abs(open) < 0.01) continue;
     rows.push({
       _id: bal.partnerId,
       name: bal.partnerName || '—',
@@ -233,8 +246,8 @@ export async function listAccountingVendors(tenantId, {
       defaultExpenseAccountId: null,
       bank: null,
       bankAccounts: [],
-      outstanding: round2(bal.openResidual || 0),
-      payable: round2(bal.openResidual || 0),
+      outstanding: open,
+      payable: Math.max(0, open),
       overdue: round2(Math.max(
         0,
         (bal.aging?.d31_60 || 0) + (bal.aging?.d61_90 || 0) + (bal.aging?.d90_plus || 0),
@@ -243,6 +256,7 @@ export async function listAccountingVendors(tenantId, {
       invoiceCountOpen: bal.invoiceCount || 0,
       zatcaStatus: 'unverified',
       glOnly: true,
+      isAdvance: open < -0.005,
     });
   }
 
@@ -268,8 +282,12 @@ export async function listAccountingVendors(tenantId, {
   const total = rows.length;
   const paged = rows.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
-  // KPI must equal COA 2000 / aged AP total (includes unallocated GL)
-  const payablesSum = round2(balances.totals?.openResidual || 0);
+  // KPI payables = sum of directory row payables (positive AP only).
+  // Advances + unallocated are surfaced separately so Σ(rows) == KPI.
+  const payablesSum = round2(rows.reduce((s, r) => s + Math.max(0, Number(r.payable ?? r.outstanding) || 0), 0));
+  const advancesSum = round2(balances.totals?.advanceResidual || 0);
+  const unallocatedAmount = round2(balances.totals?.unallocatedAmount || 0);
+  const glControlBalance = round2(balances.totals?.glControlBalance ?? balances.totals?.openResidual ?? 0);
 
   return {
     vendors: paged,
@@ -282,10 +300,14 @@ export async function listAccountingVendors(tenantId, {
     },
     totals: {
       payablesSum,
+      advancesSum,
+      unallocatedAmount,
       overdueSum: round2(rows.reduce((s, r) => s + r.overdue, 0)),
       vendorCount: total,
       withOpenBalance: rows.filter((r) => Math.abs(r.outstanding) >= 0.01).length,
-      glControlBalance: round2(balances.totals?.glControlBalance ?? payablesSum),
+      glControlBalance,
+      /** Assertion helper: sum(rows.payable) should equal payablesSum */
+      rowsPayableSum: payablesSum,
     },
   };
 }

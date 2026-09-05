@@ -27,11 +27,16 @@ export function validatePartnerVat(vatNumber, countryCode = 'SA') {
   const v = String(vatNumber || '').trim()
   if (!v) return { ok: true }
   if (countryCode === 'SA' || countryCode === 'Saudi Arabia') {
-    if (!/^3\d{13}3$/.test(v)) {
+    // Keep in sync with frontend/src/lib/saudiVat.js and backend/utils/saudiVat.js
+    const digits = v
+      .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+      .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+      .replace(/\D/g, '')
+    if (!/^3\d{13}3$/.test(digits)) {
       return {
         ok: false,
-        message: 'VAT / TRN must be 15 digits starting and ending with 3',
-        messageAr: 'الرقم الضريبي يجب أن يكون 15 رقمًا يبدأ وينتهي بـ 3',
+        message: 'VAT number must be 15 digits and start/end with 3',
+        messageAr: 'الرقم الضريبي يجب أن يكون 15 رقماً ويبدأ وينتهي بـ 3',
       }
     }
   }

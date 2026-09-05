@@ -10,6 +10,7 @@ import { useTranslation } from '../lib/translations'
 import { buildDefaultFileName, exportToCsv } from '../lib/export'
 import ExportMenu from '../components/ui/ExportMenu'
 import ContactsCreateMenu from '../components/contacts/ContactsCreateMenu'
+import { isValidSaudiVat } from '../lib/saudiVat'
 import {
   avatarClass,
   contactTabClass,
@@ -473,8 +474,17 @@ export default function Contacts() {
                       </span>
                     ) : '—'}
                   </td>
-                  <td className={`${contactsTdClass} font-mono text-xs text-slate-600 dark:text-slate-400`}>
-                    {c.vatNumber || '—'}
+                  <td className={`${contactsTdClass} font-mono text-xs`}>
+                    {c.vatNumber ? (
+                      <span className={
+                        isValidSaudiVat(c.vatNumber)
+                          ? 'text-emerald-700 dark:text-emerald-400'
+                          : 'inline-flex items-center gap-1 font-semibold text-rose-600'
+                      }>
+                        {!isValidSaudiVat(c.vatNumber) ? '⚠ ' : null}
+                        {c.vatNumber}
+                      </span>
+                    ) : '—'}
                   </td>
                   <td className={contactsTdClass}>
                     <span className={c.isActive ? statusActiveClass : statusInactiveClass}>

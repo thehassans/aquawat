@@ -185,7 +185,7 @@ export default function AccountingLayout() {
 
   const hubs = ACCOUNTING_MENU.map((hub) => ({
     ...hub,
-    active: hubIsActive(hub, path) || openId === hub.id,
+    active: hubIsActive(hub, path, location.search) || openId === hub.id,
   }))
 
   if (composerMode) {
@@ -265,7 +265,7 @@ export default function AccountingLayout() {
                     key={hub.id}
                     to={hub.href}
                     end={Boolean(hub.end)}
-                    active={hubIsActive(hub, path)}
+                    active={hubIsActive(hub, path, location.search)}
                   >
                     {labelOf(hub, isAr)}
                   </TopLink>

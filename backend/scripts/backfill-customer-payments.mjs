@@ -51,6 +51,8 @@ async function main() {
       wouldCreate: report.wouldCreate,
       created: report.created,
       skippedExisting: report.skippedExisting,
+      linkedToInvoice: report.linkedToInvoice,
+      ambiguous: report.ambiguous,
       sample: report.rows.slice(0, 12),
     }, null, 2));
   }

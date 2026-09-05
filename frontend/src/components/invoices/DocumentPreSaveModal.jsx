@@ -3,6 +3,7 @@ import { useEffect, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AlertTriangle, ArrowUpRight, Edit3, Eye, FileText, Receipt, Save, X, XCircle } from 'lucide-react'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
+import { resolveCommercialDocumentNumber } from '../../lib/commercialDocumentLabels'
 
 const InvoiceLivePreview = lazy(() => import('./InvoiceLivePreview'))
 const ThermalReceipt = lazy(() => import('../ui/ThermalReceipt'))
@@ -15,7 +16,9 @@ export default function DocumentPreSaveModal({
   isOpen,
   onClose,
   onConfirm,
+  onSaveDraft,
   isPending = false,
+  isDraftPending = false,
   document: previewDoc,
   tenant,
   language = 'en',
@@ -23,6 +26,8 @@ export default function DocumentPreSaveModal({
   templateId,
   title,
   confirmLabel,
+  keepEditingLabel,
+  saveDraftLabel,
   confirmDisabled = false,
   warningText,
   errorChecks = [],
@@ -72,7 +77,7 @@ export default function DocumentPreSaveModal({
   const thermalOrder = previewDoc
     ? {
         ...previewDoc,
-        receiptNumber: previewDoc.invoiceNumber,
+        receiptNumber: resolveCommercialDocumentNumber(previewDoc, documentType, language) || previewDoc.invoiceNumber,
         customerName: previewDoc.buyer?.name || previewDoc.buyer?.nameAr,
         customerPhone: previewDoc.buyer?.contactPhone || previewDoc.buyer?.phone,
         grandTotal: previewDoc.grandTotal,
@@ -121,7 +126,7 @@ export default function DocumentPreSaveModal({
                     {title || defaultTitle}
                   </h3>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    {isAr ? 'راجع المستند ثم احفظ أو عدّل' : 'Review, then save or keep editing'}
+                    {isAr ? 'راجع المستند ثم احفظ كمسودة أو رحّل' : 'Review, then save as draft or post'}
                   </p>
                 </div>
               </div>
@@ -243,22 +248,39 @@ export default function DocumentPreSaveModal({
                     onClick={onClose}
                     className="order-3 inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 sm:order-1 dark:hover:bg-white/5 dark:hover:text-slate-200"
                   >
-                    {isAr ? 'إلغاء' : 'Cancel'}
+                    <Edit3 className="h-4 w-4" strokeWidth={1.75} />
+                    {keepEditingLabel || (isAr ? 'متابعة التعديل' : 'Keep editing')}
                   </button>
 
-                  <div className="order-1 flex flex-1 gap-2 sm:order-2 sm:justify-end">
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 sm:flex-none dark:border-white/10 dark:bg-dark-800 dark:text-slate-100"
-                    >
-                      <Edit3 className="h-4 w-4" strokeWidth={1.75} />
-                      {isAr ? 'تعديل' : 'Edit'}
-                    </button>
+                  <div className="order-1 flex flex-1 flex-col gap-2 sm:order-2 sm:flex-row sm:justify-end">
+                    {typeof onSaveDraft === 'function' ? (
+                      <button
+                        type="button"
+                        onClick={onSaveDraft}
+                        disabled={isPending || isDraftPending}
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50 sm:flex-none dark:border-white/10 dark:bg-dark-800 dark:text-slate-100"
+                      >
+                        {isDraftPending ? (
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
+                        ) : (
+                          <FileText className="h-4 w-4" strokeWidth={1.75} />
+                        )}
+                        {saveDraftLabel || (isAr ? 'حفظ مسودة' : 'Save draft')}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 sm:flex-none dark:border-white/10 dark:bg-dark-800 dark:text-slate-100"
+                      >
+                        <Edit3 className="h-4 w-4" strokeWidth={1.75} />
+                        {isAr ? 'تعديل' : 'Edit'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={onConfirm}
-                      disabled={isPending || confirmDisabled}
+                      disabled={isPending || isDraftPending || confirmDisabled}
                       className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-[0_12px_32px_-12px_rgba(15,23,42,0.55)] transition hover:bg-slate-800 disabled:opacity-50 sm:flex-none dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
                     >
                       {isPending ? (

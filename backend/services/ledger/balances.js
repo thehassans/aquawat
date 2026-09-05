@@ -101,19 +101,37 @@ export function journalStatusMatch({
   return match;
 }
 
+/** Parse YYYY-MM-DD as a calendar date (no timezone day-shift). */
+function parseDateOnlyParts(d) {
+  if (d == null || d === '') return null;
+  if (typeof d === 'string') {
+    const m = d.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return { y: Number(m[1]), mo: Number(m[2]), day: Number(m[3]) };
+  }
+  return null;
+}
+
 function endOfDay(d) {
   if (!d) return null;
+  const parts = parseDateOnlyParts(d);
+  if (parts) {
+    return new Date(Date.UTC(parts.y, parts.mo - 1, parts.day, 23, 59, 59, 999));
+  }
   const x = new Date(d);
   if (Number.isNaN(x.getTime())) return null;
-  x.setHours(23, 59, 59, 999);
+  x.setUTCHours(23, 59, 59, 999);
   return x;
 }
 
 function startOfDay(d) {
   if (!d) return null;
+  const parts = parseDateOnlyParts(d);
+  if (parts) {
+    return new Date(Date.UTC(parts.y, parts.mo - 1, parts.day, 0, 0, 0, 0));
+  }
   const x = new Date(d);
   if (Number.isNaN(x.getTime())) return null;
-  x.setHours(0, 0, 0, 0);
+  x.setUTCHours(0, 0, 0, 0);
   return x;
 }
 
@@ -316,9 +334,23 @@ export async function getPartnerBalances({
       flow,
       controlCode,
       buckets: withAgingAliases(emptyAgingBuckets()),
+      glBuckets: withAgingAliases(emptyAgingBuckets()),
       partners: [],
+      allPartners: [],
+      advances: [],
+      unallocated: null,
       invoices: [],
-      totals: { openResidual: 0, partnerCount: 0, invoiceCount: 0, glControlBalance: 0 },
+      totals: {
+        openResidual: 0,
+        partnerCount: 0,
+        invoiceCount: 0,
+        glControlBalance: 0,
+        payableResidual: 0,
+        advanceResidual: 0,
+        unallocatedResidual: 0,
+        unallocatedAmount: 0,
+        advancePartnerCount: 0,
+      },
     };
   }
 
@@ -607,20 +639,84 @@ export async function getPartnerBalances({
       || (partnerIdFilter && p.partnerId && partnerIdFilter.some((id) => String(id) === String(p.partnerId))))
     .sort((a, b) => Math.abs(b.openResidual) - Math.abs(a.openResidual));
 
+  /**
+   * Split GL control into:
+   *  - payables/receivables (positive natural residual) → aging table
+   *  - advances (negative) → supplier/customer advances card
+   *  - unallocated (null partnerId) → unallocated payments card
+   */
+  let unallocated = null;
+  const payablePartners = [];
+  const advancePartners = [];
+  for (const p of partnersOut) {
+    if (!p.partnerId) {
+      unallocated = {
+        openResidual: round2(p.openResidual),
+        amount: round2(Math.abs(p.openResidual)),
+        lineCount: p.lineCount || 0,
+        aging: p.aging || withAgingAliases(emptyAgingBuckets()),
+      };
+      continue;
+    }
+    if (p.openResidual < -0.005) {
+      advancePartners.push({
+        ...p,
+        advanceAmount: round2(-p.openResidual),
+      });
+      continue;
+    }
+    if (p.openResidual > 0.005 || p.invoiceCount > 0 || p.totalInvoiced >= 0.005) {
+      // Aging UI must not show negative buckets for advances
+      const agingPos = withAgingAliases({
+        d0_30: Math.max(0, p.aging?.d0_30 || 0),
+        d31_60: Math.max(0, p.aging?.d31_60 || 0),
+        d61_90: Math.max(0, p.aging?.d61_90 || 0),
+        d90_plus: Math.max(0, p.aging?.d90_plus || 0),
+        total: Math.max(0, p.openResidual),
+      });
+      payablePartners.push({ ...p, aging: agingPos, openResidual: round2(Math.max(0, p.openResidual)) });
+    }
+  }
+
+  const agingBuckets = emptyAgingBuckets();
+  for (const p of payablePartners) {
+    agingBuckets.d0_30 += p.aging?.d0_30 || 0;
+    agingBuckets.d31_60 += p.aging?.d31_60 || 0;
+    agingBuckets.d61_90 += p.aging?.d61_90 || 0;
+    agingBuckets.d90_plus += p.aging?.d90_plus || 0;
+  }
+  const payableResidual = round2(payablePartners.reduce((s, p) => s + (Number(p.openResidual) || 0), 0));
+  agingBuckets.total = payableResidual;
+  const agingBucketsOut = withAgingAliases(agingBuckets);
+
+  const advanceResidual = round2(advancePartners.reduce((s, p) => s + (Number(p.advanceAmount) || 0), 0));
+  const unallocatedAmount = round2(unallocated?.amount || 0);
+
   return {
     asOf: asOfDate,
     partnerType,
     flow,
     controlCode,
     source: 'gl_control_account',
-    buckets: bucketsOut,
-    partners: partnersOut,
-    invoices: invoiceDetails,
+    /** Aging buckets: positive payables/receivables only (excludes advances + unallocated). */
+    buckets: agingBucketsOut,
+    /** Full GL control buckets (legacy; may include negatives). */
+    glBuckets: bucketsOut,
+    partners: payablePartners,
+    allPartners: partnersOut,
+    advances: advancePartners,
+    unallocated,
+    invoices: invoiceDetails.filter((inv) => Number(inv.residual) > 0.005),
     totals: {
       openResidual: glControlBalance,
       glControlBalance,
-      partnerCount: partnersOut.filter((p) => Math.abs(p.openResidual) >= 0.01).length,
-      invoiceCount: invoiceDetails.length,
+      payableResidual,
+      advanceResidual,
+      unallocatedResidual: round2(unallocated?.openResidual || 0),
+      unallocatedAmount,
+      partnerCount: payablePartners.filter((p) => Math.abs(p.openResidual) >= 0.01).length,
+      advancePartnerCount: advancePartners.length,
+      invoiceCount: invoiceDetails.filter((inv) => Number(inv.residual) > 0.005).length,
     },
   };
 }
