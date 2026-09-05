@@ -171,21 +171,7 @@ jobs:
           fi
           chmod 600 "$HOME/.ssh/known_hosts" "$HOME/.ssh/plesk_deploy"
 
-          # Fast path for large binary blobs: no SSH Compression, no rsync -z
-          # (re-gzipping a .zst burns CPU and looks "stuck" for 1GB+ transfers).
-          SSH_FAST=(
-            -i "$HOME/.ssh/plesk_deploy"
-            -o IdentitiesOnly=yes
-            -o BatchMode=yes
-            -o StrictHostKeyChecking=yes
-            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
-            -o Compression=no
-            -o Ciphers=aes128-gcm@openssh.com,chacha20-poly1305@openssh.com,aes128-ctr
-            -o ConnectTimeout=15
-            -o ServerAliveInterval=20
-            -o ServerAliveCountMax=30
-            -p "${SSH_PORT}"
-          )
+          # Fast path for large binary blobs used via RSYNC_IMG_RSH below.
           SSH_BASE=(
             -i "$HOME/.ssh/plesk_deploy"
             -o IdentitiesOnly=yes
