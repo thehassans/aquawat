@@ -1,6 +1,6 @@
 import React from 'react'
 import DocumentExtras from './DocumentExtras'
-import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
+import { getCommercialCounterpartyLabel, getCommercialDocumentNumberLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr, formatPartyAddress } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { resolveTaxInvoiceQr } from '../../lib/taxInvoiceQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -20,9 +20,12 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
   const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
   const {
     headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, companyNtn, companyStrn,
+    companyAddress,
     counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyNtn, counterpartyStrn,
     counterpartyPhone, counterpartyLabelEn, taxLabel, taxIdLabel
   } = parties
+  const sellerAddressText = formatPartyAddress(companyAddress, { language: 'en' })
+  const sellerAddressAr = formatPartyAddress(companyAddress, { language: 'ar' })
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -115,6 +118,10 @@ export default function ModernSplitTemplate({ invoice, tenant, language = 'en', 
             <h2 className="text-lg font-bold text-slate-900">{companyNameEn || headerCompanyName}</h2>
             {bilingual && companyNameAr && <h2 className="text-md font-bold text-slate-700 mt-1" dir="rtl">{companyNameAr}</h2>}
             <div className="mt-3 text-sm text-slate-600 space-y-1">
+              {sellerAddressText ? <p className="leading-snug text-slate-500">{sellerAddressText}</p> : null}
+              {bilingual && sellerAddressAr && sellerAddressAr !== sellerAddressText ? (
+                <p className="leading-snug text-slate-500" dir="rtl">{sellerAddressAr}</p>
+              ) : null}
               {companyNtn ? <p>NTN: <span className="font-medium text-slate-900">{companyNtn}</span></p> : (companyVat ? <p>{taxIdLabel}: <span className="font-medium text-slate-900">{companyVat}</span></p> : null)}
               {companyStrn && <p>STRN: <span className="font-medium text-slate-900">{companyStrn}</span></p>}
               {companyCr && <p>CR: <span className="font-medium text-slate-900">{companyCr}</span></p>}

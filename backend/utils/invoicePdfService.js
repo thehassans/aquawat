@@ -131,10 +131,27 @@ const formatDate = (value, language = 'en') => {
   });
 };
 
-const buildPartyLines = (party = {}, language = 'en') => {
-  const address = party?.address || {};
-  const cityLine = [address?.buildingNumber, address?.street, address?.district, address?.city].filter(Boolean).join(', ');
-  const locationLine = [address?.postalCode, address?.country].filter(Boolean).join(' ');
+const buildPartyLines = (party = {}, language = 'en', tenant = null) => {
+  const na = tenant?.business?.nationalAddress || {};
+  const raw = party?.address || {};
+  const address = {
+    ...raw,
+    street: raw.street || na.street || '',
+    streetAr: raw.streetAr || na.streetAr || '',
+    buildingNumber: raw.buildingNumber || na.buildingNo || '',
+    district: raw.district || na.neighborhood || '',
+    city: raw.city || na.region || '',
+    postalCode: raw.postalCode || na.postalCode || '',
+    shortAddress: raw.shortAddress || na.shortAddress || '',
+  };
+  const cityLine = [
+    address.shortAddress,
+    address.buildingNumber,
+    language === 'ar' ? (address.streetAr || address.street) : (address.street || address.streetAr),
+    language === 'ar' ? (address.districtAr || address.district) : (address.district || address.districtAr),
+    language === 'ar' ? (address.cityAr || address.city) : (address.city || address.cityAr),
+  ].filter(Boolean).join(', ');
+  const locationLine = [address.postalCode, address.country || raw.country].filter(Boolean).join(' ');
   const labels = language === 'ar'
     ? { vat: 'الرقم الضريبي', cr: 'السجل التجاري', phone: 'الهاتف', email: 'البريد' }
     : { vat: 'VAT', cr: 'CR', phone: 'Phone', email: 'Email' };
@@ -458,16 +475,28 @@ const drawCard = (doc, x, y, width, height, fillColor = [255, 255, 255], strokeC
   doc.roundedRect(x, y, width, height, 14, 14, 'FD');
 };
 
-const buildBilingualPartyLines = (party = {}, fallbackName = '') => {
+const buildBilingualPartyLines = (party = {}, fallbackName = '', tenant = null) => {
+  const na = tenant?.business?.nationalAddress || {};
+  const raw = party?.address || {};
   const normalizedParty = {
     ...party,
     name: normalizeText(party?.name || fallbackName),
     nameAr: normalizeText(party?.nameAr || ''),
+    address: {
+      ...raw,
+      street: raw.street || na.street || '',
+      streetAr: raw.streetAr || na.streetAr || '',
+      buildingNumber: raw.buildingNumber || na.buildingNo || '',
+      district: raw.district || na.neighborhood || '',
+      city: raw.city || na.region || '',
+      postalCode: raw.postalCode || na.postalCode || '',
+      shortAddress: raw.shortAddress || na.shortAddress || '',
+    },
   };
 
   return mergeUniqueLines(
-    buildPartyLines(normalizedParty, 'en'),
-    buildPartyLines(normalizedParty, 'ar')
+    buildPartyLines(normalizedParty, 'en', tenant),
+    buildPartyLines(normalizedParty, 'ar', tenant)
   );
 };
 
@@ -509,8 +538,8 @@ export const buildInvoicePdfBuffer = async ({ invoice, tenant, customerName, lan
     { label: 'Flow / التدفق', value: flowValue || '—' },
     { label: 'Status / الحالة', value: normalizeText(invoice?.status) || '—' },
   ];
-  const partyLinesSeller = buildBilingualPartyLines(invoice?.seller || tenant?.business || {}, sellerNameEn);
-  const partyLinesBuyer = buildBilingualPartyLines(invoice?.buyer || {}, buyerName);
+  const partyLinesSeller = buildBilingualPartyLines(invoice?.seller || tenant?.business || {}, sellerNameEn, tenant);
+  const partyLinesBuyer = buildBilingualPartyLines(invoice?.buyer || {}, buyerName, tenant);
   const travelRows = buildTravelRows(invoice);
   const boutiqueRows = buildBoutiqueRows(invoice);
   const lineItems = Array.isArray(invoice?.lineItems) ? invoice.lineItems : [];

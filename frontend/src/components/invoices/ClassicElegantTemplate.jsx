@@ -1,6 +1,6 @@
 import React from 'react'
 import DocumentExtras from './DocumentExtras'
-import { getCommercialCounterpartyLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr } from '../../lib/commercialDocumentLabels'
+import { getCommercialCounterpartyLabel, getCommercialDocumentTitle, resolveCommercialDocumentNumber, resolveInvoiceParties, shouldShowZatcaQr, formatPartyAddress } from '../../lib/commercialDocumentLabels'
 import { QRCodeSVG } from 'qrcode.react'
 import { resolveTaxInvoiceQr } from '../../lib/taxInvoiceQr'
 import { getUomLabel } from '../../lib/uomOptions'
@@ -20,9 +20,12 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
   const parties = resolveInvoiceParties({ invoice, tenant, invoiceBranding, language, bilingual, documentType })
   const {
     headerCompanyName, companyNameEn, companyNameAr, companyVat, companyCr, companyNtn, companyStrn,
+    companyAddress,
     counterpartyName, counterpartyNameEn, counterpartyNameAr, counterpartyVat, counterpartyCr, counterpartyNtn, counterpartyStrn,
     counterpartyPhone, counterpartyLabelEn, taxLabel, taxIdLabel
   } = parties
+  const sellerAddressText = formatPartyAddress(companyAddress, { language: 'en' })
+  const sellerAddressAr = formatPartyAddress(companyAddress, { language: 'ar' })
 
   const logoSrc = invoiceBranding.logoSrc
   
@@ -89,6 +92,10 @@ export default function ClassicElegantTemplate({ invoice, tenant, language = 'en
           <h2 className="text-xl font-bold text-amber-900">{companyNameEn || headerCompanyName}</h2>
           {bilingual && companyNameAr && <h2 className="text-lg font-bold text-amber-900" dir="rtl">{companyNameAr}</h2>}
           <div className="mt-2 text-sm text-gray-700">
+            {sellerAddressText ? <p className="max-w-xs leading-snug">{sellerAddressText}</p> : null}
+            {bilingual && sellerAddressAr && sellerAddressAr !== sellerAddressText ? (
+              <p className="max-w-xs leading-snug" dir="rtl">{sellerAddressAr}</p>
+            ) : null}
             {companyNtn ? <p>NTN: {companyNtn}</p> : (companyVat ? <p>{taxIdLabel}: {companyVat}</p> : null)}
             {companyStrn && <p>STRN: {companyStrn}</p>}
             {companyCr && <p>CR: {companyCr}</p>}

@@ -2067,7 +2067,24 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       nameAr: tenant?.business?.legalNameAr || initialInvoice?.seller?.nameAr || '',
       vatNumber: tenant?.business?.vatNumber || initialInvoice?.seller?.vatNumber || '',
       crNumber: tenant?.business?.crNumber || tenant?.business?.commercialRegistration?.crNumber || initialInvoice?.seller?.crNumber || '',
-      address: tenant?.business?.address || initialInvoice?.seller?.address || {},
+      address: (() => {
+        const business = tenant?.business || {}
+        const na = business.nationalAddress || {}
+        const addr = business.address || initialInvoice?.seller?.address || {}
+        return {
+          ...addr,
+          street: addr.street || na.street || '',
+          streetAr: addr.streetAr || na.streetAr || '',
+          buildingNumber: addr.buildingNumber || na.buildingNo || '',
+          additionalNumber: addr.additionalNumber || na.secondaryNo || '',
+          district: addr.district || na.neighborhood || '',
+          districtAr: addr.districtAr || na.neighborhoodAr || '',
+          city: addr.city || na.region || '',
+          cityAr: addr.cityAr || na.regionAr || '',
+          postalCode: addr.postalCode || na.postalCode || '',
+          shortAddress: addr.shortAddress || na.shortAddress || '',
+        }
+      })(),
       contactPhone: tenant?.business?.contactPhone || initialInvoice?.seller?.contactPhone || '',
       contactEmail: tenant?.business?.contactEmail || initialInvoice?.seller?.contactEmail || '',
     },

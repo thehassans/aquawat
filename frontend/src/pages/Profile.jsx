@@ -236,6 +236,8 @@ export default function Profile() {
           shortAddress: nationalAddress.shortAddress || business.address?.shortAddress || '',
           buildingNo: nationalAddress.buildingNo || business.address?.buildingNumber || '',
           secondaryNo: nationalAddress.secondaryNo || business.address?.additionalNumber || '',
+          street: nationalAddress.street || business.address?.street || '',
+          streetAr: nationalAddress.streetAr || business.address?.streetAr || '',
           neighborhood: nationalAddress.neighborhood || business.address?.district || '',
           neighborhoodAr: nationalAddress.neighborhoodAr || business.address?.districtAr || '',
           region: nationalAddress.region || business.address?.city || '',
@@ -494,6 +496,8 @@ export default function Profile() {
       buildingNumber: addr.buildingNumber || na.buildingNo || '',
       additionalNumber: addr.additionalNumber || na.secondaryNo || '',
       postalCode: addr.postalCode || na.postalCode || '',
+      street: addr.street || na.street || '',
+      streetAr: addr.streetAr || na.streetAr || '',
       district: addr.district || na.neighborhood || '',
       districtAr: addr.districtAr || na.neighborhoodAr || '',
       city: addr.city || na.region || '',
@@ -505,6 +509,8 @@ export default function Profile() {
       buildingNo: na.buildingNo || syncedAddress.buildingNumber || '',
       secondaryNo: na.secondaryNo || syncedAddress.additionalNumber || '',
       postalCode: na.postalCode || syncedAddress.postalCode || '',
+      street: na.street || syncedAddress.street || '',
+      streetAr: na.streetAr || syncedAddress.streetAr || '',
       neighborhood: na.neighborhood || syncedAddress.district || '',
       neighborhoodAr: na.neighborhoodAr || syncedAddress.districtAr || '',
       region: na.region || syncedAddress.city || '',
@@ -1500,6 +1506,10 @@ export default function Profile() {
                     <span className="font-bold text-gray-900 dark:text-white">{nationalAddress.secondaryNo || business.address?.additionalNumber || '—'}</span>
                   </div>
                   <div>
+                    <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'الشارع' : 'Street'}</span>
+                    <span className="font-bold text-gray-900 dark:text-white">{nationalAddress.streetAr || nationalAddress.street || business.address?.streetAr || business.address?.street || '—'}</span>
+                  </div>
+                  <div>
                     <span className="text-xs text-gray-400 block mb-1">{language === 'ar' ? 'الحي' : 'Neighborhood'}</span>
                     <span className="font-bold text-gray-900 dark:text-white">{nationalAddress.neighborhood || business.address?.district || '—'}</span>
                   </div>
@@ -2299,6 +2309,14 @@ export default function Profile() {
                     <div>
                       <label className="label">Secondary No <span className="text-slate-400" dir="rtl">الرقم الفرعي</span></label>
                       <input {...register('business.nationalAddress.secondaryNo')} className="input" placeholder="2883" />
+                    </div>
+                    <div>
+                      <label className="label">Street <span className="text-slate-400" dir="rtl">الشارع</span></label>
+                      <input {...register('business.nationalAddress.street')} className="input" />
+                    </div>
+                    <div>
+                      <label className="label">Street (AR) <span className="text-slate-400" dir="rtl">الشارع (عربي)</span></label>
+                      <input {...register('business.nationalAddress.streetAr')} className="input" dir="rtl" />
                     </div>
                     <div>
                       <label className="label">Neighborhood / District <span className="text-slate-400" dir="rtl">الحي</span></label>

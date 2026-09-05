@@ -244,6 +244,8 @@ export default function TenantForm() {
       buildingNumber: addr.buildingNumber || na.buildingNo || '',
       additionalNumber: addr.additionalNumber || na.secondaryNo || '',
       postalCode: addr.postalCode || na.postalCode || '',
+      street: addr.street || na.street || '',
+      streetAr: addr.streetAr || na.streetAr || '',
       district: addr.district || na.neighborhood || '',
       districtAr: addr.districtAr || na.neighborhoodAr || '',
       city: addr.city || na.region || '',
@@ -255,6 +257,8 @@ export default function TenantForm() {
       buildingNo: na.buildingNo || syncedAddress.buildingNumber || '',
       secondaryNo: na.secondaryNo || syncedAddress.additionalNumber || '',
       postalCode: na.postalCode || syncedAddress.postalCode || '',
+      street: na.street || syncedAddress.street || '',
+      streetAr: na.streetAr || syncedAddress.streetAr || '',
       neighborhood: na.neighborhood || syncedAddress.district || '',
       neighborhoodAr: na.neighborhoodAr || syncedAddress.districtAr || '',
       region: na.region || syncedAddress.city || '',
@@ -654,6 +658,14 @@ export default function TenantForm() {
             <div>
               <label className="label">Secondary No <span className="text-slate-400" dir="rtl">الرقم الفرعي</span></label>
               <input {...register('business.nationalAddress.secondaryNo')} className="input" placeholder="2883" />
+            </div>
+            <div>
+              <label className="label">Street <span className="text-slate-400" dir="rtl">الشارع</span></label>
+              <input {...register('business.nationalAddress.street')} className="input" />
+            </div>
+            <div>
+              <label className="label">Street (AR) <span className="text-slate-400" dir="rtl">الشارع (عربي)</span></label>
+              <input {...register('business.nationalAddress.streetAr')} className="input" dir="rtl" />
             </div>
             <div>
               <label className="label">Neighborhood / District <span className="text-slate-400" dir="rtl">الحي</span></label>

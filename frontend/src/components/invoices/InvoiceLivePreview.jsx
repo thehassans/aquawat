@@ -25,6 +25,7 @@ import {
   resolveCommercialDocumentNumber,
   resolveInvoiceParties,
   getZatcaDocumentTitle,
+  mergeBusinessAddress,
 } from '../../lib/commercialDocumentLabels'
 import { getTaxIdLabel, isGccTenant } from '../../lib/saudiTenant'
 
@@ -148,7 +149,15 @@ const getCreatorDisplayName = (invoice, language = 'en') => {
 }
 
 const formatAddress = (address = {}) => {
-  return [address?.street, address?.district, address?.city, address?.postalCode, address?.country]
+  return [
+    address?.shortAddress,
+    address?.buildingNumber,
+    address?.street || address?.streetAr,
+    address?.district || address?.districtAr,
+    address?.city || address?.cityAr,
+    address?.postalCode,
+    address?.country,
+  ]
     .filter(Boolean)
     .join(', ')
 }
@@ -574,9 +583,15 @@ export default function InvoiceLivePreview({ invoice, tenant, language = 'en', t
   const travelDetailsAr = normalizeTravelDetails(invoice?.travelDetails || {}, counterpartyNameAr || counterpartyNameEn, 'ar')
   const lineItems = totals.lines.length > 0 ? totals.lines : [{ raw: { productName: language === 'ar' ? 'خدمة' : 'Service' }, quantity: 1, unitPrice: 0, taxAmount: 0, lineTotalWithTax: 0 }]
   const isPk = isFbrApplicable || (tenant?.business?.address?.country || '').toUpperCase() === 'PK'
+  const sellerParty = isPurchaseFlow
+    ? { ...(tenant?.business || {}), address: mergeBusinessAddress(tenant, tenant?.business?.address) }
+    : {
+        ...(invoice?.seller || tenant?.business || {}),
+        address: mergeBusinessAddress(tenant, invoice?.seller?.address || tenant?.business?.address),
+      }
   const sellerDetails = bilingual
-    ? getPartyDetailLinesBilingual(isPurchaseFlow ? (tenant?.business || {}) : (invoice?.seller || tenant?.business || {}), 'seller', isPk)
-    : getPartyDetailLines(isPurchaseFlow ? (tenant?.business || {}) : (invoice?.seller || tenant?.business || {}), language, 'seller', isPk)
+    ? getPartyDetailLinesBilingual(sellerParty, 'seller', isPk)
+    : getPartyDetailLines(sellerParty, language, 'seller', isPk)
   const buyerDetails = bilingual
     ? getPartyDetailLinesBilingual(counterpartyData || {}, isPurchaseFlow ? 'supplier' : 'buyer', isPk)
     : getPartyDetailLines(counterpartyData || {}, language, isPurchaseFlow ? 'supplier' : 'buyer', isPk)

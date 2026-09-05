@@ -182,16 +182,28 @@ export const splitBrandingText = (value) => String(value || '').split(/\r?\n/).m
 export const getLetterheadContact = (tenant, invoice) => {
   const business = tenant?.business || {}
   const seller = invoice?.seller || {}
-  const address = seller.address || business.address || {}
-  const shortAddress =
-    address.shortAddress ||
-    business?.nationalAddress?.shortAddress ||
-    ''
+  const na = business.nationalAddress || {}
+  const raw = seller.address || business.address || {}
+  const address = {
+    ...raw,
+    street: raw.street || na.street || '',
+    streetAr: raw.streetAr || na.streetAr || '',
+    buildingNumber: raw.buildingNumber || na.buildingNo || '',
+    additionalNumber: raw.additionalNumber || na.secondaryNo || '',
+    district: raw.district || na.neighborhood || '',
+    districtAr: raw.districtAr || na.neighborhoodAr || '',
+    city: raw.city || na.region || '',
+    cityAr: raw.cityAr || na.regionAr || '',
+    postalCode: raw.postalCode || na.postalCode || '',
+    shortAddress: raw.shortAddress || na.shortAddress || '',
+    country: raw.country || business.address?.country || '',
+  }
+  const shortAddress = address.shortAddress || ''
   const addressLine = [
     shortAddress,
-    address.buildingNumber || business?.nationalAddress?.buildingNo,
+    address.buildingNumber,
     address.street,
-    address.district || business?.nationalAddress?.neighborhood,
+    address.district,
     address.city,
     address.postalCode,
     address.country,
@@ -204,6 +216,7 @@ export const getLetterheadContact = (tenant, invoice) => {
       address.streetAr || address.street,
       address.districtAr || address.district,
       address.cityAr || address.city,
+      address.postalCode,
     ].filter(Boolean).join('، ')
     : ''
 

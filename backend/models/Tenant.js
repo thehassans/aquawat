@@ -112,6 +112,9 @@ const businessDetailsSchema = new mongoose.Schema({
     buildingNo: { type: String, default: '' },
     /** Secondary / additional number (رقم فرعي) */
     secondaryNo: { type: String, default: '' },
+    /** Street name (اسم الشارع) — synced with business.address.street */
+    street: { type: String, default: '' },
+    streetAr: { type: String, default: '' },
     neighborhood: { type: String, default: '' },
     neighborhoodAr: { type: String, default: '' },
     region: { type: String, default: '' },

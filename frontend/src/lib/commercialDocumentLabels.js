@@ -95,9 +95,30 @@ export function resolveZatcaInvoiceKind(invoice, { required = false } = {}) {
   return null
 }
 
+export function mergeBusinessAddress(tenant = {}, sellerAddress = null) {
+  const business = tenant?.business || {}
+  const na = business.nationalAddress || {}
+  const addr = sellerAddress || business.address || {}
+  return {
+    ...addr,
+    street: addr.street || na.street || '',
+    streetAr: addr.streetAr || na.streetAr || '',
+    buildingNumber: addr.buildingNumber || na.buildingNo || '',
+    additionalNumber: addr.additionalNumber || na.secondaryNo || '',
+    district: addr.district || na.neighborhood || '',
+    districtAr: addr.districtAr || na.neighborhoodAr || '',
+    city: addr.city || na.region || '',
+    cityAr: addr.cityAr || na.regionAr || '',
+    postalCode: addr.postalCode || na.postalCode || '',
+    shortAddress: addr.shortAddress || na.shortAddress || '',
+    country: addr.country || business.address?.country || 'SA',
+  }
+}
+
 export function formatPartyAddress(address = {}, { bilingual = false, language = 'en' } = {}) {
   if (!address || typeof address !== 'object') return ''
   const en = [
+    address.shortAddress,
     address.buildingNumber,
     address.street,
     address.district,
@@ -106,6 +127,7 @@ export function formatPartyAddress(address = {}, { bilingual = false, language =
     address.country,
   ].filter(Boolean).join(', ')
   const ar = [
+    address.shortAddress,
     address.buildingNumber,
     address.streetAr || address.street,
     address.districtAr || address.district,
@@ -174,9 +196,12 @@ export const resolveInvoiceParties = ({ invoice, tenant, invoiceBranding = {}, l
     ? (tenant?.business?.legalNameAr || invoiceBranding?.legalNameAr || '')
     : (invoice?.seller?.nameAr || (hasArabicText(invoice?.seller?.name) ? invoice?.seller?.name : '') || tenant?.business?.legalNameAr || invoiceBranding?.legalNameAr || '')
 
-  const companyAddress = isPurchaseFlow
-    ? (tenant?.business?.address || null)
-    : (invoice?.seller?.address || tenant?.business?.address || null)
+  const companyAddress = mergeBusinessAddress(
+    tenant,
+    isPurchaseFlow
+      ? (tenant?.business?.address || null)
+      : (invoice?.seller?.address || tenant?.business?.address || null),
+  )
 
   const companyPhone = isPurchaseFlow
     ? (tenant?.business?.contactPhone || tenant?.phone || '')
