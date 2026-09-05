@@ -989,6 +989,26 @@ async function allocatePurchaseInvoiceNumber(tenantId, invoiceType = '388') {
   return allocateSellSeriesNumber(tenantId, { prefix });
 }
 
+/** Restore parked official number after reset-to-draft, else allocate a new one. */
+async function resolveOfficialNumberOnPost(invoice) {
+  const reserved = String(invoice.reservedInvoiceNumber || '').trim();
+  if (reserved && !isPlaceholderSellInvoiceNumber(reserved)) {
+    invoice.invoiceNumber = reserved;
+    invoice.reservedInvoiceNumber = undefined;
+    return invoice.invoiceNumber;
+  }
+  if (invoice.flow === 'purchase') {
+    invoice.invoiceNumber = await allocatePurchaseInvoiceNumber(
+      invoice.tenantId,
+      invoice.invoiceType || '388',
+    );
+  } else {
+    invoice.invoiceNumber = await allocateSellInvoiceNumber(invoice.tenantId);
+  }
+  invoice.reservedInvoiceNumber = undefined;
+  return invoice.invoiceNumber;
+}
+
 async function attachDraftQr(invoice, seller, tenant) {
   // ZATCA only applies to SAR-denominated invoices. Skip the Saudi TLV QR
   // entirely for tenants configured with a different default currency.
@@ -3312,7 +3332,7 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
       if (wantsPost && String(invoice.status) === 'draft') {
         invoice.status = resolveInitialSellInvoiceStatus(req.body.status, tenant);
         if (isPlaceholderSellInvoiceNumber(invoice.invoiceNumber)) {
-          invoice.invoiceNumber = await allocateSellInvoiceNumber(req.user.tenantId);
+          await resolveOfficialNumberOnPost(invoice);
         }
       } else if (!wantsPost && req.body.status != null) {
         invoice.status = 'draft';
@@ -3359,10 +3379,7 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
           ? req.body.status
           : 'approved';
         if (isPlaceholderSellInvoiceNumber(invoice.invoiceNumber)) {
-          invoice.invoiceNumber = await allocatePurchaseInvoiceNumber(
-            req.user.tenantId,
-            invoice.invoiceType || '388',
-          );
+          await resolveOfficialNumberOnPost(invoice);
         }
       } else if (!wantsPost && req.body.status != null) {
         invoice.status = 'draft';
@@ -3850,6 +3867,16 @@ router.post('/:id/reset-to-draft', checkPermission('invoicing', 'update'), async
       invoice,
       zatcaPhase: req.tenant?.zatca?.phase || 2,
     });
+
+    // Park official number; drafts must not display INV/BILL/VR.
+    const currentNum = String(draft.invoiceNumber || '').trim();
+    if (!isPlaceholderSellInvoiceNumber(currentNum)) {
+      draft.reservedInvoiceNumber = currentNum;
+      draft.invoiceNumber = draft.flow === 'purchase'
+        ? await allocatePurchaseDraftNumber(draft.tenantId, draft.invoiceType || '388')
+        : await allocateSellDraftNumber(draft.tenantId);
+      await draft.save();
+    }
 
     afterInvoiceWrite(draft, { userId: req.user?._id });
 

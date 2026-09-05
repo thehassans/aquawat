@@ -238,6 +238,8 @@ const invoiceSchema = new mongoose.Schema({
   
   // Invoice Identification
   invoiceNumber: { type: String, required: true },
+  /** Official INV/BILL/VR number parked while status is draft after reset-to-draft (restored on re-post). */
+  reservedInvoiceNumber: { type: String },
   invoiceType: { type: String, enum: ['388', '381', '383'], default: '388' },
   invoiceSubtype: { type: String, enum: ['standard', 'travel_ticket', 'proforma'], default: 'standard' },
   pdfTemplateId: { type: Number, min: 1, max: 9 },
