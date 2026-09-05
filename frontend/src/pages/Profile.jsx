@@ -265,6 +265,7 @@ export default function Profile() {
           accountName: bankDetails.accountName || '',
           accountNumber: bankDetails.accountNumber || '',
           iban: bankDetails.iban || '',
+          swift: bankDetails.swift || '',
         }
       },
       branding: {
@@ -396,6 +397,19 @@ export default function Profile() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (formData) => {
+      const { validateIban } = await import('../lib/iban')
+      const ibanCheck = validateIban(formData.business?.bankDetails?.iban)
+      if (!ibanCheck.ok) {
+        const err = new Error(ibanCheck.error)
+        err.code = 'INVALID_IBAN'
+        throw err
+      }
+      if (formData.business?.bankDetails) {
+        formData.business.bankDetails.iban = ibanCheck.iban
+        if (formData.business.bankDetails.swift) {
+          formData.business.bankDetails.swift = String(formData.business.bankDetails.swift).replace(/\s+/g, '').toUpperCase().slice(0, 11)
+        }
+      }
       const crVal = formData.business?.crNumber || ''
       const rawLogo = logoPreview == null ? formData.branding?.logo : logoPreview
       const rawSig = signaturePreview == null
@@ -463,6 +477,7 @@ export default function Profile() {
     onError: (err) => {
       const status = err?.response?.status
       const msg = err?.response?.data?.error
+        || err?.message
         || (status === 413
           ? (language === 'ar' ? 'الملف كبير جداً — ارفع الشعار كصورة أصغر' : 'Payload too large — upload a smaller logo image')
           : null)
@@ -2393,7 +2408,12 @@ export default function Profile() {
                     </div>
                     <div>
                       <label className="label">{language === 'ar' ? 'الآيبان (IBAN)' : 'IBAN'}</label>
-                      <input {...register('business.bankDetails.iban')} className="input font-mono" placeholder="SA0000000000000000000000" />
+                      <input {...register('business.bankDetails.iban')} className="input font-mono" placeholder="SA0000000000000000000000" maxLength={34} />
+                      <p className="mt-1 text-[11px] text-gray-500">{language === 'ar' ? 'يجب أن يبدأ بـ SA ويكون 24 حرفاً مع checksum صحيح' : 'Must start with SA, 24 characters, valid mod-97 checksum'}</p>
+                    </div>
+                    <div>
+                      <label className="label">{language === 'ar' ? 'سويفت / BIC' : 'SWIFT / BIC'}</label>
+                      <input {...register('business.bankDetails.swift')} className="input font-mono" placeholder="RJHISARI" maxLength={11} />
                     </div>
                   </div>
                 </div>

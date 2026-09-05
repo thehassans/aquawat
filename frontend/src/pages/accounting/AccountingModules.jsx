@@ -1005,7 +1005,9 @@ const DEFAULT_ACCOUNT_FIELDS = [
 export function AccountingDefaultsPanel({ language }) {
   const isAr = language === 'ar'
   const [form, setForm] = useState({})
+  const [cashPolicy, setCashPolicy] = useState('warning')
   const [apForm, setApForm] = useState({
+    companyBank: { bankName: '', accountName: '', accountNumber: '', iban: '', swift: '' },
     sepa: { debtorIban: '', debtorBic: '', debtorName: '' },
     checkPrint: { prefix: 'CHK', nextNumber: 1001, micrRouting: '', micrAccount: '' },
     useOutstandingPayments: true,
@@ -1034,12 +1036,21 @@ export function AccountingDefaultsPanel({ language }) {
     for (const [key] of DEFAULT_ACCOUNT_FIELDS) {
       next[key] = data[key] ? String(data[key]) : ''
     }
+    next.negativeCashBalancePolicy = data.negativeCashBalancePolicy || 'warning'
     setForm(next)
+    setCashPolicy(data.negativeCashBalancePolicy || 'warning')
   }, [data])
 
   useEffect(() => {
     if (!apSettings) return
     setApForm({
+      companyBank: {
+        bankName: apSettings.companyBank?.bankName || '',
+        accountName: apSettings.companyBank?.accountName || '',
+        accountNumber: apSettings.companyBank?.accountNumber || '',
+        iban: apSettings.companyBank?.iban || '',
+        swift: apSettings.companyBank?.swift || '',
+      },
       sepa: {
         debtorIban: apSettings.sepa?.debtorIban || '',
         debtorBic: apSettings.sepa?.debtorBic || '',
@@ -1068,6 +1079,7 @@ export function AccountingDefaultsPanel({ language }) {
       for (const [key] of DEFAULT_ACCOUNT_FIELDS) {
         body[key] = form[key] || null
       }
+      body.negativeCashBalancePolicy = cashPolicy || 'warning'
       return api.put('/accounting/defaults', body).then((r) => r.data)
     },
     onSuccess: () => refetch(),
@@ -1075,7 +1087,11 @@ export function AccountingDefaultsPanel({ language }) {
 
   const saveAp = useMutation({
     mutationFn: () => api.put('/accounting/ap-payment-settings', apForm).then((r) => r.data),
-    onSuccess: () => refetchAp(),
+    onSuccess: () => {
+      toast.success(isAr ? 'تم حفظ إعدادات الدفع' : 'Payment settings saved')
+      refetchAp()
+    },
+    onError: (err) => toast.error(err?.response?.data?.error || (isAr ? 'فشل الحفظ' : 'Save failed')),
   })
 
   const saveAr = useMutation({
@@ -1154,12 +1170,133 @@ export function AccountingDefaultsPanel({ language }) {
 
     <div className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
       <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-        {isAr ? 'مدفوعات الموردين (SEPA والشيكات)' : 'Vendor payments (SEPA & checks)'}
+        {isAr ? 'رصيد نقد/بنك سالب' : 'Negative cash / bank balance'}
       </h3>
       <p className="mt-1 text-xs text-slate-500">
         {isAr
-          ? 'IBAN الشركة لتصدير SEPA، وتسلسل أرقام الشيكات مع سطر MICR اختياري.'
-          : 'Company IBAN for SEPA export, plus check numbering and optional MICR line.'}
+          ? 'قبل ترحيل دفعات الموردين والمصروفات: فحص رصيد حساب النقد أو البنك. الافتراضي: تحذير.'
+          : 'Before posting vendor payments and expenses, check cash/bank available balance. Default: Warning.'}
+      </p>
+      <div className="mt-4 space-y-2">
+        {[
+          { id: 'off', en: 'Off — no check', ar: 'إيقاف — بدون فحص' },
+          { id: 'warning', en: 'Warning — confirm before posting', ar: 'تحذير — تأكيد قبل الترحيل' },
+          { id: 'block', en: 'Block — reject the payment', ar: 'حظر — رفض الدفع' },
+        ].map((opt) => (
+          <label key={opt.id} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+            <input
+              type="radio"
+              name="negativeCashBalancePolicy"
+              checked={cashPolicy === opt.id}
+              onChange={() => setCashPolicy(opt.id)}
+            />
+            {isAr ? opt.ar : opt.en}
+          </label>
+        ))}
+      </div>
+      <div className="mt-4">
+        <button
+          type="button"
+          disabled={save.isPending}
+          onClick={() => save.mutate()}
+          className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {save.isPending ? '…' : (isAr ? 'حفظ السياسة' : 'Save policy')}
+        </button>
+      </div>
+    </div>
+
+    <div className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
+      <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+        {isAr ? 'بيانات البنك للشركة' : 'Company bank details'}
+      </h3>
+      <p className="mt-1 text-xs text-slate-500">
+        {isAr
+          ? 'IBAN الشركة (SA، 24 حرفاً) يظهر على الفواتير ويُستخدم لتصدير دفعات الموردين.'
+          : 'Company IBAN (SA, 24 chars) prints on invoices and drives vendor payment file export.'}
+      </p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="text-xs font-medium text-slate-500">
+          {isAr ? 'اسم البنك' : 'Bank name'}
+          <input
+            value={apForm.companyBank?.bankName || ''}
+            onChange={(e) => setApForm((p) => ({ ...p, companyBank: { ...p.companyBank, bankName: e.target.value } }))}
+            className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+            placeholder="Al Rajhi Bank / SNB"
+          />
+        </label>
+        <label className="text-xs font-medium text-slate-500">
+          {isAr ? 'اسم الحساب' : 'Account name'}
+          <input
+            value={apForm.companyBank?.accountName || ''}
+            onChange={(e) => setApForm((p) => ({ ...p, companyBank: { ...p.companyBank, accountName: e.target.value } }))}
+            className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+          />
+        </label>
+        <label className="text-xs font-medium text-slate-500">
+          {isAr ? 'رقم الحساب' : 'Account number'}
+          <input
+            value={apForm.companyBank?.accountNumber || ''}
+            onChange={(e) => setApForm((p) => ({ ...p, companyBank: { ...p.companyBank, accountNumber: e.target.value } }))}
+            className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono dark:border-dark-600 dark:bg-dark-900"
+          />
+        </label>
+        <label className="text-xs font-medium text-slate-500 sm:col-span-2">
+          {isAr ? 'الآيبان (IBAN)' : 'IBAN'}
+          <input
+            value={apForm.companyBank?.iban || ''}
+            onChange={(e) => setApForm((p) => ({ ...p, companyBank: { ...p.companyBank, iban: e.target.value.toUpperCase() } }))}
+            className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono dark:border-dark-600 dark:bg-dark-900"
+            placeholder="SA03 8000 0000 6080 1016 7519"
+            maxLength={34}
+          />
+        </label>
+        <label className="text-xs font-medium text-slate-500">
+          {isAr ? 'سويفت / BIC' : 'SWIFT / BIC'}
+          <input
+            value={apForm.companyBank?.swift || ''}
+            onChange={(e) => setApForm((p) => ({ ...p, companyBank: { ...p.companyBank, swift: e.target.value.toUpperCase() } }))}
+            className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono dark:border-dark-600 dark:bg-dark-900"
+            placeholder="RJHISARI"
+            maxLength={11}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-xs font-medium text-slate-600 sm:col-span-2 lg:col-span-3">
+          <input
+            type="checkbox"
+            checked={apForm.useOutstandingPayments}
+            onChange={(e) => setApForm((p) => ({ ...p, useOutstandingPayments: e.target.checked }))}
+            className="rounded border-slate-300"
+          />
+          {isAr ? 'استخدام حساب المدفوعات المعلقة حتى المقاصة البنكية' : 'Use Outstanding Payments until bank clearance'}
+        </label>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={saveAp.isPending}
+          onClick={() => saveAp.mutate()}
+          className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {saveAp.isPending ? '…' : (isAr ? 'حفظ بيانات البنك' : 'Save bank details')}
+        </button>
+        {saveAp.isSuccess ? (
+          <span className="self-center text-xs text-emerald-600">{isAr ? 'تم' : 'Done'}</span>
+        ) : null}
+        {saveAp.isError ? (
+          <span className="self-center text-xs text-rose-600">{saveAp.error?.response?.data?.error || (isAr ? 'فشل الحفظ' : 'Save failed')}</span>
+        ) : null}
+      </div>
+    </div>
+
+    <details className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
+      <summary className="cursor-pointer text-sm font-semibold text-slate-900 dark:text-white">
+        {isAr ? 'أوروبا / دولي (SEPA والشيكات) — اختياري' : 'Europe / international (SEPA & checks) — optional'}
+      </summary>
+      <p className="mt-2 text-xs text-slate-500">
+        {isAr
+          ? 'SEPA للمدفوعات الأوروبية فقط. في السعودية استخدم دفعات CSV الجماعية. الشيكات وMICR نادرة محلياً.'
+          : 'SEPA is for European payments only. In KSA use bulk CSV payment batches. MICR checks are rarely used locally.'}
       </p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <label className="text-xs font-medium text-slate-500">
@@ -1223,33 +1360,18 @@ export function AccountingDefaultsPanel({ language }) {
             className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
           />
         </label>
-        <label className="flex items-center gap-2 text-xs font-medium text-slate-600 sm:col-span-2">
-          <input
-            type="checkbox"
-            checked={apForm.useOutstandingPayments}
-            onChange={(e) => setApForm((p) => ({ ...p, useOutstandingPayments: e.target.checked }))}
-            className="rounded border-slate-300"
-          />
-          {isAr ? 'استخدام حساب المدفوعات المعلقة حتى المقاصة البنكية' : 'Use Outstanding Payments until bank clearance'}
-        </label>
       </div>
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4">
         <button
           type="button"
           disabled={saveAp.isPending}
           onClick={() => saveAp.mutate()}
           className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
-          {saveAp.isPending ? '…' : (isAr ? 'حفظ إعدادات الدفع' : 'Save payment settings')}
+          {saveAp.isPending ? '…' : (isAr ? 'حفظ إعدادات SEPA' : 'Save SEPA / check settings')}
         </button>
-        {saveAp.isSuccess ? (
-          <span className="self-center text-xs text-emerald-600">{isAr ? 'تم' : 'Done'}</span>
-        ) : null}
-        {saveAp.isError ? (
-          <span className="self-center text-xs text-rose-600">{saveAp.error?.response?.data?.error || (isAr ? 'فشل الحفظ' : 'Save failed')}</span>
-        ) : null}
       </div>
-    </div>
+    </details>
 
     <div className="rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-dark-600 dark:bg-dark-800">
       <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
@@ -2428,7 +2550,7 @@ function AgedReportPanel({ language, kind }) {
   const [asOf, setAsOf] = useState(todayIso())
   const [selected, setSelected] = useState(() => new Set())
   const [bucketFilter, setBucketFilter] = useState('')
-  const [groupBy, setGroupBy] = useState(kind === 'ar' ? 'customer' : 'invoice')
+  const [groupBy, setGroupBy] = useState('customer')
   const [collapsedPartners, setCollapsedPartners] = useState(() => new Set())
   const [payInvoice, setPayInvoice] = useState(null)
   const [payOpen, setPayOpen] = useState(false)
@@ -2458,17 +2580,22 @@ function AgedReportPanel({ language, kind }) {
         if (aging[b] != null) aging[b] = Math.round((aging[b] + Number(inv.residual || 0)) * 100) / 100
         aging.total = Math.round((aging.total + Number(inv.residual || 0)) * 100) / 100
       }
+      // Prefer GL open residual when present (matches COA 1200/2000)
+      const glOpen = Number(c.openResidual ?? c.aging?.total ?? 0)
+      const openResidual = Math.abs(glOpen) >= 0.01 ? glOpen : aging.total
       return {
         ...c,
         invoices,
-        openResidual: aging.total,
-        aging: (!bucketFilter || bucketFilter === 'total') && c.aging ? c.aging : aging,
+        openResidual,
+        aging: (!bucketFilter || bucketFilter === 'total') && c.aging
+          ? { ...c.aging, total: openResidual }
+          : { ...aging, total: openResidual },
       }
     }
     if (!bucketFilter || bucketFilter === 'total') {
       return customers
         .map((c) => attach(c, c.invoices || filteredRows.filter((r) => String(r.partnerId) === String(c.partnerId))))
-        .filter((c) => Number(c.openResidual || 0) > 0.009 || (c.invoices || []).length)
+        .filter((c) => Math.abs(Number(c.openResidual || 0)) > 0.009 || (c.invoices || []).length)
     }
     return customers
       .map((c) => {
@@ -2476,7 +2603,7 @@ function AgedReportPanel({ language, kind }) {
           .filter((r) => r.bucket === bucketFilter)
         return attach(c, invoices)
       })
-      .filter((c) => (c.invoices || []).length > 0)
+      .filter((c) => (c.invoices || []).length > 0 || Math.abs(Number(c.openResidual || 0)) > 0.009)
   }, [data?.customers, data?.partners, filteredRows, bucketFilter])
 
   const openRemindPreview = (invoiceIds) => {
@@ -2496,6 +2623,8 @@ function AgedReportPanel({ language, kind }) {
       setPayOpen(false)
       setPayInvoice(null)
       queryClient.invalidateQueries({ queryKey: ['accounting-aged'] })
+      queryClient.invalidateQueries({ queryKey: ['vendor-bills'] })
+      queryClient.invalidateQueries({ queryKey: ['vendor-payments'] })
     },
     onError: (err) => toast.error(err?.response?.data?.error || (isAr ? 'فشل الدفع' : 'Payment failed')),
   })
@@ -2550,23 +2679,21 @@ function AgedReportPanel({ language, kind }) {
       >
         {isAr ? 'عرض' : 'View'}
       </button>
+      <button
+        type="button"
+        className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] font-semibold dark:border-dark-600"
+        onClick={() => openPay(row)}
+      >
+        {isAr ? 'دفع' : 'Pay'}
+      </button>
       {kind === 'ar' ? (
-        <>
-          <button
-            type="button"
-            className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] font-semibold dark:border-dark-600"
-            onClick={() => openPay(row)}
-          >
-            {isAr ? 'دفع' : 'Pay'}
-          </button>
-          <button
-            type="button"
-            onClick={() => openRemindPreview([row.invoiceId])}
-            className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
-          >
-            {isAr ? 'تذكير' : 'Remind'}
-          </button>
-        </>
+        <button
+          type="button"
+          onClick={() => openRemindPreview([row.invoiceId])}
+          className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+        >
+          {isAr ? 'تذكير' : 'Remind'}
+        </button>
       ) : null}
     </div>
   )
@@ -2643,21 +2770,23 @@ function AgedReportPanel({ language, kind }) {
         title={title}
         extra={(
           <div className="flex flex-wrap items-center gap-2">
-            {kind === 'ar' ? (
+            {kind === 'ar' || kind === 'ap' ? (
               <div className="inline-flex rounded-xl border border-slate-200 p-0.5 dark:border-dark-600">
                 <button
                   type="button"
                   className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${groupBy === 'customer' ? 'bg-emerald-700 text-white' : 'text-slate-600'}`}
                   onClick={() => setGroupBy('customer')}
                 >
-                  {isAr ? 'حسب العميل' : 'By customer'}
+                  {isAr
+                    ? (kind === 'ap' ? 'حسب المورد' : 'حسب العميل')
+                    : (kind === 'ap' ? 'By vendor' : 'By customer')}
                 </button>
                 <button
                   type="button"
                   className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${groupBy === 'invoice' ? 'bg-emerald-700 text-white' : 'text-slate-600'}`}
                   onClick={() => setGroupBy('invoice')}
                 >
-                  {isAr ? 'حسب الفاتورة' : 'By invoice'}
+                  {isAr ? (kind === 'ap' ? 'حسب الفاتورة' : 'حسب الفاتورة') : (kind === 'ap' ? 'By bill' : 'By invoice')}
                 </button>
               </div>
             ) : null}
@@ -2731,13 +2860,17 @@ function AgedReportPanel({ language, kind }) {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
-        {kind === 'ar' && groupBy === 'customer' ? (
+        {groupBy === 'customer' ? (
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-400 dark:bg-dark-900">
               <tr>
                 <th className="px-3 py-2 text-start w-10" />
-                <th className="px-4 py-2 text-start">{isAr ? 'العميل' : 'Customer'}</th>
-                <th className="px-4 py-2 text-end">{isAr ? 'فواتير' : 'Invoices'}</th>
+                <th className="px-4 py-2 text-start">
+                  {isAr
+                    ? (kind === 'ap' ? 'المورد' : 'العميل')
+                    : (kind === 'ap' ? 'Vendor' : 'Customer')}
+                </th>
+                <th className="px-4 py-2 text-end">{isAr ? (kind === 'ap' ? 'فواتير' : 'فواتير') : (kind === 'ap' ? 'Bills' : 'Invoices')}</th>
                 <th className="px-4 py-2 text-end">0–30</th>
                 <th className="px-4 py-2 text-end">31–60</th>
                 <th className="px-4 py-2 text-end">61–90</th>
@@ -2766,7 +2899,8 @@ function AgedReportPanel({ language, kind }) {
                           className="text-start font-semibold hover:text-emerald-700"
                           onClick={() => {
                             if (customer.partnerId) {
-                              navigate(`/app/dashboard/accounting/partner-ledger?customerId=${customer.partnerId}`)
+                              const q = kind === 'ap' ? 'supplierId' : 'customerId'
+                              navigate(`/app/dashboard/accounting/partner-ledger?${q}=${customer.partnerId}`)
                             }
                           }}
                         >
@@ -2783,6 +2917,7 @@ function AgedReportPanel({ language, kind }) {
                       <td className="px-4 py-2 text-end"><Money value={aging.d90_plus} /></td>
                       <td className="px-4 py-2 text-end font-semibold"><Money value={customer.openResidual ?? aging.total} /></td>
                       <td className="px-4 py-2 text-end">
+                        {kind === 'ar' ? (
                         <button
                           type="button"
                           className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 disabled:opacity-40"
@@ -2791,6 +2926,15 @@ function AgedReportPanel({ language, kind }) {
                         >
                           {isAr ? 'تذكير' : 'Remind'}
                         </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold dark:border-dark-600"
+                            onClick={() => customer.partnerId && navigate(`/app/dashboard/suppliers/${customer.partnerId}`)}
+                          >
+                            {isAr ? 'عرض' : 'View'}
+                          </button>
+                        )}
                       </td>
                     </tr>
                     {open ? invoices.map((row) => (
@@ -4020,9 +4164,20 @@ export function VatTaxReportPanel({ language }) {
       {!vatError && statement ? (
         <div className="grid gap-3 sm:grid-cols-3">
           {[
-            [isAr ? 'المبيعات الخاضعة' : 'Taxable sales', statement.standardRatedSales ?? statement.taxableAmount],
-            [isAr ? 'ضريبة المخرجات (إقرار)' : 'Output VAT (return)', statement.vatOnSales ?? statement.totalTax ?? statement.outputVat],
-            [isAr ? 'صافي الضريبة (إقرار)' : 'Net VAT (return)', statement.netVatPayable ?? statement.netVat],
+            [isAr ? 'المبيعات الخاضعة' : 'Taxable sales',
+              statement.standardRatedSales
+              ?? statement.salesStandardRated?.amount
+              ?? statement.totalSales?.amount
+              ?? statement.taxableAmount],
+            [isAr ? 'ضريبة المخرجات (إقرار)' : 'Output VAT (return)',
+              statement.vatOnSales
+              ?? statement.totalSales?.vatAmount
+              ?? statement.totalTax
+              ?? statement.outputVat],
+            [isAr ? 'صافي الضريبة (إقرار)' : 'Net VAT (return)',
+              statement.netVatPayable
+              ?? statement.netVatDue?.vatAmount
+              ?? statement.netVat],
           ].map(([label, value]) => (
             <div key={label} className="rounded-2xl border border-emerald-200/60 bg-emerald-50/40 p-4 dark:border-emerald-800 dark:bg-emerald-950/20">
               <p className="text-[11px] uppercase tracking-widest text-emerald-700/70">{label}</p>
@@ -4780,7 +4935,16 @@ export function BankAccountsPanel({ language }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [showWizard, setShowWizard] = useState(false)
-  const [form, setForm] = useState({ name: '', nameAr: '', code: '', iban: '', bic: '' })
+  const [form, setForm] = useState({
+    name: '',
+    nameAr: '',
+    code: '',
+    iban: '',
+    bic: '',
+    openingBalance: '',
+    openingAsOfDate: new Date().toISOString().slice(0, 10),
+    allowNegativeBalance: false,
+  })
   const { data, isFetching, refetch } = useQuery({
     queryKey: ['accounting-bank-accounts-catalog'],
     queryFn: () => api.get('/accounting/bank-accounts').then((r) => r.data),
@@ -4794,17 +4958,44 @@ export function BankAccountsPanel({ language }) {
       code: form.code || undefined,
       iban: form.iban,
       bic: form.bic,
+      openingBalance: form.openingBalance,
+      openingAsOfDate: form.openingAsOfDate,
+      allowNegativeBalance: form.allowNegativeBalance === true,
     }).then((r) => r.data),
     onSuccess: () => {
       toast.success(isAr ? 'تم إنشاء حساب البنك والدفتر' : 'Bank account and journal created')
       setShowWizard(false)
-      setForm({ name: '', nameAr: '', code: '', iban: '', bic: '' })
+      setForm({
+        name: '',
+        nameAr: '',
+        code: '',
+        iban: '',
+        bic: '',
+        openingBalance: '',
+        openingAsOfDate: new Date().toISOString().slice(0, 10),
+        allowNegativeBalance: false,
+      })
       refetch()
       queryClient.invalidateQueries({ queryKey: ['accounting-accounts'] })
       queryClient.invalidateQueries({ queryKey: ['accounting-journal-books'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-dashboard'] })
     },
     onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
   })
+
+  const toggleAllowNegative = useMutation({
+    mutationFn: ({ accountId, allowNegativeBalance }) =>
+      api.put(`/accounting/accounts/${accountId}`, { allowNegativeBalance }).then((r) => r.data),
+    onSuccess: () => {
+      refetch()
+      queryClient.invalidateQueries({ queryKey: ['accounting-accounts'] })
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'Failed'),
+  })
+
+  const canCreate = Boolean(form.name)
+    && form.openingBalance !== ''
+    && form.openingAsOfDate
 
   return (
     <ConfigPanelShell
@@ -4829,19 +5020,35 @@ export function BankAccountsPanel({ language }) {
       {showWizard ? (
         <div className="grid gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 sm:grid-cols-2 dark:border-dark-600 dark:bg-dark-800">
           {[
-            ['name', isAr ? 'اسم الحساب' : 'Account name', form.name, (v) => setForm((p) => ({ ...p, name: v }))],
-            ['nameAr', isAr ? 'الاسم (عربي)' : 'Name (Arabic)', form.nameAr, (v) => setForm((p) => ({ ...p, nameAr: v }))],
-            ['code', isAr ? 'رمز الدليل (اختياري)' : 'CoA code (optional)', form.code, (v) => setForm((p) => ({ ...p, code: v }))],
-            ['iban', 'IBAN', form.iban, (v) => setForm((p) => ({ ...p, iban: v }))],
-            ['bic', 'BIC / SWIFT', form.bic, (v) => setForm((p) => ({ ...p, bic: v }))],
-          ].map(([key, label, value, onChange]) => (
+            ['name', isAr ? 'اسم الحساب' : 'Account name', form.name, (v) => setForm((p) => ({ ...p, name: v })), 'text'],
+            ['nameAr', isAr ? 'الاسم (عربي)' : 'Name (Arabic)', form.nameAr, (v) => setForm((p) => ({ ...p, nameAr: v })), 'text'],
+            ['code', isAr ? 'رمز الدليل (اختياري)' : 'CoA code (optional)', form.code, (v) => setForm((p) => ({ ...p, code: v })), 'text'],
+            ['iban', 'IBAN', form.iban, (v) => setForm((p) => ({ ...p, iban: v })), 'text'],
+            ['bic', 'BIC / SWIFT', form.bic, (v) => setForm((p) => ({ ...p, bic: v })), 'text'],
+            ['openingBalance', isAr ? 'الرصيد الافتتاحي *' : 'Opening balance *', form.openingBalance, (v) => setForm((p) => ({ ...p, openingBalance: v })), 'number'],
+            ['openingAsOfDate', isAr ? 'تاريخ الرصيد *' : 'As-of date *', form.openingAsOfDate, (v) => setForm((p) => ({ ...p, openingAsOfDate: v })), 'date'],
+          ].map(([key, label, value, onChange, type]) => (
             <label key={key} className="text-xs font-medium text-slate-500">
               {label}
-              <input value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono dark:border-dark-600 dark:bg-dark-900" />
+              <input
+                type={type}
+                step={type === 'number' ? '0.01' : undefined}
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono dark:border-dark-600 dark:bg-dark-900"
+              />
             </label>
           ))}
+          <label className="flex items-center gap-2 text-xs font-medium text-slate-600 sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={form.allowNegativeBalance}
+              onChange={(e) => setForm((p) => ({ ...p, allowNegativeBalance: e.target.checked }))}
+            />
+            {isAr ? 'السماح برصيد سالب (سحب على المكشوف)' : 'Allow negative balance (overdraft)'}
+          </label>
           <div className="sm:col-span-2">
-            <button type="button" disabled={!form.name || createBank.isPending} onClick={() => createBank.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+            <button type="button" disabled={!canCreate || createBank.isPending} onClick={() => createBank.mutate()} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
               {createBank.isPending ? '…' : (isAr ? 'إنشاء حساب + دفتر' : 'Create account + journal')}
             </button>
           </div>
@@ -4864,6 +5071,7 @@ export function BankAccountsPanel({ language }) {
               <th className="px-4 py-2 text-start">{isAr ? 'الاسم' : 'Name'}</th>
               <th className="px-4 py-2 text-start">{isAr ? 'الدفتر' : 'Journal'}</th>
               <th className="px-4 py-2 text-start">IBAN</th>
+              <th className="px-4 py-2 text-center">{isAr ? 'سالب؟' : 'Overdraft'}</th>
               <th className="px-4 py-2 text-end">{isAr ? 'الرصيد' : 'Balance'}</th>
             </tr>
           </thead>
@@ -4871,14 +5079,36 @@ export function BankAccountsPanel({ language }) {
             {rows.map((a) => (
               <tr key={a.accountId}>
                 <td className="px-4 py-2 font-mono text-xs">{a.code}</td>
-                <td className="px-4 py-2">{isAr ? (a.nameAr || a.name) : a.name}</td>
+                <td className="px-4 py-2">
+                  <span className="inline-flex items-center gap-2">
+                    {isAr ? (a.nameAr || a.name) : a.name}
+                    {Number(a.balance) < -0.005 ? (
+                      <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                        {isAr ? 'سالب' : 'Negative'}
+                      </span>
+                    ) : null}
+                  </span>
+                </td>
                 <td className="px-4 py-2 font-mono text-xs">{a.journalCode || '—'}</td>
                 <td className="px-4 py-2 font-mono text-[11px] text-slate-500">{a.iban || '—'}</td>
-                <td className="px-4 py-2 text-end"><Money value={a.balance} /></td>
+                <td className="px-4 py-2 text-center">
+                  <input
+                    type="checkbox"
+                    checked={a.allowNegativeBalance === true}
+                    onChange={(e) => toggleAllowNegative.mutate({
+                      accountId: a.accountId,
+                      allowNegativeBalance: e.target.checked,
+                    })}
+                    title={isAr ? 'السماح برصيد سالب' : 'Allow negative balance'}
+                  />
+                </td>
+                <td className={`px-4 py-2 text-end ${Number(a.balance) < -0.005 ? 'font-semibold text-rose-600' : ''}`}>
+                  <Money value={a.balance} />
+                </td>
               </tr>
             ))}
             {!rows.length && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا حسابات بنك — أنشئ واحداً' : 'No bank accounts — create one'}</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">{isAr ? 'لا حسابات بنك — أنشئ واحداً' : 'No bank accounts — create one'}</td></tr>
             )}
           </tbody>
         </table>
@@ -4975,6 +5205,7 @@ const emptyCoaForm = () => ({
   tagsText: '',
   isPostable: true,
   isActive: true,
+  allowNegativeBalance: false,
 })
 
 export function ChartOfAccountsPanel({ language }) {
@@ -5045,6 +5276,7 @@ export function ChartOfAccountsPanel({ language }) {
       tagsText: (row.tags || []).join(', '),
       isPostable: row.isPostable !== false,
       isActive: row.isActive !== false,
+      allowNegativeBalance: row.allowNegativeBalance === true,
     })
   }
 
@@ -5125,6 +5357,12 @@ export function ChartOfAccountsPanel({ language }) {
           <div className="flex flex-wrap items-center gap-4 sm:col-span-2 lg:col-span-3">
             <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={form.isPostable} onChange={(e) => setForm((p) => ({ ...p, isPostable: e.target.checked }))} />{isAr ? 'قابل للترحيل' : 'Postable'}</label>
             <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm((p) => ({ ...p, isActive: e.target.checked }))} />{isAr ? 'نشط' : 'Active'}</label>
+            {(form.subtype === 'cash' || form.subtype === 'bank') ? (
+              <label className="flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={form.allowNegativeBalance} onChange={(e) => setForm((p) => ({ ...p, allowNegativeBalance: e.target.checked }))} />
+                {isAr ? 'السماح برصيد سالب' : 'Allow negative balance'}
+              </label>
+            ) : null}
             <button
               type="button"
               disabled={!form.code || !form.name || saveCreate.isPending || saveEdit.isPending}
@@ -5164,12 +5402,21 @@ export function ChartOfAccountsPanel({ language }) {
                 <tr key={a._id} className="hover:bg-emerald-50/40 dark:hover:bg-white/[0.03]">
                   <td className="px-5 py-3.5 font-mono text-xs font-semibold text-emerald-800 dark:text-emerald-300">{a.code}</td>
                   <td className="px-5 py-3.5">
-                    <p className="font-medium text-slate-900 dark:text-white">{isAr ? (a.nameAr || a.name) : a.name}</p>
+                    <p className="font-medium text-slate-900 dark:text-white inline-flex flex-wrap items-center gap-2">
+                      {isAr ? (a.nameAr || a.name) : a.name}
+                      {a.type === 'asset' && Number(a.balance) < -0.005 ? (
+                        <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                          {isAr ? 'رصيد سالب' : 'Negative'}
+                        </span>
+                      ) : null}
+                    </p>
                     {a.isSystem ? <span className="text-[10px] uppercase text-slate-400">{isAr ? 'نظام' : 'System'}</span> : null}
                   </td>
                   <td className="px-5 py-3.5 text-slate-500">{accountTypeLabel(a.type, language)}{a.subtype ? ` · ${accountSubtypeLabel(a.subtype, language)}` : ''}</td>
                   <td className="px-5 py-3.5 text-xs text-slate-500">{(a.tags || []).join(', ') || '—'}</td>
-                  <td className="px-5 py-3.5 text-end font-semibold"><Money value={a.balance || 0} /></td>
+                  <td className={`px-5 py-3.5 text-end font-semibold ${a.type === 'asset' && Number(a.balance) < -0.005 ? 'text-rose-600' : ''}`}>
+                    <Money value={a.balance || 0} />
+                  </td>
                   <td className="px-5 py-3.5 text-end">
                     <button type="button" onClick={() => startEdit(a)} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold dark:border-dark-600">
                       {isAr ? 'تعديل' : 'Edit'}

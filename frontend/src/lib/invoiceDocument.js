@@ -160,9 +160,10 @@ export const calculateInvoiceSummary = (invoice = {}) => {
     const lineTotal = line.isTravelMargin
       ? roundMoney(Math.max(0, customerLineTotal - taxAmount))
       : customerLineTotal
+    const isReverseCharge = String(line.raw?.vatTreatment || '').toLowerCase() === 'reverse_charge'
     const lineTotalWithTax = line.isTravelMargin
       ? customerLineTotal
-      : roundMoney(lineTotal + taxAmount)
+      : (isReverseCharge ? lineTotal : roundMoney(lineTotal + taxAmount))
 
     remainingInvoiceDiscount = roundMoney(Math.max(0, remainingInvoiceDiscount - invoiceDiscountShare))
 

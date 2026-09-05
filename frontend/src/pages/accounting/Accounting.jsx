@@ -5,7 +5,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   BookOpen, Plus, RefreshCw, Scale, TrendingUp, Landmark,
-  FileSpreadsheet, CheckCircle2, XCircle, ArrowUpRight, Receipt, Wallet, Users, Truck, FileText
+  FileSpreadsheet, CheckCircle2, XCircle, ArrowUpRight, Receipt, Wallet, Users, Truck, FileText, AlertTriangle, Download
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
@@ -78,13 +78,17 @@ import {
   ProfitAndLossPanel,
   TrialBalancePanel,
   JournalAuditReportPanel,
+  SequenceIntegrityReportPanel,
+  JournalBookMappingReportPanel,
 } from './AccountingReportPanels'
 import CreditNotesPanel from './documents/CreditNotesPanel'
 import CustomerPaymentsPanel from './documents/CustomerPaymentsPanel'
 import VendorBillsPanel from './documents/VendorBillsPanel'
 import VendorRefundsPanel from './documents/VendorRefundsPanel'
 import VendorPaymentsPanel from './documents/VendorPaymentsPanel'
+import PaymentBatchesPanel from './documents/PaymentBatchesPanel'
 import AccountingCustomersPanel from './documents/AccountingCustomersPanel'
+import AccountingVendorsPanel from './documents/AccountingVendorsPanel'
 import AccountingProductsPanel from './documents/AccountingProductsPanel'
 import { ACCOUNTING_COMING_SOON_SECTIONS } from './accounting.menu'
 import { useRegisterAccountingPageActions } from './AccountingPageActionsContext'
@@ -102,7 +106,9 @@ const HIDE_JOURNAL_CTA_TABS = new Set([
   'vendor-bills',
   'vendor-refunds',
   'vendor-payments',
+  'payment-batches',
   'customers',
+  'vendors',
   'products',
   'customer-summary',
   'customer-account',
@@ -131,10 +137,12 @@ const TAB_SUBTITLES = {
   'credit-notes': { en: 'Refunds and invoice corrections', ar: 'الاستردادات وتصحيحات الفواتير' },
   'customer-payments': { en: 'Allocate customer receipts to open invoices', ar: 'تخصيص مقبوضات العملاء على الفواتير المفتوحة' },
   customers: { en: 'Customer directory with live receivables', ar: 'دليل العملاء مع الذمم المدينة الحية' },
+  vendors: { en: 'Vendor directory with live payables', ar: 'دليل الموردين مع الذمم الدائنة الحية' },
   products: { en: 'Income, COGS and tax accounts for products', ar: 'حسابات الدخل وتكلفة البضاعة والضريبة للمنتجات' },
   'vendor-bills': { en: 'Purchase bills awaiting payment', ar: 'فواتير الشراء بانتظار الدفع' },
   'vendor-refunds': { en: 'Vendor credit notes and refunds', ar: 'إشعارات وإرجاعات الموردين' },
   'vendor-payments': { en: 'Payments allocated to vendor bills', ar: 'مدفوعات مخصّصة لفواتير الموردين' },
+  'payment-batches': { en: 'Bank payment file batches (CSV)', ar: 'دفعات ملفات البنك (CSV)' },
   'follow-up-reports': { en: 'Overdue invoices ready for collection follow-up', ar: 'فواتير متأخرة جاهزة للمتابعة التحصيلية' },
   'follow-up-levels': { en: 'Dunning levels and WhatsApp reminder templates', ar: 'مستويات التذكير وقوالب واتساب' },
   'partner-ledger': { en: 'Detailed movements per customer or vendor', ar: 'حركات تفصيلية لكل عميل أو مورد' },
@@ -155,6 +163,8 @@ const TAB_SUBTITLES = {
   'executive-summary': { en: 'High-level KPIs and period highlights', ar: 'مؤشرات رئيسية وأبرز نتائج الفترة' },
   'invoice-analysis': { en: 'Invoice volume, aging and payment trends', ar: 'حجم الفواتير وأعمارها واتجاهات السداد' },
   'journal-report': { en: 'Journal entries listed for audit review', ar: 'قيود اليومية للمراجعة والتدقيق' },
+  'sequence-integrity': { en: 'Gaps and duplicates per journal book series (ZATCA)', ar: 'الفجوات والتكرار لكل سلسلة دفتر (زاتكا)' },
+  'journal-book-mapping': { en: 'Which historical entries should have used another book', ar: 'أي القيود القديمة كان يجب أن تكون في دفتر آخر' },
   'analytic-accounts': { en: 'Cost centers and analytic dimensions', ar: 'مراكز التكلفة والأبعاد التحليلية' },
   'analytic-report': { en: 'Balances by analytic account', ar: 'الأرصدة حسب الحساب التحليلي' },
   'analytic-items': { en: 'Journal lines tagged with analytics', ar: 'بنود القيود ذات التحليل' },
@@ -203,10 +213,12 @@ const TABS = [
   { id: 'credit-notes', labelEn: 'Credit Notes', labelAr: 'إشعارات الدائن', icon: FileText },
   { id: 'customer-payments', labelEn: 'Customer Payments', labelAr: 'مدفوعات العملاء', icon: Wallet },
   { id: 'customers', labelEn: 'Customers', labelAr: 'العملاء', icon: Users },
+  { id: 'vendors', labelEn: 'Vendors', labelAr: 'الموردون', icon: Truck },
   { id: 'products', labelEn: 'Products', labelAr: 'المنتجات', icon: FileText },
   { id: 'vendor-bills', labelEn: 'Vendor Bills', labelAr: 'فواتير الموردين', icon: FileText },
   { id: 'vendor-refunds', labelEn: 'Vendor Refunds', labelAr: 'مرتجعات الموردين', icon: FileText },
   { id: 'vendor-payments', labelEn: 'Vendor Payments', labelAr: 'مدفوعات الموردين', icon: Wallet },
+  { id: 'payment-batches', labelEn: 'Payment Batches', labelAr: 'دفعات البنك', icon: Download },
   { id: 'aged-ap', labelEn: 'Aged payables', labelAr: 'أعمار الدائنين', icon: Truck },
   { id: 'follow-up-reports', labelEn: 'Follow-up Reports', labelAr: 'تقارير المتابعة', icon: Users },
   { id: 'journal-items', labelEn: 'Journal Items', labelAr: 'بنود القيود', icon: FileSpreadsheet },
@@ -217,6 +229,8 @@ const TABS = [
   { id: 'incoterms', labelEn: 'Incoterms', labelAr: 'شروط التجارة الدولية', icon: FileText },
   { id: 'bank-accounts', labelEn: 'Bank Accounts', labelAr: 'الحسابات البنكية', icon: Landmark },
   { id: 'journal-report', labelEn: 'Journal Report', labelAr: 'تقرير القيود', icon: FileSpreadsheet },
+  { id: 'sequence-integrity', labelEn: 'Sequence Integrity', labelAr: 'سلامة التسلسل', icon: FileSpreadsheet },
+  { id: 'journal-book-mapping', labelEn: 'Journal Book Mapping', labelAr: 'مطابقة دفاتر القيود', icon: FileSpreadsheet },
   { id: 'currencies', labelEn: 'Currencies', labelAr: 'العملات', icon: Landmark },
   { id: 'follow-up-levels', labelEn: 'Follow-up Levels', labelAr: 'مستويات المتابعة', icon: Users },
   { id: 'analytic-items', labelEn: 'Analytic Items', labelAr: 'البنود التحليلية', icon: FileSpreadsheet },
@@ -282,6 +296,8 @@ const PANEL_EXPORT_TABS = new Set([
   'tax-report',
   'invoice-analysis',
   'journal-report',
+  'sequence-integrity',
+  'journal-book-mapping',
   'aged-ar',
   'aged-ap',
   'follow-up-reports',
@@ -673,24 +689,60 @@ export default function Accounting() {
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
               {kpis.map((k) => {
                 const Icon = k.icon
+                const cashNegative = k.key === 'cash' && Number(dashboard?.cashBalance) < -0.005
                 return (
                   <div
                     key={k.key}
-                    className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-dark-600 dark:bg-dark-800"
+                    className={`rounded-2xl border bg-white p-4 dark:bg-dark-800 ${
+                      cashNegative
+                        ? 'border-rose-300 dark:border-rose-800'
+                        : 'border-slate-200/80 dark:border-dark-600'
+                    }`}
                   >
                     <div className="flex items-center justify-between">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
                         {isAr ? k.labelAr : k.labelEn}
                       </p>
-                      <Icon className="h-4 w-4 text-slate-400" />
+                      <Icon className={`h-4 w-4 ${cashNegative ? 'text-rose-500' : 'text-slate-400'}`} />
                     </div>
-                    <p className="mt-3 text-xl font-semibold tracking-tight tabular-nums text-slate-900 dark:text-white">
+                    <p className={`mt-3 text-xl font-semibold tracking-tight tabular-nums ${
+                      cashNegative ? 'text-rose-600' : 'text-slate-900 dark:text-white'
+                    }`}>
                       {dashLoading || dashError ? '—' : <Money value={k.value} />}
                     </p>
                   </div>
                 )
               })}
             </div>
+
+            {!dashLoading && !dashError && Number(dashboard?.negativeCashAccountCount || 0) > 0 ? (
+              <div className="flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50/80 p-4 dark:border-rose-900/50 dark:bg-rose-950/20 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-xl bg-rose-100 p-2 dark:bg-rose-900/40">
+                    <AlertTriangle className="h-5 w-5 text-rose-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-rose-900 dark:text-rose-200">
+                      {isAr
+                        ? `${dashboard.negativeCashAccountCount} حسابات رصيدها سالب`
+                        : `${dashboard.negativeCashAccountCount} accounts have a negative balance`}
+                    </p>
+                    <p className="mt-0.5 text-xs text-rose-700/80 dark:text-rose-300/80">
+                      {(dashboard.negativeCashAccounts || []).slice(0, 3).map((a) => (
+                        `${a.code} ${isAr ? (a.nameAr || a.name) : a.name} (${Number(a.balance).toFixed(2)})`
+                      )).join(' · ')}
+                      {(dashboard.negativeCashAccounts || []).length > 3 ? ' …' : ''}
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  to="/app/dashboard/accounting/chart-of-accounts"
+                  className="shrink-0 rounded-xl border border-rose-300 bg-white px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-800 dark:bg-dark-900 dark:text-rose-300"
+                >
+                  {isAr ? 'دليل الحسابات' : 'Chart of accounts'}
+                </Link>
+              </div>
+            ) : null}
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
@@ -754,8 +806,10 @@ export default function Accounting() {
                   <p className="mt-1 text-xs text-slate-400">
                     {dashLoading
                       ? '—'
-                      : `${block.data?.openCount ?? 0} ${isAr ? 'فاتورة مفتوحة' : 'open invoices'} · `}
-                    {!dashLoading ? <Money value={block.data?.buckets?.total || 0} /> : null}
+                      : `${block.data?.openCount ?? 0} ${isAr
+                        ? (block.key === 'ap' ? 'فاتورة مفتوحة' : 'فاتورة مفتوحة')
+                        : (block.key === 'ap' ? 'open bills' : 'open invoices')} · `}
+                    {!dashLoading ? <Money value={block.data?.total ?? block.data?.buckets?.total ?? 0} /> : null}
                   </p>
                   <div className="mt-3 grid grid-cols-4 gap-2">
                     {[
@@ -1042,6 +1096,12 @@ export default function Accounting() {
             </motion.div>
           )}
 
+          {tab === 'vendors' && (
+            <motion.div key="vendors" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <AccountingVendorsPanel language={language} />
+            </motion.div>
+          )}
+
           {tab === 'products' && (
             <motion.div key="products" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
               <AccountingProductsPanel language={language} />
@@ -1063,6 +1123,12 @@ export default function Accounting() {
           {tab === 'vendor-payments' && (
             <motion.div key="vendor-payments" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
               <VendorPaymentsPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'payment-batches' && (
+            <motion.div key="payment-batches" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <PaymentBatchesPanel language={language} />
             </motion.div>
           )}
 
@@ -1135,6 +1201,18 @@ export default function Accounting() {
           {tab === 'journal-report' && (
             <motion.div key="journal-report" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
               <JournalAuditReportPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'sequence-integrity' && (
+            <motion.div key="sequence-integrity" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <SequenceIntegrityReportPanel language={language} />
+            </motion.div>
+          )}
+
+          {tab === 'journal-book-mapping' && (
+            <motion.div key="journal-book-mapping" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <JournalBookMappingReportPanel language={language} />
             </motion.div>
           )}
 

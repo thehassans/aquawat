@@ -7,6 +7,7 @@ import logger from './logger.js';
 import { formatProductTypeBilingual } from './productType.js';
 import { getTaxGroups } from '../services/accountingService.js';
 import Tax from '../models/Tax.js';
+import { getZatcaDocumentTitle } from './zatcaDocumentLabels.js';
 
 const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
 
@@ -489,16 +490,18 @@ export const buildInvoicePdfBuffer = async ({ invoice, tenant, customerName, lan
   const sellerNameAr = normalizeText(tenant?.business?.legalNameAr);
   const buyerName = normalizeText(customerName || invoice?.buyer?.name || invoice?.buyer?.nameAr || 'Customer');
   const isBoutiquePdf = isBoutiqueInvoiceDoc(invoice);
+  const zatcaTitleEn = getZatcaDocumentTitle(invoice, 'en');
+  const zatcaTitleAr = getZatcaDocumentTitle(invoice, 'ar');
   const invoiceTitle = invoice?.businessContext === 'travel_agency' || invoice?.invoiceSubtype === 'travel_ticket'
-    ? `Travel Services Invoice ${normalizeText(invoice?.invoiceNumber)}`
+    ? `Travel Services ${zatcaTitleEn} ${normalizeText(invoice?.invoiceNumber)}`
     : isBoutiquePdf
-      ? `Boutique Invoice ${normalizeText(invoice?.invoiceNumber)}`
-      : `Invoice ${normalizeText(invoice?.invoiceNumber)}`;
+      ? `Boutique ${zatcaTitleEn} ${normalizeText(invoice?.invoiceNumber)}`
+      : `${zatcaTitleEn} ${normalizeText(invoice?.invoiceNumber)}`;
   const invoiceTitleAr = invoice?.businessContext === 'travel_agency' || invoice?.invoiceSubtype === 'travel_ticket'
-    ? `فاتورة خدمات السفر ${normalizeText(invoice?.invoiceNumber)}`
+    ? `${zatcaTitleAr} لخدمات السفر ${normalizeText(invoice?.invoiceNumber)}`
     : isBoutiquePdf
-      ? `فاتورة البوتيك ${normalizeText(invoice?.invoiceNumber)}`
-      : `الفاتورة ${normalizeText(invoice?.invoiceNumber)}`;
+      ? `${zatcaTitleAr} بوتيك ${normalizeText(invoice?.invoiceNumber)}`
+      : `${zatcaTitleAr} ${normalizeText(invoice?.invoiceNumber)}`;
   const flowValue = normalizeText(invoice?.flow || 'sell');
   const infoCards = [
     { label: 'Invoice # / رقم الفاتورة', value: normalizeText(invoice?.invoiceNumber) || '—' },
@@ -516,11 +519,7 @@ export const buildInvoicePdfBuffer = async ({ invoice, tenant, customerName, lan
   doc.rect(0, 0, pageWidth, 120, 'F');
   setDocFont(doc, englishFont, 'normal', 8);
   doc.setTextColor(214, 211, 209);
-  const headerLabel = invoice?.businessContext === 'travel_agency' || invoice?.invoiceSubtype === 'travel_ticket'
-    ? 'TRAVEL SERVICES INVOICE'
-    : isBoutiquePdf
-      ? 'BOUTIQUE INVOICE'
-      : 'TAX INVOICE';
+  const headerLabel = zatcaTitleEn.toUpperCase();
   doc.text(headerLabel, margin, 24);
   setDocFont(doc, englishFont, 'bold', 22);
   doc.setTextColor(255, 255, 255);

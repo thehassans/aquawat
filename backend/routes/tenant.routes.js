@@ -182,6 +182,18 @@ router.put('/current', authorize('admin'), async (req, res) => {
 
     // Merge business fields instead of replacing entire object
     if (business) {
+      if (business.bankDetails && Object.prototype.hasOwnProperty.call(business.bankDetails, 'iban')) {
+        const { validateIban } = await import('../utils/iban.js');
+        const ibanCheck = validateIban(business.bankDetails.iban);
+        if (!ibanCheck.ok) {
+          return res.status(400).json({ error: ibanCheck.error, code: 'INVALID_IBAN' });
+        }
+        business.bankDetails.iban = ibanCheck.iban;
+        if (business.bankDetails.swift !== undefined) {
+          business.bankDetails.swift = String(business.bankDetails.swift || '').replace(/\s+/g, '').toUpperCase().slice(0, 11);
+        }
+      }
+
       const existingBusiness = tenant.business?.toObject?.() || tenant.business || {};
       tenant.business = {
         ...existingBusiness,

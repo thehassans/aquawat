@@ -30,6 +30,11 @@ const chartOfAccountSchema = new mongoose.Schema({
   description: { type: String, default: '' },
   /** Metadata tags for cash-flow / report classification (see accountTags tenant vocab). */
   tags: [{ type: String, trim: true }],
+  /**
+   * When true, outbound payments may drive this cash/bank account below zero
+   * (overdraft). Company negativeCashBalancePolicy still applies unless this is set.
+   */
+  allowNegativeBalance: { type: Boolean, default: false },
   balance: { type: Number, default: 0 },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });

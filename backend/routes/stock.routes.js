@@ -2370,12 +2370,16 @@ router.post('/manufacturing/consume-produce', checkPermission('inventory', 'crea
 
 router.post('/three-way-match', checkPermission('inventory', 'read'), async (req, res) => {
   try {
+    const { resolveThreeWayOptions } = await import('../services/inventory/threeWayMatch.js');
+    const { getInvSettings } = await import('../services/inventory/settingsService.js');
+    const settings = await getInvSettings(req.user.tenantId);
+    const opts = resolveThreeWayOptions(settings, req.body);
     const result = await threeWayMatch({
       tenantId: req.user.tenantId,
       purchaseOrderId: req.body.purchaseOrderId,
       billLines: req.body.billLines,
-      qtyTolerance: req.body.qtyTolerance,
-      priceTolerancePct: req.body.priceTolerancePct,
+      excludeInvoiceId: req.body.excludeInvoiceId || null,
+      ...opts,
     });
     res.json(result);
   } catch (err) {

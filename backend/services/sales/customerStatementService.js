@@ -280,6 +280,7 @@ export async function buildCustomerStatement({
       accountName: bank.accountName || '',
       accountNumber: bank.accountNumber || '',
       iban: bank.iban || '',
+      swift: bank.swift || '',
     },
     period: {
       startDate: extractDateOnly(start),

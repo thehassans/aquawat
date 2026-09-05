@@ -18,11 +18,13 @@ import {
   buildTrialBalance,
   buildBalanceSheet,
   buildAgedReceivables,
+  buildAgedPayables,
   getAccountingDashboard,
   syncStoredAccountBalances,
 } from '../services/accountingService.js';
-import { getAccountBalances, getPartnerBalances, assertReceivableConsistency } from '../services/ledger/balances.js';
+import { getAccountBalances, getPartnerBalances, assertReceivableConsistency, assertPayableConsistency } from '../services/ledger/balances.js';
 import { listAccountingCustomers } from '../services/customerDirectoryService.js';
+import { listAccountingVendors } from '../services/vendorDirectoryService.js';
 import {
   resolveAccountingSkip,
   connectAccountingMongo,
@@ -35,9 +37,12 @@ const skipReason = await resolveAccountingSkip();
 describe('ledger balance consistency (five-way AR + cash)', { skip: skipReason || false }, () => {
   let tenant;
   let customer;
+  let vendor;
   let cash;
   let ar;
+  let ap;
   let sales;
+  let expense;
 
   before(async () => {
     await connectAccountingMongo();
@@ -49,11 +54,23 @@ describe('ledger balance consistency (five-way AR + cash)', { skip: skipReason |
       isCustomer: true,
       isActive: true,
     });
+    vendor = await Partner.create({
+      tenantId: tenant._id,
+      name: 'Consistency Vendor',
+      nameEn: 'Consistency Vendor',
+      isVendor: true,
+      isCustomer: false,
+      isActive: true,
+    });
     const accounts = await ChartOfAccount.find({ tenantId: tenant._id }).lean();
     cash = accounts.find((a) => a.code === '1000');
     ar = accounts.find((a) => a.code === '1200');
+    ap = accounts.find((a) => a.code === '2000');
     sales = accounts.find((a) => a.code === '4000');
+    expense = accounts.find((a) => a.type === 'expense') || accounts.find((a) => a.code === '5000');
     assert.ok(cash && ar && sales, 'default CoA missing cash/ar/sales');
+    assert.ok(ap, 'default CoA missing AP 2000');
+    assert.ok(expense, 'default CoA missing expense');
 
     // AR debit 115 / Sales credit 115
     await createJournalEntry({
@@ -108,6 +125,33 @@ describe('ledger balance consistency (five-way AR + cash)', { skip: skipReason |
       ],
       status: 'posted',
     });
+
+    // Expense debit 133.50 / AP credit 133.50
+    await createJournalEntry({
+      tenantId: tenant._id,
+      userId: null,
+      entryDate: new Date(),
+      type: 'bill',
+      memo: 'Test AP bill',
+      lines: [
+        {
+          accountId: expense._id,
+          accountCode: expense.code,
+          accountName: expense.name,
+          debit: 133.5,
+          credit: 0,
+        },
+        {
+          accountId: ap._id,
+          accountCode: '2000',
+          accountName: 'Accounts Payable',
+          debit: 0,
+          credit: 133.5,
+          partnerId: vendor._id,
+        },
+      ],
+      status: 'posted',
+    });
   });
 
   after(async () => {
@@ -148,6 +192,42 @@ describe('ledger balance consistency (five-way AR + cash)', { skip: skipReason |
       dashboard: dash.arBalance,
       aged: aged?.buckets?.total,
       customersKpi: customers?.totals?.receivablesSum,
+      partnerTotals: partners?.totals?.openResidual,
+    };
+
+    for (const [name, value] of Object.entries(surfaces)) {
+      assert.equal(
+        Math.round((Number(value) || 0) * 100) / 100,
+        expected,
+        `${name} should be ${expected}, got ${value}`,
+      );
+    }
+    assert.equal(core.ok, true);
+  });
+
+  it('three-way AP: dashboard, COA 2000, vendors KPI, aged AP', async () => {
+    const [core, gl, tb, aged, dash, vendors, partners] = await Promise.all([
+      assertPayableConsistency(tenant._id),
+      getAccountBalances({ tenantId: tenant._id, includeReversed: false }),
+      buildTrialBalance(tenant._id),
+      buildAgedPayables(tenant._id),
+      getAccountingDashboard(tenant._id),
+      listAccountingVendors(tenant._id, { limit: 50 }),
+      getPartnerBalances({ tenantId: tenant._id, partnerType: 'vendor' }),
+    ]);
+
+    const coa2000 = (gl.rows || []).find((r) => String(r.code) === '2000');
+    const tb2000 = (tb.rows || []).find((r) => String(r.code) === '2000');
+    const expected = 133.5;
+
+    const surfaces = {
+      assertGl: core.glAp,
+      assertPartners: core.partnerSum,
+      coa: coa2000?.naturalBalance ?? coa2000?.balance,
+      trialBalance: tb2000?.balance,
+      dashboard: dash.apBalance,
+      aged: aged?.buckets?.total,
+      vendorsKpi: vendors?.totals?.payablesSum,
       partnerTotals: partners?.totals?.openResidual,
     };
 

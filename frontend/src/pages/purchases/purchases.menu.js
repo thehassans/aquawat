@@ -67,6 +67,12 @@ export const PURCHASES_MENU = [
         labelAr: 'الموردون وطلباتهم',
         href: PURCHASES_PATH.suppliers,
       },
+      {
+        id: 'bills',
+        label: 'Vendor bills',
+        labelAr: 'فواتير الموردين',
+        href: PURCHASES_PATH.bills,
+      },
     ],
   },
   {

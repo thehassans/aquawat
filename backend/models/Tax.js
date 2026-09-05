@@ -21,8 +21,12 @@ export const VAT_TAX_GRID_OPTIONS = [
   'purchases_exempt',
   'purchases_imports',
   'purchases_reverse_charge',
+  'purchases_non_recoverable',
   'none',
 ];
+
+/** ZATCA UNCL5305 tax category codes */
+export const ZATCA_TAX_CATEGORIES = ['S', 'Z', 'E', 'O'];
 
 const distributionLineSchema = new mongoose.Schema({
   percentOfBase: { type: Number, default: 100, min: 0, max: 100 },
@@ -74,6 +78,20 @@ const taxSchema = new mongoose.Schema({
   taxGroupCode: { type: String, default: '', trim: true, uppercase: true },
   subsequentTaxBase: { type: Boolean, default: false },
   country: { type: String, default: 'SA', trim: true, uppercase: true },
+  /** ZATCA UNCL5305: S standard, Z zero-rated, E exempt, O out-of-scope / reverse charge */
+  zatcaCategory: {
+    type: String,
+    enum: ZATCA_TAX_CATEGORIES,
+    default: 'S',
+    index: true,
+  },
+  /**
+   * When false, VAT is added to expense (not Dr 1400).
+   * Used for entertainment / blocked input VAT.
+   */
+  recoverable: { type: Boolean, default: true },
+  /** Saudi reverse charge on imported services: Dr VAT Input / Cr VAT Output */
+  isReverseCharge: { type: Boolean, default: false },
   /** Child taxes when computationMethod is group */
   childTaxIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Tax' }],
   active: { type: Boolean, default: true },

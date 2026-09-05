@@ -1,6 +1,7 @@
 import { forwardRef } from 'react';
 import { getThermalPrinterSettings, getReceiptStyle, getPrintCss, getPageCss } from '../../lib/thermalPrinter';
-import { getTaxQrLabel } from '../../lib/saudiTenant';
+import { getTaxQrLabel } from '../../lib/saudiTenant'
+import { getZatcaDocumentTitle } from '../../lib/commercialDocumentLabels';
 
 /**
  * BoutiqueThermalReceipt
@@ -28,6 +29,13 @@ const BoutiqueThermalReceipt = forwardRef(({ rental, tenant, invoice, qrDataUrl 
     .join(', ');
 
   const receiptNumber = rental.rentalNumber || '---';
+  const titleInvoice = invoice || {
+    transactionType: 'B2C',
+    invoiceTypeCode: '0200000',
+    zatca: { invoiceType: 'simplified' },
+  }
+  const titleEn = getZatcaDocumentTitle(titleInvoice, 'en')
+  const titleAr = getZatcaDocumentTitle(titleInvoice, 'ar')
   const customerName = rental.customerName || '';
   const customerNameAr = rental.customerNameAr || '';
   const customerPhone = rental.customerPhone || '---';
@@ -92,10 +100,10 @@ const BoutiqueThermalReceipt = forwardRef(({ rental, tenant, invoice, qrDataUrl 
           VAT / الرقم الضريبي: <b>{vatNumber}</b>
         </div>
         <div style={{ fontSize: '9px', marginTop: '6px', fontWeight: 'bold' }}>
-          SIMPLIFIED TAX INVOICE
+          {String(titleEn || '').toUpperCase()}
         </div>
         <div style={{ fontSize: '9px', fontWeight: 'bold' }}>
-          فاتورة ضريبية مبسطة
+          {titleAr}
         </div>
         {isSale && (
           <div style={{ fontSize: '8px', marginTop: '2px', color: '#10B981' }}>

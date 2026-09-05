@@ -41,6 +41,7 @@ import { printThermalElement, getThermalPrinterSettings } from '../../lib/therma
 import { getZatcaStatusMeta, isEditableInvoice } from '../../lib/zatcaStatus'
 import { getTravelInvoiceLabelMeta, isTravelAgencyInvoice } from '../../lib/travelInvoiceStatus'
 import { isSaudiTenant } from '../../lib/saudiTenant'
+import { getZatcaDocumentTitle } from '../../lib/commercialDocumentLabels'
 import AccountingDocumentBatchBar from '../accounting/documents/AccountingDocumentBatchBar'
 import RegisterPaymentModal from '../../components/accounting/RegisterPaymentModal'
 import { canRegisterPaymentOnDocument } from '../../lib/accountingDocumentStatus'
@@ -91,17 +92,20 @@ function PartyNames({ party, fallback = '-' }) {
 }
 
 const getInvoiceContextLabel = (invoice, language = 'en') => {
-  const context = String(invoice?.businessContext || '').trim()
-  const labels = {
-    trading: language === 'ar' ? 'فاتورة تجارة' : 'Trading Invoice',
-    construction: language === 'ar' ? 'فاتورة مقاولات' : 'Construction Invoice',
-    travel_agency: language === 'ar' ? 'فاتورة وكالة سفر' : 'Travel Agency Invoice',
-    restaurant: language === 'ar' ? 'فاتورة مطعم' : 'Restaurant Invoice',
-    boutique: language === 'ar' ? 'فاتورة بوتيك' : 'Boutique Invoice',
+  try {
+    return getZatcaDocumentTitle(invoice, language)
+  } catch {
+    const context = String(invoice?.businessContext || '').trim()
+    const labels = {
+      trading: language === 'ar' ? 'فاتورة تجارة' : 'Trading Invoice',
+      construction: language === 'ar' ? 'فاتورة مقاولات' : 'Construction Invoice',
+      travel_agency: language === 'ar' ? 'فاتورة وكالة سفر' : 'Travel Agency Invoice',
+      restaurant: language === 'ar' ? 'فاتورة مطعم' : 'Restaurant Invoice',
+      boutique: language === 'ar' ? 'فاتورة بوتيك' : 'Boutique Invoice',
+    }
+    if (labels[context]) return labels[context]
+    return language === 'ar' ? 'فاتورة' : 'Invoice'
   }
-
-  if (labels[context]) return labels[context]
-  return language === 'ar' ? 'فاتورة ضريبية' : 'Tax Invoice'
 }
 
 const getTransactionTypeLabel = (transactionType, language = 'en', t) => {
@@ -232,6 +236,8 @@ export default function Invoices() {
       setSelectedIds(new Set())
       queryClient.invalidateQueries(['invoices'])
       queryClient.invalidateQueries(['customers'])
+      queryClient.invalidateQueries(['vendor-bills'])
+      queryClient.invalidateQueries(['vendor-payments'])
     },
     onError: (err) => {
       toast.error(err?.response?.data?.error || (language === 'ar' ? 'فشل تسجيل الدفعة' : 'Failed to record payment'))
@@ -1242,6 +1248,7 @@ export default function Invoices() {
               memo: payload.memo,
               differenceMode: payload.differenceMode,
               differenceAccountId: payload.differenceAccountId,
+              confirmNegativeCash: payload.confirmNegativeCash === true,
             },
           })
         }}

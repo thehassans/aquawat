@@ -143,6 +143,7 @@ const quotationSchema = new mongoose.Schema({
     accountName: { type: String, default: '' },
     accountNumber: { type: String, default: '' },
     iban: { type: String, default: '' },
+    swift: { type: String, default: '' },
   },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdByName: { type: String },

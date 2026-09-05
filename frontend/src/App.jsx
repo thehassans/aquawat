@@ -1014,6 +1014,7 @@ function App() {
           <Route path="orders/new" element={<PurchaseOrderForm />} />
           <Route path="orders/:id" element={<PurchaseOrderForm />} />
           <Route path="suppliers" element={<PurchasesSuppliers />} />
+          <Route path="bills" element={<VendorBillsPanel />} />
           <Route path="reports" element={<PurchasesReports />} />
           <Route path="grn" element={<GrnList />} />
           <Route path="grn/new" element={<Navigate to="/app/dashboard/purchases/orders" replace />} />

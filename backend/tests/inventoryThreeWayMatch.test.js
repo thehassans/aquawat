@@ -1,37 +1,114 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
+import {
+  computeMatchingStatus,
+  resolveThreeWayOptions,
+  DEFAULT_THREE_WAY_TOLERANCE,
+} from '../services/inventory/threeWayMatch.js';
 
-// Unit-level three-way match against in-memory PO shape via direct function
-// (uses mongoose model — skip DB if unavailable; logic tested with stubbed lean path)
-
-test('three-way match pure logic: overbill blocked', async () => {
-  // Inline the comparison rules used by threeWayMatch for a synthetic PO row
-  const poLine = { ordered: 10, received: 8, returned: 1, invoiced: 2, unitCost: 100 };
-  const billQty = 6;
-  const netReceived = poLine.received - poLine.returned; // 7
-  const remaining = netReceived - poLine.invoiced; // 5
-  assert.ok(billQty > remaining, 'should detect overbill');
+test('resolveThreeWayOptions uses settings defaults', () => {
+  const opts = resolveThreeWayOptions({
+    threeWayMatch: {
+      qtyTolerance: 1,
+      priceTolerancePct: 5,
+      priceToleranceAmount: 50,
+      blockQtyOverReceived: true,
+    },
+  }, {});
+  assert.equal(opts.qtyTolerance, 1);
+  assert.equal(opts.priceTolerancePct, 5);
+  assert.equal(opts.priceToleranceAmount, 50);
+  assert.equal(opts.blockQtyOverReceived, true);
 });
 
-test('three-way match pure logic: exact remaining allowed', () => {
-  const poLine = { ordered: 10, received: 10, returned: 0, invoiced: 4, unitCost: 50 };
-  const billQty = 6;
-  const remaining = poLine.received - poLine.returned - poLine.invoiced;
-  assert.equal(remaining, 6);
-  assert.ok(billQty <= remaining);
+test('resolveThreeWayOptions body overrides including zero', () => {
+  const opts = resolveThreeWayOptions({
+    threeWayMatch: { priceTolerancePct: 5, priceToleranceAmount: 50 },
+  }, { priceTolerancePct: 0, priceToleranceAmount: 0 });
+  assert.equal(opts.priceTolerancePct, 0);
+  assert.equal(opts.priceToleranceAmount, 0);
 });
 
-test('three-way match price tolerance', () => {
+test('DEFAULT_THREE_WAY_TOLERANCE matches plan', () => {
+  assert.equal(DEFAULT_THREE_WAY_TOLERANCE.priceTolerancePct, 5);
+  assert.equal(DEFAULT_THREE_WAY_TOLERANCE.priceToleranceAmount, 50);
+  assert.equal(DEFAULT_THREE_WAY_TOLERANCE.qtyTolerance, 0);
+});
+
+test('price dual tolerance: within amount auto-accepts even if pct high', () => {
   const poPrice = 100;
-  const billPrice = 110;
-  const diffPct = Math.abs(billPrice - poPrice) / poPrice * 100;
-  assert.equal(diffPct, 10);
-  assert.ok(diffPct > 5);
-  assert.ok(diffPct <= 10);
+  const billPrice = 140; // 40% but abs 40 <= 50
+  const absDiff = Math.abs(billPrice - poPrice);
+  const diffPct = (absDiff / poPrice) * 100;
+  const withinPct = diffPct <= 5;
+  const withinAmt = absDiff <= 50;
+  assert.equal(withinPct, false);
+  assert.equal(withinAmt, true);
+  assert.ok(withinPct || withinAmt, 'should auto-accept');
+});
+
+test('price dual tolerance: beyond both warns', () => {
+  const poPrice = 100;
+  const billPrice = 160; // 60% and abs 60 > 50
+  const absDiff = Math.abs(billPrice - poPrice);
+  const diffPct = (absDiff / poPrice) * 100;
+  const withinPct = diffPct <= 5;
+  const withinAmt = absDiff <= 50;
+  assert.equal(withinPct, false);
+  assert.equal(withinAmt, false);
+});
+
+test('over-ordered detection', () => {
+  const ordered = 10;
+  const alreadyInvoiced = 8;
+  const remainingOrderable = ordered - alreadyInvoiced; // 2
+  const billQty = 3;
+  assert.ok(billQty > remainingOrderable, 'should block over-ordered');
+});
+
+test('computeMatchingStatus: variance on warn', () => {
+  const status = computeMatchingStatus({
+    exceptions: [{ severity: 'warn', type: 'price_mismatch' }],
+    lines: [{ billedQty: 5, remainingBillable: 5 }],
+    hasPo: true,
+  });
+  assert.equal(status, 'variance');
+});
+
+test('computeMatchingStatus: fully matched', () => {
+  const status = computeMatchingStatus({
+    exceptions: [],
+    lines: [{ billedQty: 5, remainingBillable: 5 }],
+    hasPo: true,
+  });
+  assert.equal(status, 'fully_matched');
+});
+
+test('computeMatchingStatus: partially matched', () => {
+  const status = computeMatchingStatus({
+    exceptions: [],
+    lines: [{ billedQty: 2, remainingBillable: 5 }],
+    hasPo: true,
+  });
+  assert.equal(status, 'partially_matched');
+});
+
+test('computeMatchingStatus: unmatched without PO', () => {
+  assert.equal(computeMatchingStatus({ hasPo: false, lines: [], exceptions: [] }), 'unmatched');
 });
 
 test('ObjectId validity for PoS sourceDocId', () => {
   assert.equal(mongoose.Types.ObjectId.isValid('not-an-id'), false);
   assert.equal(mongoose.Types.ObjectId.isValid(new mongoose.Types.ObjectId().toString()), true);
+});
+
+test('GRNI open amount math', () => {
+  const netReceived = 10;
+  const billedAttributed = 4;
+  const openQty = netReceived - billedAttributed;
+  const unitCost = 19.5;
+  const amount = Math.round(openQty * unitCost * 100) / 100;
+  assert.equal(openQty, 6);
+  assert.equal(amount, 117);
 });

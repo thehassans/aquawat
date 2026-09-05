@@ -13,6 +13,7 @@ import Money from '../ui/Money'
 import { getPrimaryBusinessType, getTenantBusinessTypes } from '../../lib/businessTypes'
 import { getInvoiceTemplateId } from '../../lib/invoiceBranding'
 import { isPakistanTenant, getTaxLabel, getTaxIdLabel, getTenantCountryCode, showArabicFields as isArabicTenantMarket } from '../../lib/saudiTenant'
+import { isValidSaudiVat } from '../../lib/saudiVat'
 import { getAvailableUomOptions, getDefaultUom, getUomLabel } from '../../lib/uomOptions'
 import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
 import DocumentPreSaveModal from './DocumentPreSaveModal'
@@ -99,6 +100,10 @@ const getEmptyLine = (tenant) => ({
   quantity: 1,
   unitPrice: '',
   taxRate: 15,
+  taxId: '',
+  taxCode: 'VAT15-IN',
+  taxCategory: 'S',
+  vatTreatment: 'recoverable',
   sourcePoItemId: '',
   expenseAccountId: '',
   analyticAccountId: '',
@@ -136,7 +141,9 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
     authorizedPersonSignature: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.authorizedPersonSignature || '') : '',
     stampImage: (invoice?.authorizedPersonName || invoice?.authorizedPersonNameAr || invoice?.authorizedPersonDesignation || invoice?.authorizedPersonSignature || invoice?.stampImage) ? (invoice?.stampImage || '') : '',
     paymentTerms: invoice?.paymentTerms || 'immediate',
-    contractNumber: invoice?.contractNumber || '',
+    contractNumber: invoice?.contractNumber || invoice?.vendorInvoiceNumber || '',
+    vendorInvoiceNumber: invoice?.vendorInvoiceNumber || invoice?.contractNumber || '',
+    vendorInvoiceDate: toDateInput(invoice?.vendorInvoiceDate) || toDateInput(invoice?.issueDate) || toDateInput(new Date()),
     issueDate: toDateInput(invoice?.issueDate) || toDateInput(new Date()),
     accountingDate: toDateInput(invoice?.accountingDate) || toDateInput(invoice?.issueDate) || toDateInput(new Date()),
     printFormat: invoice?.printFormat === 'thermal' ? 'thermal' : 'a4',
@@ -172,6 +179,10 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
           quantity: Math.max(0.0001, toNumber(line?.quantity, 1)),
           unitPrice: Math.max(0, toNumber(line?.unitPrice, 0)),
           taxRate: Math.max(0, toNumber(line?.taxRate, 15)),
+          taxId: line?.taxId?._id || line?.taxId || '',
+          taxCode: line?.taxCode || (toNumber(line?.taxRate, 15) > 0 ? 'VAT15-IN' : 'VAT0-IN'),
+          taxCategory: line?.taxCategory || 'S',
+          vatTreatment: line?.vatTreatment || 'recoverable',
           sourcePoItemId: line?.sourcePoItemId || '',
           expenseAccountId: line?.expenseAccountId || '',
           analyticAccountId: line?.analyticAccountId || '',
@@ -440,6 +451,38 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     setValue('pdfTemplateId', getInvoiceTemplateId(tenant, businessContext))
   }, [businessContext, setValue])
 
+  const { data: purchaseTaxes = [] } = useQuery({
+    queryKey: ['purchase-taxes'],
+    queryFn: () => api.get('/accounting/taxes', { params: { type: 'purchase' } }).then((r) => r.data || []),
+  })
+  const purchaseTaxOptions = useMemo(() => {
+    const list = Array.isArray(purchaseTaxes) ? purchaseTaxes : []
+    if (list.length) return list
+    // Fallback until ensureDefaultTaxes runs
+    return [
+      { _id: '', code: 'VAT15-IN', name: 'Standard 15%', rate: 15, zatcaCategory: 'S', recoverable: true, isReverseCharge: false },
+      { _id: '', code: 'VAT0-IN', name: 'Zero-rated 0%', rate: 0, zatcaCategory: 'Z', recoverable: true, isReverseCharge: false },
+      { _id: '', code: 'VAT-EX-IN', name: 'Exempt', rate: 0, zatcaCategory: 'E', recoverable: false, isReverseCharge: false },
+      { _id: '', code: 'VAT-RC-IN', name: 'Reverse charge', rate: 15, zatcaCategory: 'O', recoverable: true, isReverseCharge: true },
+      { _id: '', code: 'VAT-NR-IN', name: 'Non-recoverable', rate: 15, zatcaCategory: 'S', recoverable: false, isReverseCharge: false },
+    ]
+  }, [purchaseTaxes])
+
+  const applyTaxToLine = (index, tax) => {
+    if (!tax) return
+    const treatment = tax.isReverseCharge
+      ? 'reverse_charge'
+      : (tax.recoverable === false
+        ? (Number(tax.rate) > 0 ? 'non_recoverable' : 'none')
+        : (Number(tax.rate) > 0 ? 'recoverable' : 'none'))
+    const opts = { shouldDirty: true, shouldValidate: true }
+    setValue(`lineItems.${index}.taxId`, tax._id || '', opts)
+    setValue(`lineItems.${index}.taxCode`, tax.code || '', opts)
+    setValue(`lineItems.${index}.taxRate`, Number(tax.rate) || 0, opts)
+    setValue(`lineItems.${index}.taxCategory`, tax.zatcaCategory || 'S', opts)
+    setValue(`lineItems.${index}.vatTreatment`, treatment, opts)
+  }
+
   const { data: products = [] } = useQuery({
     queryKey: ['products-list'],
     queryFn: async () => {
@@ -522,7 +565,9 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
             lineItems: (data.lineItems || []).map((line, index) => ({
               ...line,
               lineNumber: index + 1,
-              taxCategory: 'S',
+              taxCode: line.taxCode || 'VAT15-IN',
+              taxCategory: line.taxCategory || 'S',
+              vatTreatment: line.vatTreatment || 'recoverable',
             })),
           }
           api.post('/invoices/purchase', payload).catch(() => {})
@@ -532,12 +577,33 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   }, [isEdit])
 
   const saveMutation = useMutation({
-    mutationFn: (payload) => isEdit ? api.put(`/invoices/${invoiceId}`, payload) : api.post('/invoices/purchase', payload),
+    mutationFn: async (payload) => {
+      const { _pendingAttachment, ...body } = payload
+      const res = isEdit
+        ? await api.put(`/invoices/${invoiceId}`, body)
+        : await api.post('/invoices/purchase', body)
+      const savedId = res.data?._id || invoiceId
+      const file = billAttachment || ocrAttachment
+      if (savedId && file) {
+        const fd = new FormData()
+        fd.append('file', file)
+        try {
+          await api.post(`/invoices/${savedId}/attachments`, fd, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          })
+        } catch {
+          // Bill is saved; attachment failure is non-blocking but surfaced
+          toast.error(language === 'ar' ? 'تم حفظ الفاتورة لكن فشل رفع المرفق' : 'Bill saved but attachment upload failed')
+        }
+      }
+      return res
+    },
     onSuccess: (res) => {
       isSubmittedRef.current = true;
       setShowPreviewModal(false)
       toast.success(isEdit ? (language === 'ar' ? 'تم تحديث فاتورة الشراء بنجاح' : 'Purchase invoice updated successfully') : (language === 'ar' ? 'تم إنشاء فاتورة الشراء بنجاح' : 'Purchase invoice created successfully'))
       queryClient.invalidateQueries(['invoices'])
+      queryClient.invalidateQueries(['vendor-bills'])
       if (isEdit) {
         queryClient.invalidateQueries(['invoice', invoiceId])
       }
@@ -574,14 +640,52 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   )
 
   const threeWayQuery = useQuery({
-    queryKey: ['three-way-match', selectedPoId, JSON.stringify(billLinesForMatch)],
+    queryKey: ['three-way-match', selectedPoId, isEdit ? invoiceId : null, JSON.stringify(billLinesForMatch)],
     queryFn: () => api.post('/invoices/three-way-match', {
       purchaseOrderId: selectedPoId,
       billLines: billLinesForMatch,
+      excludeInvoiceId: isEdit ? invoiceId : undefined,
     }).then((r) => r.data),
     enabled: Boolean(isTradingContext && selectedPoId && billLinesForMatch.length > 0),
     staleTime: 5_000,
   })
+
+  const poMatchLinesByProduct = useMemo(() => {
+    const map = {}
+    for (const row of threeWayQuery.data?.lines || []) {
+      if (!row?.productId) continue
+      map[String(row.productId)] = row
+    }
+    // Fallback from selected PO when match query not yet loaded
+    if (!Object.keys(map).length && selectedPo?.lineItems) {
+      for (const li of selectedPo.lineItems) {
+        if (!li?.productId) continue
+        const pid = String(typeof li.productId === 'object' ? li.productId._id : li.productId)
+        const ordered = toNumber(li.quantityOrdered ?? li.quantity, 0)
+        const received = Math.max(0, toNumber(li.quantityReceived, 0) - toNumber(li.quantityReturned, 0))
+        const invoiced = toNumber(li.quantityInvoiced, 0)
+        map[pid] = {
+          productId: pid,
+          ordered,
+          received,
+          alreadyInvoiced: invoiced,
+          remainingBillable: Math.max(0, received - invoiced),
+          remainingOrderable: Math.max(0, ordered - invoiced),
+          unitCost: toNumber(li.unitCost, 0),
+        }
+      }
+    }
+    return map
+  }, [threeWayQuery.data?.lines, selectedPo])
+
+  const matchBlocking = useMemo(
+    () => (threeWayQuery.data?.exceptions || []).filter((ex) => ex.severity === 'block' || (!ex.severity && ex.type !== 'price_mismatch')),
+    [threeWayQuery.data],
+  )
+  const matchWarningsOnly = useMemo(
+    () => (threeWayQuery.data?.exceptions || []).filter((ex) => ex.severity === 'warn' || ex.type === 'price_mismatch'),
+    [threeWayQuery.data],
+  )
 
   const lineMatchWarnings = useMemo(() => {
     const map = {}
@@ -591,9 +695,9 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       const prev = map[key] || { productId: key, types: [] }
       prev.types = [...new Set([...(prev.types || []), ex.type].filter(Boolean))]
       map[key] = { ...prev, ...ex, type: ex.type === 'price_mismatch' && prev.type === 'qty_mismatch' ? 'qty_mismatch' : (ex.type || prev.type) }
-      if (ex.type === 'qty_mismatch') {
+      if (ex.type === 'qty_mismatch' || ex.type === 'over_ordered') {
         map[key].qty = ex
-        map[key].type = map[key].price ? 'qty_mismatch' : 'qty_mismatch'
+        map[key].type = 'qty_mismatch'
       }
       if (ex.type === 'price_mismatch') {
         map[key].price = ex
@@ -642,6 +746,11 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     setValue(`lineItems.${index}.productNameAr`, hasArabicScript(product.nameAr) ? String(product.nameAr).trim() : '', opts)
     setValue(`lineItems.${index}.unitCode`, product.unitOfMeasure || 'PCE', opts)
     setValue(`lineItems.${index}.taxRate`, typeof product.purchaseTaxRate === 'number' ? product.purchaseTaxRate : (typeof product.taxRate === 'number' ? product.taxRate : 15), opts)
+    const rate = typeof product.purchaseTaxRate === 'number' ? product.purchaseTaxRate : (typeof product.taxRate === 'number' ? product.taxRate : 15)
+    const matchedTax = purchaseTaxOptions.find((t) => Number(t.rate) === Number(rate) && t.recoverable !== false && !t.isReverseCharge)
+      || purchaseTaxOptions.find((t) => t.code === 'VAT15-IN')
+      || purchaseTaxOptions[0]
+    if (matchedTax) applyTaxToLine(index, matchedTax)
     setValue(`lineItems.${index}.productType`, normalizeProductType(product.productType), opts)
     setValue(`lineItems.${index}.unitPrice`, resolveProductPurchasePrice(product), opts)
     const predictedAccount = vendorPredictions?.byProduct?.[productId] || vendorPredictions?.defaultAccountId
@@ -673,6 +782,38 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     setValue('seller.address.country', supplier.address?.country || getTenantCountryCode(tenant))
     setValue('seller.address.buildingNumber', supplier.address?.buildingNumber || '')
     setValue('seller.address.additionalNumber', supplier.address?.additionalNumber || '')
+    // Auto-fill vendor bank details for bill payment / remittance
+    const banks = Array.isArray(supplier.bankAccounts) ? supplier.bankAccounts : []
+    const primary = banks.find((b) => b.isDefault) || banks[0]
+    const bank = primary || (supplier.bank?.iban || supplier.bank?.bankName
+      ? {
+        bankName: supplier.bank.bankName,
+        accountName: supplier.bank.beneficiaryName,
+        iban: supplier.bank.iban,
+        accountNumber: supplier.bank.iban,
+      }
+      : null)
+    if (bank && (bank.iban || bank.bankName || bank.accountName)) {
+      setShowBankPanel(true)
+      setValue('includeBankDetails', true)
+      setValue('bankDetails.bankName', bank.bankName || '')
+      setValue('bankDetails.accountName', bank.accountName || '')
+      setValue('bankDetails.accountNumber', bank.accountNumber || bank.iban || '')
+      setValue('bankDetails.iban', bank.iban || '')
+    }
+    if (supplier.paymentTermsId) {
+      setValue('paymentTerms', supplier.paymentTermsId)
+    } else if (supplier.paymentTermsVendor?.term) {
+      const map = { immediate: 'immediate', net_7: 'net7', net_15: 'net15', net_30: 'net30', net_60: 'net60' }
+      setValue('paymentTerms', map[supplier.paymentTermsVendor.term] || 'net30')
+    }
+    if (supplier.defaultExpenseAccountId) {
+      const expenseId = supplier.defaultExpenseAccountId._id || supplier.defaultExpenseAccountId
+      const lines = getValues('lineItems') || []
+      lines.forEach((line, index) => {
+        if (!line?.expenseAccountId) setValue(`lineItems.${index}.expenseAccountId`, expenseId)
+      })
+    }
     setSelectedSupplier(supplier)
   }
 
@@ -734,6 +875,24 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     if (po.notes) setValue('notes', po.notes)
     const items = (Array.isArray(po.lineItems) ? po.lineItems : []).map((li) => {
       const product = li?.productId && typeof li.productId === 'object' ? li.productId : null
+      const rate = Math.max(0, toNumber(li?.taxRate, 15))
+      const matchedTax = purchaseTaxOptions.find((t) => Number(t.rate) === rate && t.recoverable !== false && !t.isReverseCharge)
+        || purchaseTaxOptions.find((t) => t.code === (rate > 0 ? 'VAT15-IN' : 'VAT0-IN'))
+        || null
+      const treatment = matchedTax?.isReverseCharge
+        ? 'reverse_charge'
+        : (matchedTax?.recoverable === false
+          ? (rate > 0 ? 'non_recoverable' : 'none')
+          : (rate > 0 ? 'recoverable' : 'none'))
+      const ordered = toNumber(li?.quantityOrdered ?? li?.quantity, 0)
+      const received = Math.max(0, toNumber(li?.quantityReceived, 0) - toNumber(li?.quantityReturned, 0))
+      const invoiced = toNumber(li?.quantityInvoiced, 0)
+      const remainingBillable = Math.max(0, received - invoiced)
+      const remainingOrderable = Math.max(0, ordered - invoiced)
+      const fillQty = Math.min(remainingBillable, remainingOrderable)
+      const billedQty = fillQty > 1e-9
+        ? fillQty
+        : Math.max(0.0001, remainingOrderable > 0 ? remainingOrderable : remainingBillable || 0.0001)
       return {
         ...emptyLine,
         productId: product?._id || li?.productId || '',
@@ -741,12 +900,16 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         productNameAr: product?.nameAr || '',
         productType: normalizeProductType(li?.productType || product?.productType),
         unitCode: li?.uom || product?.unitOfMeasure || 'PCE',
-        quantity: Math.max(0.0001, toNumber(li?.quantityOrdered ?? li?.quantity, 1) - toNumber(li?.quantityReturned, 0)),
+        quantity: billedQty,
         unitPrice: Math.max(0, toNumber(li?.unitCost ?? li?.unitPrice, 0)),
-        taxRate: Math.max(0, toNumber(li?.taxRate, 15)),
+        taxRate: rate,
+        taxId: matchedTax?._id || '',
+        taxCode: matchedTax?.code || (rate > 0 ? 'VAT15-IN' : 'VAT0-IN'),
+        taxCategory: matchedTax?.zatcaCategory || (rate > 0 ? 'S' : 'Z'),
+        vatTreatment: treatment,
         sourcePoItemId: li?._id || '',
       }
-    })
+    }).filter((row) => row.productId || row.productName)
     replace(items.length ? items : [emptyLine])
     const grnList = Array.isArray(relatedGrns) ? relatedGrns : []
     const grnIds = grnList.map((g) => g._id).filter(Boolean)
@@ -837,6 +1000,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const [pendingPayload, setPendingPayload] = useState(null)
   const [showOcrPanel, setShowOcrPanel] = useState(false)
   const [ocrAttachment, setOcrAttachment] = useState(null)
+  const [billAttachment, setBillAttachment] = useState(null)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelPending, setCancelPending] = useState(false)
 
@@ -844,6 +1008,35 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     const namedLines = (data.lineItems || []).filter((line) => String(line?.productName || '').trim() || toNumber(line?.unitPrice, 0) > 0)
     if (!namedLines.length) {
       toast.error(language === 'ar' ? 'أضف بنداً واحداً على الأقل قبل الحفظ' : 'Add at least one line item before saving')
+      return null
+    }
+    const vendorInvNo = String(data.vendorInvoiceNumber || data.contractNumber || '').trim()
+    if (!vendorInvNo && !isManualRefund && !isVendorRefund(initialInvoice || {})) {
+      toast.error(language === 'ar' ? 'رقم فاتورة المورد إلزامي (للتدقيق والزكاة)' : 'Vendor invoice number is required (ZATCA audit)')
+      return null
+    }
+    if (!isPk) {
+      const missingTax = namedLines.find((line) => !String(line?.taxCode || '').trim())
+      if (missingTax) {
+        toast.error(language === 'ar' ? 'رمز الضريبة إلزامي على كل بند' : 'Tax code is required on every bill line')
+        return null
+      }
+      const claimsInputVat = namedLines.some((line) => {
+        const treatment = String(line?.vatTreatment || 'recoverable')
+        const rate = toNumber(line?.taxRate, 0)
+        return rate > 0 && (treatment === 'recoverable' || treatment === 'reverse_charge')
+      })
+      if (claimsInputVat && !isValidSaudiVat(data.seller?.vatNumber)) {
+        toast.error(
+          language === 'ar'
+            ? 'الرقم الضريبي للمورد إلزامي لاسترداد ضريبة المدخلات (١٥ رقماً يبدأ وينتهي بـ ٣)'
+            : 'Supplier VAT is required to claim input VAT (15 digits, start and end with 3)',
+        )
+        return null
+      }
+    }
+    if (!ocrAttachment && !billAttachment && !(initialInvoice?.attachments || []).length && !isEdit && !isManualRefund) {
+      toast.error(language === 'ar' ? 'أرفق صورة/PDF فاتورة المورد (مطلوب للتدقيق)' : 'Attach supplier invoice PDF/photo (required for audit)')
       return null
     }
     const computedTotals = calculateInvoiceSummary({
@@ -861,6 +1054,11 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       if (raw) return new Date(`${raw}T12:00:00`)
       return issueDate
     })()
+    const vendorInvoiceDate = (() => {
+      const raw = typeof data?.vendorInvoiceDate === 'string' ? data.vendorInvoiceDate.trim() : ''
+      if (raw) return new Date(`${raw}T12:00:00`)
+      return issueDate
+    })()
     const payload = {
       ...data,
       flow: 'purchase',
@@ -873,6 +1071,9 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       status: 'approved',
       issueDate,
       accountingDate,
+      vendorInvoiceNumber: vendorInvNo,
+      vendorInvoiceDate,
+      contractNumber: vendorInvNo,
       printFormat: data?.printFormat === 'thermal' ? 'thermal' : 'a4',
       paymentTerms: data?.paymentTerms || 'immediate',
       dueDate: (() => {
@@ -889,7 +1090,11 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         return {
           ...line,
           lineNumber: index + 1,
-          taxCategory: 'S',
+          taxId: line.taxId || undefined,
+          taxCode: line.taxCode || undefined,
+          taxCategory: line.taxCategory || 'S',
+          vatTreatment: line.vatTreatment || 'recoverable',
+          taxRate: Math.max(0, toNumber(line.taxRate, 15)),
           productId: isTradingContext ? line.productId || undefined : undefined,
           productType: normalizeProductType(line.productType),
           lineTotal: calc.lineTotal,
@@ -931,6 +1136,23 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       }
     }
     if (invoiceSubtype !== 'travel_ticket') delete payload.travelDetails
+    const attachFile = billAttachment || ocrAttachment
+    if (attachFile) {
+      payload._pendingAttachment = {
+        name: attachFile.name,
+        type: attachFile.type || 'application/octet-stream',
+      }
+      // Store as data-URL attachment metadata; backend persists name/url/type
+      // Actual binary upload can follow via OCR/PO attachment flows.
+      payload.attachments = [
+        ...(Array.isArray(initialInvoice?.attachments) ? initialInvoice.attachments : []),
+        {
+          name: attachFile.name,
+          type: attachFile.type || 'application/octet-stream',
+          url: '',
+        },
+      ]
+    }
     payload.showAuthorizedPerson = Boolean(showAuthorizedPerson)
     payload.hasAuthorizedPerson = Boolean(showAuthorizedPerson)
     payload.authorizedPersonName = showAuthorizedPerson ? (data?.authorizedPersonName || '') : ''
@@ -954,6 +1176,10 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   }
 
   const onSubmit = (data) => {
+    if (selectedPoId && threeWayQuery.data?.ok === false) {
+      toast.error(language === 'ar' ? 'أصلح أخطاء المطابقة الثلاثية قبل الحفظ' : 'Fix three-way match errors before saving')
+      return
+    }
     const payload = buildPayload(data)
     if (!payload) return
     setPendingPayload(payload)
@@ -963,6 +1189,10 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const handleConfirmSave = () => {
     if (isBillPosted) {
       toast.error(language === 'ar' ? 'الفاتورة مرحّلة — للعرض فقط' : 'Posted bill is read-only')
+      return
+    }
+    if (selectedPoId && threeWayQuery.data?.ok === false) {
+      toast.error(language === 'ar' ? 'أصلح أخطاء المطابقة الثلاثية قبل الحفظ' : 'Fix three-way match errors before saving')
       return
     }
     const payload = pendingPayload || buildPayload(getValues())
@@ -1292,7 +1522,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               {(threeWayQuery.data.exceptions || []).slice(0, 2).map((ex) => ex.message).join(' · ')}
             </div>
           ) : null}
-          <div className={`${sectionCardClass} grid grid-cols-1 gap-3 !p-3.5 md:grid-cols-3`}>
+          <div className={`${sectionCardClass} grid grid-cols-1 gap-3 !p-3.5 md:grid-cols-2 lg:grid-cols-4`}>
             <div>
               <label className={fieldLabelClass}>{language === 'ar' ? 'تاريخ الفاتورة' : 'Bill date'}</label>
               <input type="date" {...register('issueDate')} disabled={isBillPosted} className={`mt-1 ${denseControlClass} disabled:opacity-60`} />
@@ -1302,8 +1532,46 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               <input type="date" {...register('accountingDate')} disabled={isBillPosted} className={`mt-1 ${denseControlClass} disabled:opacity-60`} title={language === 'ar' ? 'يمكن أن يختلف عن تاريخ الفاتورة' : 'May differ from bill date'} />
             </div>
             <div>
-              <label className={fieldLabelClass}>{language === 'ar' ? 'مرجع المورد' : 'Bill reference'}</label>
-              <input {...register('contractNumber')} disabled={isBillPosted} className={`mt-1 ${denseControlClass} disabled:opacity-60`} placeholder={language === 'ar' ? 'رقم فاتورة المورد' : 'Supplier invoice number'} />
+              <label className={fieldLabelClass}>
+                {language === 'ar' ? 'رقم فاتورة المورد *' : 'Vendor invoice no. *'}
+              </label>
+              <input
+                {...register('vendorInvoiceNumber', { required: true })}
+                disabled={isBillPosted}
+                className={`mt-1 ${denseControlClass} disabled:opacity-60`}
+                placeholder={language === 'ar' ? 'رقم فاتورة المورد (إلزامي)' : 'Supplier invoice number (required)'}
+                onChange={(e) => {
+                  setValue('vendorInvoiceNumber', e.target.value, { shouldDirty: true })
+                  setValue('contractNumber', e.target.value, { shouldDirty: true })
+                }}
+              />
+            </div>
+            <div>
+              <label className={fieldLabelClass}>
+                {language === 'ar' ? 'تاريخ فاتورة المورد *' : 'Vendor invoice date *'}
+              </label>
+              <input type="date" {...register('vendorInvoiceDate', { required: true })} disabled={isBillPosted} className={`mt-1 ${denseControlClass} disabled:opacity-60`} />
+            </div>
+            <div className="md:col-span-2 lg:col-span-4">
+              <label className={fieldLabelClass}>
+                {language === 'ar' ? 'مرفق فاتورة المورد (PDF/صورة) *' : 'Supplier invoice attachment (PDF/photo) *'}
+              </label>
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                disabled={isBillPosted}
+                className={`mt-1 block w-full text-xs ${denseControlClass} disabled:opacity-60`}
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null
+                  setBillAttachment(file)
+                  if (file) setOcrAttachment(file)
+                }}
+              />
+              {(billAttachment || ocrAttachment) ? (
+                <p className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">
+                  {(billAttachment || ocrAttachment)?.name}
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -1457,14 +1725,16 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                         <PurchaseReceivingLedger order={selectedPo} language={language} />
                       </div>
                     </div>
-                    {!isEdit && billLinesForMatch.length > 0 ? (
+                    {billLinesForMatch.length > 0 ? (
                       <div
                         className={`rounded-xl border p-3 ${
                           threeWayQuery.data?.ok === false
                             ? 'border-rose-200 bg-rose-50/80 dark:border-rose-500/30 dark:bg-rose-500/10'
-                            : threeWayQuery.data?.ok
-                              ? 'border-teal-200 bg-teal-50/70 dark:border-teal-500/30 dark:bg-teal-500/10'
-                              : 'border-slate-200/80 bg-white dark:border-white/10 dark:bg-white/[0.03]'
+                            : matchWarningsOnly.length
+                              ? 'border-amber-200 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-500/10'
+                              : threeWayQuery.data?.ok
+                                ? 'border-teal-200 bg-teal-50/70 dark:border-teal-500/30 dark:bg-teal-500/10'
+                                : 'border-slate-200/80 bg-white dark:border-white/10 dark:bg-white/[0.03]'
                         }`}
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1473,32 +1743,48 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                           </p>
                           {threeWayQuery.isFetching ? (
                             <span className="text-xs text-slate-500">{language === 'ar' ? 'جارٍ التحقق…' : 'Checking…'}</span>
-                          ) : threeWayQuery.data?.ok ? (
-                            <span className="text-xs font-semibold text-teal-700 dark:text-teal-300">
-                              {language === 'ar' ? 'مطابقة ناجحة' : 'Match OK'}
-                            </span>
                           ) : threeWayQuery.data?.ok === false ? (
                             <span className="text-xs font-semibold text-rose-700 dark:text-rose-300">
                               {language === 'ar' ? 'محظورة حتى الإصلاح' : 'Blocked until fixed'}
                             </span>
+                          ) : matchWarningsOnly.length ? (
+                            <span className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                              {language === 'ar' ? 'تفاوت سعر (تحذير)' : 'Price variance (warning)'}
+                              {threeWayQuery.data?.matchingStatus ? ` · ${threeWayQuery.data.matchingStatus}` : ''}
+                            </span>
+                          ) : threeWayQuery.data?.ok ? (
+                            <span className="text-xs font-semibold text-teal-700 dark:text-teal-300">
+                              {language === 'ar' ? 'مطابقة ناجحة' : 'Match OK'}
+                              {threeWayQuery.data?.matchingStatus ? ` · ${threeWayQuery.data.matchingStatus}` : ''}
+                            </span>
                           ) : null}
                         </div>
-                        {Array.isArray(threeWayQuery.data?.exceptions) && threeWayQuery.data.exceptions.length > 0 ? (
+                        {matchBlocking.length > 0 ? (
                           <ul className="mt-2 space-y-1 text-sm text-rose-800 dark:text-rose-200">
-                            {threeWayQuery.data.exceptions.map((ex, i) => (
-                              <li key={`${ex.type}-${ex.productId}-${i}`}>
+                            {matchBlocking.map((ex, i) => (
+                              <li key={`block-${ex.type}-${ex.productId}-${i}`}>
                                 • {ex.message || ex.type}
-                                {ex.billedQty != null && ex.remainingBillable != null
-                                  ? ` (${language === 'ar' ? 'المفوتر' : 'billed'} ${ex.billedQty} / ${language === 'ar' ? 'المتبقي' : 'remaining'} ${ex.remainingBillable})`
+                                {ex.billedQty != null && (ex.remainingBillable != null || ex.remainingOrderable != null)
+                                  ? ` (${language === 'ar' ? 'المفوتر' : 'billed'} ${ex.billedQty} / ${language === 'ar' ? 'المتبقي' : 'remaining'} ${ex.remainingBillable ?? ex.remainingOrderable})`
                                   : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                        {matchWarningsOnly.length > 0 ? (
+                          <ul className="mt-2 space-y-1 text-sm text-amber-900 dark:text-amber-200">
+                            {matchWarningsOnly.map((ex, i) => (
+                              <li key={`warn-${ex.type}-${ex.productId}-${i}`}>
+                                • {ex.message || ex.type}
+                                {ex.diffPct != null ? ` (${Number(ex.diffPct).toFixed(2)}%)` : ''}
                               </li>
                             ))}
                           </ul>
                         ) : null}
                         <p className="mt-1.5 text-xs text-slate-500">
                           {language === 'ar'
-                            ? 'الفوترة فوق الكمية المستلمة تُرفض عند الحفظ.'
-                            : 'Billing more than received quantity is rejected on save.'}
+                            ? 'الكمية فوق المستلم أو فوق الطلب تُرفض. فرق السعر خارج التحمل يظهر كتحذير فقط.'
+                            : 'Qty above received or ordered is blocked. Price outside tolerance warns only.'}
                         </p>
                       </div>
                     ) : null}
@@ -1521,7 +1807,6 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               <>
                 <input type="hidden" {...register('seller.name')} />
                 <input type="hidden" {...register('seller.nameAr')} />
-                <input type="hidden" {...register('seller.vatNumber')} />
                 <input type="hidden" {...register('seller.crNumber')} />
                 <input type="hidden" {...register('seller.contactPhone')} />
                 <input type="hidden" {...register('seller.contactEmail')} />
@@ -1535,6 +1820,26 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 <input type="hidden" {...register('seller.address.country')} />
                 <input type="hidden" {...register('seller.address.buildingNumber')} />
                 <input type="hidden" {...register('seller.address.additionalNumber')} />
+                {!isPk ? (
+                  <div className="mt-2 max-w-sm" dir="ltr">
+                    <FieldLabel en={`${taxIdLabel} (supplier)`} ar={`${taxIdLabel} (المورد)`} />
+                    <input
+                      {...register('seller.vatNumber')}
+                      disabled={isBillPosted}
+                      className={compactFieldClass}
+                      placeholder="3xxxxxxxxxxxxxx3"
+                      inputMode="numeric"
+                      maxLength={15}
+                    />
+                    <p className="mt-1 text-[10px] text-slate-400">
+                      {language === 'ar'
+                        ? 'إلزامي لاسترداد ضريبة المدخلات — ١٥ رقماً يبدأ وينتهي بـ ٣'
+                        : 'Required to claim input VAT — 15 digits starting and ending with 3'}
+                    </p>
+                  </div>
+                ) : (
+                  <input type="hidden" {...register('seller.vatNumber')} />
+                )}
               </>
             )}
 
@@ -1609,9 +1914,13 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                     <div className="col-span-2">{language === 'ar' ? 'تحليلي' : 'Analytic'}</div>
                   ) : null}
                   <div className="col-span-1">{language === 'ar' ? 'وحدة' : 'UOM'}</div>
-                  <div className="col-span-1">{t('quantity')}</div>
+                  <div className="col-span-1">
+                    {selectedPoId
+                      ? (language === 'ar' ? 'مطلوب / مستلم / مفوتر' : 'Ordered / Recv / Billed')
+                      : t('quantity')}
+                  </div>
                   <div className="col-span-1">{t('unitPrice')}</div>
-                  <div className="col-span-1">{t('tax')} %</div>
+                  <div className="col-span-1">{language === 'ar' ? 'ضريبة' : 'Tax code'}</div>
                   <div className="text-end col-span-1">{t('total')}</div>
                 </div>
 
@@ -1832,21 +2141,60 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                           />
                         </div>
                         <div className="col-span-1 lg:col-span-1">
-                          <input
-                            id={`qty-${index}`}
-                            type="number"
-                            min="0.0001"
-                            step="any"
-                            {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })}
-                            className={`${lineGhostInputClass} tabular-nums ${matchWarning?.qty || matchWarning?.type === 'qty_mismatch' ? 'ring-1 ring-orange-400' : ''}`}
-                          />
-                          {(matchWarning?.qty || matchWarning?.type === 'qty_mismatch') ? (
-                            <p className="mt-0.5 text-[9px] font-medium text-orange-700 dark:text-orange-300">
-                              {language === 'ar'
-                                ? `مستلم ${(matchWarning.qty || matchWarning).received ?? '—'} · قابل للفوترة ${(matchWarning.qty || matchWarning).remainingBillable ?? '—'}`
-                                : `Recv ${(matchWarning.qty || matchWarning).received ?? '—'} · billable ${(matchWarning.qty || matchWarning).remainingBillable ?? '—'}`}
-                            </p>
-                          ) : null}
+                          {selectedPoId ? (
+                            <div className="space-y-1">
+                              <div className="grid grid-cols-3 gap-1 text-center">
+                                <div className="rounded bg-slate-50 px-1 py-1 dark:bg-white/[0.04]">
+                                  <p className="text-[8px] uppercase tracking-wide text-slate-400 lg:hidden">{language === 'ar' ? 'مطلوب' : 'Ord'}</p>
+                                  <p className="text-[12px] font-semibold tabular-nums text-slate-700 dark:text-slate-200">
+                                    {poMatchLinesByProduct[String(lineProductId)]?.ordered ?? '—'}
+                                  </p>
+                                </div>
+                                <div className="rounded bg-teal-50/80 px-1 py-1 dark:bg-teal-500/10">
+                                  <p className="text-[8px] uppercase tracking-wide text-slate-400 lg:hidden">{language === 'ar' ? 'مستلم' : 'Recv'}</p>
+                                  <p className="text-[12px] font-semibold tabular-nums text-teal-800 dark:text-teal-300">
+                                    {poMatchLinesByProduct[String(lineProductId)]?.received ?? '—'}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[8px] uppercase tracking-wide text-slate-400 lg:hidden">{language === 'ar' ? 'مفوتر' : 'Bill'}</p>
+                                  <input
+                                    id={`qty-${index}`}
+                                    type="number"
+                                    min="0.0001"
+                                    step="any"
+                                    {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })}
+                                    className={`${lineGhostInputClass} tabular-nums ${matchWarning?.qty || matchWarning?.type === 'qty_mismatch' ? 'ring-1 ring-orange-400' : ''}`}
+                                  />
+                                </div>
+                              </div>
+                              {(matchWarning?.qty || matchWarning?.type === 'qty_mismatch') ? (
+                                <p className="text-[9px] font-medium text-orange-700 dark:text-orange-300">
+                                  {language === 'ar'
+                                    ? `قابل للفوترة ${poMatchLinesByProduct[String(lineProductId)]?.remainingBillable ?? (matchWarning.qty || matchWarning).remainingBillable ?? '—'}`
+                                    : `Billable ${poMatchLinesByProduct[String(lineProductId)]?.remainingBillable ?? (matchWarning.qty || matchWarning).remainingBillable ?? '—'}`}
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <>
+                              <input
+                                id={`qty-${index}`}
+                                type="number"
+                                min="0.0001"
+                                step="any"
+                                {...register(`lineItems.${index}.quantity`, { valueAsNumber: true, required: true, min: 0.0001 })}
+                                className={`${lineGhostInputClass} tabular-nums ${matchWarning?.qty || matchWarning?.type === 'qty_mismatch' ? 'ring-1 ring-orange-400' : ''}`}
+                              />
+                              {(matchWarning?.qty || matchWarning?.type === 'qty_mismatch') ? (
+                                <p className="mt-0.5 text-[9px] font-medium text-orange-700 dark:text-orange-300">
+                                  {language === 'ar'
+                                    ? `مستلم ${(matchWarning.qty || matchWarning).received ?? '—'} · قابل للفوترة ${(matchWarning.qty || matchWarning).remainingBillable ?? '—'}`
+                                    : `Recv ${(matchWarning.qty || matchWarning).received ?? '—'} · billable ${(matchWarning.qty || matchWarning).remainingBillable ?? '—'}`}
+                                </p>
+                              ) : null}
+                            </>
+                          )}
                         </div>
                         <div className="col-span-1 lg:col-span-1">
                           <input
@@ -1857,34 +2205,53 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                             className={`${lineGhostInputClass} tabular-nums ${matchWarning?.price || matchWarning?.type === 'price_mismatch' ? 'ring-1 ring-orange-400' : ''}`}
                           />
                           {(matchWarning?.price || matchWarning?.type === 'price_mismatch') ? (
-                            <p className="mt-0.5 text-[9px] font-medium text-orange-700 dark:text-orange-300">
+                            <p className="mt-0.5 text-[9px] font-medium text-amber-700 dark:text-amber-300">
                               {language === 'ar'
-                                ? `سعر الطلب ${Number((matchWarning.price || matchWarning).poPrice || 0).toFixed(2)}`
-                                : `PO ${Number((matchWarning.price || matchWarning).poPrice || 0).toFixed(2)}`}
+                                ? `طلب ${Number((matchWarning.price || matchWarning).poPrice || 0).toFixed(2)} · فرق ${Number((matchWarning.price || matchWarning).diffPct || 0).toFixed(1)}%`
+                                : `PO ${Number((matchWarning.price || matchWarning).poPrice || 0).toFixed(2)} · ${Number((matchWarning.price || matchWarning).diffPct || 0).toFixed(1)}%`}
                             </p>
                           ) : null}
                         </div>
                         <div className="col-span-1 lg:col-span-1">
                           {(() => {
                             const pkRate = Number(tenant?.fbr?.defaultSalesTaxRate || 18)
+                            if (isPk) {
+                              return (
+                                <select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className={`${lineGhostInputClass} cursor-pointer`}>
+                                  <option value={pkRate}>{pkRate}%</option>
+                                  {pkRate !== 16 && <option value={16}>16%</option>}
+                                  {pkRate !== 15 && <option value={15}>15%</option>}
+                                  <option value={0}>0%</option>
+                                </select>
+                              )
+                            }
+                            const currentCode = watch(`lineItems.${index}.taxCode`) || 'VAT15-IN'
                             return (
-                              <select {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} className={`${lineGhostInputClass} cursor-pointer`}>
-                                {isPk ? (
-                                  <>
-                                    <option value={pkRate}>{pkRate}%</option>
-                                    {pkRate !== 16 && <option value={16}>16%</option>}
-                                    {pkRate !== 15 && <option value={15}>15%</option>}
-                                    <option value={0}>0%</option>
-                                  </>
-                                ) : (
-                                  <>
-                                    <option value={15}>15%</option>
-                                    <option value={0}>0%</option>
-                                  </>
-                                )}
+                              <select
+                                value={currentCode}
+                                required
+                                disabled={isBillPosted}
+                                onChange={(e) => {
+                                  const tax = purchaseTaxOptions.find((t) => t.code === e.target.value)
+                                  applyTaxToLine(index, tax || { code: e.target.value, rate: 15, zatcaCategory: 'S', recoverable: true })
+                                }}
+                                className={`${lineGhostInputClass} cursor-pointer`}
+                                title={language === 'ar' ? 'رمز الضريبة (إلزامي)' : 'Tax code (required)'}
+                              >
+                                {purchaseTaxOptions.map((tax) => (
+                                  <option key={tax.code} value={tax.code}>
+                                    {tax.code} · {language === 'ar' ? (tax.nameAr || tax.name) : tax.name}
+                                    {tax.rate != null ? ` (${tax.rate}%)` : ''}
+                                  </option>
+                                ))}
                               </select>
                             )
                           })()}
+                          <input type="hidden" {...register(`lineItems.${index}.taxId`)} />
+                          <input type="hidden" {...register(`lineItems.${index}.taxCode`)} />
+                          <input type="hidden" {...register(`lineItems.${index}.taxCategory`)} />
+                          <input type="hidden" {...register(`lineItems.${index}.vatTreatment`)} />
+                          <input type="hidden" {...register(`lineItems.${index}.taxRate`, { valueAsNumber: true })} />
                         </div>
                         <div className="col-span-2 flex items-center justify-end gap-1 lg:col-span-1">
                           <p className="text-[13px] font-semibold tabular-nums text-slate-900 dark:text-white">
@@ -2289,7 +2656,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               </p>
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : (isRefundDoc ? '/app/dashboard/accounting/vendor-refunds' : '/app/dashboard/accounting/invoices?tab=purchase'))} className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:bg-transparent dark:text-slate-300">{t('cancel')}</button>
-                <button type="submit" disabled={saveMutation.isPending || isBillPosted} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 disabled:opacity-50 dark:bg-white dark:text-slate-900">
+                <button type="submit" disabled={saveMutation.isPending || isBillPosted || (Boolean(selectedPoId) && threeWayQuery.data?.ok === false)} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 disabled:opacity-50 dark:bg-white dark:text-slate-900">
                   {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" /> : <><Eye className="w-4 h-4" />{language === 'ar' ? 'معاينة' : 'Preview'}</>}
                 </button>
               </div>

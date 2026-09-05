@@ -62,6 +62,31 @@ router.post('/', checkTrialLimits('vouchers'), checkPermission('finance', 'creat
       return res.status(201).json(payment);
     }
 
+    // Vendor payments: unified outbound AccountPayment path
+    if (req.body?.type === 'payment' && req.body?.partyType === 'supplier') {
+      const { createVendorPayment } = await import('../services/vendorPaymentService.js');
+      const payment = await createVendorPayment({
+        tenantId: req.user.tenantId,
+        userId: req.user._id,
+        vendorId: req.body.partyId || null,
+        vendorName: req.body.partyName || '',
+        date: req.body.date || new Date(),
+        amount: req.body.amount,
+        method: req.body.paymentMethod || 'bank_transfer',
+        reference: req.body.reference || '',
+        memo: req.body.description || req.body.memo || '',
+        currency: req.body.currency || 'SAR',
+        allocations: Array.isArray(req.body.allocations) ? req.body.allocations : [],
+        source: 'voucher',
+        autoAllocateOldest: !!req.body.autoAllocateOldest,
+      });
+      if (payment.voucherId) {
+        const mirrored = await Voucher.findById(payment.voucherId);
+        if (mirrored) return res.status(201).json(mirrored);
+      }
+      return res.status(201).json(payment);
+    }
+
     // Generate voucher number
     const count = await Voucher.countDocuments({ tenantId: req.user.tenantId });
     const prefix = req.body.type === 'receive' ? 'RV' : 'PV';

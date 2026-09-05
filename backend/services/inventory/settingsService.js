@@ -83,6 +83,7 @@ export const SETTINGS_ALLOWED = [
   'printFooterTerms',
   'printWatermarkEnabled',
   'printPaperSize',
+  'threeWayMatch',
 ];
 
 /** Normalize aliases from v2 brief names onto stored columns */
@@ -317,6 +318,16 @@ export async function updateInvSettings(tenantId, userId, body) {
       }
     } catch (err) {
       console.error('[inventory] seed full accounting defaults', err?.message || err);
+    }
+  }
+
+  // Keep 1310/1320 typed as assets whenever settings are saved under full accounting
+  if (updated.inventoryAccountingMode === 'full_accounting') {
+    try {
+      const { ensureStockAccountingAccounts } = await import('./stockAccounting.js');
+      await ensureStockAccountingAccounts(tid, userId);
+    } catch (err) {
+      console.warn('[inventory] heal stock interim accounts failed:', err?.message || err);
     }
   }
 

@@ -18,7 +18,7 @@ import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } fro
 import { INVOICE_PAYMENT_TERMS, computeDueDateFromPaymentTerms, computeDueDateOnlyFromPaymentTerms, isImmediatePaymentTerm, formPaymentStatusFromInvoice, applyFormPaymentToPayload } from '../../lib/invoicePaymentTerms'
 import { extractDateOnly, dateOnlyToUtcNoon } from '../../lib/dateOnly'
 import { isValidSaudiVat, isEmptyOrValidSaudiVat, saudiVatErrorMessage, normalizeSaudiVatDigits } from '../../lib/saudiVat'
-import { resolveTransactionTypeFromParty, invoiceTypeCodeForTransaction } from '../../lib/transactionType'
+import { resolveTransactionTypeFromParty, invoiceTypeCodeForTransaction, zatcaInvoiceKindForTransaction, transactionTypeBadgeLabel, transactionTypeReasonLine, isWalkInOrCashCustomer, partyHasValidVat } from '../../lib/transactionType'
 import DocumentPreSaveModal from './DocumentPreSaveModal'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
 import TravelInvoiceFields from './TravelInvoiceFields'
@@ -329,6 +329,7 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
     accountName: invoice?.bankDetails?.accountName || '',
     accountNumber: invoice?.bankDetails?.accountNumber || '',
     iban: invoice?.bankDetails?.iban || '',
+    swift: invoice?.bankDetails?.swift || '',
   },
   invoiceDiscount: Math.max(0, toNumber(invoice?.invoiceDiscount, 0)),
   buyer: {
@@ -396,6 +397,11 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const [invoiceType, setInvoiceType] = useState(() => (
     initialInvoice?.transactionType === 'B2B' ? 'B2B' : 'B2C'
   ))
+  /** Manual B2B↔B2C override (cleared when customer changes). */
+  const [typeOverride, setTypeOverride] = useState(null)
+  const typeOverrideRef = useRef(null)
+  const [overrideModalOpen, setOverrideModalOpen] = useState(false)
+  const [overrideReasonDraft, setOverrideReasonDraft] = useState('')
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const isEdit = Boolean(invoiceId)
   const [selectedCustomer, setSelectedCustomer] = useState(() => {
@@ -605,13 +611,23 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       if (!current.accountName && tenantBank.accountName) setValue('bankDetails.accountName', tenantBank.accountName)
       if (!current.accountNumber && tenantBank.accountNumber) setValue('bankDetails.accountNumber', tenantBank.accountNumber)
       if (!current.iban && tenantBank.iban) setValue('bankDetails.iban', tenantBank.iban)
+      if (!current.swift && tenantBank.swift) setValue('bankDetails.swift', tenantBank.swift)
     } else {
       setValue('bankDetails.bankName', '')
       setValue('bankDetails.accountName', '')
       setValue('bankDetails.accountNumber', '')
       setValue('bankDetails.iban', '')
+      setValue('bankDetails.swift', '')
     }
   }
+
+  useEffect(() => {
+    if (invoiceId || initialInvoice) return
+    const tenantBank = tenant?.business?.bankDetails || {}
+    if (!(tenantBank.iban || tenantBank.bankName || tenantBank.accountNumber)) return
+    handleToggleBankDetails(true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once for new invoices when company bank exists
+  }, [tenant?.business?.bankDetails?.iban, tenant?.business?.bankDetails?.bankName, invoiceId])
 
   const handleToggleTerms = (enable) => {
     setShowTermsPanel(enable)
@@ -784,24 +800,57 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     }
   }
 
+  const clearTypeOverride = () => {
+    typeOverrideRef.current = null
+    setTypeOverride(null)
+  }
+
   const syncTxnFromParty = (customer) => {
     if (!customer) return
-    // Always align new invoices (incl. from sales order) with contact type
-    if (isEdit && initialInvoice?.transactionType) return
-    const next = resolveTransactionTypeFromParty(customer, invoiceType)
+    if (typeOverrideRef.current) return
+    const next = resolveTransactionTypeFromParty(customer)
     if (next !== invoiceType) applyTransactionType(next, { clearBuyerTax: next === 'B2C' })
+    else {
+      setValue('transactionType', next, { shouldDirty: false })
+      setValue('invoiceTypeCode', invoiceTypeCodeForTransaction(next), { shouldDirty: false })
+    }
+  }
+
+  const openTypeOverrideModal = () => {
+    setOverrideReasonDraft('')
+    setOverrideModalOpen(true)
+  }
+
+  const confirmTypeOverride = () => {
+    const trimmed = String(overrideReasonDraft || '').trim()
+    if (!trimmed) {
+      toast.error(language === 'ar' ? 'سبب التغيير مطلوب' : 'A reason is required to change type')
+      return
+    }
+    const next = invoiceType === 'B2B' ? 'B2C' : 'B2B'
+    const override = {
+      from: invoiceType,
+      to: next,
+      reason: trimmed,
+      at: new Date().toISOString(),
+    }
+    typeOverrideRef.current = override
+    setTypeOverride(override)
+    applyTransactionType(next, { clearBuyerTax: next === 'B2C' })
+    setOverrideModalOpen(false)
+    setOverrideReasonDraft('')
   }
 
   const fillBuyerFromParty = (customer) => {
     if (!customer) return
     syncTxnFromParty(customer)
-    const buyerOpts = { shouldDirty: true, shouldValidate: resolveTransactionTypeFromParty(customer, invoiceType) === 'B2B' }
+    const nextTxn = typeOverrideRef.current?.to || resolveTransactionTypeFromParty(customer)
+    const buyerOpts = { shouldDirty: true, shouldValidate: nextTxn === 'B2B' }
     setValue('customerId', customer._id, buyerOpts)
     setValue('buyer.name', customer.name || customer.nameEn || '', buyerOpts)
     setValue('buyer.nameAr', customer.nameAr || customer.name || customer.nameEn || '', buyerOpts)
     const rawVat = customer.vatNumber || customer.taxNumber || customer.vat || customer.trn || ''
     const vatNorm = normalizeSaudiVatDigits(rawVat)
-    const nextTxn = resolveTransactionTypeFromParty(customer, invoiceType)
     setValue(
       'buyer.vatNumber',
       nextTxn === 'B2C' && !isValidSaudiVat(vatNorm) ? '' : (vatNorm || rawVat || ''),
@@ -972,8 +1021,15 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     saveMutation.mutate({
       transactionType: invoiceType,
       invoiceTypeCode: invoiceType === 'B2C' ? '0200000' : '0100000',
+      zatca: {
+        invoiceType: zatcaInvoiceKindForTransaction(invoiceType),
+      },
       buyer: getValues('buyer'),
       customerId: getValues('customerId') || undefined,
+      transactionTypeOverridden: Boolean(typeOverrideRef.current),
+      transactionTypeOverrideReason: typeOverrideRef.current?.reason || undefined,
+      transactionTypeOverrideFrom: typeOverrideRef.current?.from || undefined,
+      transactionTypeOverrideTo: typeOverrideRef.current?.to || undefined,
     })
   }
 
@@ -1199,8 +1255,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     if (!customerId) {
       setValue('customerId', '')
       setSelectedCustomer(null)
+      clearTypeOverride()
+      applyTransactionType('B2C')
+      setValue('buyer.name', 'Cash Customer', { shouldDirty: true })
+      setValue('buyer.vatNumber', '', { shouldDirty: true })
+      setValue('buyer.crNumber', '', { shouldDirty: true })
       return
     }
+    clearTypeOverride()
     if (opt) setSelectedCustomer(opt)
     api.get(`/customers/${customerId}`).then((res) => {
       if (res.data) fillBuyerFromParty(res.data)
@@ -1211,6 +1273,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
 
   useEffect(() => {
     if (invoiceType !== 'B2B') return
+    if (typeOverrideRef.current) return
     const cid = getValues('customerId')
     if (!cid) return
     let cancelled = false
@@ -1689,6 +1752,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       const vat = normalizeSaudiVatDigits(buyerPayload.vatNumber)
       if (vat) buyerPayload.vatNumber = vat
     }
+    const existingZatca = initialInvoice?.zatca && typeof initialInvoice.zatca === 'object'
+      ? (initialInvoice.zatca.toObject?.() || initialInvoice.zatca)
+      : {}
     const payload = {
       ...data,
       buyer: buyerPayload,
@@ -1698,6 +1764,14 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       pdfTemplateId: selectedTemplateId,
       transactionType,
       invoiceTypeCode,
+      zatca: {
+        ...existingZatca,
+        invoiceType: zatcaInvoiceKindForTransaction(transactionType),
+      },
+      transactionTypeOverridden: Boolean(typeOverrideRef.current),
+      transactionTypeOverrideReason: typeOverrideRef.current?.reason || undefined,
+      transactionTypeOverrideFrom: typeOverrideRef.current?.from || undefined,
+      transactionTypeOverrideTo: typeOverrideRef.current?.to || undefined,
       invoiceDiscount: Math.max(0, toNumber(data?.invoiceDiscount, 0)),
       issueDate: (() => {
         const raw = typeof data?.issueDate === 'string' ? data.issueDate.trim() : ''
@@ -1851,8 +1925,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           accountName: data?.bankDetails?.accountName || '',
           accountNumber: data?.bankDetails?.accountNumber || '',
           iban: data?.bankDetails?.iban || '',
+          swift: data?.bankDetails?.swift || '',
         }
-      : { bankName: '', accountName: '', accountNumber: '', iban: '' }
+      : { bankName: '', accountName: '', accountNumber: '', iban: '', swift: '' }
     // Confirm / Post — lift draft and run server pre-post gate
     payload.confirmPost = true
     if (payload.status === 'draft') delete payload.status
@@ -1906,8 +1981,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           accountName: values?.bankDetails?.accountName || '',
           accountNumber: values?.bankDetails?.accountNumber || '',
           iban: values?.bankDetails?.iban || '',
+          swift: values?.bankDetails?.swift || '',
         }
-      : { bankName: '', accountName: '', accountNumber: '', iban: '' },
+      : { bankName: '', accountName: '', accountNumber: '', iban: '', swift: '' },
     notes: showNotesPanel ? (values?.notes || '') : '',
     termsAndConditions: showTermsPanel ? (values?.termsAndConditions || '') : '',
     invoiceNumber: initialInvoice?.invoiceNumber || 'DRAFT-PREVIEW',
@@ -1935,6 +2011,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     flow: 'sell',
     transactionType: invoiceType,
     invoiceTypeCode: invoiceType === 'B2C' ? '0200000' : '0100000',
+    zatca: {
+      ...(initialInvoice?.zatca || {}),
+      invoiceType: zatcaInvoiceKindForTransaction(invoiceType),
+    },
     invoiceSubtype: isTravelContext ? 'travel_ticket' : invoiceSubtype,
     pdfTemplateId: selectedTemplateId,
     invoiceDiscount: Math.max(0, toNumber(values?.invoiceDiscount, 0)),
@@ -2069,7 +2149,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   disabled={saveMutation.isPending}
                 >
                   <Save className="h-3.5 w-3.5" />
-                  {language === 'ar' ? 'حفظ B2B / B2C' : 'Save B2B / B2C'}
+                  {language === 'ar' ? 'حفظ نوع الفاتورة' : 'Save document type'}
                 </button>
               ) : null}
               {isInvoicePosted && canRegisterPaymentOnInvoice(initialInvoice) ? (
@@ -2160,49 +2240,13 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           {isInvoicePosted ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
               {language === 'ar'
-                ? 'فاتورة مرحّلة — البنود مقفلة، ويمكنك تغيير B2B / B2C ثم الحفظ.'
-                : 'Posted invoice — lines are locked; you can still switch B2B / B2C and save.'}
+                ? 'فاتورة مرحّلة — البنود مقفلة؛ يمكنك تغيير نوع الفاتورة (مع سبب) ثم الحفظ.'
+                : 'Posted invoice — lines are locked; you can change document type (with a reason) and save.'}
             </div>
           ) : null}
           <div className={`${sectionCardClass} !p-3 space-y-2`}>
             <div className="flex flex-wrap items-center gap-2">
-              <div className={segmentWrapClass}>
-                {[
-                  { id: 'a4', labelEn: 'A4', labelAr: 'A4', Icon: FileText },
-                  { id: 'thermal', labelEn: 'Thermal', labelAr: 'حراري', Icon: Receipt },
-                ].map((fmt) => {
-                  const active = (values?.printFormat || 'a4') === fmt.id
-                  const Icon = fmt.Icon
-                  return (
-                    <button
-                      key={fmt.id}
-                      type="button"
-                      disabled={isInvoicePosted}
-                      onClick={() => setValue('printFormat', fmt.id, { shouldDirty: true, shouldTouch: true })}
-                      className={`${segmentBtnClass(active)} inline-flex items-center gap-1.5`}
-                    >
-                      <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      {language === 'ar' ? fmt.labelAr : fmt.labelEn}
-                    </button>
-                  )
-                })}
-              </div>
-
-              <div className="ms-auto flex flex-col items-end gap-0.5">
-                <span className="text-[9px] font-medium uppercase tracking-wide text-slate-400">
-                  {language === 'ar' ? 'يتبع نوع العميل' : 'From customer type'}
-                </span>
-                <div className={segmentWrapClass}>
-                  <button type="button" onClick={() => applyTransactionType('B2B')} className={segmentBtnClass(invoiceType === 'B2B')}>
-                    B2B
-                  </button>
-                  <button type="button" onClick={() => applyTransactionType('B2C')} className={segmentBtnClass(invoiceType === 'B2C')}>
-                    B2C
-                  </button>
-                </div>
-              </div>
-
-              <div className="ms-auto flex min-w-0 max-w-full items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <div className="flex min-w-0 max-w-full items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                 {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
                   <img
                     src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo}
@@ -2277,11 +2321,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 {language === 'ar' ? 'العميل' : 'Customer'}
               </h3>
               <div className="flex flex-wrap items-center gap-2">
-                {invoiceType === 'B2C' ? (
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                    {language === 'ar' ? 'نقدي / تجزئة' : 'Cash / retail'}
-                  </span>
-                ) : null}
                 {!isTravelContext ? (
                 <div className="min-w-[9.5rem]">
                   <label className="text-[10px] font-medium uppercase tracking-wide text-slate-400" htmlFor="invoice-issue-date">
@@ -2308,6 +2347,45 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 ) : null}
               </div>
             </div>
+
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 dark:border-white/10 dark:bg-dark-900/40">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                    invoiceType === 'B2B'
+                      ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200'
+                      : 'bg-sky-100 text-sky-900 dark:bg-sky-950/50 dark:text-sky-200'
+                  }`}
+                >
+                  {transactionTypeBadgeLabel(invoiceType, language)}
+                </span>
+                {typeOverride ? (
+                  <span className="text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                    {language === 'ar' ? 'تعديل يدوي' : 'Manual override'}
+                  </span>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={openTypeOverrideModal}
+                  className="ms-auto text-xs font-medium text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline dark:text-slate-400 dark:hover:text-slate-200"
+                >
+                  {language === 'ar' ? 'تغيير النوع' : 'Change type'}
+                </button>
+              </div>
+              <p className="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                {transactionTypeReasonLine(invoiceType, {
+                  language,
+                  hasValidVat: partyHasValidVat(selectedCustomer || values?.buyer || {}),
+                  isWalkIn: !selectedCustomer?._id || isWalkInOrCashCustomer(selectedCustomer),
+                })}
+              </p>
+              {typeOverride?.reason ? (
+                <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-300">
+                  {language === 'ar' ? 'السبب' : 'Reason'}: {typeOverride.reason}
+                </p>
+              ) : null}
+            </div>
+
             <PartnerCombobox
               role="customer"
               value={values?.customerId || ''}
@@ -3170,6 +3248,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       <FieldLabel en={showArabicFields ? "IBAN" : "IBAN / Swift"} ar="الآيبان" />
                       <input {...register('bankDetails.iban')} className={`mt-1.5 ${fieldControlClass} font-mono`} placeholder={showArabicFields ? "SA0000000000000000000000" : "PK00XXXX0000000000000000"} />
                     </div>
+                    <div>
+                      <FieldLabel en="SWIFT / BIC" ar="سويفت" />
+                      <input {...register('bankDetails.swift')} className={`mt-1.5 ${fieldControlClass} font-mono`} placeholder="RJHISARI" maxLength={11} />
+                    </div>
                   </div>
                   <input type="hidden" {...register('includeBankDetails')} />
                 </motion.div>
@@ -3206,6 +3288,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 <input type="hidden" {...register('bankDetails.accountName')} />
                 <input type="hidden" {...register('bankDetails.accountNumber')} />
                 <input type="hidden" {...register('bankDetails.iban')} />
+                <input type="hidden" {...register('bankDetails.swift')} />
               </>
             )}
             {!showRentalPanel && (
@@ -3356,11 +3439,34 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             <input type="hidden" {...register('warehouseId')} />
 
             <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 dark:border-white/5 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-slate-400">
-                {language === 'ar'
-                  ? 'اضغط معاينة لمراجعة الفاتورة قبل الحفظ'
-                  : 'Tap Preview to review the invoice before saving'}
-              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-xs text-slate-400">
+                  {language === 'ar'
+                    ? 'اضغط معاينة لمراجعة الفاتورة قبل الحفظ'
+                    : 'Tap Preview to review the invoice before saving'}
+                </p>
+                <div className={segmentWrapClass} title={language === 'ar' ? 'تنسيق الطباعة / PDF' : 'Print / PDF format'}>
+                  {[
+                    { id: 'a4', labelEn: 'A4', labelAr: 'A4', Icon: FileText },
+                    { id: 'thermal', labelEn: 'Thermal', labelAr: 'حراري', Icon: Receipt },
+                  ].map((fmt) => {
+                    const active = (values?.printFormat || 'a4') === fmt.id
+                    const Icon = fmt.Icon
+                    return (
+                      <button
+                        key={fmt.id}
+                        type="button"
+                        disabled={isInvoicePosted}
+                        onClick={() => setValue('printFormat', fmt.id, { shouldDirty: true, shouldTouch: true })}
+                        className={`${segmentBtnClass(active)} inline-flex items-center gap-1.5`}
+                      >
+                        <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
+                        {language === 'ar' ? fmt.labelAr : fmt.labelEn}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : '/app/dashboard/accounting/invoices')} className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:bg-transparent dark:text-slate-300">{t('cancel')}</button>
                 <button type="submit" disabled={saveMutation.isPending || isInvoicePosted || !prePostCanPost} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 disabled:opacity-50 dark:bg-white dark:text-slate-900">
@@ -3458,6 +3564,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         documentType="invoice"
         templateId={selectedTemplateId}
         title={language === 'ar' ? 'معاينة الفاتورة قبل الحفظ' : 'Invoice Live Preview'}
+        printFormat={values?.printFormat === 'thermal' ? 'thermal' : 'a4'}
+        showPrintFormatToggle={!isInvoicePosted}
+        onPrintFormatChange={(fmt) => setValue('printFormat', fmt === 'thermal' ? 'thermal' : 'a4', { shouldDirty: true })}
         confirmDisabled={!isInvoicePosted && !prePostCanPost}
         confirmLabel={
           prePostHasWarnings && prePostCanPost
@@ -3472,6 +3581,46 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             : undefined
         }
       />
+      {overrideModalOpen ? (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-950/60"
+            aria-label={language === 'ar' ? 'إغلاق' : 'Close'}
+            onClick={() => { setOverrideModalOpen(false); setOverrideReasonDraft('') }}
+          />
+          <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-white/10 dark:bg-dark-800">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+              {language === 'ar'
+                ? `تغيير النوع إلى ${invoiceType === 'B2B' ? 'مبسطة (B2C)' : 'قياسية (B2B)'}`
+                : `Change type to ${invoiceType === 'B2B' ? 'Simplified (B2C)' : 'Standard (B2B)'}`}
+            </h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {language === 'ar' ? 'اذكر سبب التغيير (يُسجّل في سجل التدقيق)' : 'Provide a reason (recorded in the audit log)'}
+            </p>
+            <textarea
+              value={overrideReasonDraft}
+              onChange={(e) => setOverrideReasonDraft(e.target.value)}
+              rows={3}
+              autoFocus
+              className={`mt-3 ${fieldControlClass} min-h-[5rem]`}
+              placeholder={language === 'ar' ? 'سبب التغيير…' : 'Reason for change…'}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className={ghostActionClass}
+                onClick={() => { setOverrideModalOpen(false); setOverrideReasonDraft('') }}
+              >
+                {language === 'ar' ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button type="button" className={primaryActionClass} onClick={confirmTypeOverride}>
+                {language === 'ar' ? 'تأكيد التغيير' : 'Confirm change'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <CancelInvoiceModal
         isOpen={cancelOpen}
         onClose={() => { if (!cancelPending) setCancelOpen(false) }}
@@ -3496,5 +3645,5 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       />
     </div>
   )
- }
+}
 

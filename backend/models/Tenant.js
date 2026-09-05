@@ -91,12 +91,14 @@ const businessDetailsSchema = new mongoose.Schema({
   contactEmail: { type: String },
   website: { type: String },
 
-  // Bank Details
+  // Bank Details (company — printed on invoices / statements)
   bankDetails: {
     bankName: { type: String, default: '' },
     accountName: { type: String, default: '' },
     accountNumber: { type: String, default: '' },
     iban: { type: String, default: '' },
+    /** SWIFT / BIC (e.g. RJHISARI) */
+    swift: { type: String, default: '' },
   },
 
   // National Address (Saudi National Address / SPL — ZATCA seller)
@@ -414,11 +416,21 @@ const tenantSchema = new mongoose.Schema({
         inventoryAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
         outstandingPaymentsAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
         outstandingReceiptsAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
+        advanceToSuppliersAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
       },
       /** When true (default), bank/cheque vendor payments credit Outstanding Payments until bank recon */
       useOutstandingPayments: { type: Boolean, default: true },
       /** When true (default), bank/cheque customer receipts debit Outstanding Receipts until bank recon */
       useOutstandingReceipts: { type: Boolean, default: true },
+      /**
+       * Outbound payment → cash/bank going negative:
+       * off = no check; warning = require confirmNegativeCash; block = reject.
+       */
+      negativeCashBalancePolicy: {
+        type: String,
+        enum: ['off', 'warning', 'block'],
+        default: 'warning',
+      },
       /** SEPA pain.001 debtor (company bank) details for vendor payment export */
       sepa: {
         debtorIban: { type: String, default: '' },

@@ -48,10 +48,15 @@ const accountPaymentSchema = new mongoose.Schema({
     index: true,
   },
   allocations: { type: [allocationSchema], default: [] },
+  attachments: [{
+    name: { type: String, default: '' },
+    url: { type: String, default: '' },
+    type: { type: String, default: '' },
+  }],
   /** Where this payment originated */
   source: {
     type: String,
-    enum: ['invoice', 'payments_page', 'voucher', 'backfill', 'batch', 'other'],
+    enum: ['invoice', 'payments_page', 'voucher', 'backfill', 'batch', 'purchase_order', 'other'],
     default: 'other',
   },
   voucherId: { type: mongoose.Schema.Types.ObjectId, ref: 'Voucher', default: null },

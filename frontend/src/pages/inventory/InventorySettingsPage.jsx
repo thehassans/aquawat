@@ -550,6 +550,84 @@ export default function InventorySettingsPage() {
               onChange={(v) => setField('propertyLandedCostAccountId', v)}
               options={accountOptions}
             />
+            <div className="sm:col-span-2 rounded-xl border border-slate-200/80 bg-slate-50/50 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                {ar ? 'تفاوت مطابقة فاتورة المورد (ثلاثية)' : 'Vendor bill three-way match tolerances'}
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-500">
+                {ar
+                  ? 'يُقبل فرق السعر تلقائياً إذا كان ضمن النسبة أو المبلغ. الكمية فوق المستلم تُرفض.'
+                  : 'Price variance auto-accepts within % or absolute amount. Qty above received is blocked.'}
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <label className="block text-[11px] text-slate-600 dark:text-slate-300">
+                  {ar ? 'تحمل الكمية' : 'Qty tolerance'}
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    className="input input-sm mt-1 w-full"
+                    value={current.threeWayMatch?.qtyTolerance ?? 0}
+                    onChange={(e) => setField('threeWayMatch', {
+                      ...(current.threeWayMatch || {}),
+                      qtyTolerance: Number(e.target.value) || 0,
+                      priceTolerancePct: current.threeWayMatch?.priceTolerancePct ?? 5,
+                      priceToleranceAmount: current.threeWayMatch?.priceToleranceAmount ?? 50,
+                      blockQtyOverReceived: current.threeWayMatch?.blockQtyOverReceived !== false,
+                    })}
+                  />
+                </label>
+                <label className="block text-[11px] text-slate-600 dark:text-slate-300">
+                  {ar ? 'تحمل السعر %' : 'Price tolerance %'}
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    className="input input-sm mt-1 w-full"
+                    value={current.threeWayMatch?.priceTolerancePct ?? 5}
+                    onChange={(e) => setField('threeWayMatch', {
+                      ...(current.threeWayMatch || {}),
+                      qtyTolerance: current.threeWayMatch?.qtyTolerance ?? 0,
+                      priceTolerancePct: Number(e.target.value) || 0,
+                      priceToleranceAmount: current.threeWayMatch?.priceToleranceAmount ?? 50,
+                      blockQtyOverReceived: current.threeWayMatch?.blockQtyOverReceived !== false,
+                    })}
+                  />
+                </label>
+                <label className="block text-[11px] text-slate-600 dark:text-slate-300">
+                  {ar ? 'تحمل السعر (مبلغ)' : 'Price tolerance (amount)'}
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className="input input-sm mt-1 w-full"
+                    value={current.threeWayMatch?.priceToleranceAmount ?? 50}
+                    onChange={(e) => setField('threeWayMatch', {
+                      ...(current.threeWayMatch || {}),
+                      qtyTolerance: current.threeWayMatch?.qtyTolerance ?? 0,
+                      priceTolerancePct: current.threeWayMatch?.priceTolerancePct ?? 5,
+                      priceToleranceAmount: Number(e.target.value) || 0,
+                      blockQtyOverReceived: current.threeWayMatch?.blockQtyOverReceived !== false,
+                    })}
+                  />
+                </label>
+              </div>
+              <label className="mt-3 flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  className="checkbox checkbox-sm"
+                  checked={current.threeWayMatch?.blockQtyOverReceived !== false}
+                  onChange={(e) => setField('threeWayMatch', {
+                    ...(current.threeWayMatch || {}),
+                    qtyTolerance: current.threeWayMatch?.qtyTolerance ?? 0,
+                    priceTolerancePct: current.threeWayMatch?.priceTolerancePct ?? 5,
+                    priceToleranceAmount: current.threeWayMatch?.priceToleranceAmount ?? 50,
+                    blockQtyOverReceived: e.target.checked,
+                  })}
+                />
+                {ar ? 'رفض الفوترة فوق الكمية المستلمة' : 'Block billing above received quantity'}
+              </label>
+            </div>
           </>
         )}
       </Section>

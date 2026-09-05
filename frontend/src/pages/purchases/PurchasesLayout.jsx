@@ -21,7 +21,7 @@ const HUB_ROOTS = {
   orders: [PURCHASES_PATH.orders],
   receipts: [PURCHASES_PATH.grn],
   returns: [PURCHASES_PATH.returns],
-  partners: [PURCHASES_PATH.suppliers],
+  partners: [PURCHASES_PATH.suppliers, PURCHASES_PATH.bills],
   reporting: [PURCHASES_PATH.reports, PURCHASES_PATH.landed],
 }
 

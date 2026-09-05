@@ -46,10 +46,8 @@ export async function ensureInvoiceZatcaStub(invoice, { userId = null } = {}) {
     syncStatus: zatca.syncStatus || 'PENDING_SYNC',
   };
 
-  // Map transaction type → ZATCA invoice type hint (standard vs simplified)
-  if (!invoice.zatca.invoiceType) {
-    invoice.zatca.invoiceType = invoice.transactionType === 'B2C' ? 'simplified' : 'standard';
-  }
+  // Always keep ZATCA invoice type in sync with transactionType (never leave stale "standard" default)
+  invoice.zatca.invoiceType = invoice.transactionType === 'B2C' ? 'simplified' : 'standard';
 
   if (userId) invoice.updatedBy = userId;
   await invoice.save();

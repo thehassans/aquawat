@@ -68,6 +68,16 @@ const schema = new mongoose.Schema({
   blindCountMode: { type: Boolean, default: false },
   /** Absolute |diff| × unit cost above this requires approval before apply (0 = off) */
   varianceApprovalThreshold: { type: Number, default: 0 },
+  /** Vendor bill three-way match tolerances (PO ↔ GRN ↔ bill) */
+  threeWayMatch: {
+    qtyTolerance: { type: Number, default: 0, min: 0 },
+    /** Auto-accept price variance within this % of PO unit cost */
+    priceTolerancePct: { type: Number, default: 5, min: 0 },
+    /** Auto-accept price variance within this absolute amount (currency units) */
+    priceToleranceAmount: { type: Number, default: 50, min: 0 },
+    /** Block bill qty above remaining received (net of returns) */
+    blockQtyOverReceived: { type: Boolean, default: true },
+  },
   /** Block apply / postings with accounting date on or before this day (YYYY-MM-DD or Date) */
   inventoryPeriodLockDate: { type: Date, default: null },
   /** B.2 — block or warn on shipping expired lots (default warn via validation) */

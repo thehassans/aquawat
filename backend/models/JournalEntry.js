@@ -45,6 +45,11 @@ const journalEntrySchema = new mongoose.Schema({
   sourceNumber: { type: String, default: '' },
   /** Optional journal book (series) this entry belongs to */
   journalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Journal', default: null, index: true },
+  /**
+   * True when entryDate is earlier than the latest already-posted date in the same
+   * {PREFIX}-{YYYY} series (number assigned later than chronological order).
+   */
+  isBackdated: { type: Boolean, default: false, index: true },
   /** This move reverses that posted move */
   reversalOfId: { type: mongoose.Schema.Types.ObjectId, ref: 'JournalEntry', default: null, index: true },
   /** Posted move that reversed this one */

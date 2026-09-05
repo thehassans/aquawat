@@ -867,23 +867,8 @@ const getInvoiceEyebrow = (invoice, language = 'en', documentType = 'invoice') =
     return language === 'ar' ? 'عرض سعر' : 'Quotation'
   }
 
-  if (invoice?.invoiceSubtype === 'travel_ticket' || invoice?.businessContext === 'travel_agency') {
-    return language === 'ar' ? 'فاتورة خدمات السفر' : 'Travel Services Invoice'
-  }
-
-  if (invoice?.businessContext === 'construction') {
-    return language === 'ar' ? 'فاتورة مقاولات' : 'Construction Invoice'
-  }
-
-  if (invoice?.businessContext === 'restaurant') {
-    return language === 'ar' ? 'فاتورة مطعم' : 'Restaurant Invoice'
-  }
-
-  if (invoice?.businessContext === 'manpower') {
-    return language === 'ar' ? 'فاتورة توريد عمالة' : 'Manpower Supply Invoice'
-  }
-
-  return language === 'ar' ? 'فاتورة تجارة' : 'Trading Invoice'
+  // Sell invoices: ZATCA document kind only (no generic Trading Invoice fallback).
+  return getZatcaDocumentTitle(invoice, language, documentType)
 }
 
 const getInvoiceTitle = (invoice, language = 'en', documentType = 'invoice') => {
@@ -912,30 +897,8 @@ const getInvoiceTitle = (invoice, language = 'en', documentType = 'invoice') => 
     return language === 'ar' ? 'عرض سعر' : 'Quotation'
   }
 
-  // Prefer ZATCA kind (standard / simplified / credit / debit) over context suffixes.
-  let base
-  try {
-    base = getZatcaDocumentTitle(invoice, language, documentType)
-  } catch {
-    // Legacy rows may lack transactionType / invoiceTypeCode — keep PDF generation usable.
-    base = language === 'ar' ? 'فاتورة ضريبية' : 'Tax Invoice'
-  }
-  if (String(invoice?.invoiceType || '') === '381' || String(invoice?.invoiceType || '') === '383') {
-    return base
-  }
-  if (invoice?.invoiceSubtype === 'travel_ticket' || invoice?.businessContext === 'travel_agency') {
-    return language === 'ar' ? `${base} لخدمات السفر` : `Travel Services ${base}`
-  }
-  if (invoice?.businessContext === 'construction') {
-    return language === 'ar' ? `${base} للمقاولات` : `Construction ${base}`
-  }
-  if (invoice?.businessContext === 'trading') {
-    return language === 'ar' ? `${base} للتجارة` : `Trading ${base}`
-  }
-  if (invoice?.businessContext === 'manpower') {
-    return language === 'ar' ? `${base} لتوريد العمالة` : `Manpower Supply ${base}`
-  }
-  return base
+  // Prefer ZATCA kind (standard / simplified / credit / debit) — no silent Tax Invoice default.
+  return getZatcaDocumentTitle(invoice, language, documentType)
 }
 
 const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElement = null, output = 'save', documentType = 'invoice', editable = false }) => {
@@ -1773,7 +1736,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
   let extraBoxesY = totalsTop + totalsH + 14
 
   const pdfBank = invoice?.includeBankDetails ? (invoice?.bankDetails || {}) : null
-  const hasPdfBank = Boolean(pdfBank && (pdfBank.bankName || pdfBank.accountName || pdfBank.accountNumber || pdfBank.iban))
+  const hasPdfBank = Boolean(pdfBank && (pdfBank.bankName || pdfBank.accountName || pdfBank.accountNumber || pdfBank.iban || pdfBank.swift))
 
   if (hasPdfBank) {
     const bankY = extraBoxesY
@@ -1783,6 +1746,7 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
       pdfBank.accountName ? `${isRtl ? 'اسم الحساب' : 'Account Name'}: ${pdfBank.accountName}` : null,
       pdfBank.accountNumber ? `${isRtl ? 'رقم الحساب' : 'Account #'}: ${pdfBank.accountNumber}` : null,
       pdfBank.iban ? `IBAN: ${pdfBank.iban}` : null,
+      pdfBank.swift ? `SWIFT: ${pdfBank.swift}` : null,
     ].filter(Boolean)
 
     const bankHeight = Math.max(38, bankLines.length * 12 + 24)

@@ -38,6 +38,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS = [
   { code: '1300', name: 'Inventory', nameAr: 'المخزون', type: 'asset', subtype: 'inventory' },
   { code: '1400', name: 'VAT Input (Recoverable)', nameAr: 'ضريبة المدخلات', type: 'asset', subtype: 'other_asset' },
   { code: '1500', name: 'Prepaid Expenses', nameAr: 'مصروفات مدفوعة مقدماً', type: 'asset', subtype: 'other_asset' },
+  { code: '1290', name: 'Advance to Suppliers', nameAr: 'دفعات مقدمة للموردين', type: 'asset', subtype: 'other_asset' },
   { code: '1600', name: 'Fixed Assets', nameAr: 'الأصول الثابتة', type: 'asset', subtype: 'fixed_asset' },
   { code: '1650', name: 'Accumulated Depreciation', nameAr: 'مجمع الإهلاك', type: 'asset', subtype: 'accum_depreciation' },
   { code: '1900', name: 'Suspense / Clearing', nameAr: 'حساب وسيط / مقاصة', type: 'asset', subtype: 'other_asset' },
@@ -87,6 +88,7 @@ const ACCOUNT_CODE_MAP = {
   depreciation: '5600',
   accumDepreciation: '1650',
   prepaid: '1500',
+  advanceToSuppliers: '1290',
   deferredRevenue: '2400',
 };
 
@@ -105,6 +107,7 @@ export const DEFAULT_ACCOUNT_KEYS = [
   'inventoryAccountId',
   'outstandingPaymentsAccountId',
   'outstandingReceiptsAccountId',
+  'advanceToSuppliersAccountId',
 ];
 
 const ROLE_TO_DEFAULT_KEY = {
@@ -121,6 +124,7 @@ const ROLE_TO_DEFAULT_KEY = {
   inventory: 'inventoryAccountId',
   outstandingPayments: 'outstandingPaymentsAccountId',
   outstandingReceipts: 'outstandingReceiptsAccountId',
+  advanceToSuppliers: 'advanceToSuppliersAccountId',
 };
 
 const DEFAULT_KEY_TO_CODE = {
@@ -137,6 +141,7 @@ const DEFAULT_KEY_TO_CODE = {
   inventoryAccountId: ACCOUNT_CODE_MAP.inventory,
   outstandingPaymentsAccountId: ACCOUNT_CODE_MAP.outstandingPayments,
   outstandingReceiptsAccountId: ACCOUNT_CODE_MAP.outstandingReceipts,
+  advanceToSuppliersAccountId: ACCOUNT_CODE_MAP.advanceToSuppliers,
 };
 
 export function normaliseLines(lines = []) {
@@ -278,11 +283,21 @@ export async function ensureAccountingDefaults(tenantId, userId = null) {
   return { ids, accounts };
 }
 
+const NEGATIVE_CASH_POLICIES = new Set(['off', 'warning', 'block']);
+
+export async function getNegativeCashBalancePolicy(tenantId) {
+  const tenant = await Tenant.findById(tenantId).select('settings.accounting.negativeCashBalancePolicy').lean();
+  const raw = String(tenant?.settings?.accounting?.negativeCashBalancePolicy || 'warning').toLowerCase();
+  return NEGATIVE_CASH_POLICIES.has(raw) ? raw : 'warning';
+}
+
 export async function getAccountingDefaults(tenantId) {
   const { ids, accounts } = await ensureAccountingDefaults(tenantId);
+  const negativeCashBalancePolicy = await getNegativeCashBalancePolicy(tenantId);
   return {
     ...ids,
     accounts,
+    negativeCashBalancePolicy,
     roles: Object.fromEntries(
       Object.entries(ROLE_TO_DEFAULT_KEY).map(([role, key]) => [role, accounts[key] || null]),
     ),
@@ -304,6 +319,13 @@ export async function setAccountingDefaults(tenantId, patch = {}) {
     }
     update[`settings.accounting.defaultAccounts.${key}`] = val;
   }
+  if (patch.negativeCashBalancePolicy !== undefined) {
+    const policy = String(patch.negativeCashBalancePolicy || '').toLowerCase();
+    if (!NEGATIVE_CASH_POLICIES.has(policy)) {
+      throw new Error('negativeCashBalancePolicy must be off, warning, or block');
+    }
+    update['settings.accounting.negativeCashBalancePolicy'] = policy;
+  }
   if (Object.keys(update).length) {
     await Tenant.findByIdAndUpdate(tenantId, { $set: update });
   }
@@ -318,6 +340,8 @@ export async function ensureDefaultTaxes(tenantId, userId = null) {
     || (await resolveRoleAccount(tenantId, 'vatOutput'));
   const purchaseAcct = byCode[ACCOUNT_CODE_MAP.vatInput]
     || (await resolveRoleAccount(tenantId, 'vatInput'));
+  const opexAcct = byCode[ACCOUNT_CODE_MAP.opex]
+    || (await resolveRoleAccount(tenantId, 'opex'));
   const seeds = [
     {
       code: 'VAT15-OUT',
@@ -331,6 +355,9 @@ export async function ensureDefaultTaxes(tenantId, userId = null) {
       invoiceLabel: 'VAT 15%',
       taxGroupCode: 'VAT_STD',
       country: 'SA',
+      zatcaCategory: 'S',
+      recoverable: true,
+      isReverseCharge: false,
       distributionInvoices: {
         taxLine: { percentOfTax: 100, taxGrid: 'sales_standard_rated' },
       },
@@ -347,14 +374,105 @@ export async function ensureDefaultTaxes(tenantId, userId = null) {
       accountId: purchaseAcct?._id,
       scope: 'all',
       computationMethod: 'percent_excluded',
-      invoiceLabel: 'VAT 15%',
+      invoiceLabel: 'Standard 15%',
       taxGroupCode: 'VAT_STD',
       country: 'SA',
+      zatcaCategory: 'S',
+      recoverable: true,
+      isReverseCharge: false,
       distributionInvoices: {
         taxLine: { percentOfTax: 100, taxGrid: 'purchases_standard_rated' },
       },
       distributionRefunds: {
         taxLine: { percentOfTax: 100, taxGrid: 'purchases_standard_rated' },
+      },
+    },
+    {
+      code: 'VAT0-IN',
+      name: 'Zero-rated 0% (Input)',
+      nameAr: 'معدل صفري ٠٪ (مدخلات)',
+      rate: 0,
+      type: 'purchase',
+      accountId: purchaseAcct?._id,
+      scope: 'all',
+      computationMethod: 'percent_excluded',
+      invoiceLabel: 'Zero-rated',
+      taxGroupCode: 'VAT_ZERO',
+      country: 'SA',
+      zatcaCategory: 'Z',
+      recoverable: true,
+      isReverseCharge: false,
+      distributionInvoices: {
+        taxLine: { percentOfTax: 100, taxGrid: 'purchases_zero_rated' },
+      },
+      distributionRefunds: {
+        taxLine: { percentOfTax: 100, taxGrid: 'purchases_zero_rated' },
+      },
+    },
+    {
+      code: 'VAT-EX-IN',
+      name: 'Exempt (Input)',
+      nameAr: 'معفى (مدخلات)',
+      rate: 0,
+      type: 'purchase',
+      accountId: purchaseAcct?._id,
+      scope: 'all',
+      computationMethod: 'percent_excluded',
+      invoiceLabel: 'Exempt',
+      taxGroupCode: 'VAT_EXEMPT',
+      country: 'SA',
+      zatcaCategory: 'E',
+      recoverable: false,
+      isReverseCharge: false,
+      distributionInvoices: {
+        taxLine: { percentOfTax: 100, taxGrid: 'purchases_exempt' },
+      },
+      distributionRefunds: {
+        taxLine: { percentOfTax: 100, taxGrid: 'purchases_exempt' },
+      },
+    },
+    {
+      code: 'VAT-RC-IN',
+      name: 'Reverse charge (Import services)',
+      nameAr: 'التحميل العكسي (خدمات مستوردة)',
+      rate: 15,
+      type: 'purchase',
+      accountId: purchaseAcct?._id,
+      scope: 'services',
+      computationMethod: 'percent_excluded',
+      invoiceLabel: 'Reverse charge',
+      taxGroupCode: 'VAT_RC',
+      country: 'SA',
+      zatcaCategory: 'O',
+      recoverable: true,
+      isReverseCharge: true,
+      distributionInvoices: {
+        taxLine: { percentOfTax: 100, taxGrid: 'purchases_reverse_charge' },
+      },
+      distributionRefunds: {
+        taxLine: { percentOfTax: 100, taxGrid: 'purchases_reverse_charge' },
+      },
+    },
+    {
+      code: 'VAT-NR-IN',
+      name: 'Non-recoverable VAT',
+      nameAr: 'ضريبة غير قابلة للاسترداد',
+      rate: 15,
+      type: 'purchase',
+      accountId: opexAcct?._id || purchaseAcct?._id,
+      scope: 'all',
+      computationMethod: 'percent_excluded',
+      invoiceLabel: 'Non-recoverable',
+      taxGroupCode: 'VAT_NR',
+      country: 'SA',
+      zatcaCategory: 'S',
+      recoverable: false,
+      isReverseCharge: false,
+      distributionInvoices: {
+        taxLine: { percentOfTax: 100, taxGrid: 'purchases_non_recoverable' },
+      },
+      distributionRefunds: {
+        taxLine: { percentOfTax: 100, taxGrid: 'purchases_non_recoverable' },
       },
     },
   ];
@@ -371,9 +489,29 @@ export async function ensureDefaultTaxes(tenantId, userId = null) {
         isSystem: true,
         createdBy: userId || undefined,
       });
-    } else if (!tax.accountId) {
-      tax.accountId = seed.accountId;
-      await tax.save();
+    } else {
+      let dirty = false;
+      if (!tax.accountId) {
+        tax.accountId = seed.accountId;
+        dirty = true;
+      }
+      if (!tax.zatcaCategory && seed.zatcaCategory) {
+        tax.zatcaCategory = seed.zatcaCategory;
+        dirty = true;
+      }
+      if (tax.recoverable === undefined || tax.recoverable === null) {
+        tax.recoverable = seed.recoverable !== false;
+        dirty = true;
+      }
+      if (tax.isReverseCharge === undefined || tax.isReverseCharge === null) {
+        tax.isReverseCharge = Boolean(seed.isReverseCharge);
+        dirty = true;
+      }
+      if (!tax.distributionInvoices?.taxLine?.taxGrid && seed.distributionInvoices?.taxLine?.taxGrid) {
+        tax.distributionInvoices = seed.distributionInvoices;
+        dirty = true;
+      }
+      if (dirty) await tax.save();
     }
     out.push(tax);
   }
@@ -471,6 +609,12 @@ function applyTaxPayloadFields(tax, payload = {}, { isCreate = false } = {}) {
   if (payload.taxGroupCode !== undefined) tax.taxGroupCode = String(payload.taxGroupCode || '').trim().toUpperCase();
   if (payload.subsequentTaxBase !== undefined) tax.subsequentTaxBase = Boolean(payload.subsequentTaxBase);
   if (payload.country !== undefined) tax.country = String(payload.country || 'SA').trim().toUpperCase();
+  if (payload.zatcaCategory !== undefined) {
+    const cat = String(payload.zatcaCategory || 'S').trim().toUpperCase();
+    tax.zatcaCategory = ['S', 'Z', 'E', 'O'].includes(cat) ? cat : 'S';
+  }
+  if (payload.recoverable !== undefined) tax.recoverable = Boolean(payload.recoverable);
+  if (payload.isReverseCharge !== undefined) tax.isReverseCharge = Boolean(payload.isReverseCharge);
   if (payload.childTaxIds !== undefined) tax.childTaxIds = Array.isArray(payload.childTaxIds) ? payload.childTaxIds : [];
   if (payload.active !== undefined) tax.active = Boolean(payload.active);
   if (payload.accountId !== undefined) tax.accountId = payload.accountId;
@@ -483,6 +627,35 @@ function applyTaxPayloadFields(tax, payload = {}, { isCreate = false } = {}) {
   if (payload.type !== undefined && (!tax.isSystem || isCreate)) {
     tax.type = normalizeTaxType(payload.type);
   }
+}
+
+/** Map tax master → line vatTreatment used for posting & payable totals. */
+export function vatTreatmentFromTax(tax) {
+  if (!tax) return 'recoverable';
+  if (tax.isReverseCharge) return 'reverse_charge';
+  if (tax.recoverable === false) {
+    return Number(tax.rate) > 0 ? 'non_recoverable' : 'none';
+  }
+  if (!(Number(tax.rate) > 0) && !tax.isReverseCharge) return 'none';
+  return 'recoverable';
+}
+
+/** Resolve tax by ObjectId or code for a tenant. */
+export async function resolveTaxByIdOrCode(tenantId, { taxId = null, taxCode = null, type = null } = {}) {
+  await ensureDefaultTaxes(tenantId);
+  const Tax = (await import('../models/Tax.js')).default;
+  const filter = { tenantId, active: { $ne: false } };
+  if (type) filter.type = type === 'purchase' ? 'purchase' : 'sales';
+  if (taxId) {
+    const byId = await Tax.findOne({ ...filter, _id: taxId }).lean();
+    if (byId) return byId;
+  }
+  const code = String(taxCode || '').trim().toUpperCase();
+  if (code) {
+    const byCode = await Tax.findOne({ ...filter, code }).lean();
+    if (byCode) return byCode;
+  }
+  return null;
 }
 
 export async function createTax(tenantId, userId, payload = {}) {
@@ -528,6 +701,13 @@ export async function updateTax(tenantId, userId, taxId, patch = {}) {
 export async function resolveDefaultTaxId(tenantId, type = 'sales') {
   await ensureDefaultTaxes(tenantId);
   const Tax = (await import('../models/Tax.js')).default;
+  const preferredCode = type === 'purchase' ? 'VAT15-IN' : 'VAT15-OUT';
+  const preferred = await Tax.findOne({
+    tenantId,
+    code: preferredCode,
+    active: { $ne: false },
+  }).select('_id').lean();
+  if (preferred?._id) return preferred._id;
   const tax = await Tax.findOne({
     tenantId,
     type: type === 'purchase' ? 'purchase' : 'sales',
@@ -567,16 +747,11 @@ export async function resolveRoleAccount(tenantId, role, {
   return (code && map.byCode[code]) || null;
 }
 
-async function nextEntryNumber(tenantId, sequencePrefix = null) {
-  const year = new Date().getFullYear();
-  const base = String(sequencePrefix || 'JE').replace(/[^A-Za-z0-9]/g, '').toUpperCase() || 'JE';
-  const prefix = `${base}-${year}-`;
-  const last = await JournalEntry.findOne({ tenantId, entryNumber: new RegExp(`^${prefix}`) })
-    .sort({ entryNumber: -1 })
-    .select('entryNumber')
-    .lean();
-  const seq = last?.entryNumber ? (Number(String(last.entryNumber).split('-').pop()) || 0) + 1 : 1;
-  return `${prefix}${String(seq).padStart(4, '0')}`;
+/** @deprecated Prefer allocateJournalEntryNumber from journalBookService (posting-time). */
+async function nextEntryNumber(tenantId, sequencePrefix = null, entryDate = new Date()) {
+  const { allocateJournalEntryNumber } = await import('./journalBookService.js');
+  const { entryNumber } = await allocateJournalEntryNumber(tenantId, sequencePrefix, entryDate);
+  return entryNumber;
 }
 
 async function applyBalanceDelta(tenantId, lines, direction = 1) {
@@ -903,6 +1078,12 @@ export async function createJournalEntry({
 
   const { debit, credit } = assertBalanced(enriched);
 
+  const {
+    resolveJournalBook,
+    makeDraftEntryNumber,
+    isDraftEntryNumber,
+  } = await import('./journalBookService.js');
+
   let resolvedJournalId = journalId || null;
   let sequencePrefix = null;
   if (resolvedJournalId) {
@@ -911,9 +1092,26 @@ export async function createJournalEntry({
     if (!book) throw new Error('Journal book not found');
     sequencePrefix = book.sequencePrefix || book.code || null;
     resolvedJournalId = book._id;
+  } else {
+    // Never leave system postings without a book (avoids bare JE- numbers for liquidity moves)
+    const fallbackKind = type === 'stock'
+      ? 'stock'
+      : ['payment', 'voucher', 'expense'].includes(type)
+        ? 'bank'
+        : type === 'invoice'
+          ? 'sales'
+          : 'manual';
+    const book = await resolveJournalBook(tenantId, userId, { kind: fallbackKind });
+    if (book) {
+      resolvedJournalId = book._id;
+      sequencePrefix = book.sequencePrefix || book.code || 'JE';
+    }
   }
 
-  const number = entryNumber || await nextEntryNumber(tenantId, sequencePrefix);
+  // Official {BOOK}-{YYYY}-{NNNN} is assigned only on post — drafts use DRAFT- placeholders
+  // so voided drafts do not create ZATCA sequence gaps.
+  const number = entryNumber
+    || (status === 'posted' ? null : makeDraftEntryNumber());
 
   // Soft/hard lock applies to draft creates too (controllership: no backdating into locked periods)
   if (!bypassLockCheck) {
@@ -926,7 +1124,7 @@ export async function createJournalEntry({
 
   const entry = await JournalEntry.create({
     tenantId,
-    entryNumber: number,
+    entryNumber: number || makeDraftEntryNumber(),
     entryDate: new Date(entryDate),
     type,
     status: 'draft',
@@ -947,7 +1145,11 @@ export async function createJournalEntry({
   await syncJournalItemsFromMove(entry, { state: 'draft' });
 
   if (status === 'posted') {
-    return postJournalEntry(tenantId, entry._id, userId, { bypassLockCheck });
+    return postJournalEntry(tenantId, entry._id, userId, {
+      bypassLockCheck,
+      sequencePrefix,
+      forceAllocateNumber: !entryNumber || isDraftEntryNumber(entry.entryNumber),
+    });
   }
   return entry;
 }
@@ -1116,16 +1318,209 @@ async function resolveLiquidityAccount(tenantId, paymentMethod, ctx = {}) {
   return { account: fallback, role: fallback ? fallbackRole : role };
 }
 
-async function resolveJournalBookId(tenantId, userId, ensureFnName) {
-  try {
-    const mod = await import('./inventory/stockAccounting.js');
-    const fn = mod[ensureFnName];
-    if (typeof fn !== 'function') return null;
-    const book = await fn(tenantId, userId);
-    return book?._id || null;
-  } catch {
-    return null;
+function makeAccountingError(message, { code, status = 400, details } = {}) {
+  const err = new Error(message);
+  err.code = code;
+  err.status = status;
+  err.statusCode = status;
+  if (details) err.details = details;
+  return err;
+}
+
+function isLiquiditySubtype(account) {
+  const sub = String(account?.subtype || '').toLowerCase();
+  return sub === 'cash' || sub === 'bank';
+}
+
+/**
+ * Preview / enforce outbound payment against cash/bank available balance.
+ * Checks the resolved liquidity account (not Outstanding Payments 2050).
+ */
+export async function evaluateOutboundLiquidity({
+  tenantId,
+  accountId = null,
+  paymentMethod = 'bank_transfer',
+  amount,
+  confirmNegative = false,
+} = {}) {
+  const payAmt = round2(amount);
+  const policy = await getNegativeCashBalancePolicy(tenantId);
+  const empty = {
+    ok: true,
+    policy,
+    wouldGoNegative: false,
+    requiresConfirmation: false,
+    blocked: false,
+    currentBalance: 0,
+    projectedBalance: 0,
+    amount: payAmt,
+    account: null,
+  };
+  if (!(payAmt > 0) || policy === 'off') return empty;
+
+  let account = null;
+  if (accountId) {
+    account = await ChartOfAccount.findOne({ _id: accountId, tenantId, isActive: true }).lean();
+  } else {
+    const { byCode, byId } = await getAccountMap(tenantId);
+    const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+    const resolved = await resolveLiquidityAccount(tenantId, paymentMethod, { byCode, byId, defaultIds });
+    account = resolved.account;
   }
+  if (!account || !isLiquiditySubtype(account)) {
+    return { ...empty, account: account ? { id: account._id, code: account.code, name: account.name, nameAr: account.nameAr } : null };
+  }
+
+  const live = await getAccountBalances({
+    tenantId,
+    accountIds: [account._id],
+    activeOnly: false,
+    includeReversed: false,
+  });
+  const currentBalance = round2(live.rows?.[0]?.naturalBalance ?? Number(account.balance || 0));
+  const projectedBalance = round2(currentBalance - payAmt);
+  const accountInfo = {
+    id: account._id,
+    code: account.code,
+    name: account.name,
+    nameAr: account.nameAr || '',
+    currency: account.currency || 'SAR',
+    allowNegativeBalance: account.allowNegativeBalance === true,
+    subtype: account.subtype,
+  };
+
+  if (projectedBalance >= -0.005 || account.allowNegativeBalance === true) {
+    return {
+      ok: true,
+      policy,
+      wouldGoNegative: projectedBalance < -0.005,
+      requiresConfirmation: false,
+      blocked: false,
+      currentBalance,
+      projectedBalance,
+      amount: payAmt,
+      account: accountInfo,
+    };
+  }
+
+  if (policy === 'block') {
+    return {
+      ok: false,
+      policy,
+      wouldGoNegative: true,
+      requiresConfirmation: false,
+      blocked: true,
+      currentBalance,
+      projectedBalance,
+      amount: payAmt,
+      account: accountInfo,
+      code: 'NEGATIVE_CASH_BLOCKED',
+      message: `Cannot post payment: ${account.code} ${account.name} would go to ${projectedBalance.toFixed(2)} ${account.currency || 'SAR'}.`,
+    };
+  }
+
+  // warning policy
+  if (confirmNegative) {
+    return {
+      ok: true,
+      policy,
+      wouldGoNegative: true,
+      requiresConfirmation: false,
+      blocked: false,
+      currentBalance,
+      projectedBalance,
+      amount: payAmt,
+      account: accountInfo,
+      confirmed: true,
+    };
+  }
+
+  return {
+    ok: false,
+    policy,
+    wouldGoNegative: true,
+    requiresConfirmation: true,
+    blocked: false,
+    currentBalance,
+    projectedBalance,
+    amount: payAmt,
+    account: accountInfo,
+    code: 'NEGATIVE_CASH_WARNING',
+    message: `This payment will take ${account.code} ${account.name} to ${projectedBalance.toFixed(2)} ${account.currency || 'SAR'}. Continue?`,
+  };
+}
+
+export async function assertOutboundLiquidity(opts = {}) {
+  const result = await evaluateOutboundLiquidity(opts);
+  if (result.ok) return result;
+  const status = result.code === 'NEGATIVE_CASH_WARNING' ? 409 : 400;
+  throw makeAccountingError(result.message || 'Insufficient cash/bank balance', {
+    code: result.code,
+    status,
+    details: {
+      policy: result.policy,
+      currentBalance: result.currentBalance,
+      projectedBalance: result.projectedBalance,
+      amount: result.amount,
+      account: result.account,
+    },
+  });
+}
+
+/** Asset cash/bank accounts whose live natural balance is below zero. */
+export async function listNegativeCashBankAccounts(tenantId) {
+  await ensureDefaultChartOfAccounts(tenantId);
+  const accounts = await ChartOfAccount.find({
+    tenantId,
+    isActive: true,
+    type: 'asset',
+    subtype: { $in: ['cash', 'bank'] },
+  }).select('code name nameAr subtype currency balance allowNegativeBalance').lean();
+  if (!accounts.length) return [];
+  const live = await getAccountBalances({
+    tenantId,
+    accountIds: accounts.map((a) => a._id),
+    activeOnly: false,
+    includeReversed: false,
+  });
+  const byId = Object.fromEntries((live.rows || []).map((r) => [String(r.accountId), r]));
+  return accounts
+    .map((a) => {
+      const natural = round2(byId[String(a._id)]?.naturalBalance ?? Number(a.balance || 0));
+      return {
+        accountId: a._id,
+        code: a.code,
+        name: a.name,
+        nameAr: a.nameAr || '',
+        subtype: a.subtype,
+        currency: a.currency || 'SAR',
+        balance: natural,
+        allowNegativeBalance: a.allowNegativeBalance === true,
+      };
+    })
+    .filter((a) => a.balance < -0.005)
+    .sort((a, b) => a.balance - b.balance);
+}
+
+/**
+ * Resolve journal book id via central journalBookService.
+ * @param {object|string} optsOrEnsureFn — prefer { kind, paymentMethod, bankAccountId, journalId }
+ *   Legacy string ensureFnName (ensureDefaultCashJournal etc.) still accepted.
+ */
+async function resolveJournalBookId(tenantId, userId, optsOrEnsureFn = {}) {
+  const { resolveJournalBookId: resolveId } = await import('./journalBookService.js');
+  if (typeof optsOrEnsureFn === 'string') {
+    const map = {
+      ensureDefaultSalesJournal: { kind: 'sales' },
+      ensureDefaultPurchaseJournal: { kind: 'purchase' },
+      ensureDefaultCashJournal: { kind: 'cash' },
+      ensureDefaultBankJournal: { kind: 'bank' },
+      ensureDefaultStockJournal: { kind: 'stock' },
+      ensureDefaultMiscJournal: { kind: 'manual' },
+    };
+    return resolveId(tenantId, userId, map[optsOrEnsureFn] || { kind: 'manual' });
+  }
+  return resolveId(tenantId, userId, optsOrEnsureFn || {});
 }
 
 function stampPartnerId(lines = [], partnerId = null) {
@@ -1595,6 +1990,7 @@ export async function previewPurchaseInvoiceJournal({ tenantId, invoice = {} }) 
   const ctx = { byCode, byId, defaultIds };
   const ap = await resolveRoleAccount(tenantId, 'ap', ctx);
   const vatIn = await resolveRoleAccount(tenantId, 'vatInput', ctx);
+  const vatOut = await resolveRoleAccount(tenantId, 'vatOutput', ctx);
   const cogs = await resolveRoleAccount(tenantId, 'cogs', ctx);
   const inventory = await resolveRoleAccount(tenantId, 'inventory', ctx);
   if (!ap) {
@@ -1603,9 +1999,9 @@ export async function previewPurchaseInvoiceJournal({ tenantId, invoice = {} }) 
 
   const tax = round2(Number(invoice.totalTax ?? invoice.taxAmount ?? 0));
   const gross = round2(Number(invoice.grandTotal || 0));
-  let net = round2(Number(invoice.taxableAmount ?? (gross - tax)));
-  if (round2(net + tax) !== gross) net = round2(gross - tax);
-  if (gross <= 0) return { lines: [], debit: 0, credit: 0, balanced: false };
+  let net = round2(Number(invoice.taxableAmount ?? 0));
+  if (!(net > 0) && gross > 0) net = round2(Math.max(0, gross - tax));
+  if (gross <= 0 && net <= 0) return { lines: [], debit: 0, credit: 0, balanced: false };
 
   const expenseAcct = cogs || inventory;
   if (!expenseAcct) {
@@ -1687,25 +2083,121 @@ export async function previewPurchaseInvoiceJournal({ tenantId, invoice = {} }) 
     });
   }
 
-  if (tax > 0 && vatIn) {
-    lines.push({
-      accountId: vatIn._id,
-      accountCode: vatIn.code,
-      accountName: vatIn.name,
-      accountNameAr: vatIn.nameAr || '',
-      debit: tax,
-      credit: 0,
-      description: 'VAT input',
-      role: 'vat_in',
-    });
+  // Resolve tax postings (same rules as stockAccounting posting)
+  const byTaxKey = new Map();
+  for (const li of lineItems) {
+    const amt = round2(Math.max(0, Number(li.taxAmount) || 0));
+    let taxDoc = null;
+    if (li.taxId || li.taxCode) {
+      taxDoc = await resolveTaxByIdOrCode(tenantId, {
+        taxId: li.taxId,
+        taxCode: li.taxCode,
+        type: 'purchase',
+      });
+    }
+    if (!taxDoc && amt > 0) {
+      const defaultId = await resolveDefaultTaxId(tenantId, 'purchase');
+      if (defaultId) {
+        taxDoc = await resolveTaxByIdOrCode(tenantId, { taxId: defaultId, type: 'purchase' });
+      }
+    }
+    const treatment = li.vatTreatment || vatTreatmentFromTax(taxDoc);
+    const isReverseCharge = treatment === 'reverse_charge' || Boolean(taxDoc?.isReverseCharge);
+    const recoverable = treatment === 'non_recoverable'
+      ? false
+      : (treatment === 'recoverable' || treatment === 'reverse_charge' || taxDoc?.recoverable !== false);
+    if (amt <= 0 && !isReverseCharge) continue;
+    const key = taxDoc?._id
+      ? String(taxDoc._id)
+      : `adhoc:${treatment}`;
+    const prev = byTaxKey.get(key) || {
+      taxId: taxDoc?._id || null,
+      amount: 0,
+      recoverable: isReverseCharge ? true : recoverable,
+      isReverseCharge,
+    };
+    prev.amount = round2(prev.amount + amt);
+    byTaxKey.set(key, prev);
+  }
+  let taxPostings = [...byTaxKey.values()].filter((p) => p.amount > 0);
+  if (!taxPostings.length && tax > 0) {
+    const defaultId = await resolveDefaultTaxId(tenantId, 'purchase');
+    taxPostings = [{
+      taxId: defaultId,
+      amount: tax,
+      recoverable: true,
+      isReverseCharge: false,
+    }];
   }
 
-  const apGross = tax > 0 && vatIn ? gross : round2(net + (vatIn ? 0 : tax));
-  if (tax > 0 && !vatIn) {
+  let payableTax = 0;
+  let nonRecoverableTax = 0;
+  for (const posting of taxPostings) {
+    const amt = round2(posting.amount);
+    if (amt <= 0) continue;
+    const taxIds = posting.taxId ? [posting.taxId] : [];
+    if (posting.isReverseCharge) {
+      if (vatIn) {
+        lines.push({
+          accountId: vatIn._id,
+          accountCode: vatIn.code,
+          accountName: vatIn.name,
+          accountNameAr: vatIn.nameAr || '',
+          debit: amt,
+          credit: 0,
+          description: 'VAT input (reverse charge)',
+          role: 'vat_in',
+          taxIds,
+        });
+      }
+      if (vatOut) {
+        lines.push({
+          accountId: vatOut._id,
+          accountCode: vatOut.code,
+          accountName: vatOut.name,
+          accountNameAr: vatOut.nameAr || '',
+          debit: 0,
+          credit: amt,
+          description: 'VAT output (reverse charge)',
+          role: 'vat_out',
+          taxIds,
+        });
+      }
+      continue;
+    }
+    if (posting.recoverable === false) {
+      nonRecoverableTax = round2(nonRecoverableTax + amt);
+      payableTax = round2(payableTax + amt);
+      continue;
+    }
+    if (vatIn) {
+      lines.push({
+        accountId: vatIn._id,
+        accountCode: vatIn.code,
+        accountName: vatIn.name,
+        accountNameAr: vatIn.nameAr || '',
+        debit: amt,
+        credit: 0,
+        description: 'VAT input',
+        role: 'vat_in',
+        taxIds,
+      });
+      payableTax = round2(payableTax + amt);
+    } else {
+      nonRecoverableTax = round2(nonRecoverableTax + amt);
+      payableTax = round2(payableTax + amt);
+    }
+  }
+
+  if (nonRecoverableTax > 0) {
     const firstExpense = lines.find((l) => l.role === 'expense' || l.role === 'stock');
-    if (firstExpense) firstExpense.debit = round2(firstExpense.debit + tax);
+    if (firstExpense) {
+      firstExpense.debit = round2(firstExpense.debit + nonRecoverableTax);
+      firstExpense.description = `${firstExpense.description} (incl. non-recoverable VAT)`;
+    }
   }
 
+  const apGross = round2(net + payableTax);
   const paymentSchedule = resolveInvoicePaymentScheduleForPosting(invoice, apGross);
 
   for (const apLine of buildPayableCreditLines({
@@ -2098,11 +2590,11 @@ export async function postInvoicePaymentJournal({
   const useOutstanding = !method.includes('cash') && method !== 'card';
   let debitAccount = cash;
   let debitDescription = 'Customer payment';
-  let journalId = await resolveJournalBookId(
-    tenantId,
-    userId,
-    liqRole === 'cash' ? 'ensureDefaultCashJournal' : 'ensureDefaultBankJournal',
-  );
+  let journalId = await resolveJournalBookId(tenantId, userId, {
+    kind: 'payment',
+    paymentMethod,
+    liquidityAccountId: cash?._id || null,
+  });
 
   if (bankJournalCode) {
     const Journal = (await import('../models/Journal.js')).default;
@@ -2281,6 +2773,9 @@ export async function postVendorBillPaymentJournal({
   reference = '',
   currency = 'SAR',
   memo = '',
+  confirmNegativeCash = false,
+  journalId: preferredJournalId = null,
+  bankAccountId = null,
 }) {
   const payAmt = round2(amount);
   if (!invoice?._id || payAmt <= 0 || invoice.flow !== 'purchase') return null;
@@ -2296,6 +2791,14 @@ export async function postVendorBillPaymentJournal({
     partnerAccountId: partnerAccounts.payableAccountId,
   });
   if (!cash || !ap) return null;
+
+  await assertOutboundLiquidity({
+    tenantId,
+    accountId: cash._id,
+    paymentMethod,
+    amount: payAmt,
+    confirmNegative: confirmNegativeCash,
+  });
 
   const method = String(paymentMethod || '').toLowerCase();
   const useOutstanding = !method.includes('cash') && method !== 'card';
@@ -2323,11 +2826,19 @@ export async function postVendorBillPaymentJournal({
   });
   if (dup) return dup;
 
-  const journalId = await resolveJournalBookId(
-    tenantId,
-    userId,
-    liqRole === 'cash' ? 'ensureDefaultCashJournal' : 'ensureDefaultBankJournal',
-  );
+  const journalId = await resolveJournalBookId(tenantId, userId, {
+    kind: 'payment',
+    paymentMethod,
+    journalId: preferredJournalId,
+    bankAccountId,
+    liquidityAccountId: cash?._id || null,
+  });
+  if (!journalId) {
+    throw makeAccountingError('Could not resolve cash/bank journal book for vendor payment', {
+      code: 'JOURNAL_BOOK_MISSING',
+      status: 500,
+    });
+  }
 
   const allocations = allocatePaymentToTranches(invoice, payAmt);
   const apDebits = (allocations.length ? allocations : [{ trancheSequence: null, amount: payAmt, dueDate: null }])
@@ -2378,6 +2889,7 @@ export async function postOutstandingPaymentClearance({
   currency = 'SAR',
   memo = '',
   partnerId = null,
+  confirmNegativeCash = false,
 }) {
   const payAmt = round2(amount);
   if (!bankAccountId || payAmt <= 0) return null;
@@ -2388,6 +2900,13 @@ export async function postOutstandingPaymentClearance({
   const outstanding = await resolveRoleAccount(tenantId, 'outstandingPayments', ctx);
   const bank = byId[String(bankAccountId)] || await ChartOfAccount.findOne({ _id: bankAccountId, tenantId }).lean();
   if (!outstanding || !bank) return null;
+
+  await assertOutboundLiquidity({
+    tenantId,
+    accountId: bank._id,
+    amount: payAmt,
+    confirmNegative: confirmNegativeCash,
+  });
 
   const key = `OutstandingClearance:${bankAccountId}:${payAmt}:${reference || paymentDate}`;
   const dup = await JournalEntry.findOne({
@@ -2661,7 +3180,234 @@ export async function reconcileCreditNoteWithInvoice({
   };
 }
 
-/** Supplier payment against purchase order / vendor bill — AP (Accounts Payable) Dr, Cash/Bank Cr */
+/**
+ * Explicit supplier advance (prepayment) — Dr 1290 Advance to Suppliers / Cr Bank|Cash|2050.
+ * Never hits Accounts Payable.
+ */
+export async function postSupplierAdvanceJournal({
+  tenantId,
+  userId,
+  purchaseOrder,
+  amount,
+  paymentMethod = 'bank_transfer',
+  paymentDate = new Date(),
+  reference = '',
+  currency = 'SAR',
+  notes = '',
+  confirmNegativeCash = false,
+}) {
+  const payAmt = round2(amount);
+  if (!purchaseOrder?._id || payAmt <= 0) return null;
+
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+  const partnerId = purchaseOrder.supplierId?._id || purchaseOrder.supplierId || null;
+  const ctx = { byCode, byId, defaultIds };
+  const { account: cash, role: liqRole } = await resolveLiquidityAccount(tenantId, paymentMethod, ctx);
+  const advance = await resolveRoleAccount(tenantId, 'advanceToSuppliers', ctx)
+    || byCode[ACCOUNT_CODE_MAP.advanceToSuppliers]
+    || byCode[ACCOUNT_CODE_MAP.prepaid];
+  if (!cash || !advance) return null;
+
+  await assertOutboundLiquidity({
+    tenantId,
+    accountId: cash._id,
+    paymentMethod,
+    amount: payAmt,
+    confirmNegative: confirmNegativeCash,
+  });
+
+  const method = String(paymentMethod || '').toLowerCase();
+  const useOutstanding = !method.includes('cash') && method !== 'card';
+  let creditAccount = cash;
+  let creditDescription = 'Cash/Bank out — supplier advance';
+  if (useOutstanding) {
+    const tenant = await Tenant.findById(tenantId).select('settings.accounting.useOutstandingPayments').lean();
+    if (tenant?.settings?.accounting?.useOutstandingPayments !== false) {
+      const outstanding = await resolveRoleAccount(tenantId, 'outstandingPayments', ctx);
+      if (outstanding) {
+        creditAccount = outstanding;
+        creditDescription = 'Outstanding supplier advance (awaiting bank clearance)';
+      }
+    }
+  }
+
+  const refKey = reference || (paymentDate instanceof Date ? paymentDate.toISOString() : String(paymentDate)) || String(Date.now());
+  const key = `POAdvance:${purchaseOrder._id}:${payAmt}:${refKey}`;
+  const dup = await JournalEntry.findOne({
+    tenantId,
+    sourceModel: 'PurchaseOrderAdvance',
+    sourceId: purchaseOrder._id,
+    reference: key,
+    status: { $ne: 'void' },
+  });
+  if (dup) return dup;
+
+  const poNumber = purchaseOrder.poNumber || 'PO';
+  const supplierName = purchaseOrder.supplierId?.nameAr || purchaseOrder.supplierId?.nameEn || purchaseOrder.supplierId?.name || '';
+  const desc = supplierName ? `${poNumber} (${supplierName})` : poNumber;
+
+  const journalId = await resolveJournalBookId(tenantId, userId, {
+    kind: 'payment',
+    paymentMethod,
+    liquidityAccountId: cash?._id || null,
+  });
+
+  return createJournalEntry({
+    tenantId,
+    userId,
+    entryDate: paymentDate,
+    type: 'payment',
+    memo: `Advance to supplier for PO ${desc}`,
+    memoAr: `دفعة مقدمة للمورد لأمر الشراء ${desc}`,
+    reference: key,
+    currency,
+    lines: stampPartnerId([
+      {
+        accountId: advance._id,
+        accountCode: advance.code,
+        debit: payAmt,
+        credit: 0,
+        description: `Advance to supplier ${desc}${notes ? ` — ${notes}` : ''}`,
+      },
+      {
+        accountId: creditAccount._id,
+        accountCode: creditAccount.code,
+        debit: 0,
+        credit: payAmt,
+        description: creditDescription,
+      },
+    ], partnerId),
+    sourceModel: 'PurchaseOrderAdvance',
+    sourceId: purchaseOrder._id,
+    sourceNumber: poNumber,
+    status: 'posted',
+    journalId,
+  });
+}
+
+/**
+ * Unallocated vendor payment remainder → Advance to Suppliers (1290), never silent AP debit.
+ * Used by createVendorPayment when payment.amount > sum(bill allocations).
+ */
+export async function postVendorAdvanceJournal({
+  tenantId,
+  userId,
+  partnerId = null,
+  partnerName = '',
+  amount,
+  paymentMethod = 'bank_transfer',
+  paymentDate = new Date(),
+  reference = '',
+  currency = 'SAR',
+  memo = '',
+  confirmNegativeCash = false,
+  purchaseOrder = null,
+  journalId: preferredJournalId = null,
+  bankAccountId = null,
+}) {
+  const payAmt = round2(amount);
+  if (payAmt <= 0) return null;
+
+  const { byCode, byId } = await getAccountMap(tenantId);
+  const { ids: defaultIds } = await ensureAccountingDefaults(tenantId);
+  const ctx = { byCode, byId, defaultIds };
+  const { account: cash, role: liqRole } = await resolveLiquidityAccount(tenantId, paymentMethod, ctx);
+  const advance = await resolveRoleAccount(tenantId, 'advanceToSuppliers', ctx)
+    || byCode[ACCOUNT_CODE_MAP.advanceToSuppliers]
+    || byCode[ACCOUNT_CODE_MAP.prepaid];
+  if (!cash || !advance) return null;
+
+  await assertOutboundLiquidity({
+    tenantId,
+    accountId: cash._id,
+    paymentMethod,
+    amount: payAmt,
+    confirmNegative: confirmNegativeCash,
+  });
+
+  const method = String(paymentMethod || '').toLowerCase();
+  const useOutstanding = !method.includes('cash') && method !== 'card';
+  let creditAccount = cash;
+  let creditDescription = 'Cash/Bank out — supplier advance';
+  if (useOutstanding) {
+    const tenant = await Tenant.findById(tenantId).select('settings.accounting.useOutstandingPayments').lean();
+    if (tenant?.settings?.accounting?.useOutstandingPayments !== false) {
+      const outstanding = await resolveRoleAccount(tenantId, 'outstandingPayments', ctx);
+      if (outstanding) {
+        creditAccount = outstanding;
+        creditDescription = 'Outstanding supplier advance (awaiting bank clearance)';
+      }
+    }
+  }
+
+  const sourceId = purchaseOrder?._id || partnerId || null;
+  const sourceModel = purchaseOrder?._id ? 'PurchaseOrderAdvance' : 'VendorAdvance';
+  const sourceNumber = purchaseOrder?.poNumber || partnerName || reference || '';
+  const refKey = reference || (paymentDate instanceof Date ? paymentDate.toISOString() : String(paymentDate)) || String(Date.now());
+  const key = `${sourceModel}:${sourceId || 'none'}:${payAmt}:${refKey}`;
+  const dup = await JournalEntry.findOne({
+    tenantId,
+    sourceModel,
+    ...(sourceId ? { sourceId } : {}),
+    reference: key,
+    status: { $ne: 'void' },
+  });
+  if (dup) return dup;
+
+  const label = partnerName || purchaseOrder?.poNumber || 'supplier';
+  const journalId = await resolveJournalBookId(tenantId, userId, {
+    kind: 'payment',
+    paymentMethod,
+    journalId: preferredJournalId,
+    bankAccountId,
+    liquidityAccountId: cash?._id || null,
+  });
+  if (!journalId) {
+    throw makeAccountingError('Could not resolve cash/bank journal book for vendor advance', {
+      code: 'JOURNAL_BOOK_MISSING',
+      status: 500,
+    });
+  }
+
+  return createJournalEntry({
+    tenantId,
+    userId,
+    entryDate: paymentDate,
+    type: 'payment',
+    memo: memo || `Advance to supplier (${label})`,
+    memoAr: `دفعة مقدمة للمورد (${label})`,
+    reference: key,
+    currency,
+    lines: stampPartnerId([
+      {
+        accountId: advance._id,
+        accountCode: advance.code,
+        debit: payAmt,
+        credit: 0,
+        description: `Advance to supplier ${label}`,
+      },
+      {
+        accountId: creditAccount._id,
+        accountCode: creditAccount.code,
+        debit: 0,
+        credit: payAmt,
+        description: creditDescription,
+      },
+    ], partnerId),
+    sourceModel,
+    sourceId,
+    sourceNumber,
+    status: 'posted',
+    journalId,
+  });
+}
+
+/**
+ * @deprecated Prefer paying a posted vendor bill via postVendorBillPaymentJournal.
+ * Legacy PO payments that debit AP are blocked unless asAdvance=true (then posts to 1290).
+ * Kept for migration reclassify helpers that may still call with explicit mode.
+ */
 export async function postSupplierPaymentJournal({
   tenantId,
   userId,
@@ -2672,7 +3418,24 @@ export async function postSupplierPaymentJournal({
   reference = '',
   currency = 'SAR',
   notes = '',
+  asAdvance = false,
 }) {
+  if (asAdvance) {
+    return postSupplierAdvanceJournal({
+      tenantId,
+      userId,
+      purchaseOrder,
+      amount,
+      paymentMethod,
+      paymentDate,
+      reference,
+      currency,
+      notes,
+      confirmNegativeCash: false,
+    });
+  }
+
+  // Legacy AP debit path — only used by migration when reconstructing history intentionally.
   const payAmt = round2(amount);
   if (!purchaseOrder?._id || payAmt <= 0) return null;
 
@@ -2687,6 +3450,14 @@ export async function postSupplierPaymentJournal({
     partnerAccountId: partnerAccounts.payableAccountId,
   });
   if (!cash || !ap) return null;
+
+  await assertOutboundLiquidity({
+    tenantId,
+    accountId: cash._id,
+    paymentMethod,
+    amount: payAmt,
+    confirmNegative: false,
+  });
 
   const refKey = reference || (paymentDate instanceof Date ? paymentDate.toISOString() : String(paymentDate)) || String(Date.now());
   const key = `POPayment:${purchaseOrder._id}:${payAmt}:${refKey}`;
@@ -2703,11 +3474,11 @@ export async function postSupplierPaymentJournal({
   const supplierName = purchaseOrder.supplierId?.nameAr || purchaseOrder.supplierId?.nameEn || purchaseOrder.supplierId?.name || '';
   const desc = supplierName ? `${poNumber} (${supplierName})` : poNumber;
 
-  const journalId = await resolveJournalBookId(
-    tenantId,
-    userId,
-    liqRole === 'cash' ? 'ensureDefaultCashJournal' : 'ensureDefaultBankJournal',
-  );
+  const journalId = await resolveJournalBookId(tenantId, userId, {
+    kind: 'payment',
+    paymentMethod,
+    liquidityAccountId: cash?._id || null,
+  });
 
   return createJournalEntry({
     tenantId,
@@ -2787,6 +3558,14 @@ export async function postExpensePaidJournal({
   const total = round2(Number(expense.totalAmount || net + tax));
   if (total <= 0) return null;
 
+  await assertOutboundLiquidity({
+    tenantId,
+    accountId: cash._id,
+    paymentMethod: expense.paymentMethod,
+    amount: total,
+    confirmNegative: expense.confirmNegativeCash === true,
+  });
+
   const purchaseTaxId = tax > 0 ? await resolveDefaultTaxId(tenantId, 'purchase') : null;
   const lines = [
     { accountId: expenseAcct._id, accountCode: expenseAcct.code, debit: net, credit: 0, description: expense.description || expense.expenseNumber },
@@ -2809,11 +3588,11 @@ export async function postExpensePaidJournal({
     description: `Pay ${expense.expenseNumber}`,
   });
 
-  const journalId = await resolveJournalBookId(
-    tenantId,
-    userId,
-    liqRole === 'cash' ? 'ensureDefaultCashJournal' : 'ensureDefaultBankJournal',
-  );
+  const journalId = await resolveJournalBookId(tenantId, userId, {
+    kind: 'payment',
+    paymentMethod,
+    liquidityAccountId: cash?._id || null,
+  });
 
   return createJournalEntry({
     tenantId,
@@ -2876,6 +3655,13 @@ export async function postVoucherJournal({
   } else {
     const debitAcct = ap || opex;
     if (!debitAcct) return null;
+    await assertOutboundLiquidity({
+      tenantId,
+      accountId: cash._id,
+      paymentMethod: voucher.paymentMethod,
+      amount,
+      confirmNegative: voucher.confirmNegativeCash === true,
+    });
     lines = [
       { accountId: debitAcct._id, accountCode: debitAcct.code, debit: amount, credit: 0, description: voucher.description || voucher.voucherNumber },
       { accountId: cash._id, accountCode: cash.code, debit: 0, credit: amount, description: `Payment ${voucher.voucherNumber}` },
@@ -2883,11 +3669,11 @@ export async function postVoucherJournal({
   }
   lines = stampPartnerId(lines, partnerId);
 
-  const journalId = await resolveJournalBookId(
-    tenantId,
-    userId,
-    liqRole === 'cash' ? 'ensureDefaultCashJournal' : 'ensureDefaultBankJournal',
-  );
+  const journalId = await resolveJournalBookId(tenantId, userId, {
+    kind: 'payment',
+    paymentMethod,
+    liquidityAccountId: cash?._id || null,
+  });
 
   return createJournalEntry({
     tenantId,
@@ -3026,11 +3812,11 @@ export async function postCreditNoteRefundJournal({
   // Ensure the CN AR credit exists first when possible
   await postCreditNoteJournal({ tenantId, userId, creditNote, currency });
 
-  const journalId = await resolveJournalBookId(
-    tenantId,
-    userId,
-    liqRole === 'cash' ? 'ensureDefaultCashJournal' : 'ensureDefaultBankJournal',
-  );
+  const journalId = await resolveJournalBookId(tenantId, userId, {
+    kind: 'payment',
+    paymentMethod,
+    liquidityAccountId: cash?._id || null,
+  });
 
   return createJournalEntry({
     tenantId,
@@ -3628,6 +4414,7 @@ export async function buildJournalReport(tenantId, {
   const entries = await JournalEntry.find(filter)
     .sort({ entryDate: 1, entryNumber: 1 })
     .populate('journalId', 'code name nameAr type')
+    .select('+isBackdated')
     .lean();
 
   const rows = entries.map((e) => ({
@@ -3642,6 +4429,7 @@ export async function buildJournalReport(tenantId, {
     sourceModel: e.sourceModel,
     sourceId: e.sourceId,
     sourceNumber: e.sourceNumber,
+    isBackdated: !!e.isBackdated,
     totalDebit: round2(e.totalDebit || (e.lines || []).reduce((s, l) => s + Number(l.debit || 0), 0)),
     totalCredit: round2(e.totalCredit || (e.lines || []).reduce((s, c) => s + Number(c.credit || 0), 0)),
     lines: (e.lines || []).map((l) => ({
@@ -3654,27 +4442,40 @@ export async function buildJournalReport(tenantId, {
     })),
   }));
 
-  // Sequence gap detection (numeric suffix)
-  const gaps = [];
-  const byPrefix = new Map();
-  for (const row of rows) {
-    const m = String(row.entryNumber || '').match(/^(.*?)(\d+)$/);
-    if (!m) continue;
-    const prefix = m[1];
-    const num = Number(m[2]);
-    if (!byPrefix.has(prefix)) byPrefix.set(prefix, []);
-    byPrefix.get(prefix).push(num);
-  }
-  for (const [prefix, nums] of byPrefix) {
-    const sorted = [...new Set(nums)].sort((a, b) => a - b);
-    for (let i = 1; i < sorted.length; i += 1) {
-      if (sorted[i] !== sorted[i - 1] + 1) {
-        gaps.push({
-          prefix,
-          from: sorted[i - 1] + 1,
-          to: sorted[i] - 1,
-          message: `Gap in ${prefix}: missing ${sorted[i - 1] + 1}–${sorted[i] - 1}`,
-        });
+  // Prefer full-year sequence integrity (posted only); keep legacy gap scan as fallback detail
+  let sequenceIntegrity = null;
+  try {
+    const { buildSequenceIntegrityReport } = await import('./journalBookService.js');
+    const year = start.getFullYear();
+    sequenceIntegrity = await buildSequenceIntegrityReport(tenantId, { year, journalId });
+  } catch { /* non-fatal */ }
+
+  const gaps = sequenceIntegrity?.books?.flatMap((b) =>
+    (b.gaps || []).map((g) => ({ ...g, series: b.series, prefix: b.prefix })),
+  ) || [];
+
+  // Legacy in-range gap detection when integrity unavailable
+  if (!gaps.length && !sequenceIntegrity) {
+    const byPrefix = new Map();
+    for (const row of rows) {
+      const m = String(row.entryNumber || '').match(/^(.*?)(\d+)$/);
+      if (!m) continue;
+      const prefix = m[1];
+      const num = Number(m[2]);
+      if (!byPrefix.has(prefix)) byPrefix.set(prefix, []);
+      byPrefix.get(prefix).push(num);
+    }
+    for (const [prefix, nums] of byPrefix) {
+      const sorted = [...new Set(nums)].sort((a, b) => a - b);
+      for (let i = 1; i < sorted.length; i += 1) {
+        if (sorted[i] !== sorted[i - 1] + 1) {
+          gaps.push({
+            prefix,
+            from: sorted[i - 1] + 1,
+            to: sorted[i] - 1,
+            message: `Gap in ${prefix}: missing ${sorted[i - 1] + 1}–${sorted[i] - 1}`,
+          });
+        }
       }
     }
   }
@@ -3685,6 +4486,8 @@ export async function buildJournalReport(tenantId, {
     journalId,
     rows,
     gaps,
+    sequenceIntegrity,
+    backdatedCount: rows.filter((r) => r.isBackdated).length,
     totalDebit: round2(rows.reduce((s, r) => s + r.totalDebit, 0)),
     totalCredit: round2(rows.reduce((s, r) => s + r.totalCredit, 0)),
   };
@@ -4189,14 +4992,17 @@ export async function getBankAccountsCatalog(tenantId) {
     const link = meta.find((m) => String(m.accountId) === String(acc._id)) || {};
     const journal = link.journalId ? journalById[String(link.journalId)] : journals.find((j) => String(j.defaultDebitAccountId) === String(acc._id));
     const liveRow = liveById[String(acc._id)];
+    const balance = liveRow ? Number(liveRow.naturalBalance) : Number(acc.balance || 0);
     return {
       accountId: acc._id,
       code: acc.code,
       name: acc.name,
       nameAr: acc.nameAr,
       subtype: acc.subtype,
-      balance: liveRow ? Number(liveRow.naturalBalance) : Number(acc.balance || 0),
+      balance,
       storedBalance: Number(acc.balance || 0),
+      allowNegativeBalance: acc.allowNegativeBalance === true,
+      isNegative: balance < -0.005,
       iban: link.iban || '',
       bic: link.bic || '',
       journalId: journal?._id || link.journalId || null,
@@ -4206,7 +5012,7 @@ export async function getBankAccountsCatalog(tenantId) {
   return { rows, sepa: tenant?.settings?.accounting?.sepa || {} };
 }
 
-/** Create bank CoA account + bank journal + link IBAN metadata. */
+/** Create bank CoA account + bank journal + link IBAN metadata. Opening balance + as-of date required. */
 export async function createBankAccountSetup(tenantId, userId, {
   name,
   nameAr = '',
@@ -4214,8 +5020,26 @@ export async function createBankAccountSetup(tenantId, userId, {
   iban = '',
   bic = '',
   currency = 'SAR',
+  openingBalance,
+  openingAsOfDate,
+  allowNegativeBalance = false,
 } = {}) {
   if (!name) throw new Error('name is required');
+  if (openingBalance === undefined || openingBalance === null || openingBalance === '') {
+    throw makeAccountingError('openingBalance is required', { code: 'OPENING_BALANCE_REQUIRED', status: 400 });
+  }
+  if (!openingAsOfDate) {
+    throw makeAccountingError('openingAsOfDate is required', { code: 'OPENING_ASOF_REQUIRED', status: 400 });
+  }
+  const openAmt = round2(openingBalance);
+  if (!Number.isFinite(openAmt)) {
+    throw makeAccountingError('openingBalance must be a number', { code: 'OPENING_BALANCE_INVALID', status: 400 });
+  }
+  const asOf = new Date(openingAsOfDate);
+  if (Number.isNaN(asOf.getTime())) {
+    throw makeAccountingError('openingAsOfDate is invalid', { code: 'OPENING_ASOF_INVALID', status: 400 });
+  }
+
   await ensureDefaultChartOfAccounts(tenantId, userId, currency);
   const Journal = (await import('../models/Journal.js')).default;
 
@@ -4239,6 +5063,7 @@ export async function createBankAccountSetup(tenantId, userId, {
     subtype: 'bank',
     currency,
     isPostable: true,
+    allowNegativeBalance: allowNegativeBalance === true,
     createdBy: userId,
   });
 
@@ -4283,11 +5108,50 @@ export async function createBankAccountSetup(tenantId, userId, {
   }
   await Tenant.findByIdAndUpdate(tenantId, { $set: patch });
 
+  let openingEntry = null;
+  if (Math.abs(openAmt) >= 0.005) {
+    const { byCode } = await getAccountMap(tenantId);
+    const capital = byCode[ACCOUNT_CODE_MAP.capital] || byCode['3000'];
+    if (!capital) {
+      throw makeAccountingError('Owner Capital (3000) account missing for opening balance', {
+        code: 'OPENING_EQUITY_MISSING',
+        status: 400,
+      });
+    }
+    const absAmt = Math.abs(openAmt);
+    const bankLine = openAmt >= 0
+      ? { accountId: account._id, accountCode: account.code, debit: absAmt, credit: 0, description: 'Opening balance' }
+      : { accountId: account._id, accountCode: account.code, debit: 0, credit: absAmt, description: 'Opening balance' };
+    const equityLine = openAmt >= 0
+      ? { accountId: capital._id, accountCode: capital.code, debit: 0, credit: absAmt, description: `Opening equity — ${account.code}` }
+      : { accountId: capital._id, accountCode: capital.code, debit: absAmt, credit: 0, description: `Opening equity — ${account.code}` };
+
+    openingEntry = await createJournalEntry({
+      tenantId,
+      userId,
+      entryDate: asOf,
+      type: 'opening',
+      memo: `Opening balance for ${account.code} ${account.name}`,
+      memoAr: `رصيد افتتاحي ${account.code} ${account.nameAr || account.name}`,
+      reference: `BankOpening:${account._id}`,
+      currency,
+      lines: [bankLine, equityLine],
+      sourceModel: 'BankAccountOpening',
+      sourceId: account._id,
+      sourceNumber: account.code,
+      status: 'posted',
+      journalId: journal._id,
+    });
+  }
+
   return {
     account,
     journal,
     iban: String(iban || '').trim(),
     bic: String(bic || '').trim(),
+    openingBalance: openAmt,
+    openingAsOfDate: asOf,
+    openingEntryId: openingEntry?._id || null,
   };
 }
 
@@ -5968,6 +6832,8 @@ export async function getAccountingDashboard(tenantId) {
     .limit(8)
     .lean();
 
+  const negativeCashAccounts = await listNegativeCashBankAccounts(tenantId);
+
   return {
     accountCount,
     draftCount,
@@ -5984,6 +6850,8 @@ export async function getAccountingDashboard(tenantId) {
     apBalance: ap?.balance || 0,
     trialBalanced: tb.balanced,
     recent,
+    negativeCashAccounts,
+    negativeCashAccountCount: negativeCashAccounts.length,
     agedAr: {
       buckets: agedAr.buckets,
       openCount: agedAr.totals?.partnerCount
@@ -6977,6 +7845,10 @@ export async function buildTaxReport(tenantId, { from, to, taxUnitCode = null } 
           nameAr: tax?.nameAr || '',
           rate: tax?.rate ?? null,
           type: tax?.type || '',
+          zatcaCategory: tax?.zatcaCategory || '',
+          taxGrid: tax?.distributionInvoices?.taxLine?.taxGrid || '',
+          recoverable: tax?.recoverable !== false,
+          isReverseCharge: Boolean(tax?.isReverseCharge),
           debit: 0,
           credit: 0,
           lineCount: 0,
@@ -7013,25 +7885,54 @@ export async function buildTaxReport(tenantId, { from, to, taxUnitCode = null } 
   const outputGrid = [];
   const inputGrid = [];
   for (const row of rows) {
-    const taxAmount = round2(Math.abs(row.net));
-    const rate = Number(row.rate) || 0;
-    const baseAmount = rate > 0 ? round2(taxAmount / (rate / 100)) : round2(Math.max(row.debit, row.credit));
-    const gridRow = {
-      taxId: row.taxId,
-      code: row.code,
-      name: row.name,
-      nameAr: row.nameAr,
-      rate: row.rate,
-      baseAmount,
-      taxAmount,
-      lineCount: row.lineCount,
-    };
+    const purchaseTaxAmount = round2(Math.max(0, row.debit));
+    const salesTaxAmount = round2(Math.max(0, row.credit));
     const t = String(row.type || '').toLowerCase();
-    if (t.includes('purchase') || t.includes('input') || row.net < 0) inputGrid.push(gridRow);
-    else outputGrid.push(gridRow);
+    const grid = String(row.taxGrid || '').toLowerCase();
+    const isPurchase = t.includes('purchase') || t.includes('input')
+      || grid.startsWith('purchases_')
+      || row.net < 0;
+    const rate = Number(row.rate) || 0;
+
+    const pushGrid = (target, amount, extra = {}) => {
+      if (!(amount > 0)) return;
+      const baseAmount = rate > 0 ? round2(amount / (rate / 100)) : round2(Math.max(row.debit, row.credit));
+      target.push({
+        taxId: row.taxId,
+        code: row.code,
+        name: row.name,
+        nameAr: row.nameAr,
+        rate: row.rate,
+        zatcaCategory: row.zatcaCategory || '',
+        taxGrid: row.taxGrid || '',
+        baseAmount,
+        taxAmount: amount,
+        lineCount: row.lineCount,
+        ...extra,
+      });
+    };
+
+    if (row.isReverseCharge || grid === 'purchases_reverse_charge') {
+      // Self-assessed: input claim + output liability (nets to zero on Net VAT)
+      pushGrid(inputGrid, purchaseTaxAmount, { reverseCharge: true });
+      pushGrid(outputGrid, salesTaxAmount, { reverseCharge: true });
+      continue;
+    }
+    if (isPurchase) {
+      pushGrid(inputGrid, purchaseTaxAmount || round2(Math.abs(row.net)));
+    } else {
+      pushGrid(outputGrid, salesTaxAmount || round2(Math.abs(row.net)));
+    }
   }
+  // Recoverable input only (non-recoverable never stamps taxIds on 1400)
   const outputTax = round2(outputGrid.reduce((s, r) => s + r.taxAmount, 0));
-  const inputTax = round2(inputGrid.reduce((s, r) => s + r.taxAmount, 0));
+  const inputTax = round2(inputGrid
+    .filter((r) => {
+      const tax = taxById[String(r.taxId)];
+      if (!tax) return true;
+      return tax.recoverable !== false || tax.isReverseCharge;
+    })
+    .reduce((s, r) => s + r.taxAmount, 0));
 
   const { groups: taxGroupsConfig } = await getTaxGroups(tenantId);
   const taxGroupsRollup = (taxGroupsConfig || []).map((group) => {
@@ -7249,6 +8150,8 @@ export default {
   createTax,
   updateTax,
   resolveDefaultTaxId,
+  resolveTaxByIdOrCode,
+  vatTreatmentFromTax,
   ensureDefaultAnalyticAccounts,
   listAnalyticAccounts,
   createAnalyticAccount,
@@ -7263,6 +8166,10 @@ export default {
   ensureAccountingDefaults,
   getAccountingDefaults,
   setAccountingDefaults,
+  getNegativeCashBalancePolicy,
+  evaluateOutboundLiquidity,
+  assertOutboundLiquidity,
+  listNegativeCashBankAccounts,
   resolveRoleAccount,
   DEFAULT_ACCOUNT_KEYS,
   createJournalEntry,
@@ -7282,12 +8189,14 @@ export default {
   postEarlyPaymentDiscountJournal,
   postInvoicePaymentDifferenceJournal,
   postVendorBillPaymentJournal,
+  postVendorAdvanceJournal,
   postOutstandingPaymentClearance,
   postOutstandingReceiptClearance,
   postVendorRefundJournal,
   reconcileVendorRefundWithBill,
   reconcileCreditNoteWithInvoice,
   postSupplierPaymentJournal,
+  postSupplierAdvanceJournal,
   postExpensePaidJournal,
   postVoucherJournal,
   postCreditNoteJournal,
@@ -7371,6 +8280,7 @@ export default {
   buildSupplierSummaryReport,
   buildSupplierAccountReport,
   assertReceivableConsistency,
+  assertPayableConsistency,
   syncStoredAccountBalances,
   getAccountBalances,
   getPartnerBalances,

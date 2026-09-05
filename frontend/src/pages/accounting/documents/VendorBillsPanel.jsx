@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Search, Eye, Download } from 'lucide-react'
+import { Plus, Search, Eye, Download, CreditCard } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useSelector } from 'react-redux'
 import api from '../../../lib/api'
@@ -11,7 +11,7 @@ import ResponsiveDataList from '../../../components/ui/ResponsiveDataList'
 import AccountingDocumentBatchBar from './AccountingDocumentBatchBar'
 import RegisterPaymentModal from '../../../components/accounting/RegisterPaymentModal'
 import BatchVendorPaymentModal from '../../../components/accounting/BatchVendorPaymentModal'
-import { downloadSepaBatch, markSepaUploaded } from '../../../lib/vendorApTools'
+import { downloadSepaBatch, markSepaUploaded, createAndExportPaymentBatchCsv } from '../../../lib/vendorApTools'
 import {
   canRegisterPaymentOnBill,
   documentStatusLabel,
@@ -41,6 +41,37 @@ const trimName = (party) => {
   return en || ar || '—'
 }
 
+function matchingStatusLabel(status, language) {
+  const isAr = language === 'ar'
+  switch (status) {
+    case 'fully_matched':
+      return isAr ? 'مطابق بالكامل' : 'Fully matched'
+    case 'partially_matched':
+      return isAr ? 'مطابق جزئياً' : 'Partially matched'
+    case 'variance':
+      return isAr ? 'تفاوت' : 'Variance'
+    case 'unmatched':
+      return isAr ? 'غير مطابق' : 'Unmatched'
+    default:
+      return null
+  }
+}
+
+function matchingStatusChipClass(status) {
+  switch (status) {
+    case 'fully_matched':
+      return 'border-teal-200 bg-teal-50 text-teal-800 dark:border-teal-500/30 dark:bg-teal-500/10 dark:text-teal-200'
+    case 'partially_matched':
+      return 'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200'
+    case 'variance':
+      return 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200'
+    case 'unmatched':
+      return 'border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300'
+    default:
+      return softChipClass
+  }
+}
+
 export default function VendorBillsPanel({ language: languageProp, embedded = false }) {
   const { language: uiLanguage } = useSelector((s) => s.ui)
   const language = languageProp || uiLanguage
@@ -51,6 +82,9 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [paymentFilter, setPaymentFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [page, setPage] = useState(1)
   const productIdFilter = String(searchParams.get('productId') || '').trim()
   const supplierIdFilter = String(searchParams.get('supplierId') || '').trim()
   const [selectedIds, setSelectedIds] = useState(() => new Set())
@@ -60,11 +94,19 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
   const [sepaUploadIds, setSepaUploadIds] = useState([])
   const [sepaUploadOpen, setSepaUploadOpen] = useState(false)
 
+  const { data: suppliersData } = useQuery({
+    queryKey: ['vendors-for-bills-filter'],
+    queryFn: () => api.get('/suppliers', { params: { limit: 200 } }).then((r) => r.data),
+    staleTime: 60_000,
+  })
+  const suppliers = suppliersData?.suppliers || suppliersData?.items || suppliersData || []
+
   const { data, isLoading } = useQuery({
-    queryKey: ['vendor-bills', search, statusFilter, paymentFilter, productIdFilter, supplierIdFilter],
+    queryKey: ['vendor-bills', search, statusFilter, paymentFilter, productIdFilter, supplierIdFilter, dateFrom, dateTo, page],
     queryFn: () => api.get('/invoices', {
       params: {
-        limit: 100,
+        page,
+        limit: 25,
         flow: 'purchase',
         invoiceType: '388',
         search: search || undefined,
@@ -72,11 +114,14 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
         paymentStatus: paymentFilter || undefined,
         productId: productIdFilter || undefined,
         supplierId: supplierIdFilter || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
       },
     }).then((r) => r.data),
   })
 
   const rows = data?.invoices || []
+  const pagination = data?.pagination || {}
   const selectedRows = useMemo(
     () => rows.filter((row) => selectedIds.has(String(row._id))),
     [rows, selectedIds],
@@ -90,6 +135,7 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
       setBatchPayBill(null)
       setSelectedIds(new Set())
       queryClient.invalidateQueries({ queryKey: ['vendor-bills'] })
+      queryClient.invalidateQueries({ queryKey: ['vendor-payments'] })
     },
     onError: (err) => toast.error(err.response?.data?.error || (isAr ? 'فشل تسجيل الدفعة' : 'Failed to record payment')),
   })
@@ -113,17 +159,21 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
       setMultiPayOpen(false)
       setSelectedIds(new Set())
       queryClient.invalidateQueries({ queryKey: ['vendor-bills'] })
+      queryClient.invalidateQueries({ queryKey: ['vendor-payments'] })
     },
     onError: (err) => toast.error(err.response?.data?.error || (isAr ? 'فشل الدفع الجماعي' : 'Batch payment failed')),
   })
 
   const exportColumns = useMemo(() => [
-    { key: 'invoiceNumber', label: isAr ? 'الرقم' : 'Number' },
+    { key: 'invoiceNumber', label: isAr ? 'رقم الفاتورة' : 'Bill No' },
+    { key: 'vendorInvoice', label: isAr ? 'رقم فاتورة المورد' : 'Vendor Invoice No', value: (r) => r.vendorInvoiceNumber || r.contractNumber || '' },
     { key: 'vendor', label: isAr ? 'المورد' : 'Vendor', value: (r) => trimName(r.seller) },
     { key: 'issueDate', label: isAr ? 'تاريخ الفاتورة' : 'Bill date' },
-    { key: 'contractNumber', label: isAr ? 'مرجع المورد' : 'Reference' },
-    { key: 'taxExcluded', label: isAr ? 'بدون ضريبة' : 'Tax excluded', value: (r) => Number(r.taxableAmount ?? r.subtotal ?? 0) },
+    { key: 'dueDate', label: isAr ? 'الاستحقاق' : 'Due date' },
+    { key: 'taxExcluded', label: isAr ? 'بدون ضريبة' : 'Untaxed', value: (r) => Number(r.taxableAmount ?? r.subtotal ?? 0) },
+    { key: 'vat', label: isAr ? 'الضريبة' : 'VAT', value: (r) => Number(r.totalTax ?? 0) },
     { key: 'grandTotal', label: isAr ? 'الإجمالي' : 'Total' },
+    { key: 'due', label: isAr ? 'المستحق' : 'Due', value: (r) => invoiceRemainingBalance(r) },
     { key: 'paymentStatus', label: isAr ? 'حالة الدفع' : 'Payment status' },
     { key: 'status', label: isAr ? 'الحالة' : 'Status' },
   ], [isAr])
@@ -170,6 +220,28 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
     }
   }
 
+  const handlePaymentBatchCsv = async () => {
+    const payable = selectedRows.filter((row) => canRegisterPaymentOnBill(row))
+    const ids = (payable.length ? payable : selectedRows).map((row) => row._id)
+    if (!ids.length) {
+      toast.error(isAr ? 'حدد فواتير للدفع الجماعي' : 'Select bills for payment batch')
+      return
+    }
+    try {
+      const result = await createAndExportPaymentBatchCsv(ids)
+      toast.success(
+        isAr
+          ? `دفعة ${result.batch?.number || ''} — تم تصدير CSV`
+          : `Batch ${result.batch?.number || ''} — CSV exported`,
+      )
+      setSelectedIds(new Set())
+      queryClient.invalidateQueries({ queryKey: ['vendor-bills'] })
+      queryClient.invalidateQueries({ queryKey: ['payment-batches'] })
+    } catch (err) {
+      toast.error(err.response?.data?.error || (isAr ? 'فشل تصدير دفعة الدفع' : 'Payment batch export failed'))
+    }
+  }
+
   const handleMarkSepaUploaded = async () => {
     try {
       await markSepaUploaded(sepaUploadIds)
@@ -182,6 +254,8 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
     }
   }
 
+  const totalPages = pagination.pages || Math.max(1, Math.ceil((pagination.total || rows.length) / (pagination.limit || 25)))
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -193,12 +267,22 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
           />
           <button
             type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={handleSepaExport}
+            className="btn btn-primary btn-sm"
+            onClick={handlePaymentBatchCsv}
             disabled={!selectedIds.size}
           >
             <Download className="h-4 w-4" />
-            {isAr ? 'SEPA' : 'SEPA export'}
+            {isAr ? 'دفعة CSV' : 'Payment batch CSV'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={handleSepaExport}
+            disabled={!selectedIds.size}
+            title={isAr ? 'تصدير SEPA (أوروبا)' : 'SEPA export (Europe)'}
+          >
+            <Download className="h-4 w-4" />
+            {isAr ? 'SEPA' : 'SEPA'}
           </button>
           {!embedded ? (
           <button
@@ -207,34 +291,66 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
             onClick={() => navigate('/app/dashboard/accounting/invoices/new/purchase')}
           >
             <Plus className="h-4 w-4" />
-            {isAr ? 'فاتورة شراء' : 'New purchase invoice'}
+            {isAr ? 'فاتورة مورد جديدة' : 'New bill'}
           </button>
           ) : null}
       </div>
 
       <div className={filterBarClass}>
-        <div className="relative min-w-[200px] flex-1">
+        <div className="relative min-w-[180px] flex-1">
           <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
             placeholder={isAr ? 'بحث…' : 'Search…'}
             className={`${fieldControlClass} ps-10`}
           />
         </div>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={fieldControlClass}>
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
+          className={fieldControlClass}
+          title={isAr ? 'من تاريخ' : 'From date'}
+        />
+        <input
+          type="date"
+          value={dateTo}
+          onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
+          className={fieldControlClass}
+          title={isAr ? 'إلى تاريخ' : 'To date'}
+        />
+        <select
+          value={supplierIdFilter}
+          onChange={(e) => {
+            const next = new URLSearchParams(searchParams)
+            if (e.target.value) next.set('supplierId', e.target.value)
+            else next.delete('supplierId')
+            setSearchParams(next)
+            setPage(1)
+          }}
+          className={fieldControlClass}
+        >
+          <option value="">{isAr ? 'كل الموردين' : 'All vendors'}</option>
+          {(Array.isArray(suppliers) ? suppliers : []).map((s) => (
+            <option key={s._id} value={s._id}>
+              {s.nameEn || s.name || s.nameAr || s._id}
+            </option>
+          ))}
+        </select>
+        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className={fieldControlClass}>
           <option value="">{isAr ? 'كل الحالات' : 'All statuses'}</option>
           <option value="draft">{isAr ? 'مسودة' : 'Draft'}</option>
-          <option value="issued">{isAr ? 'مرحّلة' : 'Posted'}</option>
+          <option value="approved">{isAr ? 'مرحّلة' : 'Posted'}</option>
           <option value="cancelled">{isAr ? 'ملغاة' : 'Cancelled'}</option>
         </select>
-        <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} className={fieldControlClass}>
+        <select value={paymentFilter} onChange={(e) => { setPaymentFilter(e.target.value); setPage(1) }} className={fieldControlClass}>
           <option value="">{isAr ? 'كل المدفوعات' : 'All payments'}</option>
           <option value="pending">{isAr ? 'غير مدفوعة' : 'Unpaid'}</option>
           <option value="partial">{isAr ? 'جزئي' : 'Partial'}</option>
           <option value="paid">{isAr ? 'مدفوعة' : 'Paid'}</option>
         </select>
-        {(productIdFilter || supplierIdFilter) ? (
+        {(productIdFilter || supplierIdFilter || dateFrom || dateTo) ? (
           <button
             type="button"
             className={`${softChipClass} !px-3`}
@@ -243,9 +359,12 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
               next.delete('productId')
               next.delete('supplierId')
               setSearchParams(next)
+              setDateFrom('')
+              setDateTo('')
+              setPage(1)
             }}
           >
-            {isAr ? 'مسح الفلتر' : 'Clear product/vendor filter'}
+            {isAr ? 'مسح الفلاتر' : 'Clear filters'}
           </button>
         ) : null}
       </div>
@@ -265,17 +384,33 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
         ) : (
           <ResponsiveDataList
             items={rows}
-            empty={<p className={emptyStateClass}>{isAr ? 'لا توجد فواتير شراء' : 'No purchase invoices yet'}</p>}
+            empty={<p className={emptyStateClass}>{isAr ? 'لا توجد فواتير مورد' : 'No vendor bills yet'}</p>}
             renderCard={(row) => (
               <div key={row._id} className="space-y-2 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-dark-800">
                 <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={`${docLinkClass} text-base`}>
                   {row.invoiceNumber}
                 </Link>
                 <p className="text-sm text-slate-500">{trimName(row.seller)}</p>
+                <p className="text-xs text-slate-400">{row.vendorInvoiceNumber || row.contractNumber || '—'}</p>
                 <div className="flex items-center justify-between text-sm">
                   <Money value={row.grandTotal} />
                   <span className={softChipClass}>{paymentStatusLabel(row.paymentStatus, language)}</span>
                 </div>
+                {matchingStatusLabel(row.matchingStatus, language) ? (
+                  <span className={`${softChipClass} ${matchingStatusChipClass(row.matchingStatus)}`}>
+                    {matchingStatusLabel(row.matchingStatus, language)}
+                  </span>
+                ) : null}
+                {canRegisterPaymentOnBill(row) ? (
+                  <button
+                    type="button"
+                    className={`${rowActionBtnClass} w-full justify-center`}
+                    onClick={() => { setBatchPayBill(row); setBatchPayOpen(true) }}
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    {isAr ? 'تسجيل دفعة' : 'Register payment'}
+                  </button>
+                ) : null}
               </div>
             )}
           >
@@ -296,20 +431,24 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
                       }}
                     />
                   </th>
-                  <th className={salesThClass}>{isAr ? 'الرقم' : 'Number'}</th>
+                  <th className={salesThClass}>{isAr ? 'رقم الفاتورة' : 'Bill No'}</th>
+                  <th className={salesThClass}>{isAr ? 'رقم فاتورة المورد' : 'Vendor Invoice No'}</th>
                   <th className={salesThClass}>{isAr ? 'المورد' : 'Vendor'}</th>
-                  <th className={salesThClass}>{isAr ? 'تاريخ الفاتورة' : 'Bill date'}</th>
-                  <th className={salesThClass}>{isAr ? 'الاستحقاق' : 'Due date'}</th>
-                  <th className={salesThClass}>{isAr ? 'مرجع المورد' : 'Reference'}</th>
-                  <th className={salesThClass}>{isAr ? 'بدون ضريبة' : 'Tax excl.'}</th>
+                  <th className={salesThClass}>{isAr ? 'تاريخ الفاتورة' : 'Bill Date'}</th>
+                  <th className={salesThClass}>{isAr ? 'الاستحقاق' : 'Due Date'}</th>
+                  <th className={salesThClass}>{isAr ? 'بدون ضريبة' : 'Untaxed'}</th>
+                  <th className={salesThClass}>{isAr ? 'الضريبة' : 'VAT'}</th>
                   <th className={salesThClass}>{isAr ? 'الإجمالي' : 'Total'}</th>
-                  <th className={salesThClass}>{isAr ? 'حالة الدفع' : 'Payment'}</th>
+                  <th className={salesThClass}>{isAr ? 'المستحق' : 'Due'}</th>
+                  <th className={salesThClass}>{isAr ? 'المطابقة' : 'Match'}</th>
                   <th className={salesThClass}>{isAr ? 'الحالة' : 'Status'}</th>
                   <th className={salesThClass} />
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
+                {rows.map((row) => {
+                  const due = invoiceRemainingBalance(row)
+                  return (
                   <tr key={row._id} className={salesTrClass}>
                     <td className={salesTdClass}>
                       <input
@@ -324,6 +463,7 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
                         {row.invoiceNumber}
                       </Link>
                     </td>
+                    <td className={salesTdClass}>{row.vendorInvoiceNumber || row.contractNumber || '—'}</td>
                     <td className={salesTdClass}>{trimName(row.seller)}</td>
                     <td className={salesTdClass}>
                       {formatDateOnlyDisplay(row.issueDate, isAr ? 'ar-SA' : 'en-GB') || '—'}
@@ -331,31 +471,74 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
                     <td className={salesTdClass}>
                       {formatDateOnlyDisplay(row.dueDate, isAr ? 'ar-SA' : 'en-GB') || '—'}
                     </td>
-                    <td className={salesTdClass}>{row.contractNumber || row.purchaseOrderNumber || '—'}</td>
                     <td className={`${salesTdClass} tabular-nums`}>
                       <Money value={Number(row.taxableAmount ?? row.subtotal ?? 0)} />
                     </td>
+                    <td className={`${salesTdClass} tabular-nums`}>
+                      <Money value={Number(row.totalTax ?? 0)} />
+                    </td>
                     <td className={`${salesTdClass} tabular-nums`}><Money value={row.grandTotal} /></td>
+                    <td className={`${salesTdClass} tabular-nums`}><Money value={due} /></td>
                     <td className={salesTdClass}>
-                      <span className={softChipClass}>{paymentStatusLabel(row.paymentStatus, language)}</span>
+                      {matchingStatusLabel(row.matchingStatus, language) ? (
+                        <span className={`${softChipClass} ${matchingStatusChipClass(row.matchingStatus)}`}>
+                          {matchingStatusLabel(row.matchingStatus, language)}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
                     </td>
                     <td className={salesTdClass}>
                       <span className={softChipClass}>{documentStatusLabel(row.status, language)}</span>
+                      <span className={`${softChipClass} ms-1`}>{paymentStatusLabel(row.paymentStatus, language)}</span>
                     </td>
                     <td className={salesTdClass}>
                       <div className={rowActionsWrapClass}>
                         <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={rowActionBtnClass}>
                           <Eye className="h-4 w-4" />
                         </Link>
+                        {canRegisterPaymentOnBill(row) ? (
+                          <button
+                            type="button"
+                            className={rowActionBtnClass}
+                            title={isAr ? 'تسجيل دفعة' : 'Register payment'}
+                            onClick={() => { setBatchPayBill(row); setBatchPayOpen(true) }}
+                          >
+                            <CreditCard className="h-4 w-4" />
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </ResponsiveDataList>
         )}
       </div>
+
+      {totalPages > 1 ? (
+        <div className="flex items-center justify-center gap-2">
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            {isAr ? 'السابق' : 'Prev'}
+          </button>
+          <span className="text-sm text-slate-500">{page} / {totalPages}</span>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={page >= totalPages}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            {isAr ? 'التالي' : 'Next'}
+          </button>
+        </div>
+      ) : null}
 
       <RegisterPaymentModal
         isOpen={batchPayOpen}
@@ -372,6 +555,7 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
               amount: payload.amount,
               method: payload.method,
               memo: payload.memo,
+              confirmNegativeCash: payload.confirmNegativeCash === true,
             },
           })
         }}
@@ -380,41 +564,24 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
       <BatchVendorPaymentModal
         isOpen={multiPayOpen}
         onClose={() => setMultiPayOpen(false)}
-        bills={selectedRows}
+        bills={selectedRows.filter((row) => canRegisterPaymentOnBill(row))}
         language={language}
         isPending={multiPayMutation.isPending}
         onSubmit={(payload) => multiPayMutation.mutate(payload)}
       />
 
       {sepaUploadOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-dark-600 dark:bg-dark-800">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-              {isAr ? 'رفع SEPA إلى بوابة البنك' : 'Upload SEPA to bank portal'}
-            </h3>
-            <ol className="mt-3 list-decimal space-y-1.5 ps-5 text-sm text-slate-600 dark:text-slate-300">
-              <li>{isAr ? 'افتح بوابة الخدمات البنكية لشركتك.' : 'Open your company bank portal.'}</li>
-              <li>{isAr ? 'اختر مدفوعات / SEPA Credit Transfer / pain.001.' : 'Choose Payments / SEPA Credit Transfer / pain.001.'}</li>
-              <li>{isAr ? 'ارفع ملف XML الذي تم تنزيله للتو.' : 'Upload the XML file just downloaded.'}</li>
-              <li>{isAr ? 'بعد قبول البنك، أكّد أدناه.' : 'After the bank accepts it, confirm below.'}</li>
-            </ol>
-            <p className="mt-3 text-xs text-slate-400">
-              {isAr ? `فواتير في الملف: ${sepaUploadIds.length}` : `Bills in file: ${sepaUploadIds.length}`}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-dark-800">
+            <p className="text-sm text-slate-700 dark:text-slate-200">
+              {isAr ? 'هل رفعت ملف SEPA إلى البنك؟' : 'Did you upload the SEPA file to the bank?'}
             </p>
             <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-dark-600"
-                onClick={() => { setSepaUploadOpen(false); setSepaUploadIds([]) }}
-              >
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSepaUploadOpen(false)}>
                 {isAr ? 'لاحقاً' : 'Later'}
               </button>
-              <button
-                type="button"
-                className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white"
-                onClick={handleMarkSepaUploaded}
-              >
-                {isAr ? 'تم الرفع إلى البنك' : 'Mark uploaded to bank'}
+              <button type="button" className="btn btn-primary btn-sm" onClick={handleMarkSepaUploaded}>
+                {isAr ? 'نعم، تم الرفع' : 'Yes uploaded'}
               </button>
             </div>
           </div>

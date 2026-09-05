@@ -285,6 +285,7 @@ export default function InvoiceView() {
       memo: payload?.memo,
       differenceMode: payload?.differenceMode,
       differenceAccountId: payload?.differenceAccountId,
+      confirmNegativeCash: payload?.confirmNegativeCash === true,
     }),
     onSuccess: () => {
       toast.success(language === 'ar' ? 'تم تسجيل الدفعة' : 'Payment recorded')
@@ -292,6 +293,8 @@ export default function InvoiceView() {
       queryClient.invalidateQueries(['invoice', id])
       queryClient.invalidateQueries(['invoices'])
       queryClient.invalidateQueries(['customers'])
+      queryClient.invalidateQueries(['vendor-bills'])
+      queryClient.invalidateQueries(['vendor-payments'])
     },
     onError: (error) => {
       toast.error(error.response?.data?.error || (language === 'ar' ? 'فشل تسجيل الدفعة' : 'Failed to record payment'))

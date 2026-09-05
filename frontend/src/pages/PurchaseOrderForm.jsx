@@ -1332,10 +1332,10 @@ export default function PurchaseOrderForm() {
               onClick={() => navigate(`/app/dashboard/accounting/invoices/new/purchase?poId=${id}`)}
               disabled={!isEdit || order?.status === 'cancelled' || order?.status === 'draft'}
               className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50/70 px-3 py-1.5 text-[12px] font-semibold text-sky-800 transition hover:bg-sky-100 disabled:opacity-40 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300"
-              title={language === 'ar' ? 'إنشاء فاتورة مشتريات في المحاسبة من أمر الشراء' : 'Create an accounting purchase invoice from this PO'}
+              title={language === 'ar' ? 'إنشاء فاتورة مورد (قيد محاسبي: مخزون وسيط / ضريبة مدخلات / ذمم دائنة)' : 'Create vendor bill (GL: stock interim / VAT input / AP)'}
             >
               <Receipt className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
-              {language === 'ar' ? 'فاتورة محاسبة' : 'Accounting invoice'}
+              {language === 'ar' ? 'إنشاء فاتورة مورد' : 'Create Bill'}
             </button>
             <button
               type="button"
@@ -1360,6 +1360,11 @@ export default function PurchaseOrderForm() {
               onClick={() => setShowPaymentModal(true)}
               disabled={order?.status === 'cancelled'}
               className={inkBtn}
+              title={
+                !order?.billedInvoiceId
+                  ? (language === 'ar' ? 'يفضّل إنشاء فاتورة مورد أولاً — أو سجّل دفعة مقدمة' : 'Prefer Create Bill first — or record as supplier advance')
+                  : undefined
+              }
             >
               <CreditCard className="h-3.5 w-3.5 opacity-80" />
               {language === 'ar' ? 'تسجيل دفعة' : 'Record payment'}

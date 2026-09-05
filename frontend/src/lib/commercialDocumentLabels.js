@@ -72,20 +72,22 @@ export function resolveZatcaInvoiceKind(invoice, { required = false } = {}) {
   if (docType === '381') return 'credit_note'
   if (docType === '383') return 'debit_note'
 
-  const zatcaType = String(invoice?.zatca?.invoiceType || '').toLowerCase()
-  if (zatcaType === 'simplified' || zatcaType === 'standard') {
-    return zatcaType === 'simplified' ? 'simplified' : 'standard'
-  }
-
+  // Prefer explicit business fields over nested zatca.invoiceType (schema default is
+  // "standard", which previously mislabeled B2C invoices as Tax Invoice).
   const code = String(invoice.invoiceTypeCode || '')
   const txn = String(invoice.transactionType || '').toUpperCase()
   if (code.startsWith('02') || txn === 'B2C' || txn === 'SIMPLIFIED') return 'simplified'
   if (code.startsWith('01') || txn === 'B2B' || txn === 'STANDARD') return 'standard'
 
+  const zatcaType = String(invoice?.zatca?.invoiceType || '').toLowerCase()
+  if (zatcaType === 'simplified' || zatcaType === 'standard') {
+    return zatcaType === 'simplified' ? 'simplified' : 'standard'
+  }
+
   // Some UIs store a display label on invoiceType
   const label = String(invoice.invoiceType || '').toLowerCase()
   if (label.includes('simplified') || label.includes('b2c') || label.includes('مبسطة')) return 'simplified'
-  if (label.includes('standard') || label.includes('b2b') || label === '388') return 'standard'
+  if (label.includes('standard') || label.includes('b2b')) return 'standard'
 
   if (required) {
     throw new Error('Cannot resolve ZATCA invoice kind: set transactionType (B2B/B2C) or invoiceTypeCode (01…/02…)')

@@ -706,7 +706,12 @@ export function JournalAuditReportPanel({ language }) {
               {data.gaps.slice(0, 8).map((g, i) => <li key={i}>{g.message}</li>)}
             </ul>
           </div>
-        ) : null}
+        ) : (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-2 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-100">
+            {isAr ? 'التسلسل سليم — لا فجوات في النطاق' : 'Sequence intact — no gaps in range'}
+            {data?.backdatedCount ? ` · ${data.backdatedCount} ${isAr ? 'قيد بتاريخ سابق' : 'backdated'}` : ''}
+          </div>
+        )}
         {isFetching && data ? <p className="text-xs text-slate-400">…</p> : null}
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
           <table className="min-w-full text-sm">
@@ -729,7 +734,14 @@ export function JournalAuditReportPanel({ language }) {
                     className={href ? 'cursor-pointer hover:bg-emerald-50/50' : ''}
                     onClick={() => href && navigate(href)}
                   >
-                    <td className="px-4 py-2">{r.entryDate ? new Date(r.entryDate).toLocaleDateString() : '—'}</td>
+                    <td className="px-4 py-2">
+                      {r.entryDate ? new Date(r.entryDate).toLocaleDateString() : '—'}
+                      {r.isBackdated ? (
+                        <span className="ms-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/50 dark:text-amber-100">
+                          {isAr ? 'تاريخ سابق' : 'backdated'}
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="px-4 py-2 font-mono text-xs">{r.entryNumber}</td>
                     <td className="px-4 py-2">{r.journalCode || '—'}</td>
                     <td className="px-4 py-2">{r.memo || r.reference || '—'}</td>
@@ -740,6 +752,228 @@ export function JournalAuditReportPanel({ language }) {
               })}
               {!(data?.rows || []).length && (
                 <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">{isAr ? 'لا قيود' : 'No entries'}</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </AccountingQueryState>
+    </div>
+  )
+}
+
+export function SequenceIntegrityReportPanel({ language }) {
+  const isAr = language === 'ar'
+  const [year, setYear] = useState(String(new Date().getFullYear()))
+  const [journalId, setJournalId] = useState('')
+
+  const { data: books = [] } = useAccountingQuery({
+    queryKey: ['accounting-journal-books'],
+    queryFn: () => api.get('/accounting/journal-books').then((r) => r.data || []),
+  })
+  const { data, isFetching, isLoading, isError, error, refetch } = useAccountingQuery({
+    queryKey: ['accounting-sequence-integrity', year, journalId],
+    queryFn: () => api.get('/accounting/reports/sequence-integrity', {
+      params: { year, journalId: journalId || undefined },
+    }).then((r) => r.data),
+  })
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-xs font-medium text-slate-500">
+          {isAr ? 'السنة' : 'Year'}
+          <input
+            type="number"
+            value={year}
+            onChange={(e) => setYear(e.target.value)}
+            className="mt-1 block w-28 rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+          />
+        </label>
+        <label className="min-w-[200px] text-xs font-medium text-slate-500">
+          {isAr ? 'دفتر اليومية' : 'Journal'}
+          <select
+            value={journalId}
+            onChange={(e) => setJournalId(e.target.value)}
+            className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-900"
+          >
+            <option value="">{isAr ? 'الكل' : 'All journals'}</option>
+            {books.map((b) => (
+              <option key={b._id} value={b._id}>{b.code} — {isAr ? (b.nameAr || b.name) : b.name}</option>
+            ))}
+          </select>
+        </label>
+        <p className="pb-2 text-sm text-slate-600 dark:text-slate-300">
+          {isAr ? 'سلامة تسلسل القيود (زاتكا)' : 'Sequence integrity (ZATCA)'}
+          {data?.summary?.intact ? (
+            <span className="ms-2 text-emerald-600">{isAr ? 'سليم' : 'Intact'}</span>
+          ) : data ? (
+            <span className="ms-2 text-amber-600">
+              {data.summary?.totalGaps || 0} {isAr ? 'فجوة' : 'gaps'} · {data.summary?.totalDuplicates || 0} {isAr ? 'تكرار' : 'dupes'}
+            </span>
+          ) : null}
+        </p>
+      </div>
+      <AccountingQueryState
+        language={language}
+        isLoading={isLoading && !data}
+        isError={isError}
+        error={error}
+        onRetry={() => refetch()}
+        skeletonRows={4}
+      >
+        {isFetching && data ? <p className="text-xs text-slate-400">…</p> : null}
+        <div className="space-y-3">
+          {(data?.books || []).map((b) => (
+            <div
+              key={b.series}
+              className={`rounded-2xl border px-4 py-3 text-sm ${
+                b.ok
+                  ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20'
+                  : 'border-amber-200 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/20'
+              }`}
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="font-semibold font-mono">{b.series}</p>
+                <p className="text-xs text-slate-500">
+                  {b.count} {isAr ? 'قيد' : 'entries'}
+                  {b.minSeq != null ? ` · ${String(b.minSeq).padStart(4, '0')}–${String(b.maxSeq).padStart(4, '0')}` : ''}
+                  {b.backdatedCount ? ` · ${b.backdatedCount} ${isAr ? 'تاريخ سابق' : 'backdated'}` : ''}
+                </p>
+              </div>
+              {(b.gaps || []).length ? (
+                <ul className="mt-2 list-disc ps-5 text-xs text-amber-900 dark:text-amber-100">
+                  {b.gaps.map((g, i) => <li key={`g-${i}`}>{g.message}</li>)}
+                </ul>
+              ) : null}
+              {(b.duplicates || []).length ? (
+                <ul className="mt-2 list-disc ps-5 text-xs text-rose-800 dark:text-rose-200">
+                  {b.duplicates.map((d, i) => <li key={`d-${i}`}>{d.message}</li>)}
+                </ul>
+              ) : null}
+              {(b.dateOrderIssues || []).length ? (
+                <ul className="mt-2 list-disc ps-5 text-xs text-slate-600 dark:text-slate-300">
+                  {b.dateOrderIssues.slice(0, 5).map((d, i) => (
+                    <li key={`o-${i}`}>
+                      {d.message}
+                      {d.isBackdated ? ` (${isAr ? 'معلّم' : 'flagged'})` : ''}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {b.ok && !(b.dateOrderIssues || []).length ? (
+                <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">{isAr ? 'لا فجوات أو تكرار' : 'No gaps or duplicates'}</p>
+              ) : null}
+            </div>
+          ))}
+          {!(data?.books || []).length && (
+            <p className="py-8 text-center text-slate-400">{isAr ? 'لا سلاسل لهذه السنة' : 'No series for this year'}</p>
+          )}
+        </div>
+      </AccountingQueryState>
+    </div>
+  )
+}
+
+export function JournalBookMappingReportPanel({ language }) {
+  const isAr = language === 'ar'
+  const [from, setFrom] = useState(yearStartIso())
+  const [to, setTo] = useState(todayIso())
+  const [onlyMismatches, setOnlyMismatches] = useState(true)
+
+  const { data, isFetching, isLoading, isError, error, refetch } = useAccountingQuery({
+    queryKey: ['accounting-journal-book-mapping', from, to, onlyMismatches],
+    queryFn: () => api.get('/accounting/reports/journal-book-mapping', {
+      params: { from, to, onlyMismatches: onlyMismatches ? '1' : '0' },
+    }).then((r) => r.data),
+  })
+
+  return (
+    <div className="space-y-4">
+      <ReportFilterRibbon
+        language={language}
+        mode="range"
+        from={from}
+        to={to}
+        setFrom={setFrom}
+        setTo={setTo}
+        showComparison={false}
+        showBasis={false}
+        title={isAr ? 'تقرير مطابقة دفاتر القيود' : 'Journal book mapping'}
+        extra={(
+          <label className="flex items-center gap-2 text-xs font-medium text-slate-500">
+            <input
+              type="checkbox"
+              checked={onlyMismatches}
+              onChange={(e) => setOnlyMismatches(e.target.checked)}
+              className="rounded border-slate-300"
+            />
+            {isAr ? 'المخالفات فقط' : 'Mismatches only'}
+          </label>
+        )}
+        exportProps={{
+          getRows: async () => (data?.rows || []).map((r) => ({
+            date: r.entryDate ? new Date(r.entryDate).toISOString().slice(0, 10) : '',
+            number: r.entryNumber,
+            actual: r.actualJournalCode,
+            expected: r.expectedSequencePrefix,
+            note: r.note,
+          })),
+          columns: [
+            { key: 'date', label: isAr ? 'التاريخ' : 'Date' },
+            { key: 'number', label: isAr ? 'الرقم' : 'Number' },
+            { key: 'actual', label: isAr ? 'الفعلية' : 'Actual' },
+            { key: 'expected', label: isAr ? 'المتوقعة' : 'Expected' },
+            { key: 'note', label: isAr ? 'ملاحظة' : 'Note' },
+          ],
+          fileBaseName: 'maqder-journal-book-mapping',
+          title: isAr ? 'مطابقة دفاتر القيود' : 'Journal book mapping',
+        }}
+      />
+      <p className="text-xs text-slate-500">
+        {isAr
+          ? 'لا يُعاد ترقيم القيود القديمة (مسار التدقيق). يعرض أين كان يجب أن تُسجَّل.'
+          : 'Historical numbers are never renamed (audit trail). Shows which book each entry should have used.'}
+        {data?.count != null ? ` · ${data.count} ${isAr ? 'صف' : 'rows'}` : ''}
+      </p>
+      <AccountingQueryState
+        language={language}
+        isLoading={isLoading && !data}
+        isError={isError}
+        error={error}
+        onRetry={() => refetch()}
+        skeletonRows={6}
+      >
+        {isFetching && data ? <p className="text-xs text-slate-400">…</p> : null}
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-dark-600 dark:bg-dark-800">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-[11px] uppercase text-slate-400 dark:bg-dark-900">
+              <tr>
+                <th className="px-4 py-2 text-start">{isAr ? 'الرقم' : 'Number'}</th>
+                <th className="px-4 py-2 text-start">{isAr ? 'الفعلية' : 'Actual'}</th>
+                <th className="px-4 py-2 text-start">{isAr ? 'المتوقعة' : 'Expected'}</th>
+                <th className="px-4 py-2 text-start">{isAr ? 'البيان' : 'Memo'}</th>
+                <th className="px-4 py-2 text-start">{isAr ? 'ملاحظة' : 'Note'}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {(data?.rows || []).map((r) => (
+                <tr
+                  key={r.entryId}
+                  className={r.mismatch ? 'bg-amber-50/40 dark:bg-amber-950/20' : ''}
+                >
+                  <td className="px-4 py-2 font-mono text-xs">{r.entryNumber}</td>
+                  <td className="px-4 py-2">{r.actualJournalCode || '—'}</td>
+                  <td className="px-4 py-2 font-medium">{r.expectedSequencePrefix}</td>
+                  <td className="px-4 py-2 max-w-xs truncate">{r.memo || r.sourceNumber || '—'}</td>
+                  <td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">{r.note}</td>
+                </tr>
+              ))}
+              {!(data?.rows || []).length && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
+                    {isAr ? 'لا مخالفات' : 'No mismatches'}
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>

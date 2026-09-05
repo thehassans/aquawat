@@ -65,6 +65,7 @@ export default function PurchasesReports() {
   const [pivotGroupBy, setPivotGroupBy] = useState('supplier') // 'supplier', 'warehouse', 'month', 'status', 'product'
   const [sortField, setSortField] = useState('totalSpend')
   const [sortAsc, setSortAsc] = useState(false)
+  const [reportTab, setReportTab] = useState('analytics') // analytics | unmatched | interim
 
   // Calculate actual date filters based on preset
   const computedDates = useMemo(() => {
@@ -113,6 +114,30 @@ export default function PurchasesReports() {
   const { data: warehouses } = useQuery({
     queryKey: ['warehouses'],
     queryFn: () => api.get('/warehouses').then((res) => (Array.isArray(res.data) ? res.data : res.data?.warehouses || [])),
+  })
+
+  const { data: unmatchedData, isLoading: unmatchedLoading } = useQuery({
+    queryKey: ['purchases-unmatched-receipts', selectedSupplierId, selectedWarehouseId],
+    queryFn: () =>
+      api.get('/purchase-orders/reports/unmatched-receipts', {
+        params: {
+          supplierId: selectedSupplierId || undefined,
+          warehouseId: selectedWarehouseId || undefined,
+        },
+      }).then((r) => r.data),
+    enabled: reportTab === 'unmatched' || reportTab === 'interim',
+  })
+
+  const { data: interimData, isLoading: interimLoading } = useQuery({
+    queryKey: ['purchases-stock-interim-1310', selectedSupplierId, selectedWarehouseId],
+    queryFn: () =>
+      api.get('/purchase-orders/reports/stock-interim-received', {
+        params: {
+          supplierId: selectedSupplierId || undefined,
+          warehouseId: selectedWarehouseId || undefined,
+        },
+      }).then((r) => r.data),
+    enabled: reportTab === 'interim',
   })
 
   const summary = reportData?.summary || {}
@@ -221,8 +246,8 @@ export default function PurchasesReports() {
           </h1>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             {language === 'ar'
-              ? 'تحليل شامل لحجم الإنفاق على المشتريات، أداء الموردين، الرسوم البيانية، وجداول التحليل المحوري (Pivot Matrix).'
-              : 'Deep-dive analysis of purchase volumes, vendor spend share, status distributions, and interactive pivot tables.'}
+              ? 'تحليل شامل لحجم الإنفاق على المشتريات، أداء الموردين، والاستلامات غير المفوترة (1310).'
+              : 'Purchase spend analytics plus unmatched receipts and Stock Interim (1310) reconciliation.'}
           </p>
         </div>
 
@@ -246,6 +271,168 @@ export default function PurchasesReports() {
           </button>
         </div>
       </div>
+
+      <div className="flex flex-wrap gap-2">
+        {[
+          { id: 'analytics', en: 'Analytics', ar: 'التحليلات' },
+          { id: 'unmatched', en: 'Unmatched receipts', ar: 'استلامات غير مفوترة' },
+          { id: 'interim', en: '1310 reconciliation', ar: 'تسوية 1310' },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setReportTab(tab.id)}
+            className={`rounded-xl px-3 py-1.5 text-[12px] font-semibold transition ${
+              reportTab === tab.id
+                ? 'bg-teal-700 text-white dark:bg-teal-600'
+                : 'border border-slate-200/80 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-slate-300'
+            }`}
+          >
+            {language === 'ar' ? tab.ar : tab.en}
+          </button>
+        ))}
+      </div>
+
+      {reportTab === 'unmatched' ? (
+        <div className={`${shell} p-5`}>
+          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 pb-4 dark:border-white/10">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+                {language === 'ar' ? 'استلامات بدون فاتورة مورد' : 'Unmatched receipts (GRNI)'}
+              </h2>
+              <p className="mt-1 text-xs text-slate-500">
+                {language === 'ar'
+                  ? 'بنود GRN المستلمة التي لم تُفوتر بالكامل — تفسّر رصيد حساب 1310.'
+                  : 'Received GRN lines not yet fully billed — explains account 1310 balance.'}
+              </p>
+            </div>
+            <div className="text-end">
+              <p className="text-[10px] uppercase tracking-wide text-slate-400">{language === 'ar' ? 'الإجمالي المفتوح' : 'Open amount'}</p>
+              <p className="text-xl font-semibold tabular-nums text-slate-900 dark:text-white">
+                <Money value={unmatchedData?.totalAmount || 0} />
+              </p>
+            </div>
+          </div>
+          {unmatchedLoading ? (
+            <p className="py-8 text-center text-sm text-slate-400">{language === 'ar' ? 'جارٍ التحميل…' : 'Loading…'}</p>
+          ) : (
+            <div className={`${purchasesTableWrapClass} mt-4`}>
+              <table className={purchasesTableClass}>
+                <thead>
+                  <tr>
+                    <th>{language === 'ar' ? 'GRN' : 'GRN'}</th>
+                    <th>{language === 'ar' ? 'التاريخ' : 'Date'}</th>
+                    <th>{language === 'ar' ? 'المورد' : 'Supplier'}</th>
+                    <th>{language === 'ar' ? 'طلب الشراء' : 'PO'}</th>
+                    <th>{language === 'ar' ? 'المنتج' : 'Product'}</th>
+                    <th className="text-end">{language === 'ar' ? 'كمية مفتوحة' : 'Open qty'}</th>
+                    <th className="text-end">{language === 'ar' ? 'التكلفة' : 'Unit cost'}</th>
+                    <th className="text-end">{language === 'ar' ? 'المبلغ' : 'Amount'}</th>
+                    <th className="text-end">{language === 'ar' ? 'العمر (يوم)' : 'Age (days)'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(unmatchedData?.rows || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-8 text-center text-slate-400">
+                        {language === 'ar' ? 'لا توجد استلامات مفتوحة' : 'No open receipts'}
+                      </td>
+                    </tr>
+                  ) : (
+                    (unmatchedData?.rows || []).map((row) => (
+                      <tr key={`${row.grnId}-${row.productId}`}>
+                        <td className="font-medium">{row.grnNumber}</td>
+                        <td>{row.dateReceived ? String(row.dateReceived).slice(0, 10) : '—'}</td>
+                        <td>{row.supplierName || '—'}</td>
+                        <td>{row.poNumber || '—'}</td>
+                        <td>{row.productName || '—'}</td>
+                        <td className="text-end tabular-nums">{row.quantityOpen}</td>
+                        <td className="text-end tabular-nums"><Money value={row.unitCost} /></td>
+                        <td className="text-end tabular-nums"><Money value={row.amount} /></td>
+                        <td className="text-end tabular-nums">{row.ageDays}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {reportTab === 'interim' ? (
+        <div className={`${shell} p-5`}>
+          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 pb-4 dark:border-white/10">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+                {language === 'ar' ? 'تسوية مخزون وسيط مستلم (1310)' : 'Stock Interim Received (1310) reconciliation'}
+              </h2>
+              <p className="mt-1 text-xs text-slate-500">
+                {interimData?.account
+                  ? `${interimData.account.code} · ${interimData.account.name} · ${interimData.account.type || ''}`
+                  : '1310'}
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-6 text-end">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-slate-400">{language === 'ar' ? 'إجمالي التقرير' : 'Report total'}</p>
+                <p className="text-lg font-semibold tabular-nums"><Money value={interimData?.reportTotal || 0} /></p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-slate-400">{language === 'ar' ? 'رصيد GL' : 'GL balance'}</p>
+                <p className="text-lg font-semibold tabular-nums"><Money value={interimData?.glBalance || 0} /></p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-slate-400">{language === 'ar' ? 'الفرق' : 'Difference'}</p>
+                <p className={`text-lg font-semibold tabular-nums ${Math.abs(interimData?.difference || 0) > 0.01 ? 'text-amber-700 dark:text-amber-300' : 'text-teal-700 dark:text-teal-300'}`}>
+                  <Money value={interimData?.difference || 0} />
+                </p>
+              </div>
+            </div>
+          </div>
+          {interimLoading ? (
+            <p className="py-8 text-center text-sm text-slate-400">{language === 'ar' ? 'جارٍ التحميل…' : 'Loading…'}</p>
+          ) : (
+            <div className={`${purchasesTableWrapClass} mt-4`}>
+              <table className={purchasesTableClass}>
+                <thead>
+                  <tr>
+                    <th>{language === 'ar' ? 'GRN' : 'GRN'}</th>
+                    <th>{language === 'ar' ? 'طلب الشراء' : 'PO'}</th>
+                    <th>{language === 'ar' ? 'المنتج' : 'Product'}</th>
+                    <th className="text-end">{language === 'ar' ? 'كمية مفتوحة' : 'Open qty'}</th>
+                    <th className="text-end">{language === 'ar' ? 'التكلفة' : 'Unit cost'}</th>
+                    <th className="text-end">{language === 'ar' ? 'المبلغ' : 'Amount'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(interimData?.rows || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                        {language === 'ar' ? 'لا بنود مفتوحة — يفترض أن يكون 1310 صفراً' : 'No open lines — 1310 should be zero'}
+                      </td>
+                    </tr>
+                  ) : (
+                    (interimData?.rows || []).map((row) => (
+                      <tr key={`i-${row.grnId}-${row.productId}`}>
+                        <td className="font-medium">{row.grnNumber}</td>
+                        <td>{row.poNumber || '—'}</td>
+                        <td>{row.productName || '—'}</td>
+                        <td className="text-end tabular-nums">{row.quantityOpen}</td>
+                        <td className="text-end tabular-nums"><Money value={row.unitCost} /></td>
+                        <td className="text-end tabular-nums"><Money value={row.amount} /></td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {reportTab === 'analytics' ? (
+      <>
 
       {/* Filter Control Bar */}
       <div className={`${shell} p-4 space-y-3`}>
@@ -744,6 +931,8 @@ export default function PurchasesReports() {
           </table>
         </div>
       </div>
+      </>
+      ) : null}
     </div>
   )
 }

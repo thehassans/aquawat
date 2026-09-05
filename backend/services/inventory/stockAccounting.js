@@ -79,92 +79,33 @@ export async function ensureStockAccountingAccounts(tenantId, userId = null) {
  * Ensure a system Stock journal book exists (not a JournalEntry).
  */
 export async function ensureDefaultStockJournal(tenantId, userId = null) {
-  const tid = toObjectId(tenantId);
-  const Journal = (await import('../../models/Journal.js')).default;
-  let book = await Journal.findOne({ tenantId: tid, code: 'STJ' });
-  if (!book) {
-    book = await Journal.findOne({ tenantId: tid, type: 'stock', isSystem: true });
-  }
-  if (!book) {
-    book = await Journal.create({
-      tenantId: tid,
-      code: 'STJ',
-      name: 'Stock Journal',
-      nameAr: 'دفتر المخزون',
-      type: 'stock',
-      sequencePrefix: 'STJ',
-      active: true,
-      isSystem: true,
-      createdBy: userId || undefined,
-    });
-  }
-  return book;
-}
-
-/** System Sales journal book (SAL) for invoice revenue entries. */
-export async function ensureDefaultSalesJournal(tenantId, userId = null) {
-  return ensureJournalBook(tenantId, {
-    code: 'SAL',
-    name: 'Sales Journal',
-    nameAr: 'دفتر المبيعات',
-    type: 'sales',
-    sequencePrefix: 'SAL',
-    userId,
-    defaultDebitRole: 'ar',
-    defaultCreditRole: 'sales',
-  });
-}
-
-export async function ensureDefaultPurchaseJournal(tenantId, userId = null) {
-  return ensureJournalBook(tenantId, {
-    code: 'PUR',
-    name: 'Purchase Journal',
-    nameAr: 'دفتر المشتريات',
-    type: 'purchase',
-    sequencePrefix: 'PUR',
-    userId,
-    defaultDebitRole: 'inventory',
-    defaultCreditRole: 'ap',
-  });
+  const { ensureSystemJournalBook } = await import('../journalBookService.js');
+  return ensureSystemJournalBook(tenantId, 'stock', userId);
 }
 
 export async function ensureDefaultCashJournal(tenantId, userId = null) {
-  return ensureJournalBook(tenantId, {
-    code: 'CSH',
-    name: 'Cash Journal',
-    nameAr: 'دفتر النقدية',
-    type: 'cash',
-    sequencePrefix: 'CSH',
-    userId,
-    defaultDebitRole: 'cash',
-    defaultCreditRole: 'ar',
-  });
+  const { ensureSystemJournalBook } = await import('../journalBookService.js');
+  return ensureSystemJournalBook(tenantId, 'cash', userId);
 }
 
 export async function ensureDefaultBankJournal(tenantId, userId = null) {
-  return ensureJournalBook(tenantId, {
-    code: 'BNK',
-    name: 'Bank Journal',
-    nameAr: 'دفتر البنك',
-    type: 'bank',
-    sequencePrefix: 'BNK',
-    userId,
-    defaultDebitRole: 'bank',
-    defaultCreditRole: 'ar',
-  });
+  const { ensureSystemJournalBook } = await import('../journalBookService.js');
+  return ensureSystemJournalBook(tenantId, 'bank', userId);
+}
+
+export async function ensureDefaultSalesJournal(tenantId, userId = null) {
+  const { ensureSystemJournalBook } = await import('../journalBookService.js');
+  return ensureSystemJournalBook(tenantId, 'sales', userId);
+}
+
+export async function ensureDefaultPurchaseJournal(tenantId, userId = null) {
+  const { ensureSystemJournalBook } = await import('../journalBookService.js');
+  return ensureSystemJournalBook(tenantId, 'purchase', userId);
 }
 
 export async function ensureDefaultMiscJournal(tenantId, userId = null) {
-  return ensureJournalBook(tenantId, {
-    code: 'MISC',
-    name: 'Miscellaneous Journal',
-    nameAr: 'دفتر متنوع',
-    type: 'miscellaneous',
-    sequencePrefix: 'MISC',
-    userId,
-    defaultDebitRole: 'suspense',
-    defaultCreditRole: 'suspense',
-  });
+  const { ensureSystemJournalBook } = await import('../journalBookService.js');
+  return ensureSystemJournalBook(tenantId, 'manual', userId);
 }
 
 async function ensureJournalBook(tenantId, {
@@ -656,6 +597,7 @@ export function buildPurchaseBillClearingLines({
   inventory,
   ap,
   vatInput,
+  vatOutput = null,
   useInterim = true,
   description = '',
   /** Optional per-account goods/expense debits (should sum with priceDiff to net). */
@@ -667,18 +609,26 @@ export function buildPurchaseBillClearingLines({
   priceDiffLines = null,
   paymentSchedule = null,
   partnerId = null,
+  /**
+   * Per-tax postings for ZATCA input grid / reverse charge / non-recoverable.
+   * [{ taxId, amount, recoverable, isReverseCharge }]
+   * When omitted, legacy behaviour: all taxAmount → recoverable Dr vatInput.
+   */
+  taxPostings = null,
 }) {
   const net = round2(Math.abs(Number(netAmount) || 0));
   const tax = round2(Math.max(0, Number(taxAmount) || 0));
-  const gross = round2(net + tax);
-  if (gross <= 0 || !ap) return [];
+  if (!ap) return [];
 
   const lines = [];
 
-  const pushDebit = (account, amount, desc) => {
+  const pushDebit = (account, amount, desc, extra = {}) => {
     const amt = round2(Math.abs(Number(amount) || 0));
     if (amt <= 0 || !account?._id) return;
-    const key = `d:${String(account._id)}:${desc || ''}`;
+    const taxKey = Array.isArray(extra.taxIds) && extra.taxIds.length
+      ? extra.taxIds.map(String).join(',')
+      : '';
+    const key = `d:${String(account._id)}:${desc || ''}:${taxKey}`;
     const prev = lines.find((l) => l._mergeKey === key);
     if (prev) prev.debit = round2(prev.debit + amt);
     else {
@@ -689,14 +639,18 @@ export function buildPurchaseBillClearingLines({
         debit: amt,
         credit: 0,
         description: desc || description || 'Clear stock interim / inventory',
+        ...extra,
       });
     }
   };
 
-  const pushCredit = (account, amount, desc) => {
+  const pushCredit = (account, amount, desc, extra = {}) => {
     const amt = round2(Math.abs(Number(amount) || 0));
     if (amt <= 0 || !account?._id) return;
-    const key = `c:${String(account._id)}:${desc || ''}`;
+    const taxKey = Array.isArray(extra.taxIds) && extra.taxIds.length
+      ? extra.taxIds.map(String).join(',')
+      : '';
+    const key = `c:${String(account._id)}:${desc || ''}:${taxKey}`;
     const prev = lines.find((l) => l._mergeKey === key);
     if (prev) prev.credit = round2(prev.credit + amt);
     else {
@@ -707,6 +661,7 @@ export function buildPurchaseBillClearingLines({
         debit: 0,
         credit: amt,
         description: desc || description || 'Price difference',
+        ...extra,
       });
     }
   };
@@ -735,30 +690,68 @@ export function buildPurchaseBillClearingLines({
 
   if (!lines.length) return [];
 
-  // Strip merge keys before return
-  for (const l of lines) delete l._mergeKey;
+  const postings = Array.isArray(taxPostings) && taxPostings.length
+    ? taxPostings
+    : (tax > 0
+      ? [{ taxId: null, amount: tax, recoverable: true, isReverseCharge: false }]
+      : []);
 
-  if (tax > 0 && vatInput) {
-    lines.push({
-      accountId: vatInput._id,
-      accountCode: vatInput.code,
-      debit: tax,
-      credit: 0,
-      description: description || 'VAT input',
-    });
-  } else if (tax > 0) {
-    const firstDebit = lines.find((l) => l.debit > 0);
-    if (firstDebit) firstDebit.debit = round2(firstDebit.debit + tax);
+  let payableTax = 0;
+  let nonRecoverableTax = 0;
+
+  for (const posting of postings) {
+    const amt = round2(Math.max(0, Number(posting.amount) || 0));
+    if (amt <= 0) continue;
+    const taxIds = posting.taxId ? [posting.taxId] : [];
+    if (posting.isReverseCharge) {
+      // Saudi reverse charge: Dr VAT Input / Cr VAT Output (not payable to supplier)
+      if (vatInput) {
+        pushDebit(vatInput, amt, description || 'VAT input (reverse charge)', { taxIds });
+      }
+      if (vatOutput) {
+        pushCredit(vatOutput, amt, description || 'VAT output (reverse charge)', { taxIds });
+      } else if (vatInput) {
+        // No output account — keep balanced by folding into AP (should not happen with CoA)
+        payableTax = round2(payableTax + amt);
+      }
+      continue;
+    }
+    if (posting.recoverable === false) {
+      // Non-recoverable: VAT stays in expense, never hits 1400
+      nonRecoverableTax = round2(nonRecoverableTax + amt);
+      payableTax = round2(payableTax + amt);
+      continue;
+    }
+    // Standard recoverable input VAT
+    if (vatInput) {
+      pushDebit(vatInput, amt, description || 'VAT input', { taxIds });
+      payableTax = round2(payableTax + amt);
+    } else {
+      nonRecoverableTax = round2(nonRecoverableTax + amt);
+      payableTax = round2(payableTax + amt);
+    }
   }
+
+  if (nonRecoverableTax > 0) {
+    const firstDebit = lines.find((l) => l.debit > 0 && !(Array.isArray(l.taxIds) && l.taxIds.length));
+    if (firstDebit) {
+      firstDebit.debit = round2(firstDebit.debit + nonRecoverableTax);
+      firstDebit.description = `${firstDebit.description || description || 'Expense'} (incl. non-recoverable VAT)`.trim();
+    }
+  }
+
+  const gross = round2(net + payableTax);
+  if (gross <= 0 && !lines.some((l) => l.debit > 0 || l.credit > 0)) return [];
 
   const apCredits = buildPayableCreditLines({
     ap,
-    gross,
+    gross: Math.max(gross, 0),
     paymentSchedule,
     description: description || 'Accounts payable',
     partnerId,
   });
   for (const apLine of apCredits) {
+    if (!(apLine.debit > 0 || apLine.credit > 0)) continue;
     lines.push({
       accountId: apLine.accountId,
       accountCode: apLine.accountCode,
@@ -770,6 +763,8 @@ export function buildPurchaseBillClearingLines({
       trancheSequence: apLine.trancheSequence,
     });
   }
+
+  for (const l of lines) delete l._mergeKey;
   return lines;
 }
 
@@ -950,7 +945,6 @@ export async function postPurchaseInvoiceJournal({
   currency = 'SAR',
 }) {
   if (!invoice?._id || invoice.flow !== 'purchase') return null;
-  if (!(await isStockAccountingEnabled(tenantId))) return null;
 
   const tid = toObjectId(tenantId);
   const existing = await findExistingSourceEntry(tid, 'PurchaseInvoice', invoice._id);
@@ -960,11 +954,17 @@ export async function postPurchaseInvoiceJournal({
 
   const tax = round2(Number(invoice.totalTax ?? invoice.taxAmount ?? 0));
   const gross = round2(Number(invoice.grandTotal || 0));
-  let net = round2(Number(invoice.taxableAmount ?? (gross - tax)));
-  if (round2(net + tax) !== gross) {
-    net = round2(gross - tax);
+  // Prefer taxableAmount — reverse-charge VAT is in totalTax but not in grandTotal
+  let net = round2(Number(invoice.taxableAmount ?? 0));
+  if (!(net > 0) && gross > 0) {
+    net = round2(Math.max(0, gross - tax));
   }
-  if (gross <= 0) return null;
+  if (gross <= 0 && net <= 0) return null;
+
+  const stockGlOn = await isStockAccountingEnabled(tenantId);
+  if (stockGlOn) {
+    await ensureStockAccountingAccounts(tid, userId);
+  }
 
   const override = normalizeAccountingOverrideLines(invoice.accountingLines);
   if (override.balanced) {
@@ -989,12 +989,14 @@ export async function postPurchaseInvoiceJournal({
         accountCode: l.accountCode,
         debit: l.debit,
         credit: l.credit,
-        description: l.description || `Bill ${invoice.invoiceNumber || ''}`,
-        partnerId,
+        description: l.description,
+        partnerId: l.partnerId || partnerId,
+        taxIds: l.taxIds || [],
+        analyticAccountId: l.analyticAccountId || null,
       })),
       sourceModel: 'PurchaseInvoice',
       sourceId: invoice._id,
-      sourceNumber: invoice.invoiceNumber,
+      sourceNumber: invoice.invoiceNumber || '',
       status: 'posted',
       journalId,
     });
@@ -1011,7 +1013,117 @@ export async function postPurchaseInvoiceJournal({
   const useInterim = Boolean(invoice.sourcePurchaseOrderId || invoice.sourceGrnId || (invoice.sourceGrnIds || []).length);
   const defaults = await resolveStockAccounts(tid);
   const vatInput = await getAccountByCode(tid, '1400');
+  const vatOutput = await getAccountByCode(tid, '2100');
   const ap = await getAccountByCode(tid, '2000');
+
+  // Build per-tax postings from bill lines (falls back to default VAT15-IN)
+  let taxPostings = [];
+  try {
+    const { resolveTaxByIdOrCode, resolveDefaultTaxId, vatTreatmentFromTax } = await import('../accountingService.js');
+    const Tax = (await import('../../models/Tax.js')).default;
+    const lineItemsForTax = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
+    const byTaxKey = new Map();
+
+    for (const li of lineItemsForTax) {
+      const amt = round2(Math.max(0, Number(li.taxAmount) || 0));
+      let taxDoc = null;
+      if (li.taxId || li.taxCode) {
+        taxDoc = await resolveTaxByIdOrCode(tid, {
+          taxId: li.taxId,
+          taxCode: li.taxCode,
+          type: 'purchase',
+        });
+      }
+      if (!taxDoc && (amt > 0 || String(li.vatTreatment || '') === 'reverse_charge')) {
+        const defaultId = await resolveDefaultTaxId(tid, 'purchase');
+        if (defaultId) {
+          taxDoc = await Tax.findOne({ _id: defaultId, tenantId: tid }).lean();
+        }
+      }
+      const treatment = li.vatTreatment || vatTreatmentFromTax(taxDoc);
+      const isReverseCharge = treatment === 'reverse_charge' || Boolean(taxDoc?.isReverseCharge);
+      const recoverable = treatment === 'recoverable' || treatment === 'reverse_charge'
+        ? true
+        : (treatment === 'non_recoverable' ? false : (taxDoc?.recoverable !== false));
+      // Zero/exempt with no tax amount still need a grid stamp only when amount > 0 or RC
+      if (amt <= 0 && !isReverseCharge) continue;
+      const key = taxDoc?._id
+        ? String(taxDoc._id)
+        : `adhoc:${treatment}:${isReverseCharge ? 'rc' : recoverable ? 'rec' : 'nr'}`;
+      const prev = byTaxKey.get(key) || {
+        taxId: taxDoc?._id || null,
+        amount: 0,
+        recoverable: isReverseCharge ? true : recoverable,
+        isReverseCharge,
+      };
+      prev.amount = round2(prev.amount + amt);
+      byTaxKey.set(key, prev);
+    }
+
+    taxPostings = [...byTaxKey.values()].filter((p) => p.amount > 0);
+
+    // Legacy bills without per-line tax: stamp default purchase tax on totalTax
+    if (!taxPostings.length && tax > 0) {
+      const defaultId = await resolveDefaultTaxId(tid, 'purchase');
+      taxPostings = [{
+        taxId: defaultId,
+        amount: tax,
+        recoverable: true,
+        isReverseCharge: false,
+      }];
+    }
+  } catch {
+    if (tax > 0) {
+      taxPostings = [{ taxId: null, amount: tax, recoverable: true, isReverseCharge: false }];
+    }
+  }
+
+  // When stock GL is off, still post AP + VAT Input + expense (never skip bill posting)
+  if (!stockGlOn) {
+    const { previewPurchaseInvoiceJournal } = await import('../accountingService.js');
+    const preview = await previewPurchaseInvoiceJournal({ tenantId: tid, invoice });
+    if (!preview?.balanced || (preview.lines || []).length < 2) return null;
+
+    let journalId = null;
+    try {
+      const book = await ensureDefaultPurchaseJournal(tid, userId);
+      journalId = book?._id || null;
+    } catch { /* optional */ }
+
+    const entry = await createJournalEntry({
+      tenantId: tid,
+      userId,
+      entryDate: invoice.accountingDate || invoice.issueDate || new Date(),
+      type: 'invoice',
+      memo: `Purchase invoice ${invoice.invoiceNumber || ''}`,
+      memoAr: `فاتورة مشتريات ${invoice.invoiceNumber || ''}`,
+      reference: invoice.invoiceNumber || '',
+      currency,
+      lines: preview.lines.map((l) => ({
+        accountId: l.accountId,
+        accountCode: l.accountCode,
+        debit: l.debit,
+        credit: l.credit,
+        description: l.description,
+        partnerId: invoice.supplierId || null,
+        analyticAccountId: l.analyticAccountId || null,
+        taxIds: l.taxIds || [],
+      })),
+      sourceModel: 'PurchaseInvoice',
+      sourceId: invoice._id,
+      sourceNumber: invoice.invoiceNumber || '',
+      status: 'posted',
+      journalId,
+    });
+    if (entry?._id) {
+      invoice.inventory = {
+        ...(invoice.inventory?.toObject?.() || invoice.inventory || {}),
+        journalEntryId: entry._id,
+      };
+      await invoice.save();
+    }
+    return entry;
+  }
 
   // PO expected unit costs by product / line
   let poByProduct = new Map();
@@ -1134,10 +1246,12 @@ export async function postPurchaseInvoiceJournal({
   const lines = buildPurchaseBillClearingLines({
     netAmount: net,
     taxAmount: tax,
+    taxPostings,
     stockInput: defaults.stockInput,
     inventory: defaults.inventory,
     ap,
     vatInput,
+    vatOutput,
     useInterim,
     goodsDebits: goodsDebits.length ? goodsDebits : null,
     priceDiffLines: priceDiffLines.length ? priceDiffLines : null,
@@ -1164,7 +1278,7 @@ export async function postPurchaseInvoiceJournal({
     // optional
   }
 
-  return createJournalEntry({
+  const entry = await createJournalEntry({
     tenantId: tid,
     userId,
     entryDate: invoice.accountingDate || invoice.issueDate || new Date(),
@@ -1183,6 +1297,15 @@ export async function postPurchaseInvoiceJournal({
     status: 'posted',
     journalId,
   });
+
+  if (entry?._id) {
+    invoice.inventory = {
+      ...(invoice.inventory?.toObject?.() || invoice.inventory || {}),
+      journalEntryId: entry._id,
+    };
+    await invoice.save();
+  }
+  return entry;
 }
 
 /**

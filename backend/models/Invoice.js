@@ -84,6 +84,19 @@ const invoiceLineSchema = new mongoose.Schema({
   taxCategory: { type: String, enum: ['S', 'Z', 'E', 'O'], default: 'S' },
   taxRate: { type: Number, default: 15 },
   taxAmount: { type: Number },
+  /** Tax master reference (mandatory on purchase bills claiming input VAT) */
+  taxId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tax', set: cleanObjectId },
+  /** Denormalized tax code e.g. VAT15-IN */
+  taxCode: { type: String, default: '', trim: true, uppercase: true },
+  /**
+   * Purchase VAT treatment snapshot from tax master at bill time:
+   * recoverable | non_recoverable | reverse_charge | none
+   */
+  vatTreatment: {
+    type: String,
+    enum: ['recoverable', 'non_recoverable', 'reverse_charge', 'none'],
+    default: 'recoverable',
+  },
   lineTotal: { type: Number },
   lineTotalWithTax: { type: Number },
   agencyPrice: { type: Number, default: 0, min: 0 },
@@ -164,8 +177,8 @@ const zatcaSchema = new mongoose.Schema({
     enum: ['pending', 'submitted', 'cleared', 'reported', 'rejected', 'warning'],
     default: 'pending'
   },
-  /** standard (B2B clearance) vs simplified (B2C reporting) — ZATCA model hint */
-  invoiceType: { type: String, enum: ['standard', 'simplified'], default: 'standard' },
+  /** standard (B2B clearance) vs simplified (B2C reporting) — must match transactionType; no silent default */
+  invoiceType: { type: String, enum: ['standard', 'simplified'] },
   clearanceStatus: { type: String },
   reportingStatus: { type: String },
   zatcaResponse: { type: mongoose.Schema.Types.Mixed },
@@ -234,7 +247,16 @@ const invoiceSchema = new mongoose.Schema({
     required: true
   },
   transactionType: { type: String, enum: ['B2B', 'B2C'], required: true },
-  
+  /** Manual B2B↔B2C overrides (who / when / why) for ZATCA audit */
+  transactionTypeOverrides: [{
+    from: { type: String, enum: ['B2B', 'B2C'] },
+    to: { type: String, enum: ['B2B', 'B2C'] },
+    reason: { type: String, required: true },
+    changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    changedByName: { type: String },
+    changedAt: { type: Date, default: Date.now },
+  }],
+
   // Dates
   issueDate: { type: Date, required: true },
   issueDateHijri: { type: String },
@@ -306,10 +328,39 @@ const invoiceSchema = new mongoose.Schema({
   
   // Reference
   purchaseOrderNumber: { type: String },
+  /** Supplier's own invoice number (ZATCA audit) — preferred over contractNumber for vendor bills */
+  vendorInvoiceNumber: { type: String, default: '', trim: true },
+  /** Date on the supplier's invoice document */
+  vendorInvoiceDate: { type: Date },
   sourcePurchaseOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'PurchaseOrder', index: true, set: cleanObjectId },
   sourceDeliveryNoteId: { type: mongoose.Schema.Types.ObjectId, ref: 'DeliveryNote', index: true, set: cleanObjectId },
   deliveryNoteIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'DeliveryNote', index: true, set: cleanObjectId }],
   sourceGrnIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'GRN', index: true, set: cleanObjectId }],
+  /**
+   * Three-way match result at last save (purchase flow).
+   * fully_matched | partially_matched | unmatched | variance
+   */
+  matchingStatus: {
+    type: String,
+    enum: ['fully_matched', 'partially_matched', 'unmatched', 'variance'],
+    default: undefined,
+    index: true,
+  },
+  matchExceptions: [{
+    productId: { type: mongoose.Schema.Types.ObjectId },
+    type: { type: String },
+    severity: { type: String, enum: ['block', 'warn'] },
+    message: { type: String },
+    ordered: { type: Number },
+    received: { type: Number },
+    billedQty: { type: Number },
+    remainingBillable: { type: Number },
+    remainingOrderable: { type: Number },
+    poPrice: { type: Number },
+    billPrice: { type: Number },
+    diffPct: { type: Number },
+    absDiff: { type: Number },
+  }],
   /** Linked commercial docs shown on the invoice (SO / PO / DN / GRN). */
   documentReferences: [{
     kind: { type: String, enum: ['sales_order', 'purchase_order', 'delivery_note', 'grn', 'other'], default: 'other' },
@@ -393,6 +444,7 @@ const invoiceSchema = new mongoose.Schema({
     accountName: { type: String, default: '' },
     accountNumber: { type: String, default: '' },
     iban: { type: String, default: '' },
+    swift: { type: String, default: '' },
   },
   internalNotes: { type: String },
   cancelReason: { type: String, default: '' },
@@ -431,8 +483,28 @@ invoiceSchema.index({ tenantId: 1, searchText: 1 });
 // Overdue job is platform-wide (no tenantId in the filter).
 invoiceSchema.index({ paymentStatus: 1, dueDate: 1, status: 1, flow: 1 });
 
+invoiceSchema.virtual('residualAmount').get(function residualAmount() {
+  const total = Math.round((Number(this.grandTotal) || 0) * 100) / 100;
+  const paid = Math.round((Number(this.paidAmount) || 0) * 100) / 100;
+  return Math.max(0, Math.round((total - paid) * 100) / 100);
+});
+
+invoiceSchema.set('toJSON', { virtuals: true });
+invoiceSchema.set('toObject', { virtuals: true });
+
 // Pre-save hook for Hijri dates
 invoiceSchema.pre('validate', function(next) {
+  // Keep vendor invoice number in sync with legacy contractNumber field
+  if (this.flow === 'purchase') {
+    const vin = String(this.vendorInvoiceNumber || '').trim();
+    const cref = String(this.contractNumber || '').trim();
+    if (vin && !cref) this.contractNumber = vin;
+    if (cref && !vin) this.vendorInvoiceNumber = cref;
+    if (!this.vendorInvoiceDate && this.issueDate) {
+      this.vendorInvoiceDate = this.issueDate;
+    }
+  }
+
   if (this.isModified('issueDate') && this.issueDate) {
     this.issueDateHijri = momentHijri(this.issueDate).format('iYYYY/iMM/iDD');
     const synced = syncIssueTimeFromDate(this.issueDate, this.issueTime);
@@ -517,9 +589,11 @@ invoiceSchema.pre('validate', function(next) {
     const lineTotal = item.isTravelMargin
       ? roundMoney(Math.max(0, customerLineTotal - taxAmount))
       : customerLineTotal;
+    // Reverse charge: self-assessed VAT is not payable to the supplier
+    const isReverseCharge = String(item.line.vatTreatment || '').toLowerCase() === 'reverse_charge';
     const lineTotalWithTax = item.isTravelMargin
       ? customerLineTotal
-      : roundMoney(lineTotal + taxAmount);
+      : (isReverseCharge ? lineTotal : roundMoney(lineTotal + taxAmount));
 
     item.line.lineTotal = lineTotal;
     item.line.taxAmount = taxAmount;
@@ -536,7 +610,8 @@ invoiceSchema.pre('validate', function(next) {
   this.totalDiscount = roundMoney(lineDiscountTotal + appliedInvoiceDiscount);
   this.taxableAmount = roundMoney(normalizedLines.reduce((sum, item) => sum + (item.line.lineTotal || 0), 0));
   this.totalTax = roundMoney(lines.reduce((sum, line) => sum + (line.taxAmount || 0), 0));
-  this.grandTotal = roundMoney(this.taxableAmount + this.totalTax);
+  // Payable total excludes reverse-charge self-assessed VAT
+  this.grandTotal = roundMoney(lines.reduce((sum, line) => sum + (line.lineTotalWithTax || 0), 0));
 
   const passengerBits = Array.isArray(this.travelDetails?.passengers)
     ? this.travelDetails.passengers.flatMap((p) => [p?.pnr, p?.travelerName, p?.ticketNumber])

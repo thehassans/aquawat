@@ -6,6 +6,7 @@ export const PURCHASES_PATH = {
   grn: '/app/dashboard/purchases/grn',
   returns: '/app/dashboard/purchases/returns',
   landed: '/app/dashboard/purchases/landed-costs',
+  bills: '/app/dashboard/purchases/bills',
 }
 
 export const fieldControlClass =

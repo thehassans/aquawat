@@ -48,6 +48,67 @@ test('purchase bill clearing uses interim when flagged', () => {
   assert.equal(debit, credit);
 });
 
+test('purchase bill stamps taxIds on recoverable VAT', () => {
+  const lines = buildPurchaseBillClearingLines({
+    netAmount: 100,
+    taxAmount: 15,
+    taxPostings: [{ taxId: 'tax15in', amount: 15, recoverable: true, isReverseCharge: false }],
+    stockInput: { _id: 'si', code: '1310' },
+    inventory: { _id: 'inv', code: '1300' },
+    ap: { _id: 'ap', code: '2000' },
+    vatInput: { _id: 'vat', code: '1400' },
+    useInterim: true,
+  });
+  const vatLine = lines.find((l) => l.accountCode === '1400');
+  assert.ok(vatLine);
+  assert.equal(vatLine.debit, 15);
+  assert.deepEqual(vatLine.taxIds, ['tax15in']);
+  const debit = lines.reduce((s, l) => s + l.debit, 0);
+  const credit = lines.reduce((s, l) => s + l.credit, 0);
+  assert.equal(debit, credit);
+});
+
+test('reverse charge posts Dr VAT input and Cr VAT output', () => {
+  const lines = buildPurchaseBillClearingLines({
+    netAmount: 100,
+    taxAmount: 15,
+    taxPostings: [{ taxId: 'taxrc', amount: 15, recoverable: true, isReverseCharge: true }],
+    stockInput: { _id: 'si', code: '1310' },
+    inventory: { _id: 'inv', code: '1300' },
+    ap: { _id: 'ap', code: '2000' },
+    vatInput: { _id: 'vat', code: '1400' },
+    vatOutput: { _id: 'vout', code: '2100' },
+    useInterim: false,
+  });
+  const vatIn = lines.find((l) => l.accountCode === '1400');
+  const vatOut = lines.find((l) => l.accountCode === '2100');
+  const ap = lines.find((l) => l.accountCode === '2000');
+  assert.equal(vatIn.debit, 15);
+  assert.equal(vatOut.credit, 15);
+  assert.equal(ap.credit, 100); // RC tax not payable to supplier
+  const debit = lines.reduce((s, l) => s + l.debit, 0);
+  const credit = lines.reduce((s, l) => s + l.credit, 0);
+  assert.equal(debit, credit);
+});
+
+test('non-recoverable VAT folds into expense not 1400', () => {
+  const lines = buildPurchaseBillClearingLines({
+    netAmount: 100,
+    taxAmount: 15,
+    taxPostings: [{ taxId: 'taxnr', amount: 15, recoverable: false, isReverseCharge: false }],
+    stockInput: { _id: 'si', code: '1310' },
+    inventory: { _id: 'inv', code: '1300' },
+    ap: { _id: 'ap', code: '2000' },
+    vatInput: { _id: 'vat', code: '1400' },
+    useInterim: false,
+  });
+  assert.equal(lines.some((l) => l.accountCode === '1400'), false);
+  const inv = lines.find((l) => l.accountCode === '1300');
+  assert.equal(inv.debit, 115);
+  const ap = lines.find((l) => l.accountCode === '2000');
+  assert.equal(ap.credit, 115);
+});
+
 test('import never implies direct quant write', () => {
   // Contract: countedQty path uses setCountedQuantity only; documented in importProducts.
   assert.ok(true);

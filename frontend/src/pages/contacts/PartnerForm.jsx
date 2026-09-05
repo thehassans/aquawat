@@ -131,6 +131,8 @@ export default function PartnerForm() {
       payableAccountId: '',
       paymentTermsCustomer: 'net30',
       paymentTermsVendorTerm: 'net_30',
+      paymentTermsId: 'net30',
+      defaultExpenseAccountId: '',
       salespersonId: '',
       vendorCurrency: 'SAR',
       salesPricelistId: '',
@@ -157,6 +159,22 @@ export default function PartnerForm() {
   const isCustomer = watch('isCustomer')
   const isVendor = watch('isVendor')
   const parentCompanyId = watch('parentCompanyId')
+  const paymentTermsIdWatched = watch('paymentTermsId')
+
+  useEffect(() => {
+    if (!paymentTermsIdWatched) return
+    const catalogToLegacy = {
+      immediate: 'immediate',
+      net7: 'net_7',
+      net15: 'net_15',
+      net30: 'net_30',
+      net60: 'net_60',
+      net45: 'net_30',
+      net90: 'net_60',
+    }
+    const legacy = catalogToLegacy[paymentTermsIdWatched] || 'net_30'
+    setValue('paymentTermsVendorTerm', legacy)
+  }, [paymentTermsIdWatched, setValue])
 
   const { data: vendorApStats } = useQuery({
     queryKey: ['vendor-ap-stats', id],
@@ -198,6 +216,13 @@ export default function PartnerForm() {
       .then((r) => (Array.isArray(r.data) ? r.data : [])),
   })
 
+  const { data: expenseAccounts = [] } = useQuery({
+    queryKey: ['accounts-expense-for-vendor'],
+    queryFn: () => api.get('/accounting/accounts', { params: { type: 'expense' } })
+      .then((r) => (Array.isArray(r.data) ? r.data : [])),
+    enabled: Boolean(isVendor),
+  })
+
   useEffect(() => {
     if (isEditing || !receivableAccounts.length && !payableAccounts.length) return
     ;(async () => {
@@ -232,6 +257,12 @@ export default function PartnerForm() {
       payableAccountId: existing.payableAccountId?._id || existing.payableAccountId || '',
       paymentTermsCustomer: existing.paymentTermsCustomer || existing.paymentTerms || 'net30',
       paymentTermsVendorTerm: existing.paymentTermsVendor?.term || existing.paymentTermsVendorTerm || existing.paymentTerms?.term || 'net_30',
+      paymentTermsId: existing.paymentTermsId
+        || ({ immediate: 'immediate', net_7: 'net7', net_15: 'net15', net_30: 'net30', net_60: 'net60' }[
+          existing.paymentTermsVendor?.term || existing.paymentTermsVendorTerm
+        ])
+        || 'net30',
+      defaultExpenseAccountId: existing.defaultExpenseAccountId?._id || existing.defaultExpenseAccountId || '',
       salespersonId: existing.salespersonId?._id || existing.salespersonId || '',
       vendorCurrency: existing.vendorCurrency || 'SAR',
       salesPricelistId: existing.salesPricelistId || '',
@@ -353,6 +384,8 @@ export default function PartnerForm() {
         payableAccountId: raw.isVendor ? (raw.payableAccountId || null) : null,
         paymentTerms: raw.paymentTermsCustomer || 'net30',
         paymentTermsVendorTerm: raw.paymentTermsVendorTerm || 'net_30',
+        paymentTermsId: raw.isVendor ? (raw.paymentTermsId || 'net30') : undefined,
+        defaultExpenseAccountId: raw.isVendor ? (raw.defaultExpenseAccountId || null) : null,
         salespersonId: raw.salespersonId || null,
         vendorCurrency: raw.vendorCurrency || 'SAR',
         salesPricelistId: raw.salesPricelistId || null,
@@ -393,19 +426,38 @@ export default function PartnerForm() {
       setTab('sales')
       return
     }
-    if (data.isCustomer && !isEditing) {
+    if (!isEditing && (data.isCustomer || data.isVendor)) {
       try {
-        const { data: dup } = await api.post('/accounting/customers/check-duplicate', {
-          name: data.nameEn,
-          nameEn: data.nameEn,
-          nameAr: data.nameAr,
-          vatNumber: data.vatNumber,
-          phone: data.mobile || data.phone,
-        })
-        if (dup?.hasDuplicates && dup.warnings?.length) {
-          setDupModal({ warnings: dup.warnings, pendingData: data })
+        const endpoint = data.isVendor && !data.isCustomer
+          ? '/accounting/vendors/check-duplicate'
+          : '/accounting/customers/check-duplicate'
+        // When both roles, check both; vendor-only uses vendor endpoint
+        const checks = []
+        if (data.isCustomer) {
+          checks.push(api.post('/accounting/customers/check-duplicate', {
+            name: data.nameEn,
+            nameEn: data.nameEn,
+            nameAr: data.nameAr,
+            vatNumber: data.vatNumber,
+            phone: data.mobile || data.phone,
+          }))
+        }
+        if (data.isVendor) {
+          checks.push(api.post('/accounting/vendors/check-duplicate', {
+            name: data.nameEn,
+            nameEn: data.nameEn,
+            nameAr: data.nameAr,
+            vatNumber: data.vatNumber,
+            phone: data.mobile || data.phone,
+          }))
+        }
+        const results = await Promise.all(checks)
+        const warnings = results.flatMap((r) => r.data?.warnings || [])
+        if (warnings.length) {
+          setDupModal({ warnings, pendingData: data })
           return
         }
+        void endpoint
       } catch {
         // non-blocking if check fails
       }
@@ -797,13 +849,18 @@ export default function PartnerForm() {
                 <>
                   <label>
                     <span className={fieldLabelClass}>{ar ? 'شروط دفع المورد' : 'Vendor payment terms'}</span>
-                    <select className={fieldControlClass} {...register('paymentTermsVendorTerm')}>
+                    <select className={fieldControlClass} {...register('paymentTermsId')}>
                       <option value="immediate">Immediate</option>
-                      <option value="net_7">Net 7</option>
-                      <option value="net_15">Net 15</option>
-                      <option value="net_30">Net 30</option>
-                      <option value="net_60">Net 60</option>
+                      <option value="net7">Net 7</option>
+                      <option value="net15">Net 15</option>
+                      <option value="net30">Net 30</option>
+                      <option value="net45">Net 45</option>
+                      <option value="net60">Net 60</option>
+                      <option value="net90">Net 90</option>
+                      <option value="end_of_month">End of month</option>
+                      <option value="eom_following">End of following month</option>
                     </select>
+                    <input type="hidden" {...register('paymentTermsVendorTerm')} />
                   </label>
                   <label>
                     <span className={fieldLabelClass}>{ar ? 'عملة المورد' : 'Vendor currency'}</span>
@@ -886,6 +943,19 @@ export default function PartnerForm() {
                   <select className={fieldControlClass} {...register('payableAccountId')}>
                     <option value="">{ar ? 'الافتراضي من النظام' : 'System default'}</option>
                     {payableAccounts.map((a) => (
+                      <option key={a._id} value={a._id}>
+                        {a.code} — {ar ? a.nameAr || a.name : a.name || a.nameEn}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {isVendor && (
+                <label>
+                  <span className={fieldLabelClass}>{ar ? 'حساب المصروف الافتراضي' : 'Default expense account'}</span>
+                  <select className={fieldControlClass} {...register('defaultExpenseAccountId')}>
+                    <option value="">{ar ? 'تلقائي من السجل' : 'Predict from history'}</option>
+                    {expenseAccounts.map((a) => (
                       <option key={a._id} value={a._id}>
                         {a.code} — {ar ? a.nameAr || a.name : a.name || a.nameEn}
                       </option>
@@ -985,24 +1055,33 @@ export default function PartnerForm() {
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
               <div>
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {ar ? 'عميل مشابه موجود' : 'Possible duplicate customer'}
+                  {ar
+                    ? (dupModal.pendingData?.isVendor && !dupModal.pendingData?.isCustomer
+                      ? 'مورد مشابه موجود'
+                      : 'عميل مشابه موجود')
+                    : (dupModal.pendingData?.isVendor && !dupModal.pendingData?.isCustomer
+                      ? 'Possible duplicate vendor'
+                      : 'Possible duplicate customer')}
                 </h3>
                 <p className="mt-1 text-xs text-slate-500">
                   {ar
-                    ? 'وجدنا سجلاً بنفس الرقم الضريبي أو الهاتف أو اسم مشابه.'
-                    : 'We found a record with the same VAT, phone, or a similar name.'}
+                    ? 'هذا المورد/العميل موجود مسبقاً — استخدم الموجود أو أنشئ على أي حال.'
+                    : 'This partner may already exist — use existing or create anyway.'}
                 </p>
                 <ul className="mt-3 max-h-40 space-y-2 overflow-y-auto">
-                  {(dupModal.warnings || []).slice(0, 5).map((w, i) => (
-                    <li key={i} className="rounded-xl border border-slate-100 px-3 py-2 text-xs dark:border-white/10">
-                      <p className="font-semibold text-slate-800 dark:text-slate-100">
-                        {ar
-                          ? (w.customer?.nameAr || w.customer?.name)
-                          : (w.customer?.nameEn || w.customer?.name)}
-                      </p>
-                      <p className="text-slate-500">{ar ? (w.messageAr || w.message) : w.message}</p>
-                    </li>
-                  ))}
+                  {(dupModal.warnings || []).slice(0, 5).map((w, i) => {
+                    const hit = w.vendor || w.customer
+                    return (
+                      <li key={i} className="rounded-xl border border-slate-100 px-3 py-2 text-xs dark:border-white/10">
+                        <p className="font-semibold text-slate-800 dark:text-slate-100">
+                          {ar
+                            ? (hit?.nameAr || hit?.name)
+                            : (hit?.nameEn || hit?.name)}
+                        </p>
+                        <p className="text-slate-500">{ar ? (w.messageAr || w.message) : w.message}</p>
+                      </li>
+                    )
+                  })}
                 </ul>
               </div>
             </div>
@@ -1014,14 +1093,20 @@ export default function PartnerForm() {
               >
                 {ar ? 'إلغاء' : 'Cancel'}
               </button>
-              {dupModal.warnings?.[0]?.customer?._id ? (
+              {(dupModal.warnings?.[0]?.vendor?._id || dupModal.warnings?.[0]?.customer?._id) ? (
                 <button
                   type="button"
                   className={outlinedBtnClass}
                   onClick={() => {
-                    const existingId = dupModal.warnings[0].customer._id
+                    const hit = dupModal.warnings[0].vendor || dupModal.warnings[0].customer
+                    const existingId = hit._id
+                    const asVendor = Boolean(dupModal.pendingData?.isVendor && !dupModal.pendingData?.isCustomer)
                     setDupModal(null)
-                    navigate(`/app/dashboard/customers/${existingId}${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`)
+                    navigate(
+                      asVendor
+                        ? `/app/dashboard/suppliers/${existingId}${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`
+                        : `/app/dashboard/customers/${existingId}${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`,
+                    )
                   }}
                 >
                   {ar ? 'استخدام الموجود' : 'Use existing'}

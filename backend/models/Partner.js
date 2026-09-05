@@ -104,6 +104,11 @@ const partnerSchema = new mongoose.Schema({
     },
     customDays: { type: Number },
   },
+  /**
+   * Catalog payment-terms id (invoicePaymentTerms / accounting payment-terms panel).
+   * Preferred for vendor bills; falls back to paymentTermsVendor.term when empty.
+   */
+  paymentTermsId: { type: String, trim: true, default: null },
 
   creditLimit: { type: Number, default: 0 },
   currentBalance: { type: Number, default: 0 },
@@ -156,8 +161,15 @@ const partnerSchema = new mongoose.Schema({
     ref: 'ChartOfAccount',
     default: null,
   },
+  /** Default expense / purchase account suggested on new vendor bills */
+  defaultExpenseAccountId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ChartOfAccount',
+    default: null,
+  },
 
   totalInvoices: { type: Number, default: 0 },
+  totalPurchases: { type: Number, default: 0 },
   totalRevenue: { type: Number, default: 0 },
   lastInvoiceDate: { type: Date },
 

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { X, Printer } from 'lucide-react'
+import { X, Printer, Building2 } from 'lucide-react'
 import api from '../../lib/api'
 import Money from '../ui/Money'
 import { invoiceRemainingBalance } from '../../lib/accountingDocumentStatus'
 import { printVendorCheck } from '../../lib/vendorApTools'
+import { runLiquidityPreflight } from '../../lib/negativeCashBalance'
 
 const METHODS = [
   { id: 'bank_transfer', en: 'Bank transfer', ar: 'تحويل بنكي' },
@@ -13,6 +14,29 @@ const METHODS = [
   { id: 'card', en: 'Card', ar: 'بطاقة' },
   { id: 'other', en: 'Other', ar: 'أخرى' },
 ]
+
+function pickVendorBank(partner) {
+  if (!partner) return null
+  const accounts = Array.isArray(partner.bankAccounts) ? partner.bankAccounts : []
+  const primary = accounts.find((b) => b.isDefault) || accounts[0]
+  if (primary && (primary.iban || primary.bankName || primary.accountName)) {
+    return {
+      bankName: primary.bankName || '',
+      accountName: primary.accountName || '',
+      iban: primary.iban || '',
+      accountNumber: primary.accountNumber || '',
+    }
+  }
+  if (partner.bank?.iban || partner.bank?.bankName) {
+    return {
+      bankName: partner.bank.bankName || '',
+      accountName: partner.bank.beneficiaryName || '',
+      iban: partner.bank.iban || '',
+      accountNumber: partner.bank.iban || '',
+    }
+  }
+  return null
+}
 
 export default function RegisterPaymentModal({
   isOpen,
@@ -30,6 +54,10 @@ export default function RegisterPaymentModal({
   const [memo, setMemo] = useState('')
   const [differenceMode, setDifferenceMode] = useState('keep_open')
   const [differenceAccountId, setDifferenceAccountId] = useState('')
+  const [checking, setChecking] = useState(false)
+
+  const supplierId = invoice?.supplierId?._id || invoice?.supplierId || invoice?.partnerId || null
+  const isPurchase = invoice?.flow === 'purchase'
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounting-accounts-active'],
@@ -38,14 +66,26 @@ export default function RegisterPaymentModal({
     staleTime: 60_000,
   })
 
+  const { data: vendorPartner } = useQuery({
+    queryKey: ['vendor-bank-for-payment', supplierId],
+    queryFn: () => api.get(`/partners/${supplierId}`).then((r) => r.data),
+    enabled: Boolean(isOpen && isPurchase && supplierId),
+    staleTime: 60_000,
+  })
+
+  const vendorBank = useMemo(() => pickVendorBank(vendorPartner), [vendorPartner])
+
   useEffect(() => {
     if (!isOpen) return
     setAmount(remaining > 0 ? remaining.toFixed(2) : '')
     setMethod('bank_transfer')
-    setMemo('')
+    const bankHint = vendorBank?.iban || vendorBank?.bankName
+      ? [vendorBank.bankName, vendorBank.iban || vendorBank.accountNumber].filter(Boolean).join(' · ')
+      : ''
+    setMemo(bankHint || '')
     setDifferenceMode('keep_open')
     setDifferenceAccountId('')
-  }, [isOpen, remaining, invoice?._id])
+  }, [isOpen, remaining, invoice?._id, vendorBank])
 
   const numericAmount = Number(amount)
   const difference = useMemo(() => {
@@ -57,13 +97,29 @@ export default function RegisterPaymentModal({
 
   if (!isOpen) return null
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    let confirmNegativeCash = false
+    if (isPurchase) {
+      setChecking(true)
+      try {
+        const pre = await runLiquidityPreflight(api, { amount: numericAmount, method }, isAr)
+        if (!pre.ok) return
+        confirmNegativeCash = pre.confirmNegativeCash
+      } catch (err) {
+        window.alert(err?.response?.data?.error || err.message || 'Liquidity check failed')
+        return
+      } finally {
+        setChecking(false)
+      }
+    }
     onSubmit?.({
       amount: numericAmount,
       method,
       memo,
       differenceMode: showDifference ? differenceMode : 'keep_open',
       differenceAccountId: showDifference && differenceMode === 'mark_paid' ? differenceAccountId : undefined,
+      confirmNegativeCash,
+      vendorBankDetails: vendorBank || undefined,
     })
   }
 
@@ -87,6 +143,18 @@ export default function RegisterPaymentModal({
         <p className="text-sm text-gray-500">
           {isAr ? 'المتبقي' : 'Remaining'}: <span className="font-semibold text-gray-900 dark:text-white"><Money value={remaining} /></span>
         </p>
+
+        {isPurchase && vendorBank ? (
+          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs dark:border-dark-600 dark:bg-dark-900/40">
+            <div className="mb-1 flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
+              <Building2 className="h-3.5 w-3.5" />
+              {isAr ? 'حساب المورد البنكي' : 'Vendor bank (auto-filled)'}
+            </div>
+            {vendorBank.bankName ? <p>{vendorBank.bankName}</p> : null}
+            {vendorBank.accountName ? <p className="text-slate-500">{vendorBank.accountName}</p> : null}
+            {vendorBank.iban ? <p className="font-mono">{vendorBank.iban}</p> : null}
+          </div>
+        ) : null}
 
         <label className="label mt-4">{isAr ? 'المبلغ' : 'Amount'}</label>
         <input
@@ -166,7 +234,7 @@ export default function RegisterPaymentModal({
               onClick={async () => {
                 try {
                   await printVendorCheck({
-                    payeeName: invoice?.seller?.name || invoice?.seller?.nameAr,
+                    payeeName: invoice?.seller?.name || invoice?.seller?.nameAr || vendorPartner?.nameEn,
                     amount: numericAmount,
                     currency: invoice?.currency || 'SAR',
                     memo: memo || invoice?.invoiceNumber,
@@ -187,10 +255,10 @@ export default function RegisterPaymentModal({
           <button
             type="button"
             className="btn btn-primary flex-1"
-            disabled={isPending || !Number.isFinite(numericAmount) || numericAmount <= 0}
+            disabled={isPending || checking || !Number.isFinite(numericAmount) || numericAmount <= 0}
             onClick={handleSubmit}
           >
-            {isPending ? (isAr ? 'جارٍ الإنشاء…' : 'Creating…') : (isAr ? 'إنشاء الدفعة' : 'Create payment')}
+            {isPending || checking ? (isAr ? 'جارٍ الإنشاء…' : 'Creating…') : (isAr ? 'إنشاء الدفعة' : 'Create payment')}
           </button>
         </div>
       </div>

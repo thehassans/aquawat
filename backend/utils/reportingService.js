@@ -146,7 +146,10 @@ const buildVatStatement = ({ manualLines, lineBuckets, expenseTotals, savedRetur
     vatAmount: toNumber(lineBuckets.purchase.S.vatAmount) + toNumber(expenseTotals.taxAmount),
   }, manualLines.purchasesStandardRatedDomestic);
   const purchasesImportsCustoms = combineVatLine({}, manualLines.purchasesImportsCustoms);
-  const purchasesImportsReverseCharge = combineVatLine({}, manualLines.purchasesImportsReverseCharge);
+  const purchasesImportsReverseCharge = combineVatLine({
+    amount: toNumber(lineBuckets.purchase.O?.amount),
+    vatAmount: toNumber(lineBuckets.purchase.O?.vatAmount),
+  }, manualLines.purchasesImportsReverseCharge);
   const purchasesZeroRated = combineVatLine(lineBuckets.purchase.Z, manualLines.purchasesZeroRated);
   const purchasesExempt = combineVatLine(lineBuckets.purchase.E, manualLines.purchasesExempt);
   const totalPurchases = {
@@ -155,7 +158,18 @@ const buildVatStatement = ({ manualLines, lineBuckets, expenseTotals, savedRetur
     vatAmount: purchasesStandardRatedDomestic.vatAmount + purchasesImportsCustoms.vatAmount + purchasesImportsReverseCharge.vatAmount + purchasesZeroRated.vatAmount + purchasesExempt.vatAmount,
   };
 
-  const totalVatDueCurrentPeriod = totalSales.vatAmount - totalPurchases.vatAmount;
+  const reverseChargeOutput = {
+    amount: purchasesImportsReverseCharge.amount,
+    adjustment: 0,
+    vatAmount: purchasesImportsReverseCharge.vatAmount,
+  };
+  const totalSalesWithRc = {
+    amount: totalSales.amount + reverseChargeOutput.amount,
+    adjustment: totalSales.adjustment,
+    vatAmount: totalSales.vatAmount + reverseChargeOutput.vatAmount,
+  };
+
+  const totalVatDueCurrentPeriod = totalSalesWithRc.vatAmount - totalPurchases.vatAmount;
   const correctionsPreviousPeriod = toNumber(savedReturn?.correctionsPreviousPeriod);
   const vatCreditCarriedForward = toNumber(savedReturn?.vatCreditCarriedForward);
   const netVatDue = totalVatDueCurrentPeriod + correctionsPreviousPeriod - vatCreditCarriedForward;
@@ -166,7 +180,14 @@ const buildVatStatement = ({ manualLines, lineBuckets, expenseTotals, savedRetur
     salesZeroRatedDomestic,
     salesExports,
     salesExempt,
-    totalSales,
+    totalSales: totalSalesWithRc,
+    standardRatedSales: salesStandardRated.amount,
+    taxableAmount: totalSalesWithRc.amount,
+    vatOnSales: totalSalesWithRc.vatAmount,
+    totalTax: totalSalesWithRc.vatAmount,
+    outputVat: totalSalesWithRc.vatAmount,
+    netVatPayable: netVatDue,
+    netVat: netVatDue,
     purchasesStandardRatedDomestic,
     purchasesImportsCustoms,
     purchasesImportsReverseCharge,
@@ -206,6 +227,7 @@ const buildVatReturnPayload = async ({ tenantId, startDate, endDate }) => {
           _id: {
             flow: '$flow',
             taxCategory: '$lineItems.taxCategory',
+            vatTreatment: { $ifNull: ['$lineItems.vatTreatment', 'recoverable'] },
           },
           amount: { $sum: buildVatReportLineAmountExpression('$lineItems') },
           vatAmount: { $sum: buildVatReportLineVatExpression('$lineItems') },
@@ -226,13 +248,15 @@ const buildVatReturnPayload = async ({ tenantId, startDate, endDate }) => {
   ]);
 
   const lineBuckets = {
-    sell: { S: { amount: 0, vatAmount: 0 }, Z: { amount: 0, vatAmount: 0 }, E: { amount: 0, vatAmount: 0 } },
-    purchase: { S: { amount: 0, vatAmount: 0 }, Z: { amount: 0, vatAmount: 0 }, E: { amount: 0, vatAmount: 0 } },
+    sell: { S: { amount: 0, vatAmount: 0 }, Z: { amount: 0, vatAmount: 0 }, E: { amount: 0, vatAmount: 0 }, O: { amount: 0, vatAmount: 0 } },
+    purchase: { S: { amount: 0, vatAmount: 0 }, Z: { amount: 0, vatAmount: 0 }, E: { amount: 0, vatAmount: 0 }, O: { amount: 0, vatAmount: 0 } },
   };
 
   for (const row of invoiceLines || []) {
     const flow = row?._id?.flow === 'purchase' ? 'purchase' : 'sell';
-    const category = ['S', 'Z', 'E'].includes(row?._id?.taxCategory) ? row._id.taxCategory : null;
+    const treatment = String(row?._id?.vatTreatment || 'recoverable').toLowerCase();
+    if (flow === 'purchase' && treatment === 'non_recoverable') continue;
+    const category = ['S', 'Z', 'E', 'O'].includes(row?._id?.taxCategory) ? row._id.taxCategory : null;
     if (!category) continue;
     lineBuckets[flow][category].amount += toNumber(row.amount);
     lineBuckets[flow][category].vatAmount += toNumber(row.vatAmount);

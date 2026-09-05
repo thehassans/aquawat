@@ -1,10 +1,11 @@
 import { createPortal } from 'react-dom'
 import { useEffect, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Edit3, Eye, Save, X } from 'lucide-react'
+import { Edit3, Eye, FileText, Receipt, Save, X } from 'lucide-react'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 
 const InvoiceLivePreview = lazy(() => import('./InvoiceLivePreview'))
+const ThermalReceipt = lazy(() => import('../ui/ThermalReceipt'))
 
 /**
  * Full-viewport preview: portals to document.body so SalesComposerChrome
@@ -24,8 +25,12 @@ export default function DocumentPreSaveModal({
   confirmLabel,
   confirmDisabled = false,
   warningText,
+  printFormat = 'a4',
+  onPrintFormatChange,
+  showPrintFormatToggle = false,
 }) {
   const isAr = language === 'ar'
+  const isThermal = printFormat === 'thermal'
 
   useEffect(() => {
     if (!isOpen) return undefined
@@ -51,6 +56,35 @@ export default function DocumentPreSaveModal({
   const saveLabel = isAr
     ? (documentType === 'quotation' ? 'حفظ العرض' : 'حفظ الفاتورة')
     : (documentType === 'quotation' ? 'Save quotation' : 'Save invoice')
+
+  const segmentWrapClass =
+    'inline-flex items-center rounded-xl border border-slate-200/90 bg-slate-50/80 p-0.5 dark:border-white/10 dark:bg-dark-900/50'
+  const segmentBtnClass = (active) =>
+    `rounded-lg px-2.5 py-1.5 text-xs font-semibold transition inline-flex items-center gap-1.5 ${
+      active
+        ? 'bg-white text-slate-900 shadow-sm dark:bg-dark-700 dark:text-white'
+        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+    }`
+
+  const thermalOrder = previewDoc
+    ? {
+        ...previewDoc,
+        receiptNumber: previewDoc.invoiceNumber,
+        customerName: previewDoc.buyer?.name || previewDoc.buyer?.nameAr,
+        customerPhone: previewDoc.buyer?.contactPhone || previewDoc.buyer?.phone,
+        grandTotal: previewDoc.grandTotal,
+        totalVat: previewDoc.totalTax,
+        subtotal: previewDoc.subTotal || ((previewDoc.grandTotal || 0) - (previewDoc.totalTax || 0)),
+        zatcaQrCode: previewDoc.zatca?.qrCodeData,
+        items: (previewDoc.lineItems || []).map((line) => ({
+          name: line.productName || line.description || '',
+          nameAr: line.productNameAr || line.descriptionAr || '',
+          quantity: line.quantity,
+          price: line.unitPrice,
+          total: line.lineTotalWithTax ?? line.lineTotal,
+        })),
+      }
+    : null
 
   const modal = (
     <AnimatePresence>
@@ -88,13 +122,35 @@ export default function DocumentPreSaveModal({
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-white hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-200"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                {showPrintFormatToggle && typeof onPrintFormatChange === 'function' ? (
+                  <div className={segmentWrapClass} title={isAr ? 'تنسيق الطباعة' : 'Print format'}>
+                    <button
+                      type="button"
+                      onClick={() => onPrintFormatChange('a4')}
+                      className={segmentBtnClass(!isThermal)}
+                    >
+                      <FileText className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      A4
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onPrintFormatChange('thermal')}
+                      className={segmentBtnClass(isThermal)}
+                    >
+                      <Receipt className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      {isAr ? 'حراري' : 'Thermal'}
+                    </button>
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-white hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-200"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-28 pt-4 sm:px-6">
@@ -102,7 +158,9 @@ export default function DocumentPreSaveModal({
                 initial={{ opacity: 0, y: 18, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ delay: 0.08, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                className="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-[0_20px_60px_-28px_rgba(15,23,42,0.35)] ring-1 ring-slate-900/5 dark:bg-dark-800 dark:ring-white/10"
+                className={`mx-auto w-full overflow-hidden rounded-2xl bg-white shadow-[0_20px_60px_-28px_rgba(15,23,42,0.35)] ring-1 ring-slate-900/5 dark:bg-dark-800 dark:ring-white/10 ${
+                  isThermal ? 'max-w-sm' : 'max-w-4xl'
+                }`}
               >
                 <Suspense
                   fallback={(
@@ -111,15 +169,24 @@ export default function DocumentPreSaveModal({
                     </div>
                   )}
                 >
-                  <InvoiceLivePreview
-                    invoice={previewDoc}
-                    tenant={tenant}
-                    language={language}
-                    templateId={templateId}
-                    documentType={documentType}
-                    bilingual={resolveInvoiceBilingual(tenant, true)}
-                    secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || undefined}
-                  />
+                  {isThermal && thermalOrder ? (
+                    <div className="flex justify-center bg-slate-50 p-4 dark:bg-dark-900/40">
+                      <ThermalReceipt
+                        order={thermalOrder}
+                        type={previewDoc?.businessContext || 'trading'}
+                      />
+                    </div>
+                  ) : (
+                    <InvoiceLivePreview
+                      invoice={previewDoc}
+                      tenant={tenant}
+                      language={language}
+                      templateId={templateId}
+                      documentType={documentType}
+                      bilingual={resolveInvoiceBilingual(tenant, true)}
+                      secondaryLanguage={getInvoiceSecondaryLanguage(tenant) || undefined}
+                    />
+                  )}
                 </Suspense>
               </motion.div>
             </div>

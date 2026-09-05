@@ -680,3 +680,34 @@ export async function assertReceivableConsistency(tenantId, { tolerance = 0.05, 
       : null,
   };
 }
+
+/**
+ * Assert GL AP (2000) == partner open sum == aged payables total (±tolerance).
+ */
+export async function assertPayableConsistency(tenantId, { tolerance = 0.05, asOf = null } = {}) {
+  const [gl, partners] = await Promise.all([
+    getAccountBalances({ tenantId, to: asOf, activeOnly: true }),
+    getPartnerBalances({ tenantId, partnerType: 'vendor', asOf }),
+  ]);
+  const ap = (gl.rows || []).find((r) => String(r.code) === '2000');
+  const glAp = round2(ap?.naturalBalance ?? ap?.balance ?? 0);
+  const partnerSum = round2(partners.totals?.openResidual || 0);
+  const delta = round2(glAp - partnerSum);
+  return {
+    ok: Math.abs(delta) <= tolerance,
+    glAp,
+    partnerSum,
+    agedTotal: partnerSum,
+    delta,
+    tolerance,
+    asOf: partners.asOf,
+    account: ap
+      ? {
+          code: ap.code,
+          naturalBalance: ap.naturalBalance,
+          rawDebitMinusCredit: ap.rawDebitMinusCredit,
+          storedBalance: ap.storedBalance,
+        }
+      : null,
+  };
+}

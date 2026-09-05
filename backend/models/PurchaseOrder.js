@@ -119,9 +119,13 @@ const purchaseOrderSchema = new mongoose.Schema({
     receiptUrl: { type: String, default: '' },
     receiptName: { type: String, default: '' },
     notes: { type: String, default: '' },
+    /** When true, GL posted to 1290 Advance to Suppliers (not AP) */
+    asAdvance: { type: Boolean, default: false },
     voucherId: { type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' },
     voucherNumber: { type: String, default: '' },
     journalEntryId: { type: mongoose.Schema.Types.ObjectId, ref: 'JournalEntry' },
+    accountPaymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'AccountPayment' },
+    paymentNumber: { type: String, default: '' },
     recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   }],
 

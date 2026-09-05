@@ -435,6 +435,34 @@ router.get('/reports', checkPermission('supply_chain', 'read'), async (req, res)
   }
 });
 
+/** Unmatched receipts — GRNs not yet fully billed (explains 1310 GRNI) */
+router.get('/reports/unmatched-receipts', checkPermission('supply_chain', 'read'), async (req, res) => {
+  try {
+    const { unmatchedReceiptsReport } = await import('../services/purchases/grniReports.js');
+    const data = await unmatchedReceiptsReport(req.user.tenantId, {
+      supplierId: req.query.supplierId || undefined,
+      warehouseId: req.query.warehouseId || undefined,
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/** 1310 Stock Interim (Received) reconciliation vs open GRN lines */
+router.get('/reports/stock-interim-received', checkPermission('supply_chain', 'read'), async (req, res) => {
+  try {
+    const { stockInterimReceivedReconciliation } = await import('../services/purchases/grniReports.js');
+    const data = await stockInterimReceivedReconciliation(req.user.tenantId, {
+      supplierId: req.query.supplierId || undefined,
+      warehouseId: req.query.warehouseId || undefined,
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/:id', sellOrSupply('read'), async (req, res) => {
   try {
     const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter })
@@ -1410,6 +1438,40 @@ router.post('/:id/payment', checkPermission('supply_chain', 'update'), vendorBil
     const amount = Math.round(Number(req.body.amount || 0) * 100) / 100;
     if (amount <= 0) return res.status(400).json({ error: 'Valid amount greater than 0 is required' });
 
+    const asAdvance = ['1', 'true', 'yes', 'on'].includes(String(req.body.asAdvance || '').trim().toLowerCase());
+
+    // Resolve linked posted vendor bill (Invoice flow=purchase)
+    const Invoice = (await import('../models/Invoice.js')).default;
+    let linkedBill = null;
+    if (order.billedInvoiceId) {
+      linkedBill = await Invoice.findOne({
+        _id: order.billedInvoiceId,
+        tenantId: req.user.tenantId,
+        flow: 'purchase',
+        invoiceType: '388',
+        status: { $nin: ['draft', 'cancelled'] },
+      });
+    }
+    if (!linkedBill) {
+      linkedBill = await Invoice.findOne({
+        tenantId: req.user.tenantId,
+        flow: 'purchase',
+        invoiceType: '388',
+        sourcePurchaseOrderId: order._id,
+        status: { $nin: ['draft', 'cancelled'] },
+      }).sort({ createdAt: -1 });
+      if (linkedBill && !order.billedInvoiceId) {
+        order.billedInvoiceId = linkedBill._id;
+      }
+    }
+
+    if (!linkedBill && !asAdvance) {
+      return res.status(400).json({
+        error: 'Vendor bill required before payment. Create and post a vendor bill from this PO, or set asAdvance=true to record an Advance to Suppliers (account 1290).',
+        code: 'VENDOR_BILL_REQUIRED',
+      });
+    }
+
     let receiptUrl = String(req.body.receiptUrl || '').trim();
     let receiptName = String(req.body.receiptName || '').trim();
 
@@ -1428,69 +1490,80 @@ router.post('/:id/payment', checkPermission('supply_chain', 'update'), vendorBil
     }
 
     const paymentMethodMapped = req.body.method === 'transfer' ? 'bank_transfer' : (req.body.method || 'bank_transfer');
+    const paymentDate = req.body.date ? new Date(req.body.date) : new Date();
+    const reference = String(req.body.reference || '').trim();
+    const notes = String(req.body.notes || '').trim();
+    const confirmNegativeCash = req.body?.confirmNegativeCash === true
+      || req.body?.confirmNegative === true
+      || String(req.body?.confirmNegativeCash || '').toLowerCase() === 'true';
 
     const payment = {
       amount,
-      date: req.body.date ? new Date(req.body.date) : new Date(),
+      date: paymentDate,
       method: req.body.method || 'transfer',
-      reference: String(req.body.reference || '').trim(),
+      reference,
       receiptUrl,
       receiptName,
-      notes: String(req.body.notes || '').trim(),
+      notes,
       recordedBy: req.user._id,
+      asAdvance: Boolean(asAdvance && !linkedBill),
     };
 
-    // 1. Auto-generate Payment Voucher (سند صرف)
+    // Unified vendor payment (AccountPayment + GL + voucher mirror)
     try {
-      const Voucher = (await import('../models/Voucher.js')).default;
-      const Supplier = (await import('../models/Supplier.js')).default;
-      const year = new Date().getFullYear();
-      const count = await Voucher.countDocuments({ tenantId: req.user.tenantId });
-      const voucherNumber = `PV-${year}-${(count + 1).toString().padStart(4, '0')}`;
+      const Partner = (await import('../models/Partner.js')).default;
+      const partner = order.supplierId
+        ? await Partner.findOne({ _id: order.supplierId, tenantId: req.user.tenantId })
+          .select('name nameEn nameAr')
+          .lean()
+        : null;
+      const supplierName = partner?.nameAr || partner?.nameEn || partner?.name || '';
 
-      const supp = await Supplier.findOne({ _id: order.supplierId, tenantId: req.user.tenantId }).lean();
-      const supplierName = supp?.nameAr || supp?.nameEn || '';
+      let billAllocAmount = amount;
+      if (linkedBill) {
+        const residual = Math.round(
+          (Math.max(0, (Number(linkedBill.grandTotal) || 0) - (Number(linkedBill.paidAmount) || 0))) * 100,
+        ) / 100;
+        billAllocAmount = Math.min(amount, residual);
+      }
 
-      const voucher = new Voucher({
-        tenantId: req.user.tenantId,
-        voucherNumber,
-        type: 'payment',
-        date: payment.date,
-        amount,
-        partyType: 'supplier',
-        partyId: order.supplierId,
-        partyName: supplierName,
-        paymentMethod: paymentMethodMapped,
-        reference: payment.reference || order.poNumber,
-        description: `Payment for PO ${order.poNumber}${supplierName ? ` (${supplierName})` : ''}${payment.notes ? ` - ${payment.notes}` : ''}`,
-        status: 'approved',
-        createdBy: req.user._id,
-      });
-      await voucher.save();
-      payment.voucherId = voucher._id;
-      payment.voucherNumber = voucherNumber;
-    } catch (vErr) {
-      console.warn('[purchase-order] auto-voucher creation warning:', vErr.message);
-    }
-
-    // 2. Post Double-Entry Journal Entry (Debit: AP, Credit: Bank/Cash)
-    try {
-      const { postSupplierPaymentJournal } = await import('../services/accountingService.js');
-      const journalEntry = await postSupplierPaymentJournal({
+      const { createVendorPayment } = await import('../services/vendorPaymentService.js');
+      const accountPayment = await createVendorPayment({
         tenantId: req.user.tenantId,
         userId: req.user._id,
-        purchaseOrder: order,
+        vendorId: order.supplierId || null,
+        vendorName: supplierName,
+        date: paymentDate,
         amount,
-        paymentMethod: paymentMethodMapped,
-        paymentDate: payment.date,
-        reference: payment.reference || payment.voucherNumber || order.poNumber,
-        notes: payment.notes,
+        method: paymentMethodMapped,
+        reference: reference || order.poNumber,
+        memo: notes || (linkedBill
+          ? `Payment for vendor bill ${linkedBill.invoiceNumber} (PO ${order.poNumber})`
+          : `Advance on PO ${order.poNumber}`),
+        currency: order.currency || 'SAR',
+        allocations: linkedBill && billAllocAmount > 0.005
+          ? [{ billId: linkedBill._id, amount: billAllocAmount }]
+          : [],
+        source: 'purchase_order',
+        confirmNegativeCash,
+        purchaseOrder: (!linkedBill || amount > billAllocAmount + 0.005) ? order : null,
+        attachments: receiptUrl
+          ? [{ name: receiptName || 'receipt', url: receiptUrl, type: '' }]
+          : [],
       });
-      if (journalEntry?._id) {
-        payment.journalEntryId = journalEntry._id;
-      }
+
+      payment.voucherId = accountPayment.voucherId || null;
+      payment.voucherNumber = accountPayment.number || '';
+      payment.journalEntryId = accountPayment.journalEntryId || null;
+      payment.accountPaymentId = accountPayment._id || null;
+      payment.paymentNumber = accountPayment.number || '';
     } catch (glErr) {
-      console.warn('[purchase-order] GL journal creation warning:', glErr.message);
+      const status = glErr.status || glErr.statusCode || 500;
+      return res.status(status).json({
+        error: glErr.message || 'Failed to post payment',
+        code: glErr.code,
+        details: glErr.details,
+      });
     }
 
     order.payments = [...(order.payments || []), payment];
@@ -1507,20 +1580,6 @@ router.post('/:id/payment', checkPermission('supply_chain', 'update'), vendorBil
     }
 
     await order.save();
-
-    // 3. Sync linked purchase invoice if present
-    try {
-      if (order.billedInvoiceId) {
-        const Invoice = (await import('../models/Invoice.js')).default;
-        const inv = await Invoice.findOne({ _id: order.billedInvoiceId, tenantId: req.user.tenantId });
-        if (inv) {
-          inv.paidAmount = order.paidAmount;
-          inv.balanceDue = order.balanceDue;
-          inv.paymentStatus = order.paymentStatus;
-          await inv.save();
-        }
-      }
-    } catch {}
 
     const refreshed = await PurchaseOrder.findOne({ _id: order._id, ...req.tenantFilter })
       .populate('payments.recordedBy', 'name firstName lastName');

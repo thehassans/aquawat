@@ -342,6 +342,14 @@ router.get('/:id/dashboard', checkPermission('supply_chain', 'read'), async (req
       totalGRNs: grns.length,
     };
 
+    let accounting = null;
+    try {
+      const { getAccountingVendorDetail } = await import('../services/vendorDirectoryService.js');
+      accounting = await getAccountingVendorDetail(req.user.tenantId, supplier._id);
+    } catch {
+      accounting = null;
+    }
+
     res.json({
       supplier: toSupplierDto(supplier),
       orders: orders.slice(0, 50),
@@ -350,10 +358,23 @@ router.get('/:id/dashboard', checkPermission('supply_chain', 'read'), async (req
       financials: {
         totalCredit: Math.round(totalCredit * 100) / 100,
         totalDebit: Math.round(totalDebit * 100) / 100,
-        balance: Math.round(balance * 100) / 100,
+        balance: accounting?.kpis?.payable ?? Math.round(balance * 100) / 100,
+        payable: accounting?.kpis?.payable ?? Math.round(balance * 100) / 100,
+        overdue: accounting?.kpis?.overdue ?? 0,
+        totalPurchases: accounting?.kpis?.totalPurchases ?? Math.round(totalSpend * 100) / 100,
+        averagePaymentDays: accounting?.kpis?.averagePaymentDays ?? null,
         totalPO: totalOrders,
       },
       performance,
+      accounting: accounting
+        ? {
+            kpis: accounting.kpis,
+            bills: accounting.bills,
+            payments: accounting.payments,
+            debitNotes: accounting.debitNotes,
+            aging: accounting.aging,
+          }
+        : null,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

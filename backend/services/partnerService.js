@@ -194,6 +194,26 @@ export function fromPartnerBody(body = {}) {
     out.paymentTermsVendor = { term: body.paymentTermsVendorTerm };
   }
 
+  if (body.paymentTermsId != null && body.paymentTermsId !== '') {
+    out.paymentTermsId = String(body.paymentTermsId).trim();
+    // Keep legacy vendor term in sync when catalog id maps cleanly
+    const catalogToLegacy = {
+      immediate: 'immediate',
+      net7: 'net_7',
+      net15: 'net_15',
+      net30: 'net_30',
+      net60: 'net_60',
+    };
+    const legacy = catalogToLegacy[out.paymentTermsId];
+    if (legacy) out.paymentTermsVendor = { term: legacy };
+  }
+
+  if (body.defaultExpenseAccountId === '' || body.defaultExpenseAccountId == null) {
+    if (body.defaultExpenseAccountId === '') out.defaultExpenseAccountId = null;
+  } else if (body.defaultExpenseAccountId) {
+    out.defaultExpenseAccountId = body.defaultExpenseAccountId;
+  }
+
   if (Array.isArray(body.bankAccounts)) {
     out.bankAccounts = normalizeBankAccounts(body.bankAccounts);
     const primary = out.bankAccounts.find((b) => b.isDefault) || out.bankAccounts[0];
@@ -250,6 +270,8 @@ export function toPartnerDto(doc) {
     supplierCode: o.supplierCode || null,
     bankAccounts,
     paymentTermsVendorTerm: o.paymentTermsVendor?.term || null,
+    paymentTermsId: o.paymentTermsId || null,
+    defaultExpenseAccountId: o.defaultExpenseAccountId || null,
   };
 }
 

@@ -14,7 +14,7 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
   const hasTerms = Boolean(invoice?.termsAndConditions || invoice?.termsAndConditionsAr)
   const bank = invoice?.includeBankDetails ? (invoice?.bankDetails || {}) : null
   const hasBank = Boolean(
-    bank && (bank.bankName || bank.accountName || bank.accountNumber || bank.iban)
+    bank && (bank.bankName || bank.accountName || bank.accountNumber || bank.iban || bank.swift)
   )
   
   // If invoice explicitly specifies showAuthorizedPerson === false or hasAuthorizedPerson === false, or if signatory was not enabled
@@ -121,6 +121,11 @@ export default function DocumentExtras({ invoice, invoiceBranding = {}, language
               {bank.iban ? (
                 <p className="font-mono">
                   <span className="font-semibold font-sans text-gray-900">IBAN:</span> {bank.iban}
+                </p>
+              ) : null}
+              {bank.swift ? (
+                <p className="font-mono">
+                  <span className="font-semibold font-sans text-gray-900">SWIFT:</span> {bank.swift}
                 </p>
               ) : null}
             </div>

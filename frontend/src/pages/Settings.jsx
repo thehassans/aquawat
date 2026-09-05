@@ -294,6 +294,7 @@ export default function Settings() {
         accountName: tenant.business?.bankDetails?.accountName || '',
         accountNumber: tenant.business?.bankDetails?.accountNumber || '',
         iban: tenant.business?.bankDetails?.iban || '',
+        swift: tenant.business?.bankDetails?.swift || '',
       },
       nationalAddress: {
         proofNumber: tenant.business?.nationalAddress?.proofNumber || '',

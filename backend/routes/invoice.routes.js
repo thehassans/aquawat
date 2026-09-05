@@ -52,6 +52,176 @@ import {
   assertInvoicePrePostReady,
 } from '../services/sales/invoicePrePostValidation.js';
 import { isValidSaudiVat, normalizeSaudiVatDigits } from '../utils/saudiVat.js';
+import { zatcaInvoiceKindForTransaction } from '../utils/transactionType.js';
+import {
+  ensureDefaultTaxes,
+  resolveTaxByIdOrCode,
+  vatTreatmentFromTax,
+} from '../services/accountingService.js';
+
+function syncZatcaInvoiceType(target, transactionType) {
+  if (!target || typeof target !== 'object') return;
+  const kind = zatcaInvoiceKindForTransaction(transactionType);
+  const prev = target.zatca && typeof target.zatca === 'object'
+    ? (target.zatca.toObject?.() || { ...target.zatca })
+    : {};
+  target.zatca = { ...prev, invoiceType: kind };
+}
+
+function appendTransactionTypeOverride(req, invoice, { from, to, reason }) {
+  const trimmed = String(reason || '').trim();
+  if (!trimmed) return null;
+  const entry = {
+    from: from === 'B2B' ? 'B2B' : 'B2C',
+    to: to === 'B2B' ? 'B2B' : 'B2C',
+    reason: trimmed,
+    changedBy: req.user?._id,
+    changedByName:
+      [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ')
+      || req.user?.email
+      || 'User',
+    changedAt: new Date(),
+  };
+  if (!Array.isArray(invoice.transactionTypeOverrides)) {
+    invoice.transactionTypeOverrides = [];
+  }
+  invoice.transactionTypeOverrides.push(entry);
+  recordUserActivity(req, {
+    action: 'update',
+    module: 'invoicing',
+    resourceType: 'Invoice',
+    resourceId: invoice._id,
+    resourceName: invoice.invoiceNumber,
+    description: `Changed invoice type ${entry.from} → ${entry.to}: ${entry.reason}`,
+    descriptionAr: `تغيير نوع الفاتورة من ${entry.from} إلى ${entry.to}: ${entry.reason}`,
+    details: {
+      field: 'transactionType',
+      from: entry.from,
+      to: entry.to,
+      reason: entry.reason,
+      changedAt: entry.changedAt,
+    },
+  }).catch(() => {});
+  return entry;
+}
+
+function requireOverrideReasonIfNeeded(req) {
+  if (!req.body?.transactionTypeOverridden) return null;
+  const reason = String(req.body.transactionTypeOverrideReason || '').trim();
+  if (!reason) {
+    const err = new Error('Reason is required when manually changing invoice type (B2B/B2C)');
+    err.status = 400;
+    err.code = 'TYPE_OVERRIDE_REASON_REQUIRED';
+    return err;
+  }
+  return null;
+}
+
+function takeTransactionTypeOverrideMeta(body = {}) {
+  if (!body || typeof body !== 'object') return null;
+  const reason = String(body.transactionTypeOverrideReason || '').trim();
+  const meta = body.transactionTypeOverridden && reason
+    ? {
+        reason,
+        from: body.transactionTypeOverrideFrom === 'B2B' ? 'B2B' : (body.transactionTypeOverrideFrom === 'B2C' ? 'B2C' : null),
+        to: body.transactionTypeOverrideTo === 'B2B' ? 'B2B' : (body.transactionTypeOverrideTo === 'B2C' ? 'B2C' : null),
+      }
+    : null;
+  delete body.transactionTypeOverridden;
+  delete body.transactionTypeOverrideReason;
+  delete body.transactionTypeOverrideFrom;
+  delete body.transactionTypeOverrideTo;
+  return meta;
+}
+
+/**
+ * Stamp purchase bill lines with tax master (mandatory tax code) and ZATCA category.
+ * Rejects recoverable input VAT without a valid 15-digit supplier VAT (starts/ends with 3).
+ */
+async function enrichAndValidatePurchaseBillTaxes({
+  tenantId,
+  lineItems = [],
+  seller = {},
+  supplier = null,
+  requireSupplierVat = true,
+  strictTaxCode = true,
+}) {
+  await ensureDefaultTaxes(tenantId);
+  const lines = Array.isArray(lineItems) ? lineItems : [];
+  if (!lines.length) {
+    const err = new Error('At least one bill line is required');
+    err.status = 400;
+    err.code = 'BILL_LINES_REQUIRED';
+    throw err;
+  }
+
+  const enriched = [];
+  let claimsRecoverableInputVat = false;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const taxId = line.taxId || null;
+    let taxCode = String(line.taxCode || '').trim().toUpperCase();
+    if (!taxId && !taxCode) {
+      if (strictTaxCode) {
+        const err = new Error(`Line ${i + 1}: tax code is required`);
+        err.status = 400;
+        err.code = 'TAX_CODE_REQUIRED';
+        throw err;
+      }
+      taxCode = Number(line.taxRate) > 0 ? 'VAT15-IN' : 'VAT0-IN';
+    }
+    const taxDoc = await resolveTaxByIdOrCode(tenantId, {
+      taxId,
+      taxCode,
+      type: 'purchase',
+    });
+    if (!taxDoc) {
+      const err = new Error(`Line ${i + 1}: unknown purchase tax code ${taxCode || taxId}`);
+      err.status = 400;
+      err.code = 'TAX_CODE_INVALID';
+      throw err;
+    }
+
+    const zatcaCategory = ['S', 'Z', 'E', 'O'].includes(String(taxDoc.zatcaCategory || '').toUpperCase())
+      ? String(taxDoc.zatcaCategory).toUpperCase()
+      : (Number(taxDoc.rate) > 0 ? 'S' : 'Z');
+    const vatTreatment = vatTreatmentFromTax(taxDoc);
+    const taxRate = Number(taxDoc.rate) || 0;
+
+    if (
+      (vatTreatment === 'recoverable' || vatTreatment === 'reverse_charge')
+      && taxRate > 0
+    ) {
+      claimsRecoverableInputVat = true;
+    }
+
+    enriched.push({
+      ...line,
+      taxId: taxDoc._id,
+      taxCode: taxDoc.code,
+      taxCategory: zatcaCategory,
+      taxRate,
+      vatTreatment,
+    });
+  }
+
+  if (requireSupplierVat && claimsRecoverableInputVat) {
+    const supplierVat = normalizeSaudiVatDigits(
+      seller?.vatNumber || supplier?.vatNumber || '',
+    );
+    if (!isValidSaudiVat(supplierVat)) {
+      const err = new Error(
+        'Supplier VAT number is required to claim recoverable input VAT (15 digits, must start and end with 3)',
+      );
+      err.status = 400;
+      err.code = 'SUPPLIER_VAT_REQUIRED';
+      throw err;
+    }
+  }
+
+  return enriched;
+}
 
 async function runSellPrePostGate(req, {
   payload,
@@ -322,15 +492,19 @@ async function postPurchaseInvoiceLedgers(invoice, req, tenant) {
 
     if (String(invoice.invoiceType) === '388') {
       const { postPurchaseInvoiceJournal } = await import('../services/inventory/stockAccounting.js');
-      await postPurchaseInvoiceJournal({
+      const entry = await postPurchaseInvoiceJournal({
         tenantId: invoice.tenantId,
         userId: req.user._id,
         invoice,
         currency,
       });
+      if (!entry) {
+        console.warn('[accounting] purchase invoice journal returned null for', invoice.invoiceNumber);
+      }
     }
   } catch (glError) {
-    console.warn('[accounting] purchase invoice journal failed:', glError.message);
+    console.error('[accounting] purchase invoice journal failed:', glError.message);
+    throw glError;
   }
 }
 
@@ -1179,11 +1353,13 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
         .select([
           'invoiceNumber', 'status', 'paymentStatus', 'paymentMethod', 'paidAmount',
           'issueDate', 'dueDate', 'createdAt', 'updatedAt',
-          'subtotal', 'totalTax', 'grandTotal', 'totalDiscount', 'invoiceDiscount',
+          'subtotal', 'taxableAmount', 'totalTax', 'grandTotal', 'totalDiscount', 'invoiceDiscount',
           'flow', 'transactionType', 'invoiceType', 'invoiceTypeCode', 'invoiceSubtype',
           'businessContext', 'currency',
           'buyer.name', 'buyer.nameAr', 'buyer.vatNumber', 'buyer.crNumber',
+          'seller.name', 'seller.nameAr',
           'customerId', 'supplierId',
+          'contractNumber', 'vendorInvoiceNumber', 'vendorInvoiceDate',
           'zatca.submissionStatus', 'zatca.reportingStatus', 'zatca.clearedAt', 'zatca.reportedAt',
           'createdByName', 'createdByNameAr', 'createdBy',
           'sourcePurchaseOrderId', 'pdfTemplateId', 'printFormat',
@@ -1378,6 +1554,37 @@ router.get('/:id/pdf', checkPermission('invoicing', 'read'), async (req, res) =>
   }
 });
 
+// @route   POST /api/invoices/:id/attachments — supplier invoice PDF/photo (vendor bills)
+router.post('/:id/attachments', checkPermission('invoicing', 'update'), upload.single('file'), async (req, res) => {
+  try {
+    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+    if (!req.file?.buffer) return res.status(400).json({ error: 'File is required' });
+
+    const { saveUploadBuffer } = await import('../utils/objectStorage.js');
+    const ext = (req.file.originalname.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const filename = `vendor-bill-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext || 'bin'}`;
+    const key = `invoices/${req.user.tenantId}/${invoice._id}/${filename}`;
+    const { url } = await saveUploadBuffer({
+      buffer: req.file.buffer,
+      key,
+      contentType: req.file.mimetype,
+      publicUrlPath: `/uploads/${key}`,
+    });
+
+    const attachment = {
+      name: req.file.originalname || filename,
+      url,
+      type: req.file.mimetype || 'application/octet-stream',
+    };
+    invoice.attachments = [...(invoice.attachments || []), attachment];
+    await invoice.save();
+    res.json({ attachment, attachments: invoice.attachments });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // @route   POST /api/invoices/:id/payments
 router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req, res) => {
   try {
@@ -1406,41 +1613,51 @@ router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req,
       ? req.body.method
       : 'bank_transfer';
 
-    if (amount > remaining + 0.005 && differenceMode !== 'mark_paid') {
+    // Sell invoices: overpay blocked unless mark_paid write-off.
+    // Purchase bills: overpay allowed → Advance to supplier via createVendorPayment.
+    if (invoice.flow !== 'purchase' && amount > remaining + 0.005 && differenceMode !== 'mark_paid') {
       return res.status(400).json({ error: 'Amount exceeds remaining balance' });
     }
     if (differenceMode === 'mark_paid' && remaining - amount > 0.005 && !differenceAccountId) {
       return res.status(400).json({ error: 'Difference account is required to mark as fully paid' });
     }
 
-    // Purchase bills keep legacy vendor payment journal path for now
+    // Purchase bills: unified AccountPayment (outbound) path
     if (invoice.flow === 'purchase') {
+      const confirmNegativeCash = req.body?.confirmNegativeCash === true
+        || req.body?.confirmNegative === true;
       const previousPaymentStatus = invoice.paymentStatus;
-      const targetPaid = differenceMode === 'mark_paid'
-        ? Math.round(Number(invoice.grandTotal || 0) * 100) / 100
-        : Math.round(((Number(invoice.paidAmount) || 0) + amount) * 100) / 100;
-      invoice.paidAmount = targetPaid;
-      invoice.payments = [...(invoice.payments || []), { method, amount }];
-      applyPaidAmountStatus(invoice);
-      await invoice.save();
+      const allocAmt = Math.min(amount, Math.max(0, remaining));
+      const { createVendorPayment } = await import('../services/vendorPaymentService.js');
       try {
-        const accounting = await import('../services/accountingService.js');
-        await accounting.postVendorBillPaymentJournal({
+        await createVendorPayment({
           tenantId: invoice.tenantId,
           userId: req.user._id,
-          invoice,
+          vendorId: invoice.supplierId || null,
+          vendorName: invoice.seller?.name || '',
+          date: paymentDate,
           amount,
-          paymentMethod: method,
-          paymentDate,
-          reference: `pay-${invoice.invoiceNumber}-${Date.now()}`,
-          currency: invoice.currency || req.tenant?.settings?.currency || 'SAR',
+          method,
+          reference: req.body?.reference || `pay-${invoice.invoiceNumber}`,
           memo: req.body?.memo || '',
+          currency: invoice.currency || req.tenant?.settings?.currency || 'SAR',
+          allocations: allocAmt > 0.005
+            ? [{ billId: invoice._id, amount: allocAmt }]
+            : [],
+          source: 'invoice',
+          confirmNegativeCash,
         });
-      } catch (glError) {
-        console.warn('[accounting] vendor payment journal failed:', glError.message);
+      } catch (payErr) {
+        const status = payErr.status || payErr.statusCode || 400;
+        return res.status(status).json({
+          error: payErr.message,
+          code: payErr.code,
+          details: payErr.details,
+        });
       }
-      afterInvoiceWrite(invoice, { userId: req.user._id, previousPaymentStatus });
-      return res.json(invoice);
+      const refreshed = await Invoice.findOne({ _id: invoice._id, ...req.tenantFilter });
+      afterInvoiceWrite(refreshed || invoice, { userId: req.user._id, previousPaymentStatus });
+      return res.json(refreshed || invoice);
     }
 
     const { createCustomerPayment } = await import('../services/customerPaymentService.js');
@@ -1687,6 +1904,11 @@ router.post('/bulk-upload', checkTrialLimits('invoices'), checkPermission('invoi
 router.post('/', invoiceWriteLimiter, checkTrialLimits('invoices'), checkPermission('invoicing', 'create'), async (req, res) => {
   try {
     req.body = sanitizeInvoicePayload(req.body);
+    const overrideReasonErr = requireOverrideReasonIfNeeded(req);
+    if (overrideReasonErr) {
+      return res.status(400).json({ error: overrideReasonErr.message, code: overrideReasonErr.code });
+    }
+    const typeOverrideMeta = takeTransactionTypeOverrideMeta(req.body);
     if (rejectOverpay(req, res)) return;
     const tenant = await Tenant.findById(req.user.tenantId);
 
@@ -1870,6 +2092,7 @@ router.post('/', invoiceWriteLimiter, checkTrialLimits('invoices'), checkPermiss
       createdBy: req.user._id,
       ...getUserDisplayNames(req.user)
     };
+    syncZatcaInvoiceType(invoiceData, transactionType);
 
     if (!cleanObjectId(invoiceData.warehouseId)) {
       delete invoiceData.warehouseId;
@@ -2045,6 +2268,10 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
     }
 
     const transactionType = req.body.transactionType === 'B2B' ? 'B2B' : 'B2C';
+    const overrideGate = requireOverrideReasonIfNeeded(req);
+    if (overrideGate) {
+      return res.status(overrideGate.status).json({ error: overrideGate.message, code: overrideGate.code });
+    }
     const invoiceSubtype = businessContext === 'travel_agency'
       ? (req.body.invoiceSubtype === 'proforma' ? 'proforma' : 'travel_ticket')
       : (req.body.invoiceSubtype === 'travel_ticket' ? 'travel_ticket' : (req.body.invoiceSubtype === 'proforma' ? 'proforma' : 'standard'));
@@ -2118,6 +2345,21 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
       lineItems: policyLineItems,
     };
 
+    syncZatcaInvoiceType(invoiceData, transactionType);
+    const sellTypeOverrideMeta = req.body.transactionTypeOverridden
+      ? {
+          from: req.body.transactionTypeOverrideFrom === 'B2B' ? 'B2B' : 'B2C',
+          to: transactionType,
+          reason: String(req.body.transactionTypeOverrideReason || '').trim(),
+        }
+      : null;
+
+    // Strip client-only override flags so they are not persisted as unknown fields
+    delete invoiceData.transactionTypeOverridden;
+    delete invoiceData.transactionTypeOverrideReason;
+    delete invoiceData.transactionTypeOverrideFrom;
+    delete invoiceData.transactionTypeOverrideTo;
+
     if (businessContext !== 'trading' || !cleanObjectId(invoiceData.warehouseId)) {
       delete invoiceData.warehouseId;
     }
@@ -2181,6 +2423,11 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
     const createdInvoice = await Invoice.create(enrichedInvoiceData);
     await applyResolvedPayment(createdInvoice);
     const invoice = await attachDraftQr(createdInvoice, tenant.business, tenant);
+
+    if (sellTypeOverrideMeta?.reason) {
+      appendTransactionTypeOverride(req, invoice, sellTypeOverrideMeta);
+      await invoice.save();
+    }
 
     try {
       const { ensureInvoiceZatcaStub } = await import('../services/inventory/zatcaStub.js');
@@ -2279,8 +2526,17 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
         total: invoice.grandTotal,
         customerName: invoice.buyer?.name || invoice.buyer?.nameAr,
         status: invoice.status,
+        transactionType: invoice.transactionType,
       },
     }).catch(() => {});
+    if (typeOverrideMeta?.reason) {
+      appendTransactionTypeOverride(req, invoice, {
+        from: typeOverrideMeta.from || (transactionType === 'B2B' ? 'B2C' : 'B2B'),
+        to: typeOverrideMeta.to || transactionType,
+        reason: typeOverrideMeta.reason,
+      });
+      await invoice.save();
+    }
 
     syncMarqueeBookingFromDocument({
       tenant,
@@ -2332,17 +2588,20 @@ router.post('/preview-journal', checkPermission('invoicing', 'read'), async (req
 // @route   POST /api/invoices/three-way-match — preview for vendor bills
 router.post('/three-way-match', checkPermission('invoicing', 'create'), async (req, res) => {
   try {
-    const { threeWayMatch } = await import('../services/inventory/threeWayMatch.js');
+    const { threeWayMatch, resolveThreeWayOptions } = await import('../services/inventory/threeWayMatch.js');
+    const { getInvSettings } = await import('../services/inventory/settingsService.js');
     const purchaseOrderId = cleanObjectId(req.body.purchaseOrderId);
     if (!purchaseOrderId) {
       return res.status(400).json({ error: 'purchaseOrderId required' });
     }
+    const settings = await getInvSettings(req.user.tenantId);
+    const opts = resolveThreeWayOptions(settings, req.body);
     const result = await threeWayMatch({
       tenantId: req.user.tenantId,
       purchaseOrderId,
       billLines: req.body.billLines || [],
-      qtyTolerance: Number(req.body.qtyTolerance) || 0,
-      priceTolerancePct: Number(req.body.priceTolerancePct) || 0,
+      excludeInvoiceId: cleanObjectId(req.body.excludeInvoiceId) || null,
+      ...opts,
     });
     res.json(result);
   } catch (error) {
@@ -2583,18 +2842,33 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
       return res.status(400).json({ error: 'Supplier name is required' });
     }
 
-    const lastInvoice = await Invoice.findOne({ tenantId: req.user.tenantId })
-      .sort({ createdAt: -1 })
-      .select('invoiceNumber');
-
-    const invoiceCount = lastInvoice
-      ? parseInt(lastInvoice.invoiceNumber.split('-').pop()) + 1
-      : 1;
-
     const invoiceType = String(req.body.invoiceType || '388') === '381' ? '381' : '388';
-    const invoiceNumber = invoiceType === '381'
-      ? `VR-${new Date().getFullYear()}-${String(invoiceCount).padStart(6, '0')}`
-      : `PINV-${new Date().getFullYear()}-${String(invoiceCount).padStart(6, '0')}`;
+    const year = new Date().getFullYear();
+    const seriesPrefix = invoiceType === '381' ? `VR-${year}-` : `BILL-${year}-`;
+    const lastInSeries = await Invoice.findOne({
+      tenantId: req.user.tenantId,
+      invoiceNumber: new RegExp(`^${seriesPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
+    })
+      .sort({ createdAt: -1 })
+      .select('invoiceNumber')
+      .lean();
+    const lastSeq = lastInSeries?.invoiceNumber
+      ? (parseInt(String(lastInSeries.invoiceNumber).split('-').pop(), 10) || 0)
+      : 0;
+    const invoiceNumber = `${seriesPrefix}${String(lastSeq + 1).padStart(6, '0')}`;
+
+    const vendorInvoiceNumber = String(
+      req.body.vendorInvoiceNumber || req.body.contractNumber || '',
+    ).trim();
+    if (invoiceType === '388' && !vendorInvoiceNumber) {
+      return res.status(400).json({
+        error: 'Vendor invoice number is required (supplier document number for ZATCA audit)',
+        code: 'VENDOR_INVOICE_NUMBER_REQUIRED',
+      });
+    }
+    const vendorInvoiceDate = req.body.vendorInvoiceDate
+      ? new Date(req.body.vendorInvoiceDate)
+      : (req.body.issueDate ? new Date(req.body.issueDate) : new Date());
 
     const transactionType = req.body.transactionType || 'B2B';
     const invoiceSubtype = req.body.invoiceSubtype === 'travel_ticket' ? 'travel_ticket' : 'standard';
@@ -2604,7 +2878,29 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
     const issueDate = req.body.issueDate ? new Date(req.body.issueDate) : new Date();
     const pdfTemplateId = resolvePdfTemplateId(req.body?.pdfTemplateId, tenant, businessContext);
 
-    const lineItems = await ensureProductsExist(req.user.tenantId, req.user._id, req.body.lineItems, 'purchase');
+    const lineItemsRaw = await ensureProductsExist(req.user.tenantId, req.user._id, req.body.lineItems, 'purchase');
+    let lineItems;
+    try {
+      const draftOnly = String(req.body?.status || '').toLowerCase() === 'draft';
+      const zatcaTenant = isZatcaCurrency(tenant);
+      lineItems = await enrichAndValidatePurchaseBillTaxes({
+        tenantId: req.user.tenantId,
+        lineItems: lineItemsRaw,
+        seller,
+        supplier,
+        requireSupplierVat: !draftOnly && zatcaTenant,
+        strictTaxCode: zatcaTenant,
+      });
+      if (zatcaTenant && seller) {
+        const vat = normalizeSaudiVatDigits(seller.vatNumber || supplier?.vatNumber || '');
+        if (vat) seller.vatNumber = vat;
+      }
+    } catch (taxErr) {
+      return res.status(taxErr.status || 400).json({
+        error: taxErr.message,
+        code: taxErr.code || 'TAX_VALIDATION',
+      });
+    }
 
     const productIds = lineItems
       .map((li) => li.productId)
@@ -2630,6 +2926,9 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
       pdfTemplateId,
       invoiceTypeCode,
       issueDate,
+      vendorInvoiceNumber,
+      vendorInvoiceDate,
+      contractNumber: vendorInvoiceNumber || String(req.body.contractNumber || '').trim(),
       seller,
       supplierId: cleanObjectId(supplier?._id || req.body.supplierId),
       buyer: {
@@ -2667,7 +2966,11 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
     const poId = cleanObjectId(req.body.sourcePurchaseOrderId || invoiceData.sourcePurchaseOrderId);
     if (poId) {
       try {
-        await assertThreeWayMatchOrThrow({
+        const { getInvSettings } = await import('../services/inventory/settingsService.js');
+        const { resolveThreeWayOptions } = await import('../services/inventory/threeWayMatch.js');
+        const settings = await getInvSettings(req.user.tenantId);
+        const opts = resolveThreeWayOptions(settings, req.body);
+        const matchResult = await assertThreeWayMatchOrThrow({
           tenantId: req.user.tenantId,
           purchaseOrderId: poId,
           billLines: lineItems.map((li) => ({
@@ -2675,9 +2978,24 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
             quantity: li.quantity,
             unitPrice: li.unitPrice,
           })),
-          qtyTolerance: Number(req.body.qtyTolerance) || 0,
-          priceTolerancePct: Number(req.body.priceTolerancePct) || 0,
+          ...opts,
         });
+        invoiceData.matchingStatus = matchResult.matchingStatus;
+        invoiceData.matchExceptions = (matchResult.exceptions || []).map((ex) => ({
+          productId: ex.productId,
+          type: ex.type,
+          severity: ex.severity,
+          message: ex.message,
+          ordered: ex.ordered,
+          received: ex.received,
+          billedQty: ex.billedQty,
+          remainingBillable: ex.remainingBillable,
+          remainingOrderable: ex.remainingOrderable,
+          poPrice: ex.poPrice,
+          billPrice: ex.billPrice,
+          diffPct: ex.diffPct,
+          absDiff: ex.absDiff,
+        }));
       } catch (matchErr) {
         if (matchErr.code === 'THREE_WAY_MATCH') {
           return res.status(409).json({
@@ -2689,6 +3007,9 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
         throw matchErr;
       }
       invoiceData.sourcePurchaseOrderId = poId;
+    } else {
+      invoiceData.matchingStatus = 'unmatched';
+      invoiceData.matchExceptions = [];
     }
 
     const enrichedInvoiceData = await enrichInvoiceArabicFields(invoiceData);
@@ -2785,9 +3106,27 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
         return res.status(400).json({ error: 'Only unsigned draft or pending invoices can be modified' });
       }
 
+      const prevType = invoice.transactionType === 'B2B' ? 'B2B' : 'B2C';
+      const typeChanged = prevType !== nextType;
+      if (typeChanged) {
+        const reason = String(req.body.transactionTypeOverrideReason || '').trim();
+        if (!reason) {
+          return res.status(400).json({
+            error: 'Reason is required when changing invoice type on a posted invoice',
+            code: 'TYPE_OVERRIDE_REASON_REQUIRED',
+          });
+        }
+        appendTransactionTypeOverride(req, invoice, {
+          from: prevType,
+          to: nextType,
+          reason,
+        });
+      }
+
       invoice.transactionType = nextType;
       invoice.invoiceTypeCode = req.body.invoiceTypeCode
         || (nextType === 'B2C' ? '0200000' : '0100000');
+      syncZatcaInvoiceType(invoice, nextType);
 
       if (req.body.buyer && typeof req.body.buyer === 'object') {
         invoice.buyer = { ...(invoice.buyer?.toObject?.() || invoice.buyer || {}), ...req.body.buyer };
@@ -2831,7 +3170,11 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
         .filter((li) => li?.productId && toNumber(li.quantity, 0) > 0);
       if (poId && lineItemsForMatch.length) {
         try {
-          await assertThreeWayMatchOrThrow({
+          const { getInvSettings } = await import('../services/inventory/settingsService.js');
+          const { resolveThreeWayOptions } = await import('../services/inventory/threeWayMatch.js');
+          const settings = await getInvSettings(req.user.tenantId);
+          const opts = resolveThreeWayOptions(settings, req.body);
+          const matchResult = await assertThreeWayMatchOrThrow({
             tenantId: req.user.tenantId,
             purchaseOrderId: poId,
             billLines: lineItemsForMatch.map((li) => ({
@@ -2840,9 +3183,25 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
               quantity: li.quantity,
               unitPrice: li.unitPrice,
             })),
-            qtyTolerance: Number(req.body.qtyTolerance) || 0,
-            priceTolerancePct: Number(req.body.priceTolerancePct) || 0,
+            excludeInvoiceId: invoice._id,
+            ...opts,
           });
+          req.body.matchingStatus = matchResult.matchingStatus;
+          req.body.matchExceptions = (matchResult.exceptions || []).map((ex) => ({
+            productId: ex.productId,
+            type: ex.type,
+            severity: ex.severity,
+            message: ex.message,
+            ordered: ex.ordered,
+            received: ex.received,
+            billedQty: ex.billedQty,
+            remainingBillable: ex.remainingBillable,
+            remainingOrderable: ex.remainingOrderable,
+            poPrice: ex.poPrice,
+            billPrice: ex.billPrice,
+            diffPct: ex.diffPct,
+            absDiff: ex.absDiff,
+          }));
         } catch (matchErr) {
           if (matchErr.code === 'THREE_WAY_MATCH') {
             return res.status(409).json({
@@ -2853,6 +3212,9 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
           }
           throw matchErr;
         }
+      } else if (!poId) {
+        req.body.matchingStatus = 'unmatched';
+        req.body.matchExceptions = [];
       }
     }
     
@@ -2869,7 +3231,31 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
     const confirmPost = Boolean(req.body.confirmPost);
     delete req.body.confirmPost;
 
+    const prevTxnType = invoice.transactionType === 'B2B' ? 'B2B' : 'B2C';
+    const overrideGate = requireOverrideReasonIfNeeded(req);
+    if (overrideGate) {
+      return res.status(overrideGate.status).json({ error: overrideGate.message, code: overrideGate.code });
+    }
+    const overrideReason = String(req.body.transactionTypeOverrideReason || '').trim();
+    const overrideFrom = req.body.transactionTypeOverrideFrom;
+    const overrideTo = req.body.transactionTypeOverrideTo;
+    const wasOverridden = Boolean(req.body.transactionTypeOverridden);
+    delete req.body.transactionTypeOverridden;
+    delete req.body.transactionTypeOverrideReason;
+    delete req.body.transactionTypeOverrideFrom;
+    delete req.body.transactionTypeOverrideTo;
+
     Object.assign(invoice, req.body);
+
+    const nextTxnType = invoice.transactionType === 'B2B' ? 'B2B' : 'B2C';
+    syncZatcaInvoiceType(invoice, nextTxnType);
+    if (wasOverridden && overrideReason && (prevTxnType !== nextTxnType || overrideFrom || overrideTo)) {
+      appendTransactionTypeOverride(req, invoice, {
+        from: overrideFrom === 'B2B' || overrideFrom === 'B2C' ? overrideFrom : prevTxnType,
+        to: overrideTo === 'B2B' || overrideTo === 'B2C' ? overrideTo : nextTxnType,
+        reason: overrideReason,
+      });
+    }
 
     if (invoice.flow === 'sell') {
       const wantsPost = confirmPost
@@ -3503,7 +3889,7 @@ router.post('/:id/credit-note', checkPermission('invoicing', 'create'), async (r
       });
       draftBill = await Invoice.create({
         ...draftSource,
-        invoiceNumber: `PINV-${new Date().getFullYear()}-${String(draftCount + 1).padStart(6, '0')}`,
+        invoiceNumber: `BILL-${new Date().getFullYear()}-${String(draftCount + 1).padStart(6, '0')}`,
         status: 'draft',
         paidAmount: 0,
         paymentStatus: 'unpaid',

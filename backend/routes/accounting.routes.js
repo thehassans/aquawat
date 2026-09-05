@@ -244,6 +244,7 @@ router.post('/accounts', checkPermission('finance', 'create'), async (req, res) 
       description: req.body.description || '',
       currency: req.body.currency || req.tenant?.settings?.currency || 'SAR',
       tags: Array.isArray(req.body.tags) ? req.body.tags.map((t) => String(t || '').trim()).filter(Boolean).slice(0, 10) : [],
+      allowNegativeBalance: req.body.allowNegativeBalance === true,
       isSystem: false,
       isPostable: req.body.isPostable !== false,
       createdBy: req.user._id,
@@ -260,13 +261,15 @@ router.put('/accounts/:id', checkPermission('finance', 'update'), async (req, re
     const account = await ChartOfAccount.findOne({ _id: req.params.id, tenantId: tenantIdOf(req) });
     if (!account) return res.status(404).json({ error: 'Account not found' });
 
-    const allowed = ['name', 'nameAr', 'subtype', 'parentCode', 'description', 'isActive', 'isPostable', 'tags'];
+    const allowed = ['name', 'nameAr', 'subtype', 'parentCode', 'description', 'isActive', 'isPostable', 'tags', 'allowNegativeBalance'];
     for (const key of allowed) {
       if (req.body[key] !== undefined) {
         if (key === 'tags') {
           account.tags = Array.isArray(req.body.tags)
             ? req.body.tags.map((t) => String(t || '').trim()).filter(Boolean).slice(0, 10)
             : [];
+        } else if (key === 'allowNegativeBalance') {
+          account.allowNegativeBalance = req.body.allowNegativeBalance === true;
         } else {
           account[key] = req.body[key];
         }
@@ -366,6 +369,9 @@ router.put('/defaults', checkPermission('finance', 'approve'), async (req, res) 
     for (const key of DEFAULT_ACCOUNT_KEYS) {
       if (req.body[key] !== undefined) patch[key] = req.body[key];
     }
+    if (req.body.negativeCashBalancePolicy !== undefined) {
+      patch.negativeCashBalancePolicy = req.body.negativeCashBalancePolicy;
+    }
     const data = await setAccountingDefaults(tenantIdOf(req), patch);
     res.json(data);
   } catch (error) {
@@ -397,7 +403,7 @@ router.put('/ap-payment-settings', checkPermission('finance', 'approve'), async 
     const { setApPaymentSettings } = await import('../services/vendorApService.js');
     res.json(await setApPaymentSettings(tenantIdOf(req), req.body || {}));
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(error?.status || 400).json({ error: error.message, code: error.code });
   }
 });
 
@@ -572,7 +578,31 @@ router.post('/bank-accounts/setup', checkPermission('finance', 'create'), async 
   try {
     res.status(201).json(await createBankAccountSetup(tenantIdOf(req), req.user._id, req.body || {}));
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(error.status || error.statusCode || 400).json({
+      error: error.message,
+      code: error.code,
+      details: error.details,
+    });
+  }
+});
+
+router.post('/liquidity-check', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { evaluateOutboundLiquidity } = await import('../services/accountingService.js');
+    const result = await evaluateOutboundLiquidity({
+      tenantId: tenantIdOf(req),
+      accountId: req.body?.accountId || null,
+      paymentMethod: req.body?.paymentMethod || req.body?.method || 'bank_transfer',
+      amount: req.body?.amount,
+      confirmNegative: req.body?.confirmNegativeCash === true || req.body?.confirmNegative === true,
+    });
+    res.status(result.ok ? 200 : (result.code === 'NEGATIVE_CASH_WARNING' ? 409 : 400)).json(result);
+  } catch (error) {
+    res.status(error.status || error.statusCode || 500).json({
+      error: error.message,
+      code: error.code,
+      details: error.details,
+    });
   }
 });
 
@@ -1176,6 +1206,31 @@ router.get('/reports/journal-report', checkPermission('finance', 'read'), async 
   }
 });
 
+router.get('/reports/sequence-integrity', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { buildSequenceIntegrityReport } = await import('../services/journalBookService.js');
+    res.json(await buildSequenceIntegrityReport(tenantIdOf(req), {
+      year: req.query.year ? Number(req.query.year) : new Date().getFullYear(),
+      journalId: req.query.journalId || null,
+    }));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/reports/journal-book-mapping', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { buildJournalBookMappingReport } = await import('../services/journalBookService.js');
+    res.json(await buildJournalBookMappingReport(tenantIdOf(req), {
+      from: req.query.from,
+      to: req.query.to,
+      onlyMismatches: req.query.onlyMismatches !== '0',
+    }));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/parties/customers', checkPermission('finance', 'read'), async (req, res) => {
   try {
     const filter = { tenantId: tenantIdOf(req), isCustomer: true };
@@ -1379,6 +1434,54 @@ router.get('/customers/:id', checkPermission('finance', 'read'), async (req, res
   }
 });
 
+// C2v — Accounting vendor directory (AP from getPartnerBalances / COA 2000)
+router.get('/vendors', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { listAccountingVendors } = await import('../services/vendorDirectoryService.js');
+    const data = await listAccountingVendors(tenantIdOf(req), {
+      search: req.query.search || req.query.q || '',
+      page: req.query.page,
+      limit: req.query.limit,
+      sort: req.query.sort,
+      order: req.query.order,
+      hasOpenBalance: req.query.hasOpenBalance,
+      overdueOnly: req.query.overdueOnly,
+      isActive: req.query.isActive || 'all',
+      city: req.query.city || '',
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/vendors/check-duplicate', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { checkVendorDuplicate } = await import('../services/vendorDirectoryService.js');
+    const data = await checkVendorDuplicate(tenantIdOf(req), {
+      name: req.body?.name,
+      nameEn: req.body?.nameEn,
+      nameAr: req.body?.nameAr,
+      vatNumber: req.body?.vatNumber,
+      phone: req.body?.phone || req.body?.mobile,
+      excludeId: req.body?.excludeId || null,
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(error?.status || 400).json({ error: error.message, code: error.code });
+  }
+});
+
+router.get('/vendors/:id', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { getAccountingVendorDetail } = await import('../services/vendorDirectoryService.js');
+    const data = await getAccountingVendorDetail(tenantIdOf(req), req.params.id);
+    res.json(data);
+  } catch (error) {
+    res.status(error?.status || 500).json({ error: error.message, code: error.code });
+  }
+});
+
 router.get('/parties/suppliers', checkPermission('finance', 'read'), async (req, res) => {
   try {
     const filter = { tenantId: tenantIdOf(req), isVendor: true };
@@ -1485,6 +1588,63 @@ router.get('/reports/receivable-consistency', checkPermission('finance', 'read')
         glVsPartners: core.ok,
         glVsCustomerDirectory: Math.abs((core.glAr || 0) - (customerReceivables || 0)) < 0.05,
         cashDashboardVsTb: Math.abs((dash?.cashBalance || 0) - cashTb) < 0.05,
+      },
+    };
+    report.allEqual = Object.values(report.equal).every(Boolean);
+    res.json(report);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/reports/payable-consistency', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const {
+      assertPayableConsistency,
+      buildTrialBalance,
+      buildBalanceSheet,
+      buildAgedPayables,
+      getAccountingDashboard,
+      syncStoredAccountBalances,
+    } = await import('../services/accountingService.js');
+    const { listAccountingVendors } = await import('../services/vendorDirectoryService.js');
+    const tenantId = tenantIdOf(req);
+    const asOf = req.query.asOf || null;
+
+    let storedSync = null;
+    if (String(req.query.repairStored || '') === '1') {
+      storedSync = await syncStoredAccountBalances(tenantId);
+    }
+
+    const [core, tb, bs, aged, dash, vendors] = await Promise.all([
+      assertPayableConsistency(tenantId, { asOf }),
+      buildTrialBalance(tenantId, { asOf }),
+      buildBalanceSheet(tenantId, { asOf }),
+      buildAgedPayables(tenantId, { asOf }),
+      getAccountingDashboard(tenantId),
+      listAccountingVendors(tenantId, { limit: 1 }),
+    ]);
+    const tbAp = (tb.rows || []).find((r) => String(r.code) === '2000');
+    const bsAp = (bs.liabilities || []).find((r) => String(r.code) === '2000');
+    const vendorPayables = vendors?.totals?.payablesSum ?? null;
+    const report = {
+      ...core,
+      trialBalance2000: tbAp?.balance ?? null,
+      balanceSheet2000: bsAp?.balance ?? null,
+      agedApTotal: aged?.buckets?.total ?? aged?.totals?.openResidual ?? null,
+      dashboardAp: dash?.apBalance ?? null,
+      vendorDirectoryPayables: vendorPayables,
+      storedSync,
+      equal: {
+        dashboardVsTb: Math.abs((dash?.apBalance || 0) - (tbAp?.balance || 0)) < 0.05,
+        glVsTb: Math.abs((core.glAp || 0) - (tbAp?.balance || 0)) < 0.05,
+        glVsBs: Math.abs((core.glAp || 0) - (bsAp?.balance || 0)) < 0.05,
+        glVsAged: Math.abs((core.glAp || 0) - (aged?.buckets?.total || aged?.totals?.openResidual || 0)) < 0.05,
+        glVsPartners: core.ok,
+        glVsVendorDirectory: Math.abs((core.glAp || 0) - (vendorPayables || 0)) < 0.05,
+        threeWay:
+          Math.abs((vendorPayables || 0) - (tbAp?.balance || 0)) < 0.05
+          && Math.abs((vendorPayables || 0) - (aged?.buckets?.total || aged?.totals?.openResidual || 0)) < 0.05,
       },
     };
     report.allEqual = Object.values(report.equal).every(Boolean);
@@ -2044,6 +2204,148 @@ router.post('/customer-payments/backfill', checkPermission('finance', 'update'),
     res.json(report);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── C4: Unified vendor payments ─────────────────────────────────────────────
+
+router.get('/vendor-payments', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { listVendorPayments } = await import('../services/vendorPaymentService.js');
+    const data = await listVendorPayments(req.user.tenantId, {
+      search: req.query.search || '',
+      page: req.query.page,
+      limit: req.query.limit,
+      partnerId: req.query.partnerId || req.query.vendorId || null,
+    });
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/vendor-payments/open-bills', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { getOpenVendorBills } = await import('../services/vendorPaymentService.js');
+    const vendorId = req.query.vendorId || req.query.partnerId || req.query.supplierId;
+    if (!vendorId) return res.status(400).json({ error: 'vendorId required' });
+    const rows = await getOpenVendorBills(req.user.tenantId, vendorId);
+    res.json({ bills: rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/vendor-payments', checkPermission('finance', 'create'), async (req, res) => {
+  try {
+    const { createVendorPayment } = await import('../services/vendorPaymentService.js');
+    const payment = await createVendorPayment({
+      tenantId: req.user.tenantId,
+      userId: req.user._id,
+      vendorId: req.body.vendorId || req.body.partnerId || req.body.supplierId || null,
+      vendorName: req.body.vendorName || req.body.partnerName || '',
+      date: req.body.date || new Date(),
+      amount: req.body.amount,
+      method: req.body.method || 'bank_transfer',
+      journalId: req.body.journalId || null,
+      reference: req.body.reference || '',
+      memo: req.body.memo || '',
+      currency: req.body.currency || req.tenant?.settings?.currency || 'SAR',
+      allocations: req.body.allocations || [],
+      source: req.body.source || 'payments_page',
+      autoAllocateOldest: !!req.body.autoAllocateOldest,
+      confirmNegativeCash: !!req.body.confirmNegativeCash,
+      attachments: req.body.attachments || [],
+    });
+    res.status(201).json(payment);
+  } catch (error) {
+    res.status(error?.status || 400).json({ error: error.message, code: error.code });
+  }
+});
+
+router.post('/vendor-payments/backfill', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const { backfillVendorPaymentsFromJournals } = await import('../services/vendorPaymentService.js');
+    const report = await backfillVendorPaymentsFromJournals(req.user.tenantId, {
+      dryRun: req.body?.dryRun !== false && req.query?.apply !== '1',
+      limit: req.body?.limit || req.query?.limit,
+    });
+    res.json(report);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── Vendor payment batches (CSV / bank file export) ─────────────────────────
+
+router.get('/payment-batches', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { listPaymentBatches } = await import('../services/paymentBatchService.js');
+    res.json(await listPaymentBatches(req.user.tenantId, {
+      status: req.query.status || undefined,
+      page: req.query.page,
+      limit: req.query.limit,
+    }));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/payment-batches/:id', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { getPaymentBatch } = await import('../services/paymentBatchService.js');
+    res.json(await getPaymentBatch(req.user.tenantId, req.params.id));
+  } catch (error) {
+    res.status(error?.status || 500).json({ error: error.message });
+  }
+});
+
+router.post('/payment-batches', checkPermission('finance', 'create'), async (req, res) => {
+  try {
+    const { createPaymentBatch } = await import('../services/paymentBatchService.js');
+    const batch = await createPaymentBatch({
+      tenantId: req.user.tenantId,
+      userId: req.user._id,
+      invoiceIds: req.body.invoiceIds || req.body.billIds || [],
+      executionDate: req.body.executionDate,
+      format: req.body.format || 'csv',
+      notes: req.body.notes || '',
+    });
+    res.status(201).json(batch);
+  } catch (error) {
+    res.status(error?.status || 400).json({ error: error.message });
+  }
+});
+
+router.post('/payment-batches/:id/export', checkPermission('finance', 'read'), async (req, res) => {
+  try {
+    const { exportPaymentBatchCsv } = await import('../services/paymentBatchService.js');
+    const result = await exportPaymentBatchCsv(req.user.tenantId, req.params.id);
+    res.setHeader('Content-Type', result.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader('X-Payment-Batch-Id', String(result.batch?._id || req.params.id));
+    res.setHeader('X-Payment-Batch-Status', String(result.batch?.status || 'exported'));
+    res.send(result.csv);
+  } catch (error) {
+    res.status(error?.status || 400).json({ error: error.message });
+  }
+});
+
+router.post('/payment-batches/:id/confirm', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const { confirmPaymentBatch } = await import('../services/paymentBatchService.js');
+    res.json(await confirmPaymentBatch(req.user.tenantId, req.params.id, req.user._id));
+  } catch (error) {
+    res.status(error?.status || 400).json({ error: error.message });
+  }
+});
+
+router.post('/payment-batches/:id/cancel', checkPermission('finance', 'update'), async (req, res) => {
+  try {
+    const { cancelPaymentBatch } = await import('../services/paymentBatchService.js');
+    res.json(await cancelPaymentBatch(req.user.tenantId, req.params.id));
+  } catch (error) {
+    res.status(error?.status || 400).json({ error: error.message });
   }
 });
 

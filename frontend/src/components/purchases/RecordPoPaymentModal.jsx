@@ -20,6 +20,7 @@ import {
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import Money from '../ui/Money'
+import { handleNegativeCashPaymentError, runLiquidityPreflight } from '../../lib/negativeCashBalance'
 
 export default function RecordPoPaymentModal({ isOpen, onClose, order, isAr, onSuccess }) {
   const fileInputRef = useRef(null)
@@ -27,6 +28,7 @@ export default function RecordPoPaymentModal({ isOpen, onClose, order, isAr, onS
   const grandTotal = Number(order?.grandTotal || 0)
   const paidAmount = Number(order?.paidAmount || 0)
   const balanceDue = Math.max(0, Math.round((order?.balanceDue != null ? Number(order.balanceDue) : (grandTotal - paidAmount)) * 100) / 100)
+  const hasVendorBill = Boolean(order?.billedInvoiceId)
 
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
@@ -36,6 +38,7 @@ export default function RecordPoPaymentModal({ isOpen, onClose, order, isAr, onS
   const [receiptFile, setReceiptFile] = useState(null)
   const [receiptPreview, setReceiptPreview] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [asAdvance, setAsAdvance] = useState(false)
 
   useEffect(() => {
     if (isOpen && order) {
@@ -47,6 +50,7 @@ export default function RecordPoPaymentModal({ isOpen, onClose, order, isAr, onS
       setNotes('')
       setReceiptFile(null)
       setReceiptPreview(null)
+      setAsAdvance(false)
     }
   }, [isOpen, order, balanceDue])
 
@@ -86,14 +90,35 @@ export default function RecordPoPaymentModal({ isOpen, onClose, order, isAr, onS
       return
     }
 
+    if (!hasVendorBill && !asAdvance) {
+      toast.error(
+        isAr
+          ? 'أنشئ فاتورة مورد أولاً، أو فعّل "دفعة مقدمة للمورد"'
+          : 'Create a vendor bill first, or enable “Advance to supplier”',
+      )
+      return
+    }
+
     setIsSubmitting(true)
     try {
+      const pre = await runLiquidityPreflight(api, { amount: numAmount, method }, isAr)
+      if (!pre.ok) {
+        setIsSubmitting(false)
+        return
+      }
+
       const formData = new FormData()
       formData.append('amount', String(numAmount))
       formData.append('date', date)
       formData.append('method', method)
       formData.append('reference', reference.trim())
       formData.append('notes', notes.trim())
+      if (pre.confirmNegativeCash) {
+        formData.append('confirmNegativeCash', 'true')
+      }
+      if (!hasVendorBill && asAdvance) {
+        formData.append('asAdvance', 'true')
+      }
       if (receiptFile) {
         formData.append('receipt', receiptFile)
       }
@@ -106,6 +131,35 @@ export default function RecordPoPaymentModal({ isOpen, onClose, order, isAr, onS
       if (onSuccess) onSuccess()
       onClose()
     } catch (err) {
+      const handled = handleNegativeCashPaymentError(err, isAr)
+      if (handled.handled && handled.retry) {
+        try {
+          const formData = new FormData()
+          formData.append('amount', String(numAmount))
+          formData.append('date', date)
+          formData.append('method', method)
+          formData.append('reference', reference.trim())
+          formData.append('notes', notes.trim())
+          formData.append('confirmNegativeCash', 'true')
+          if (!hasVendorBill && asAdvance) {
+            formData.append('asAdvance', 'true')
+          }
+          if (receiptFile) {
+            formData.append('receipt', receiptFile)
+          }
+          await api.post(`/purchase-orders/${order._id}/payment`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          })
+          toast.success(isAr ? 'تم تسجيل الدفعة بنجاح' : 'Payment recorded successfully')
+          if (onSuccess) onSuccess()
+          onClose()
+          return
+        } catch (retryErr) {
+          toast.error(retryErr.response?.data?.error || (isAr ? 'فشل تسجيل الدفعة' : 'Failed to record payment'))
+          return
+        }
+      }
+      if (handled.handled) return
       toast.error(err.response?.data?.error || (isAr ? 'فشل تسجيل الدفعة' : 'Failed to record payment'))
     } finally {
       setIsSubmitting(false)
@@ -348,6 +402,33 @@ export default function RecordPoPaymentModal({ isOpen, onClose, order, isAr, onS
               )}
             </div>
 
+            {!hasVendorBill ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-500/30 dark:bg-amber-500/10 space-y-2">
+                <p className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+                  {isAr
+                    ? 'لا توجد فاتورة مورد مرحّلة لهذا الطلب. الدفع على الذمم الدائنة (2000) غير مسموح بدون فاتورة.'
+                    : 'No posted vendor bill on this PO. Paying Accounts Payable (2000) without a bill is blocked.'}
+                </p>
+                <label className="flex items-start gap-2 text-xs text-amber-900 dark:text-amber-100 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={asAdvance}
+                    onChange={(e) => setAsAdvance(e.target.checked)}
+                    className="mt-0.5 rounded border-amber-300"
+                  />
+                  <span>
+                    {isAr
+                      ? 'تسجيل كدفعة مقدمة للمورد (مدين 1290) — وليس تخفيض الذمم الدائنة'
+                      : 'Record as Advance to supplier (Dr 1290) — do not debit Accounts Payable'}
+                  </span>
+                </label>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-[11px] font-medium text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+                {isAr ? 'سيتم تسجيل الدفعة على فاتورة المورد (مدين ذمم دائنة)' : 'Payment will settle the vendor bill (Dr Accounts Payable)'}
+              </div>
+            )}
+
             {/* Notes */}
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1.5">
@@ -383,10 +464,14 @@ export default function RecordPoPaymentModal({ isOpen, onClose, order, isAr, onS
                       <span className="font-mono tabular-nums">+{enteredAmount.toFixed(2)}</span>
                     </div>
                     <p className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5 text-[11px]">
-                      2000 • {isAr ? 'الذمم الدائنة للمورد' : 'Accounts Payable (AP)'}
+                      {!hasVendorBill && asAdvance
+                        ? `1290 • ${isAr ? 'دفعات مقدمة للموردين' : 'Advance to Suppliers'}`
+                        : `2000 • ${isAr ? 'الذمم الدائنة للمورد' : 'Accounts Payable (AP)'}`}
                     </p>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                      {isAr ? 'تخفيض التزام المورد' : 'Reduces vendor liability'}
+                      {!hasVendorBill && asAdvance
+                        ? (isAr ? 'أصل — دفعة مقدمة' : 'Asset — supplier prepayment')
+                        : (isAr ? 'تخفيض التزام المورد' : 'Reduces vendor liability')}
                     </p>
                   </div>
 

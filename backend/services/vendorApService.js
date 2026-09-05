@@ -304,7 +304,7 @@ export async function buildSepaCreditTransferXml(tenantId, invoiceIds = [], opti
   );
   const debtorIban = escapeXml(
     sepaCfg.debtorIban
-    || tenant?.business?.bankIban
+    || tenant?.business?.bankDetails?.iban
     || '',
   );
   const debtorBic = escapeXml(sepaCfg.debtorBic || '');
@@ -506,13 +506,23 @@ export function buildCheckPrintHtml(payload = {}) {
 }
 
 export async function getApPaymentSettings(tenantId) {
-  const tenant = await Tenant.findById(tenantId).select('settings.accounting.sepa settings.accounting.checkPrint settings.accounting.useOutstandingPayments business').lean();
+  const tenant = await Tenant.findById(tenantId)
+    .select('settings.accounting.sepa settings.accounting.checkPrint settings.accounting.useOutstandingPayments business')
+    .lean();
   const sepa = tenant?.settings?.accounting?.sepa || {};
   const checkPrint = tenant?.settings?.accounting?.checkPrint || {};
+  const bank = tenant?.business?.bankDetails || {};
   return {
+    companyBank: {
+      bankName: bank.bankName || '',
+      accountName: bank.accountName || '',
+      accountNumber: bank.accountNumber || '',
+      iban: bank.iban || '',
+      swift: bank.swift || '',
+    },
     sepa: {
-      debtorIban: sepa.debtorIban || tenant?.business?.bankIban || '',
-      debtorBic: sepa.debtorBic || '',
+      debtorIban: sepa.debtorIban || bank.iban || '',
+      debtorBic: sepa.debtorBic || bank.swift || '',
       debtorName: sepa.debtorName || '',
     },
     checkPrint: {
@@ -527,8 +537,43 @@ export async function getApPaymentSettings(tenantId) {
 
 export async function setApPaymentSettings(tenantId, patch = {}) {
   const update = {};
+  if (patch.companyBank && typeof patch.companyBank === 'object') {
+    const { validateIban, normalizeIban } = await import('../utils/iban.js');
+    if (patch.companyBank.bankName !== undefined) {
+      update['business.bankDetails.bankName'] = String(patch.companyBank.bankName || '').trim();
+    }
+    if (patch.companyBank.accountName !== undefined) {
+      update['business.bankDetails.accountName'] = String(patch.companyBank.accountName || '').trim();
+    }
+    if (patch.companyBank.accountNumber !== undefined) {
+      update['business.bankDetails.accountNumber'] = String(patch.companyBank.accountNumber || '').trim();
+    }
+    if (patch.companyBank.iban !== undefined) {
+      const ibanCheck = validateIban(patch.companyBank.iban);
+      if (!ibanCheck.ok) {
+        const err = new Error(ibanCheck.error);
+        err.status = 400;
+        err.code = 'INVALID_IBAN';
+        throw err;
+      }
+      update['business.bankDetails.iban'] = ibanCheck.iban || normalizeIban(patch.companyBank.iban);
+    }
+    if (patch.companyBank.swift !== undefined) {
+      update['business.bankDetails.swift'] = String(patch.companyBank.swift || '').replace(/\s+/g, '').toUpperCase().slice(0, 11);
+    }
+  }
   if (patch.sepa && typeof patch.sepa === 'object') {
-    if (patch.sepa.debtorIban !== undefined) update['settings.accounting.sepa.debtorIban'] = String(patch.sepa.debtorIban || '').trim();
+    if (patch.sepa.debtorIban !== undefined) {
+      const { validateIban } = await import('../utils/iban.js');
+      const ibanCheck = validateIban(patch.sepa.debtorIban);
+      if (!ibanCheck.ok) {
+        const err = new Error(ibanCheck.error);
+        err.status = 400;
+        err.code = 'INVALID_IBAN';
+        throw err;
+      }
+      update['settings.accounting.sepa.debtorIban'] = ibanCheck.iban;
+    }
     if (patch.sepa.debtorBic !== undefined) update['settings.accounting.sepa.debtorBic'] = String(patch.sepa.debtorBic || '').trim().toUpperCase();
     if (patch.sepa.debtorName !== undefined) update['settings.accounting.sepa.debtorName'] = String(patch.sepa.debtorName || '').trim();
   }
