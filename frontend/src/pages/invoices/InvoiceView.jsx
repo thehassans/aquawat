@@ -173,8 +173,7 @@ export default function InvoiceView() {
     }
   }, [invoice?.status, language])
   const travelInvoiceLabelMeta = isTravelAgencyInvoice(invoice) ? getTravelInvoiceLabelMeta(invoice, language) : null
-  const isBilingualInvoiceContext = invoice?.invoiceSubtype === 'travel_ticket' || ['travel_agency', 'trading', 'construction', 'boutique'].includes(invoice?.businessContext)
-  const isBilingualInvoice = resolveInvoiceBilingual(tenant, isBilingualInvoiceContext)
+  const isBilingualInvoice = resolveInvoiceBilingual(tenant)
   const invoiceSecondaryLanguage = getInvoiceSecondaryLanguage(tenant) || undefined
   const hasEmailAddon = tenantHasEmailAddon(tenant)
   const hasSmsAddon = tenantHasSmsAddon(tenant)

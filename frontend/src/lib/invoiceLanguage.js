@@ -77,6 +77,13 @@ export const resolveInvoiceBilingual = (tenant, contextBilingual = true) => {
   return contextBilingual !== false
 }
 
+/** True when a date field was actually stored (not empty / invalid). */
+export const hasInvoiceDateValue = (value) => {
+  if (value == null || value === '') return false
+  const parsed = new Date(value)
+  return !Number.isNaN(parsed.getTime())
+}
+
 export const isGccArabicMarket = (tenant) => getAutoSecondaryLanguage(tenant) === 'ar'
   || ARABIC_CURRENCIES.has(getCurrencyCode(tenant))
   || ARABIC_COUNTRIES.has(getCountryCode(tenant))
@@ -106,6 +113,7 @@ export const AR_TO_UR_LABELS = {
   'البريد الإلكتروني': 'ای میل',
   'التاريخ': 'تاریخ',
   'تاريخ الاستحقاق': 'موعد ادائیگی',
+  'صالح حتى': 'تک درست',
   'رقم': 'نمبر',
   'اسم المسافر الرئيسي': 'مرکزی مسافر کا نام',
   'رقم الجواز': 'پاسپورٹ نمبر',
@@ -178,6 +186,7 @@ export const AR_TO_BN_LABELS = {
   'البريد الإلكتروني': 'ইমেইল',
   'التاريخ': 'তারিখ',
   'تاريخ الاستحقاق': 'পরিশোধের তারিখ',
+  'صالح حتى': 'বৈধ থাকবে',
   'رقم': 'নম্বর',
   'اسم المسافر الرئيسي': 'প্রধান যাত্রীর নাম',
   'رقم الجواز': 'পাসপোর্ট নম্বর',

@@ -9,7 +9,7 @@ import { getZatcaStatusMeta } from '../../lib/zatcaStatus'
 import { getAmountInWords } from '../../lib/amountInWords'
 import { formatCurrency, formatCurrencyAmount, isSarCurrency } from '../../lib/currency'
 import { getTravelInvoiceLabelMeta, isTravelAgencyInvoice } from '../../lib/travelInvoiceStatus'
-import { setActiveInvoiceSecondaryLanguage, localizeSecondaryText } from '../../lib/invoiceLanguage'
+import { setActiveInvoiceSecondaryLanguage, localizeSecondaryText, resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 import { formatInvoiceDateDisplay, resolveInvoiceDateCalendar } from '../../lib/invoiceDateFormat'
 import SarIcon from '../ui/SarIcon'
 import ModernZatcaTemplate from './ModernZatcaTemplate'
@@ -436,8 +436,11 @@ const getInvoiceTitle = (invoice, language = 'en', documentType = 'invoice') => 
   return base
 }
 
-export default function InvoiceLivePreview({ invoice, tenant, language = 'en', templateId = 1, bilingual = false, secondaryLanguage, currencyRenderMode = 'icon', currencyDisplay, currencyPosition, documentType = 'invoice' }) {
-  const resolvedSecondaryLanguage = ['ur', 'bn', 'ar'].includes(secondaryLanguage) ? secondaryLanguage : null
+export default function InvoiceLivePreview({ invoice, tenant, language = 'en', templateId = 1, bilingual: bilingualProp, secondaryLanguage, currencyRenderMode = 'icon', currencyDisplay, currencyPosition, documentType = 'invoice' }) {
+  const bilingual = typeof bilingualProp === 'boolean' ? bilingualProp : resolveInvoiceBilingual(tenant)
+  const resolvedSecondaryLanguage = ['ur', 'bn', 'ar'].includes(secondaryLanguage)
+    ? secondaryLanguage
+    : (bilingual ? getInvoiceSecondaryLanguage(tenant) : null)
   setActiveInvoiceSecondaryLanguage(resolvedSecondaryLanguage)
   const secondaryDir = resolvedSecondaryLanguage === 'bn' ? 'ltr' : 'rtl'
   const currency = invoice?.currency || tenant?.settings?.currency || 'SAR'

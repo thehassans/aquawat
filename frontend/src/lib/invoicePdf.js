@@ -9,7 +9,7 @@ import { calculateInvoiceSummary, normalizeTravelDetails } from './invoiceDocume
 import { getInvoiceBranding, getInvoiceTemplateId, splitBrandingText, getLetterheadContact, splitCompanyNameLines, getLetterheadStyle, hexColorToRgb } from './invoiceBranding'
 import { getAmountInWords } from './amountInWords'
 import { resolveTaxInvoiceQr } from './taxInvoiceQr'
-import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, toEasternArabicNumerals } from './invoiceLanguage'
+import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, toEasternArabicNumerals, hasInvoiceDateValue } from './invoiceLanguage'
 import { LETTERHEAD_TEMPLATE_ID, resolveQuotationTemplateId } from './invoiceTemplates'
 import { formatProductTypeBilingual } from './productType'
 import { autoTranslateText } from './builtInTranslator'
@@ -269,14 +269,8 @@ const renderQrToDataUrl = async (value, size = 112) => {
   }
 }
 
-const shouldRenderBilingualInvoice = (invoice, documentType = 'invoice', tenant = null) => {
-  const contextBilingual = documentType === 'quotation'
-    || documentType === 'purchase_order'
-    || documentType === 'vendor_bill'
-    || documentType === 'sales_order'
-    || invoice?.invoiceSubtype === 'travel_ticket'
-    || ['travel_agency', 'trading', 'construction', 'boutique'].includes(invoice?.businessContext)
-  return resolveInvoiceBilingual(tenant, contextBilingual)
+const shouldRenderBilingualInvoice = (_invoice, _documentType = 'invoice', tenant = null) => {
+  return resolveInvoiceBilingual(tenant)
 }
 
 import { isThermalInvoice } from './invoiceFormat'
@@ -284,11 +278,30 @@ import { isThermalInvoice } from './invoiceFormat'
 export { isThermalInvoice }
 const isPosInvoice = isThermalInvoice
 
+const applyArabicSnapshotFonts = (clonedDocument, clonedElement, fontFaceCss = '') => {
+  if (!clonedElement) return
+  if (fontFaceCss && clonedDocument) {
+    const style = clonedDocument.createElement('style')
+    style.setAttribute('data-invoice-arabic-fonts', 'true')
+    style.textContent = fontFaceCss
+    ;(clonedDocument.head || clonedDocument.documentElement)?.appendChild(style)
+    clonedElement.prepend(style.cloneNode(true))
+  }
+
+  clonedElement.querySelectorAll('[dir="rtl"], [lang="ar"], [dir=rtl], [lang=ar]').forEach((node) => {
+    if (!(node instanceof HTMLElement)) return
+    node.style.letterSpacing = '0'
+    node.style.textTransform = 'none'
+    node.style.fontFamily = '"Almarai", "InvoiceAlmarai", Arial, sans-serif'
+  })
+}
+
 const captureElementSnapshotCanvas = async (sourceElement) => {
   if (!sourceElement || typeof window === 'undefined') return null
 
   try {
     await waitForElementImages(sourceElement)
+    const fontFaceCss = await getSnapshotFontFaceCss()
 
     const html2canvasModule = await import('html2canvas')
     const html2canvas = html2canvasModule?.default || html2canvasModule
@@ -301,16 +314,10 @@ const captureElementSnapshotCanvas = async (sourceElement) => {
       logging: false,
       width,
       windowWidth: width,
-      onclone: (_document, clonedElement) => {
-        // html2canvas + CSS uppercase/letter-spacing shred Arabic ligatures.
-        clonedElement.querySelectorAll('[dir="rtl"], [lang="ar"], [dir=rtl], [lang=ar]').forEach((node) => {
-          if (!(node instanceof HTMLElement)) return
-          node.style.letterSpacing = '0'
-          node.style.textTransform = 'none'
-          if (!node.style.fontFamily) {
-            node.style.fontFamily = '"InvoiceAlmarai", "Almarai", Arial, sans-serif'
-          }
-        })
+      onclone: (clonedDocument, clonedElement) => {
+        // html2canvas clones into a new document that often drops @font-face,
+        // so embed Almarai as data URIs and force it onto RTL/Arabic nodes.
+        applyArabicSnapshotFonts(clonedDocument, clonedElement, fontFaceCss)
       },
     })
   } catch (error) {
@@ -549,8 +556,15 @@ const waitForElementImages = async (element) => {
     await Promise.allSettled(pending)
   }
 
+  if (document?.fonts?.ready) {
+    await document.fonts.ready.catch(() => {})
+  }
   if (document?.fonts?.load) {
     await Promise.allSettled([
+      document.fonts.load('400 16px Almarai'),
+      document.fonts.load('700 16px Almarai'),
+      document.fonts.load('400 16px "Almarai"'),
+      document.fonts.load('700 16px "Almarai"'),
       document.fonts.load('400 16px "InvoiceAlmarai"'),
       document.fonts.load('700 16px "InvoiceAlmarai"'),
       document.fonts.load('400 16px "Noto Nastaliq Urdu"'),
@@ -590,6 +604,18 @@ const buildSnapshotElement = async ({ invoice, tenant, language, documentType = 
   )
   host.innerHTML = `
     <style>
+      @font-face {
+        font-family: "Almarai";
+        src: url("/fonts/Almarai/Almarai-Regular.ttf") format("truetype");
+        font-weight: 400;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Almarai";
+        src: url("/fonts/Almarai/Almarai-Bold.ttf") format("truetype");
+        font-weight: 700;
+        font-style: normal;
+      }
       @font-face {
         font-family: "InvoiceAlmarai";
         src: url("/fonts/Almarai/Almarai-Regular.ttf") format("truetype");
@@ -683,6 +709,43 @@ const tryFetchFirstFontBase64 = async (urls = []) => {
     }
   }
   return null
+}
+
+const buildEmbeddedFontFaceCss = (family, regularBase64, boldBase64) => {
+  if (!regularBase64) return ''
+  const faces = [
+    `@font-face{font-family:"${family}";src:url(data:font/truetype;base64,${regularBase64}) format("truetype");font-weight:400;font-style:normal;}`,
+  ]
+  if (boldBase64) {
+    faces.push(`@font-face{font-family:"${family}";src:url(data:font/truetype;base64,${boldBase64}) format("truetype");font-weight:700;font-style:normal;}`)
+  }
+  return faces.join('')
+}
+
+let snapshotFontFaceCss = ''
+let snapshotFontFacePromise
+
+const getSnapshotFontFaceCss = async () => {
+  if (snapshotFontFaceCss) return snapshotFontFaceCss
+  if (!snapshotFontFacePromise) {
+    snapshotFontFacePromise = (async () => {
+      const regular = almaraiRegularBase64 || await tryFetchFirstFontBase64(almaraiFontCandidates.regular)
+      const bold = almaraiBoldBase64 || await tryFetchFirstFontBase64(almaraiFontCandidates.bold)
+      if (!almaraiRegularBase64 && regular) almaraiRegularBase64 = regular
+      if (!almaraiBoldBase64 && bold) almaraiBoldBase64 = bold
+      snapshotFontFaceCss = [
+        buildEmbeddedFontFaceCss('Almarai', regular, bold),
+        buildEmbeddedFontFaceCss('InvoiceAlmarai', regular, bold),
+      ].filter(Boolean).join('')
+      return snapshotFontFaceCss
+    })()
+  }
+  try {
+    return await snapshotFontFacePromise
+  } catch {
+    snapshotFontFacePromise = null
+    return ''
+  }
 }
 
 const ensureAlmaraiFont = async (doc) => {
@@ -1347,6 +1410,9 @@ const generateInvoicePdf = async ({ invoice, language = 'en', tenant, sourceElem
       v: resolveDocumentNumber(invoice, documentType),
     },
     { k: isRtl ? 'التاريخ' : 'Date', v: formatInvoiceIssueDate(invoice, tenant, language) },
+    hasInvoiceDateValue(invoice?.dueDate)
+      ? { k: isRtl ? 'تاريخ الاستحقاق' : 'Due Date', v: formatInvoiceDateDisplay(invoice.dueDate, { mode: resolveInvoiceDateCalendar(tenant), language, includeTime: false, timeZone: tenant?.settings?.timezone || 'Asia/Riyadh' }) }
+      : null,
     { k: isRtl ? 'المستند' : 'Document', v: invoiceEyebrow },
     {
       k: isRtl ? 'النوع / التدفق' : 'Type / Flow',

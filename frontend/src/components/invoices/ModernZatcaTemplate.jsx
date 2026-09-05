@@ -8,7 +8,7 @@ import { getInvoiceBranding, getLetterheadContact, hexColorToRgb } from '../../l
 import { formatCurrencyAmount } from '../../lib/currency'
 import { Calendar, Hash, User, Phone, MapPin, CreditCard, FileText, Mail, Info } from 'lucide-react'
 import { getAmountInWords } from '../../lib/amountInWords'
-import { localizeSecondaryText, setActiveInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
+import { hasInvoiceDateValue, localizeSecondaryText, setActiveInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 import { getTaxIdLabel, getTaxQrLabel } from '../../lib/saudiTenant'
 import { normalizeSaudiVatDigits } from '../../lib/saudiVat'
 import { formatInvoiceDateDisplay, resolveInvoiceDateCalendar } from '../../lib/invoiceDateFormat'
@@ -397,13 +397,23 @@ export default function ModernZatcaTemplate({ invoice, tenant, language = 'en', 
                 <span className="font-semibold text-gray-900">{formatDate(invoice?.issueDate)}</span>
                 {bilingual && S('التاريخ') && <span className="text-gray-500" dir={secondaryDir}>:{S('التاريخ')}</span>}
               </div>
-              {!(invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental') && (
+              {!(invoice?.businessContext === 'boutique' && invoice?.boutiqueDetails?.transactionType === 'rental') && hasInvoiceDateValue(invoice?.dueDate) && (
                 <>
                   <hr className="border-gray-200" />
                   <div className="flex justify-between items-center">
                     <span className="text-gray-500">Due Date:</span>
-                    <span className="font-semibold text-gray-900">{formatDate(invoice?.dueDate || invoice?.validUntil)}</span>
+                    <span className="font-semibold text-gray-900">{formatDate(invoice.dueDate)}</span>
                     {bilingual && S('تاريخ الاستحقاق') && <span className="text-gray-500" dir={secondaryDir}>:{S('تاريخ الاستحقاق')}</span>}
+                  </div>
+                </>
+              )}
+              {isQuotation && hasInvoiceDateValue(invoice?.validUntil) && (
+                <>
+                  <hr className="border-gray-200" />
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Valid Until:</span>
+                    <span className="font-semibold text-gray-900">{formatDate(invoice.validUntil)}</span>
+                    {bilingual && S('صالح حتى') && <span className="text-gray-500" dir={secondaryDir}>:{S('صالح حتى')}</span>}
                   </div>
                 </>
               )}
