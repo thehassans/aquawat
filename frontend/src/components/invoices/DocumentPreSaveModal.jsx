@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom'
 import { useEffect, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Edit3, Eye, FileText, Receipt, Save, X } from 'lucide-react'
+import { AlertTriangle, ArrowUpRight, Edit3, Eye, FileText, Receipt, Save, X, XCircle } from 'lucide-react'
 import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage } from '../../lib/invoiceLanguage'
 
 const InvoiceLivePreview = lazy(() => import('./InvoiceLivePreview'))
@@ -25,12 +25,15 @@ export default function DocumentPreSaveModal({
   confirmLabel,
   confirmDisabled = false,
   warningText,
+  errorChecks = [],
+  onFixCheck,
   printFormat = 'a4',
   onPrintFormatChange,
   showPrintFormatToggle = false,
 }) {
   const isAr = language === 'ar'
   const isThermal = printFormat === 'thermal'
+  const blockingErrors = Array.isArray(errorChecks) ? errorChecks.filter((c) => c && !c.ok) : []
 
   useEffect(() => {
     if (!isOpen) return undefined
@@ -193,43 +196,79 @@ export default function DocumentPreSaveModal({
 
             <div className="absolute inset-x-0 bottom-0 z-20 border-t border-slate-200/90 bg-white/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl dark:border-white/10 dark:bg-[#0b0f16]/95">
               <div className="mx-auto flex max-w-4xl flex-col gap-2">
-                {warningText ? (
+                {blockingErrors.length ? (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 dark:border-rose-500/30 dark:bg-rose-950/40">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-rose-800 dark:text-rose-200">
+                      <XCircle className="h-3.5 w-3.5 shrink-0" />
+                      {isAr
+                        ? `أصلح هذه قبل التأكيد (${blockingErrors.length})`
+                        : `Fix these before confirm (${blockingErrors.length})`}
+                    </div>
+                    <ul className="mt-2 space-y-1.5">
+                      {blockingErrors.map((check) => {
+                        const label = isAr
+                          ? (check.messageAr || check.message || check.id)
+                          : (check.message || check.messageAr || check.id)
+                        return (
+                          <li key={check.id || label} className="flex items-start justify-between gap-2">
+                            <span className="text-[11px] leading-snug text-rose-800/90 dark:text-rose-100/90">
+                              {label}
+                            </span>
+                            {typeof onFixCheck === 'function' ? (
+                              <button
+                                type="button"
+                                onClick={() => onFixCheck(check)}
+                                className="inline-flex shrink-0 items-center gap-0.5 rounded-lg px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700 transition hover:bg-rose-100 dark:text-rose-200 dark:hover:bg-rose-900/40"
+                              >
+                                {isAr ? 'إصلاح' : 'Fix'}
+                                <ArrowUpRight className="h-3 w-3" />
+                              </button>
+                            ) : null}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                ) : warningText ? (
                   <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-200">
-                    {warningText}
+                    <span className="inline-flex items-center gap-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      {warningText}
+                    </span>
                   </p>
                 ) : null}
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="order-3 inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 sm:order-1 dark:hover:bg-white/5 dark:hover:text-slate-200"
-                >
-                  {isAr ? 'إلغاء' : 'Cancel'}
-                </button>
-
-                <div className="order-1 flex flex-1 gap-2 sm:order-2 sm:justify-end">
                   <button
                     type="button"
                     onClick={onClose}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 sm:flex-none dark:border-white/10 dark:bg-dark-800 dark:text-slate-100"
+                    className="order-3 inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 sm:order-1 dark:hover:bg-white/5 dark:hover:text-slate-200"
                   >
-                    <Edit3 className="h-4 w-4" strokeWidth={1.75} />
-                    {isAr ? 'تعديل' : 'Edit'}
+                    {isAr ? 'إلغاء' : 'Cancel'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={onConfirm}
-                    disabled={isPending || confirmDisabled}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-[0_12px_32px_-12px_rgba(15,23,42,0.55)] transition hover:bg-slate-800 disabled:opacity-50 sm:flex-none dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
-                  >
-                    {isPending ? (
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" />
-                    ) : (
-                      <Save className="h-4 w-4" strokeWidth={1.75} />
-                    )}
-                    {confirmLabel || saveLabel}
-                  </button>
-                </div>
+
+                  <div className="order-1 flex flex-1 gap-2 sm:order-2 sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 sm:flex-none dark:border-white/10 dark:bg-dark-800 dark:text-slate-100"
+                    >
+                      <Edit3 className="h-4 w-4" strokeWidth={1.75} />
+                      {isAr ? 'تعديل' : 'Edit'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onConfirm}
+                      disabled={isPending || confirmDisabled}
+                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-[0_12px_32px_-12px_rgba(15,23,42,0.55)] transition hover:bg-slate-800 disabled:opacity-50 sm:flex-none dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+                    >
+                      {isPending ? (
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" />
+                      ) : (
+                        <Save className="h-4 w-4" strokeWidth={1.75} />
+                      )}
+                      {confirmLabel || saveLabel}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

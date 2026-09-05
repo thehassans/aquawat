@@ -17,7 +17,7 @@ import { resolveInvoiceBilingual, getInvoiceSecondaryLanguage, isGccArabicMarket
 import { useLiveTranslation, useBilingualAddressFields, LineItemTranslator } from '../../lib/liveTranslation'
 import { INVOICE_PAYMENT_TERMS, computeDueDateFromPaymentTerms, computeDueDateOnlyFromPaymentTerms, isImmediatePaymentTerm, formPaymentStatusFromInvoice, applyFormPaymentToPayload } from '../../lib/invoicePaymentTerms'
 import { extractDateOnly, dateOnlyToUtcNoon } from '../../lib/dateOnly'
-import { isValidSaudiVat, isEmptyOrValidSaudiVat, saudiVatErrorMessage, normalizeSaudiVatDigits } from '../../lib/saudiVat'
+import { isValidSaudiVat, saudiVatErrorMessage, normalizeSaudiVatDigits } from '../../lib/saudiVat'
 import { resolveTransactionTypeFromParty, invoiceTypeCodeForTransaction, zatcaInvoiceKindForTransaction, transactionTypeBadgeLabel, transactionTypeReasonLine, isWalkInOrCashCustomer, partyHasValidVat } from '../../lib/transactionType'
 import DocumentPreSaveModal from './DocumentPreSaveModal'
 import InvoiceTemplateSelector from './InvoiceTemplateSelector'
@@ -403,8 +403,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   /** Manual B2B↔B2C override (cleared when customer changes). */
   const [typeOverride, setTypeOverride] = useState(null)
   const typeOverrideRef = useRef(null)
-  const [overrideModalOpen, setOverrideModalOpen] = useState(false)
-  const [overrideReasonDraft, setOverrideReasonDraft] = useState('')
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const isEdit = Boolean(invoiceId)
   const [selectedCustomer, setSelectedCustomer] = useState(() => {
@@ -856,42 +854,19 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
     }
   }
 
-  const openTypeOverrideModal = () => {
-    // Switching to Standard (B2B / business) does not require a reason.
-    if (invoiceType === 'B2C') {
-      const override = {
-        from: 'B2C',
-        to: 'B2B',
-        reason: language === 'ar' ? 'تبديل يدوي إلى قياسية (B2B)' : 'Manual switch to Standard (B2B)',
-        at: new Date().toISOString(),
-      }
-      typeOverrideRef.current = override
-      setTypeOverride(override)
-      applyTransactionType('B2B', { clearBuyerTax: false })
-      return
-    }
-    setOverrideReasonDraft('')
-    setOverrideModalOpen(true)
-  }
-
-  const confirmTypeOverride = () => {
-    const trimmed = String(overrideReasonDraft || '').trim()
-    if (!trimmed) {
-      toast.error(language === 'ar' ? 'سبب التغيير مطلوب' : 'A reason is required to change type')
-      return
-    }
+  const toggleTransactionType = () => {
     const next = invoiceType === 'B2B' ? 'B2C' : 'B2B'
     const override = {
       from: invoiceType,
       to: next,
-      reason: trimmed,
+      reason: next === 'B2B'
+        ? (language === 'ar' ? 'تبديل يدوي إلى قياسية (B2B)' : 'Manual switch to Standard (B2B)')
+        : (language === 'ar' ? 'تبديل يدوي إلى مبسطة (B2C)' : 'Manual switch to Simplified (B2C)'),
       at: new Date().toISOString(),
     }
     typeOverrideRef.current = override
     setTypeOverride(override)
     applyTransactionType(next, { clearBuyerTax: next === 'B2C' })
-    setOverrideModalOpen(false)
-    setOverrideReasonDraft('')
   }
 
   const fillBuyerFromParty = (customer) => {
@@ -1614,6 +1589,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   }, [showMargin, lineItems, totals.lines, productList])
 
   const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [previewConfirmAttempted, setPreviewConfirmAttempted] = useState(false)
   const [formTab, setFormTab] = useState('lines')
   const [pendingPayload, setPendingPayload] = useState(null)
   const [cancelOpen, setCancelOpen] = useState(false)
@@ -1727,7 +1703,13 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           scrollAndFocus('#invoice-customer-section')
           break
         case 'b2b_vat':
-          scrollAndFocus('#invoice-buyer-vat')
+          scrollAndFocus('#invoice-customer-section')
+          toast(
+            language === 'ar'
+              ? 'حدّث الرقم الضريبي / السجل التجاري من ملف العميل'
+              : 'Update VAT / CR on the customer profile',
+            { icon: 'ℹ' },
+          )
           break
         case 'seller_vat':
           toast(
@@ -1993,26 +1975,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   }
 
   const onSubmit = (data) => {
-    if (!isInvoicePosted && prePostResult && !prePostResult.canPost) {
-      const first = prePostResult.blockingFailed?.[0]
-      const msg = language === 'ar'
-        ? (first?.messageAr || first?.message || 'أصلح فحوصات ما قبل الترحيل')
-        : (first?.message || 'Fix pre-post checks before posting')
-      toast.error(msg)
-      return
-    }
     const payload = buildPayload(data)
     if (!payload) return
     setPendingPayload(payload)
+    setPreviewConfirmAttempted(false)
     setShowPreviewModal(true)
   }
 
   const handleConfirmSave = () => {
     if (!isInvoicePosted && prePostResult && !prePostResult.canPost) {
-      const first = prePostResult.blockingFailed?.[0]
-      toast.error(language === 'ar'
-        ? (first?.messageAr || first?.message || 'أصلح فحوصات ما قبل الترحيل')
-        : (first?.message || 'Fix pre-post checks before posting'))
+      setPreviewConfirmAttempted(true)
       return
     }
     const payload = pendingPayload || buildPayload(getValues())
@@ -2190,10 +2162,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       const form = document.getElementById('invoice-sell-form')
                       form?.requestSubmit()
                     }}
-                    disabled={saveMutation.isPending || !prePostCanPost}
-                    title={!prePostCanPost
-                      ? (language === 'ar' ? 'أصلح العناصر الحمراء أولاً' : 'Fix red checklist items first')
-                      : undefined}
+                    disabled={saveMutation.isPending}
                   >
                     <Save className="h-3.5 w-3.5" />
                     {prePostHasWarnings && prePostCanPost
@@ -2464,7 +2433,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 ) : null}
                 <button
                   type="button"
-                  onClick={openTypeOverrideModal}
+                  onClick={toggleTransactionType}
                   className="ms-auto text-xs font-medium text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline dark:text-slate-400 dark:hover:text-slate-200"
                 >
                   {language === 'ar' ? 'تغيير النوع' : 'Change type'}
@@ -2477,11 +2446,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   isWalkIn: !selectedCustomer?._id || isWalkInOrCashCustomer(selectedCustomer),
                 })}
               </p>
-              {typeOverride?.reason ? (
-                <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-300">
-                  {language === 'ar' ? 'السبب' : 'Reason'}: {typeOverride.reason}
-                </p>
-              ) : null}
             </div>
 
             <PartnerCombobox
@@ -2529,45 +2493,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             <input type="hidden" {...register('buyer.address.buildingNumber')} />
             <input type="hidden" {...register('buyer.address.additionalNumber')} />
             <input type="hidden" {...register('buyer.address.shortAddress')} />
-            {invoiceType === 'B2B' ? (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" dir="ltr">
-                <div>
-                  <FieldLabel en="Customer VAT / TRN" ar="الرقم الضريبي للعميل" />
-                  <input
-                    id="invoice-buyer-vat"
-                    className={`${compactFieldClass} ${
-                      String(watch('buyer.vatNumber') || '').trim() && !isValidSaudiVat(watch('buyer.vatNumber'))
-                        ? '!border-rose-400 !ring-1 !ring-rose-300'
-                        : ''
-                    }`}
-                    {...register('buyer.vatNumber', {
-                      validate: (v) => isEmptyOrValidSaudiVat(v) || saudiVatErrorMessage(language),
-                    })}
-                    placeholder="3XXXXXXXXXXXXX3"
-                    disabled={isInvoicePosted && !transactionTypeDirty}
-                  />
-                  {errors?.buyer?.vatNumber ? (
-                    <p className="mt-1 text-[11px] font-medium text-rose-600">
-                      {errors.buyer.vatNumber.message || saudiVatErrorMessage(language)}
-                    </p>
-                  ) : null}
-                </div>
-                <div>
-                  <FieldLabel en="Customer CR" ar="السجل التجاري للعميل" />
-                  <input
-                    className={compactFieldClass}
-                    {...register('buyer.crNumber')}
-                    placeholder={language === 'ar' ? 'رقم السجل' : 'CR number'}
-                    disabled={isInvoicePosted && !transactionTypeDirty}
-                  />
-                </div>
-              </div>
-            ) : (
-              <>
-                <input type="hidden" {...register('buyer.vatNumber')} />
-                <input type="hidden" {...register('buyer.crNumber')} />
-              </>
-            )}
+            <input type="hidden" {...register('buyer.vatNumber')} />
+            <input type="hidden" {...register('buyer.crNumber')} />
             {invoiceSubtype === 'travel_ticket' ? (
               <TravelInvoiceFields language={language} register={register} control={control} watch={watch} setValue={setValue} />
             ) : null}
@@ -3586,7 +3513,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
               </div>
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : '/app/dashboard/accounting/invoices')} className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:bg-transparent dark:text-slate-300">{t('cancel')}</button>
-                <button type="submit" disabled={saveMutation.isPending || isInvoicePosted || !prePostCanPost} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 disabled:opacity-50 dark:bg-white dark:text-slate-900">
+                <button type="submit" disabled={saveMutation.isPending || isInvoicePosted} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 disabled:opacity-50 dark:bg-white dark:text-slate-900">
                   {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" /> : <><Eye className="w-4 h-4" />{language === 'ar' ? 'معاينة' : 'Preview'}</>}
                 </button>
               </div>
@@ -3672,7 +3599,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
 
       <DocumentPreSaveModal
         isOpen={showPreviewModal}
-        onClose={() => setShowPreviewModal(false)}
+        onClose={() => {
+          setShowPreviewModal(false)
+          setPreviewConfirmAttempted(false)
+        }}
         onConfirm={handleConfirmSave}
         isPending={saveMutation.isPending}
         document={previewInvoice}
@@ -3684,60 +3614,30 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         printFormat={values?.printFormat === 'thermal' ? 'thermal' : 'a4'}
         showPrintFormatToggle={!isInvoicePosted}
         onPrintFormatChange={(fmt) => setValue('printFormat', fmt === 'thermal' ? 'thermal' : 'a4', { shouldDirty: true })}
-        confirmDisabled={!isInvoicePosted && !prePostCanPost}
+        confirmDisabled={false}
         confirmLabel={
           prePostHasWarnings && prePostCanPost
             ? (language === 'ar' ? 'ترحيل على أي حال' : 'Post anyway')
             : (language === 'ar' ? 'تأكيد / ترحيل' : 'Confirm / Post')
         }
         warningText={
-          prePostHasWarnings
+          prePostHasWarnings && prePostCanPost
             ? (language === 'ar'
               ? (prePostResult?.warnings?.[0]?.messageAr || prePostResult?.warnings?.[0]?.message)
               : (prePostResult?.warnings?.[0]?.message))
             : undefined
         }
+        errorChecks={
+          previewConfirmAttempted && !prePostCanPost
+            ? prePostChecks.filter((c) => !c.ok && c.blocking)
+            : []
+        }
+        onFixCheck={(check) => {
+          setShowPreviewModal(false)
+          setPreviewConfirmAttempted(false)
+          handlePrePostFix(check)
+        }}
       />
-      {overrideModalOpen ? (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <button
-            type="button"
-            className="absolute inset-0 bg-slate-950/60"
-            aria-label={language === 'ar' ? 'إغلاق' : 'Close'}
-            onClick={() => { setOverrideModalOpen(false); setOverrideReasonDraft('') }}
-          />
-          <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-white/10 dark:bg-dark-800">
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-              {language === 'ar'
-                ? `تغيير النوع إلى ${invoiceType === 'B2B' ? 'مبسطة (B2C)' : 'قياسية (B2B)'}`
-                : `Change type to ${invoiceType === 'B2B' ? 'Simplified (B2C)' : 'Standard (B2B)'}`}
-            </h3>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              {language === 'ar' ? 'اذكر سبب التغيير (يُسجّل في سجل التدقيق)' : 'Provide a reason (recorded in the audit log)'}
-            </p>
-            <textarea
-              value={overrideReasonDraft}
-              onChange={(e) => setOverrideReasonDraft(e.target.value)}
-              rows={3}
-              autoFocus
-              className={`mt-3 ${fieldControlClass} min-h-[5rem]`}
-              placeholder={language === 'ar' ? 'سبب التغيير…' : 'Reason for change…'}
-            />
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                className={ghostActionClass}
-                onClick={() => { setOverrideModalOpen(false); setOverrideReasonDraft('') }}
-              >
-                {language === 'ar' ? 'إلغاء' : 'Cancel'}
-              </button>
-              <button type="button" className={primaryActionClass} onClick={confirmTypeOverride}>
-                {language === 'ar' ? 'تأكيد التغيير' : 'Confirm change'}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
       <CancelInvoiceModal
         isOpen={cancelOpen}
         onClose={() => { if (!cancelPending) setCancelOpen(false) }}
@@ -3764,3 +3664,4 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   )
 }
 
+                        
