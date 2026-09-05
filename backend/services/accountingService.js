@@ -3422,8 +3422,11 @@ export async function postSupplierPaymentJournal({
   currency = 'SAR',
   notes = '',
   asAdvance = false,
+  /** @deprecated Migration-only escape hatch — never use from product UI */
+  allowLegacyApDebit = false,
 }) {
-  if (asAdvance) {
+  if (asAdvance || !allowLegacyApDebit) {
+    // Product path: never silently debit AP against a PO — use Advance to Suppliers (1290)
     return postSupplierAdvanceJournal({
       tenantId,
       userId,
@@ -3438,7 +3441,7 @@ export async function postSupplierPaymentJournal({
     });
   }
 
-  // Legacy AP debit path — only used by migration when reconstructing history intentionally.
+  // Legacy AP debit path — only when allowLegacyApDebit=true (migration reconstruct)
   const payAmt = round2(amount);
   if (!purchaseOrder?._id || payAmt <= 0) return null;
 
@@ -6857,15 +6860,30 @@ export async function getAccountingDashboard(tenantId) {
     negativeCashAccountCount: negativeCashAccounts.length,
     agedAr: {
       buckets: agedAr.buckets,
-      openCount: agedAr.totals?.partnerCount
-        ?? (agedAr.partners || []).filter((p) => Math.abs(Number(p.openResidual) || 0) >= 0.01).length,
-      total: agedAr.buckets?.total ?? agedAr.totals?.openResidual ?? 0,
+      // Open invoice/bill documents — not partner rows with GL residual
+      openCount: agedAr.totals?.invoiceCount
+        ?? (agedAr.rows || []).length
+        ?? 0,
+      total: agedAr.totals?.payableResidual
+        ?? agedAr.buckets?.total
+        ?? agedAr.totals?.openResidual
+        ?? 0,
+      advanceResidual: agedAr.totals?.advanceResidual ?? 0,
+      unallocatedAmount: agedAr.totals?.unallocatedAmount ?? 0,
+      glControlBalance: agedAr.totals?.glControlBalance ?? agedAr.totals?.openResidual ?? 0,
     },
     agedAp: {
       buckets: agedAp.buckets,
-      openCount: agedAp.totals?.partnerCount
-        ?? (agedAp.partners || []).filter((p) => Math.abs(Number(p.openResidual) || 0) >= 0.01).length,
-      total: agedAp.buckets?.total ?? agedAp.totals?.openResidual ?? 0,
+      openCount: agedAp.totals?.invoiceCount
+        ?? (agedAp.rows || []).length
+        ?? 0,
+      total: agedAp.totals?.payableResidual
+        ?? agedAp.buckets?.total
+        ?? agedAp.totals?.openResidual
+        ?? 0,
+      advanceResidual: agedAp.totals?.advanceResidual ?? 0,
+      unallocatedAmount: agedAp.totals?.unallocatedAmount ?? 0,
+      glControlBalance: agedAp.totals?.glControlBalance ?? agedAp.totals?.openResidual ?? 0,
     },
   };
 }
@@ -7776,7 +7794,12 @@ async function buildAgedInvoices(tenantId, { flow, asOf = null, groupBy = 'invoi
     rows,
     partners: data.partners || [],
     customers,
-    totals: data.totals || { openResidual: 0 },
+    advances: data.advances || [],
+    unallocated: data.unallocated || null,
+    totals: {
+      ...(data.totals || { openResidual: 0 }),
+      openResidual: data.totals?.payableResidual ?? data.totals?.openResidual ?? 0,
+    },
   };
 }
 
@@ -8146,8 +8169,86 @@ export async function cancelInvoiceDocument({
 }
 
 /**
+ * Unlink / cancel AccountPayments allocated to an invoice before reset/cancel.
+ * Full single-invoice payments are cancelled; multi-alloc payments drop this invoice only.
+ */
+async function unlinkPaymentsForInvoice(tenantId, invoiceId, userId, reason = '') {
+  const payments = await AccountPayment.find({
+    tenantId,
+    status: { $ne: 'cancelled' },
+    'allocations.invoiceId': invoiceId,
+  });
+
+  const touched = [];
+  for (const payment of payments) {
+    const kept = [];
+    let removed = 0;
+    for (const row of payment.allocations || []) {
+      if (String(row.invoiceId) === String(invoiceId)) {
+        removed = round2(removed + Number(row.amount || 0));
+      } else {
+        kept.push(row);
+      }
+    }
+    if (removed < 0.005 && kept.length === (payment.allocations || []).length) continue;
+
+    payment.allocations = kept;
+    payment.allocatedAmount = round2(kept.reduce((s, a) => s + Number(a.amount || 0), 0));
+    payment.unallocatedAmount = round2(Math.max(0, Number(payment.amount || 0) - payment.allocatedAmount));
+
+    if (kept.length === 0 && payment.unallocatedAmount < 0.005) {
+      payment.status = 'cancelled';
+      payment.memo = [
+        String(payment.memo || '').trim(),
+        reason || `Unlinked on invoice reset ${invoiceId}`,
+      ].filter(Boolean).join('\n');
+    } else if (kept.length === 0) {
+      // Entire allocation removed but cash remains as unallocated advance
+      payment.reconciliationStatus = 'unreconciled';
+    } else {
+      payment.reconciliationStatus = payment.unallocatedAmount > 0.005 ? 'partial' : 'reconciled';
+    }
+
+    await payment.save();
+    touched.push(payment);
+
+    // Cancel mirrored receive/pay voucher when the payment itself was cancelled
+    if (payment.status === 'cancelled' && payment.voucherId) {
+      try {
+        const voucher = await Voucher.findOne({ _id: payment.voucherId, tenantId });
+        if (voucher && String(voucher.status || '') !== 'cancelled') {
+          voucher.status = 'cancelled';
+          await voucher.save();
+        }
+      } catch {
+        /* best-effort */
+      }
+    }
+  }
+
+  // Drop invoice from open payment batches (draft/exported)
+  try {
+    const PaymentBatch = (await import('../models/PaymentBatch.js')).default;
+    await PaymentBatch.updateMany(
+      {
+        tenantId,
+        status: { $in: ['draft', 'exported'] },
+        'lines.invoiceId': invoiceId,
+      },
+      { $pull: { lines: { invoiceId } } },
+    );
+  } catch {
+    /* optional model */
+  }
+
+  void userId;
+  return touched;
+}
+
+/**
  * Reset a posted invoice/bill back to draft so it can be edited and re-posted.
- * Blocks ZATCA-cleared sales invoices, paid documents, and linked credit notes.
+ * Reverses linked GL (document + payments), unlinks AccountPayments, clears paid state.
+ * ZATCA-cleared sales invoices must still use a credit note.
  */
 export async function resetInvoiceToDraft({
   tenantId,
@@ -8196,29 +8297,6 @@ export async function resetInvoiceToDraft({
     throw err;
   }
 
-  const paid = Number(invoice.paidAmount || 0);
-  const embeddedPayments = Array.isArray(invoice.payments) ? invoice.payments.length : 0;
-  if (paid > 0.005 || embeddedPayments > 0) {
-    const err = new Error('Remove or reverse all payments before resetting this invoice to draft');
-    err.status = 400;
-    err.code = 'HAS_PAYMENTS';
-    throw err;
-  }
-
-  const linkedPayment = await AccountPayment.findOne({
-    tenantId,
-    status: { $ne: 'cancelled' },
-    'allocations.invoiceId': invoice._id,
-  }).select('_id number').lean();
-  if (linkedPayment) {
-    const err = new Error(
-      `Payment ${linkedPayment.number || linkedPayment._id} is allocated to this invoice. Reverse it first.`,
-    );
-    err.status = 400;
-    err.code = 'HAS_PAYMENTS';
-    throw err;
-  }
-
   if (!isCreditOrRefund && String(invoice.invoiceType || '388') === '388') {
     const linkedCn = await Invoice.findOne({
       tenantId,
@@ -8236,24 +8314,43 @@ export async function resetInvoiceToDraft({
     }
   }
 
+  const resetReason = `Reset to draft ${invoice.invoiceNumber || invoice._id}`;
+
+  // 1) Unlink AR/AP payment documents first (so directories stay consistent)
+  await unlinkPaymentsForInvoice(tenantId, invoice._id, userId, resetReason);
+
+  // 2) Reverse all journals posted against this invoice (AR/AP, COGS, payments, diffs)
   await reverseInvoiceLinkedJournals(
     tenantId,
     invoice._id,
     userId,
-    `Reset to draft ${invoice.invoiceNumber || invoice._id}`,
+    resetReason,
   );
 
   const stamp = `[reset to draft ${new Date().toISOString()}]`;
   const previousNotes = String(invoice.internalNotes || '').trim();
+  const hadPayments = Number(invoice.paidAmount || 0) > 0.005
+    || (Array.isArray(invoice.payments) && invoice.payments.length > 0);
 
   invoice.status = 'draft';
   invoice.paidAmount = 0;
+  invoice.payments = [];
   invoice.paymentStatus = 'unposted';
   invoice.cancelReason = undefined;
   invoice.cancelledAt = undefined;
   invoice.cancelledBy = undefined;
   invoice.journalEntryId = undefined;
-  invoice.internalNotes = previousNotes ? `${previousNotes}\n${stamp}` : stamp;
+  if (invoice.earlyPaymentDiscount && typeof invoice.earlyPaymentDiscount === 'object') {
+    invoice.earlyPaymentDiscount = {
+      ...(invoice.earlyPaymentDiscount.toObject?.() || invoice.earlyPaymentDiscount),
+      applied: false,
+      appliedAt: undefined,
+      appliedAmount: undefined,
+    };
+  }
+  invoice.internalNotes = previousNotes
+    ? `${previousNotes}\n${stamp}${hadPayments ? ' (payments reversed)' : ''}`
+    : `${stamp}${hadPayments ? ' (payments reversed)' : ''}`;
 
   if (!invoice.zatca?.signedXml) {
     if (!invoice.zatca) invoice.zatca = {};

@@ -6,6 +6,7 @@ import api from '../../lib/api'
 import InvoiceSellComposer from '../../components/invoices/InvoiceSellComposer'
 import InvoicePurchaseComposer from '../../components/invoices/InvoicePurchaseComposer'
 import { isEditableInvoice } from '../../lib/zatcaStatus'
+import { canResetInvoiceToDraft } from '../../lib/accountingDocumentStatus'
 
 export default function InvoiceEditPage() {
   const { id } = useParams()
@@ -43,7 +44,12 @@ export default function InvoiceEditPage() {
     )
   }
 
-  if (!isEditableInvoice(invoice, tenant?.zatca?.phase || 2)) {
+  const phase = tenant?.zatca?.phase || 2
+  const canEdit = isEditableInvoice(invoice, phase)
+  const canReset = canResetInvoiceToDraft(invoice, phase)
+
+  // Posted invoices open in locked composer so Reset to draft (and type overrides) stay available.
+  if (!canEdit && !canReset) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -52,7 +58,11 @@ export default function InvoiceEditPage() {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{language === 'ar' ? 'لا يمكن تعديل هذه الفاتورة' : 'This invoice cannot be edited'}</h1>
-            <p className="mt-1 text-gray-500 dark:text-gray-400">{language === 'ar' ? 'يمكن تعديل الفواتير غير الموقعة فقط بحالة مسودة أو معلقة.' : 'Only unsigned draft or pending invoices can be edited.'}</p>
+            <p className="mt-1 text-gray-500 dark:text-gray-400">
+              {language === 'ar'
+                ? 'الفواتير المصفّاة لدى هيئة الزكاة أو الملغاة لا يمكن إعادتها إلى مسودة من هنا.'
+                : 'ZATCA-cleared or cancelled invoices cannot be reset to draft here.'}
+            </p>
           </div>
         </div>
       </div>

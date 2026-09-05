@@ -2236,10 +2236,16 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   className={ghostActionClass}
                   disabled={resetDraftPending}
                   onClick={async () => {
+                    const paid = Number(initialInvoice?.paidAmount || 0) > 0.005
+                      || (Array.isArray(initialInvoice?.payments) && initialInvoice.payments.length > 0)
                     const ok = window.confirm(
                       language === 'ar'
-                        ? 'إعادة الفاتورة إلى مسودة؟ سيتم عكس القيود المرتبطة.'
-                        : 'Reset this invoice to draft? Linked journal entries will be reversed.',
+                        ? (paid
+                          ? 'إعادة الفاتورة إلى مسودة؟ سيتم عكس القيود والمدفوعات المرتبطة.'
+                          : 'إعادة الفاتورة إلى مسودة؟ سيتم عكس القيود المرتبطة.')
+                        : (paid
+                          ? 'Reset this invoice to draft? Linked journal entries and payments will be reversed.'
+                          : 'Reset this invoice to draft? Linked journal entries will be reversed.'),
                     )
                     if (!ok) return
                     setResetDraftPending(true)
@@ -2248,6 +2254,8 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                       toast.success(language === 'ar' ? 'أُعيدت إلى مسودة' : 'Reset to draft')
                       queryClient.invalidateQueries(['invoices'])
                       queryClient.invalidateQueries(['invoice', invoiceId])
+                      queryClient.invalidateQueries(['customer-payments'])
+                      queryClient.invalidateQueries(['vendor-payments'])
                       navigate(`/app/dashboard/accounting/invoices/${invoiceId}/edit`)
                     } catch (error) {
                       toast.error(error?.response?.data?.error || (language === 'ar' ? 'فشلت إعادة المسودة' : 'Reset to draft failed'))

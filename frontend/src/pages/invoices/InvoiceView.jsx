@@ -272,6 +272,8 @@ export default function InvoiceView() {
       queryClient.invalidateQueries(['invoices'])
       queryClient.invalidateQueries(['invoice', id])
       queryClient.invalidateQueries(['vendor-bills'])
+      queryClient.invalidateQueries(['customer-payments'])
+      queryClient.invalidateQueries(['vendor-payments'])
       navigate(`/app/dashboard/accounting/invoices/${id}/edit`)
     },
     onError: (error) => {
@@ -287,6 +289,7 @@ export default function InvoiceView() {
     : canRegisterPaymentOnInvoice(invoice)
   const canCancel = canCancelInvoice(invoice, tenant?.zatca?.phase || 2)
   const canResetDraft = canResetInvoiceToDraft(invoice, tenant?.zatca?.phase || 2)
+  const canOpenEditor = isEditableInvoice(invoice, tenant?.zatca?.phase || 2) || canResetDraft
   const isCreditNote = String(invoice?.invoiceType || '') === '381' && !isPurchaseBill
   const ribbonStep = resolveInvoiceRibbonStep(invoice)
   const statusSteps = isPurchaseRefund
@@ -451,13 +454,13 @@ export default function InvoiceView() {
                 {language === 'ar' ? 'تسجيل دفعة' : (isPurchaseBill ? 'Register payment' : 'Register payment')}
               </button>
             )}
-            {isEditableInvoice(invoice, tenant?.zatca?.phase || 2) && (
+            {canOpenEditor && (
               <button type="button" onClick={() => navigate(`/app/dashboard/accounting/invoices/${id}/edit`)} className={ghostActionClass}>
                 <Edit className="w-4 h-4" />
                 {language === 'ar' ? 'تعديل' : 'Edit'}
               </button>
             )}
-            {!isEditableInvoice(invoice, tenant?.zatca?.phase || 2)
+            {!canOpenEditor
               && invoice?.invoiceSubtype !== 'proforma'
               && invoice?.invoiceType === '388'
               && !['cancelled', 'credited'].includes(invoice?.status) && (
@@ -500,10 +503,16 @@ export default function InvoiceView() {
               <button
                 type="button"
                 onClick={() => {
+                  const paid = Number(invoice?.paidAmount || 0) > 0.005
+                    || (Array.isArray(invoice?.payments) && invoice.payments.length > 0)
                   const ok = window.confirm(
                     language === 'ar'
-                      ? 'إعادة الفاتورة إلى مسودة؟ سيتم عكس القيود المرتبطة.'
-                      : 'Reset this invoice to draft? Linked journal entries will be reversed.',
+                      ? (paid
+                        ? 'إعادة الفاتورة إلى مسودة؟ سيتم عكس القيود والمدفوعات المرتبطة.'
+                        : 'إعادة الفاتورة إلى مسودة؟ سيتم عكس القيود المرتبطة.')
+                      : (paid
+                        ? 'Reset this invoice to draft? Linked journal entries and payments will be reversed.'
+                        : 'Reset this invoice to draft? Linked journal entries will be reversed.'),
                   )
                   if (!ok) return
                   resetDraftMutation.mutate()

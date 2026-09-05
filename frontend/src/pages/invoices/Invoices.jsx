@@ -44,7 +44,7 @@ import { isSaudiTenant } from '../../lib/saudiTenant'
 import { getZatcaDocumentTitle } from '../../lib/commercialDocumentLabels'
 import AccountingDocumentBatchBar from '../accounting/documents/AccountingDocumentBatchBar'
 import RegisterPaymentModal from '../../components/accounting/RegisterPaymentModal'
-import { canRegisterPaymentOnDocument } from '../../lib/accountingDocumentStatus'
+import { canRegisterPaymentOnDocument, canResetInvoiceToDraft } from '../../lib/accountingDocumentStatus'
 import {
   chipFilterClass,
   docLinkClass,
@@ -959,7 +959,7 @@ export default function Invoices() {
                         <Link to={`/app/dashboard/accounting/invoices/${invoice._id}`} className={rowActionBtnClass}>
                           <Eye className="h-4 w-4" />
                         </Link>
-                        {isEditableInvoice(invoice, tenant?.zatca?.phase || 2) && (
+                        {(isEditableInvoice(invoice, tenant?.zatca?.phase || 2) || canResetInvoiceToDraft(invoice, tenant?.zatca?.phase || 2)) && (
                           <Link to={`/app/dashboard/accounting/invoices/${invoice._id}/edit`} className={rowActionBtnClass}>
                             <Edit className="h-4 w-4" />
                           </Link>
@@ -1093,7 +1093,7 @@ export default function Invoices() {
                               <Send className="h-4 w-4" />
                             </button>
                           )}
-                          {isEditableInvoice(invoice, tenant?.zatca?.phase || 2) && (
+                          {(isEditableInvoice(invoice, tenant?.zatca?.phase || 2) || canResetInvoiceToDraft(invoice, tenant?.zatca?.phase || 2)) && (
                             <Link
                               to={`/app/dashboard/accounting/invoices/${invoice._id}/edit`}
                               className={rowActionBtnClass}
