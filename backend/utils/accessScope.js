@@ -55,6 +55,21 @@ export const shouldScopeInvoicesToSelf = (user) => {
   return getAccessScope(user).invoiceVisibility !== 'all';
 };
 
+/**
+ * Company-wide books (P&L, TB, GL, tax, cash) — admins / invoiceVisibility=all only.
+ * Scoped users get their own invoices/dashboard KPIs, not the full ledger.
+ */
+export const canViewCompanyWideFinance = (user) => !shouldScopeInvoicesToSelf(user);
+
+export const denyCompanyWideFinanceIfScoped = (req, res) => {
+  if (canViewCompanyWideFinance(req.user)) return false;
+  res.status(403).json({
+    error: 'Company-wide accounting is limited to administrators',
+    code: 'SCOPED_USER_DENIED',
+  });
+  return true;
+};
+
 /** Same visibility rule drives customer / sales / purchase / accounting filters. */
 export const shouldScopeCustomersToSelf = (user) => shouldScopeInvoicesToSelf(user);
 

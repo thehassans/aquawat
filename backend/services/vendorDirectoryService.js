@@ -100,6 +100,7 @@ export async function listAccountingVendors(tenantId, {
   overdueOnly = false,
   isActive = 'all',
   city = '',
+  ownerUser = null,
 } = {}) {
   const filter = {
     tenantId,
@@ -127,11 +128,23 @@ export async function listAccountingVendors(tenantId, {
     }]);
   }
 
-  const invoicePartnerIds = await Invoice.distinct('supplierId', {
+  const invoiceMatch = {
     tenantId,
     flow: 'purchase',
     supplierId: { $ne: null },
-  });
+  };
+  if (ownerUser?._id) invoiceMatch.createdBy = ownerUser._id;
+
+  const invoicePartnerIds = await Invoice.distinct('supplierId', invoiceMatch);
+
+  if (ownerUser?._id) {
+    filter.$and = (filter.$and || []).concat([{
+      $or: [
+        { createdBy: ownerUser._id },
+        { _id: { $in: invoicePartnerIds } },
+      ],
+    }]);
+  }
 
   const basePartners = await Partner.find(filter)
     .select('name nameEn nameAr vatNumber crNumber phone mobile email creditLimit paymentTermsVendor paymentTermsId address isActive supplierCode tags type bank bankAccounts defaultExpenseAccountId totalPurchases totalInvoices')
@@ -401,7 +414,7 @@ export async function checkVendorDuplicate(tenantId, {
   return { hasDuplicates: unique.length > 0, warnings: unique };
 }
 
-export async function getAccountingVendorDetail(tenantId, vendorId) {
+export async function getAccountingVendorDetail(tenantId, vendorId, { ownerUser = null } = {}) {
   const partner = await Partner.findOne({ _id: vendorId, tenantId }).lean();
   if (!partner) {
     const err = new Error('Vendor not found');

@@ -314,6 +314,7 @@ export async function getPartnerBalances({
   includeDraft = false,
   includeReversed = false,
   includeVoid = false,
+  createdBy = null,
 } = {}) {
   if (!tenantId) throw new Error('tenantId is required');
   const flow = partnerType === 'vendor' ? 'purchase' : 'sell';
@@ -486,6 +487,9 @@ export async function getPartnerBalances({
   };
   if (partnerIdFilter) {
     invoiceMatch[partnerField] = { $in: partnerIdFilter };
+  }
+  if (createdBy) {
+    invoiceMatch.createdBy = new mongoose.Types.ObjectId(String(createdBy));
   }
 
   const [invoiceStats, openInvoiceRows] = await Promise.all([

@@ -903,7 +903,12 @@ async function buildRevenueChart(req, months) {
 router.get('/charts/expenses', async (req, res) => {
   try {
     const { months = 12 } = req.query;
-    const cacheKey = `dashboard:v1:charts:expenses:${req.tenant?._id || req.tenantFilter?.tenantId || 'unknown'}:${months}`;
+    const scopeKey = shouldScopeInvoicesToSelf(req.user) ? `u:${req.user._id}` : 'all';
+    // Scoped users do not see company-wide payroll/expense charts
+    if (shouldScopeInvoicesToSelf(req.user)) {
+      return res.json({ months: [], totals: { salaries: 0, gosi: 0, other: 0 } });
+    }
+    const cacheKey = `dashboard:v1:charts:expenses:${req.tenant?._id || req.tenantFilter?.tenantId || 'unknown'}:${months}:${scopeKey}`;
     const merged = await cacheAside(cacheKey, DASHBOARD_CACHE_TTL_SECONDS, () => buildExpensesChart(req, months));
     return res.json(merged);
   } catch (error) {

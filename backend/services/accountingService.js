@@ -6603,7 +6603,7 @@ export async function postMonthlyAmortization(tenantId, userId, {
   return { entry, created: true, periodKey, kind: k, lineCount: lines.length / 2 };
 }
 
-export async function buildInvoiceAnalysis(tenantId, { from, to, flow, groupBy = 'month' } = {}) {
+export async function buildInvoiceAnalysis(tenantId, { from, to, flow, groupBy = 'month', createdBy = null } = {}) {
   const { start, end } = periodRange({ from, to });
   const filter = {
     tenantId,
@@ -6611,6 +6611,7 @@ export async function buildInvoiceAnalysis(tenantId, { from, to, flow, groupBy =
     issueDate: { $gte: start, $lte: end },
   };
   if (flow === 'sell' || flow === 'purchase') filter.flow = flow;
+  if (createdBy) filter.createdBy = createdBy;
   const pivotMode = String(groupBy || 'month').toLowerCase();
 
   const invoices = await Invoice.find(filter)
@@ -6799,9 +6800,75 @@ export async function buildInvoiceAnalysis(tenantId, { from, to, flow, groupBy =
   };
 }
 
-export async function getAccountingDashboard(tenantId) {
+export async function getAccountingDashboard(tenantId, { ownerUser = null } = {}) {
   await ensureDefaultChartOfAccounts(tenantId);
-  const activeInvoice = { tenantId, status: { $nin: ['cancelled', 'void'] } };
+  const ownerId = ownerUser?._id || null;
+  const activeInvoice = {
+    tenantId,
+    status: { $nin: ['cancelled', 'void'] },
+    ...(ownerId ? { createdBy: ownerId } : {}),
+  };
+  const agedOpts = ownerId ? { createdBy: ownerId } : {};
+
+  // Scoped users: invoice KPIs + aged from their docs only (no company-wide P&L/TB/journals).
+  if (ownerId) {
+    const [
+      sellInvoiceCount,
+      purchaseInvoiceCount,
+      draftInvoiceCount,
+      invoiceCount,
+      agedAr,
+      agedAp,
+    ] = await Promise.all([
+      Invoice.countDocuments({ ...activeInvoice, flow: { $ne: 'purchase' } }),
+      Invoice.countDocuments({ ...activeInvoice, flow: 'purchase' }),
+      Invoice.countDocuments({ tenantId, status: 'draft', createdBy: ownerId }),
+      Invoice.countDocuments(activeInvoice),
+      buildAgedReceivables(tenantId, agedOpts),
+      buildAgedPayables(tenantId, agedOpts),
+    ]);
+
+    const sellOpen = Number(agedAr.totals?.payableResidual ?? agedAr.buckets?.total ?? 0);
+    const purchaseOpen = Number(agedAp.totals?.payableResidual ?? agedAp.buckets?.total ?? 0);
+
+    return {
+      scoped: true,
+      accountCount: 0,
+      draftCount: 0,
+      postedCount: 0,
+      invoiceCount,
+      sellInvoiceCount,
+      purchaseInvoiceCount,
+      draftInvoiceCount,
+      netIncome: null,
+      totalRevenue: null,
+      totalExpenses: null,
+      cashBalance: null,
+      arBalance: sellOpen,
+      apBalance: purchaseOpen,
+      trialBalanced: null,
+      recent: [],
+      negativeCashAccounts: [],
+      negativeCashAccountCount: 0,
+      agedAr: {
+        buckets: agedAr.buckets,
+        openCount: agedAr.totals?.invoiceCount ?? (agedAr.rows || []).length ?? 0,
+        total: sellOpen,
+        advanceResidual: agedAr.totals?.advanceResidual ?? 0,
+        unallocatedAmount: agedAr.totals?.unallocatedAmount ?? 0,
+        glControlBalance: null,
+      },
+      agedAp: {
+        buckets: agedAp.buckets,
+        openCount: agedAp.totals?.invoiceCount ?? (agedAp.rows || []).length ?? 0,
+        total: purchaseOpen,
+        advanceResidual: agedAp.totals?.advanceResidual ?? 0,
+        unallocatedAmount: agedAp.totals?.unallocatedAmount ?? 0,
+        glControlBalance: null,
+      },
+    };
+  }
+
   const [
     accountCount,
     draftCount,
@@ -6841,6 +6908,7 @@ export async function getAccountingDashboard(tenantId) {
   const negativeCashAccounts = await listNegativeCashBankAccounts(tenantId);
 
   return {
+    scoped: false,
     accountCount,
     draftCount,
     postedCount,
@@ -6860,7 +6928,6 @@ export async function getAccountingDashboard(tenantId) {
     negativeCashAccountCount: negativeCashAccounts.length,
     agedAr: {
       buckets: agedAr.buckets,
-      // Open invoice/bill documents — not partner rows with GL residual
       openCount: agedAr.totals?.invoiceCount
         ?? (agedAr.rows || []).length
         ?? 0,
@@ -7761,9 +7828,14 @@ export async function buildCashFlowStatement(tenantId, { from, to } = {}) {
   };
 }
 
-async function buildAgedInvoices(tenantId, { flow, asOf = null, groupBy = 'invoice' } = {}) {
+async function buildAgedInvoices(tenantId, { flow, asOf = null, groupBy = 'invoice', createdBy = null } = {}) {
   const partnerType = flow === 'purchase' ? 'vendor' : 'customer';
-  const data = await getPartnerBalances({ tenantId, partnerType, asOf });
+  const data = await getPartnerBalances({
+    tenantId,
+    partnerType,
+    asOf,
+    createdBy: createdBy || null,
+  });
   const followUpLevels = flow === 'sell' ? (await getFollowUpLevels(tenantId)).levels : [];
 
   const rows = (data.invoices || []).map((inv) => ({

@@ -43,6 +43,7 @@ function MenuVisibilitySettings() {
   const dispatch = useDispatch()
   const { language, hiddenMenuItems } = useSelector((state) => state.ui)
   const { tenant, user } = useSelector((state) => state.auth)
+  const canEditCompanySettings = ['admin', 'super_admin', 'superadmin', 'owner'].includes(String(user?.role || ''))
   const { t } = useTranslation(language)
   const [expandedSections, setExpandedSections] = useState({})
   const [searchQuery, setSearchQuery] = useState('')
@@ -350,7 +351,12 @@ export default function Settings() {
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data) => api.put('/tenants/current', data),
+    mutationFn: (data) => {
+      if (!canEditCompanySettings) {
+        return Promise.reject(new Error(language === 'ar' ? 'تعديل إعدادات الشركة للمسؤول فقط' : 'Only administrators can update company settings'))
+      }
+      return api.put('/tenants/current', data)
+    },
     onSuccess: (res) => {
       const updated = res?.data
       toast.success(language === 'ar' ? 'تم حفظ الإعدادات' : 'Settings saved')

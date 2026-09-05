@@ -1,6 +1,6 @@
 import express from 'express';
 import { protect, tenantFilter, requireTenantFilter, checkPermission } from '../middleware/auth.js';
-import { applyOwnerScopeToQuery, shouldScopeInvoicesToSelf, applyCustomerOwnerScope } from '../utils/accessScope.js';
+import { applyOwnerScopeToQuery, shouldScopeInvoicesToSelf, applyCustomerOwnerScope, applySupplierOwnerScope, denyCompanyWideFinanceIfScoped } from '../utils/accessScope.js';
 import ChartOfAccount from '../models/ChartOfAccount.js';
 import JournalEntry from '../models/JournalEntry.js';
 import Customer from '../models/Customer.js';
@@ -145,7 +145,9 @@ const tenantIdOf = (req) => req.user.tenantId || req.tenantFilter?.tenantId;
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 router.get('/dashboard', checkPermission('finance', 'read'), async (req, res) => {
   try {
-    const data = await getAccountingDashboard(tenantIdOf(req));
+    const data = await getAccountingDashboard(tenantIdOf(req), {
+      ownerUser: shouldScopeInvoicesToSelf(req.user) ? req.user : null,
+    });
     res.json(data);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -481,6 +483,7 @@ router.get('/reports/invoice-analysis', checkPermission('finance', 'read'), asyn
       to: req.query.to,
       flow: req.query.flow,
       groupBy: req.query.groupBy,
+      createdBy: shouldScopeInvoicesToSelf(req.user) ? req.user._id : null,
     }));
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -816,6 +819,7 @@ router.put('/analytic-distribution-models', checkPermission('finance', 'approve'
 });
 
 router.get('/reports/fixed-assets', checkPermission('finance', 'read'), async (req, res) => {
+  if (denyCompanyWideFinanceIfScoped(req, res)) return;
   try {
     res.json(await buildFixedAssetRegister(tenantIdOf(req), { modelCode: req.query.modelCode }));
   } catch (error) {
@@ -824,6 +828,7 @@ router.get('/reports/fixed-assets', checkPermission('finance', 'read'), async (r
 });
 
 router.get('/reports/depreciation-schedule', checkPermission('finance', 'read'), async (req, res) => {
+  if (denyCompanyWideFinanceIfScoped(req, res)) return;
   try {
     const { buildDepreciationSchedule } = await import('../services/accountingService.js');
     res.json(await buildDepreciationSchedule(tenantIdOf(req), {
@@ -836,6 +841,7 @@ router.get('/reports/depreciation-schedule', checkPermission('finance', 'read'),
 });
 
 router.get('/reports/deferred-accounts', checkPermission('finance', 'read'), async (req, res) => {
+  if (denyCompanyWideFinanceIfScoped(req, res)) return;
   try {
     const kind = req.query.kind === 'revenue' ? 'revenue' : 'expense';
     res.json(await buildDeferredAccountsReport(tenantIdOf(req), kind, {
@@ -1147,6 +1153,7 @@ router.put('/lock-dates', checkPermission('finance', 'approve'), async (req, res
 
 // ─── Reports ─────────────────────────────────────────────────────────────────
 router.get('/reports/trial-balance', checkPermission('finance', 'read'), async (req, res) => {
+  if (denyCompanyWideFinanceIfScoped(req, res)) return;
   try {
     const data = await buildTrialBalance(tenantIdOf(req), {
       asOf: req.query.asOf || null,
@@ -1160,6 +1167,7 @@ router.get('/reports/trial-balance', checkPermission('finance', 'read'), async (
 });
 
 router.get('/reports/profit-and-loss', checkPermission('finance', 'read'), async (req, res) => {
+  if (denyCompanyWideFinanceIfScoped(req, res)) return;
   try {
     const data = await buildProfitAndLoss(tenantIdOf(req), {
       from: req.query.from,
@@ -1174,6 +1182,7 @@ router.get('/reports/profit-and-loss', checkPermission('finance', 'read'), async
 });
 
 router.get('/reports/balance-sheet', checkPermission('finance', 'read'), async (req, res) => {
+  if (denyCompanyWideFinanceIfScoped(req, res)) return;
   try {
     const data = await buildBalanceSheet(tenantIdOf(req), { asOf: req.query.asOf || null });
     res.json(data);
@@ -1183,6 +1192,7 @@ router.get('/reports/balance-sheet', checkPermission('finance', 'read'), async (
 });
 
 router.get('/reports/general-ledger/:accountId', checkPermission('finance', 'read'), async (req, res) => {
+  if (denyCompanyWideFinanceIfScoped(req, res)) return;
   try {
     const data = await buildGeneralLedger(tenantIdOf(req), req.params.accountId, {
       from: req.query.from,
@@ -1195,6 +1205,7 @@ router.get('/reports/general-ledger/:accountId', checkPermission('finance', 'rea
 });
 
 router.get('/reports/journal-report', checkPermission('finance', 'read'), async (req, res) => {
+  if (denyCompanyWideFinanceIfScoped(req, res)) return;
   try {
     const { buildJournalReport } = await import('../services/accountingService.js');
     res.json(await buildJournalReport(tenantIdOf(req), {
@@ -1208,6 +1219,7 @@ router.get('/reports/journal-report', checkPermission('finance', 'read'), async 
 });
 
 router.get('/reports/sequence-integrity', checkPermission('finance', 'read'), async (req, res) => {
+  if (denyCompanyWideFinanceIfScoped(req, res)) return;
   try {
     const { buildSequenceIntegrityReport } = await import('../services/journalBookService.js');
     res.json(await buildSequenceIntegrityReport(tenantIdOf(req), {
@@ -1220,6 +1232,7 @@ router.get('/reports/sequence-integrity', checkPermission('finance', 'read'), as
 });
 
 router.get('/reports/journal-book-mapping', checkPermission('finance', 'read'), async (req, res) => {
+  if (denyCompanyWideFinanceIfScoped(req, res)) return;
   try {
     const { buildJournalBookMappingReport } = await import('../services/journalBookService.js');
     res.json(await buildJournalBookMappingReport(tenantIdOf(req), {
@@ -1461,6 +1474,7 @@ router.get('/vendors', checkPermission('finance', 'read'), async (req, res) => {
       overdueOnly: req.query.overdueOnly,
       isActive: req.query.isActive || 'all',
       city: req.query.city || '',
+      ownerUser: shouldScopeInvoicesToSelf(req.user) ? req.user : null,
     });
     res.json(data);
   } catch (error) {
@@ -1488,7 +1502,9 @@ router.post('/vendors/check-duplicate', checkPermission('finance', 'read'), asyn
 router.get('/vendors/:id', checkPermission('finance', 'read'), async (req, res) => {
   try {
     const { getAccountingVendorDetail } = await import('../services/vendorDirectoryService.js');
-    const data = await getAccountingVendorDetail(tenantIdOf(req), req.params.id);
+    const data = await getAccountingVendorDetail(tenantIdOf(req), req.params.id, {
+      ownerUser: shouldScopeInvoicesToSelf(req.user) ? req.user : null,
+    });
     res.json(data);
   } catch (error) {
     res.status(error?.status || 500).json({ error: error.message, code: error.code });
@@ -1498,6 +1514,7 @@ router.get('/vendors/:id', checkPermission('finance', 'read'), async (req, res) 
 router.get('/parties/suppliers', checkPermission('finance', 'read'), async (req, res) => {
   try {
     const filter = { tenantId: tenantIdOf(req), isVendor: true };
+    await applySupplierOwnerScope(filter, req.user, tenantIdOf(req));
     if (req.query.q) {
       const q = String(req.query.q).trim();
       filter.$or = [
@@ -1549,6 +1566,7 @@ router.get('/reports/customer-summary', checkPermission('finance', 'read'), asyn
 });
 
 router.get('/reports/receivable-consistency', checkPermission('finance', 'read'), async (req, res) => {
+  if (denyCompanyWideFinanceIfScoped(req, res)) return;
   try {
     const {
       assertReceivableConsistency,
@@ -1611,6 +1629,7 @@ router.get('/reports/receivable-consistency', checkPermission('finance', 'read')
 });
 
 router.get('/reports/payable-consistency', checkPermission('finance', 'read'), async (req, res) => {
+  if (denyCompanyWideFinanceIfScoped(req, res)) return;
   try {
     const {
       assertPayableConsistency,
@@ -1696,6 +1715,7 @@ router.get('/reports/supplier-account', checkPermission('finance', 'read'), asyn
 
 /** GL partner ledger from JournalItems (posted move lines tagged with partnerId). */
 router.get('/reports/partner-ledger', checkPermission('finance', 'read'), async (req, res) => {
+  if (denyCompanyWideFinanceIfScoped(req, res)) return;
   try {
     const partnerId = req.query.partnerId || req.query.customerId || req.query.supplierId;
     const data = await buildPartnerLedger(tenantIdOf(req), partnerId, {
@@ -1952,6 +1972,7 @@ router.post('/analytic-accounts/ensure', checkPermission('finance', 'update'), a
 });
 
 router.get('/reports/analytic', checkPermission('finance', 'read'), async (req, res) => {
+  if (denyCompanyWideFinanceIfScoped(req, res)) return;
   try {
     res.json(await buildAnalyticReport(tenantIdOf(req), {
       analyticAccountId: req.query.analyticAccountId || null,
@@ -1979,6 +2000,7 @@ router.post('/period-close', checkPermission('finance', 'approve'), async (req, 
 });
 
 router.get('/reports/cash-flow', checkPermission('finance', 'read'), async (req, res) => {
+  if (denyCompanyWideFinanceIfScoped(req, res)) return;
   try {
     res.json(await buildCashFlowStatement(tenantIdOf(req), {
       from: req.query.from,
@@ -1994,6 +2016,7 @@ router.get('/reports/aged-ar', checkPermission('finance', 'read'), async (req, r
     res.json(await buildAgedReceivables(tenantIdOf(req), {
       asOf: req.query.asOf || null,
       groupBy: req.query.groupBy || 'customer',
+      createdBy: shouldScopeInvoicesToSelf(req.user) ? req.user._id : null,
     }));
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -2005,6 +2028,7 @@ router.get('/reports/aged-ap', checkPermission('finance', 'read'), async (req, r
     res.json(await buildAgedPayables(tenantIdOf(req), {
       asOf: req.query.asOf || null,
       groupBy: req.query.groupBy || 'invoice',
+      createdBy: shouldScopeInvoicesToSelf(req.user) ? req.user._id : null,
     }));
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -2012,6 +2036,7 @@ router.get('/reports/aged-ap', checkPermission('finance', 'read'), async (req, r
 });
 
 router.get('/reports/tax', checkPermission('finance', 'read'), async (req, res) => {
+  if (denyCompanyWideFinanceIfScoped(req, res)) return;
   try {
     res.json(await buildTaxReport(tenantIdOf(req), {
       from: req.query.from,
