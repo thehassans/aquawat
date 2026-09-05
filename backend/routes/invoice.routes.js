@@ -3113,8 +3113,8 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
       console.error('[invoice] purchase stock journal', jErr?.message || jErr);
     }
 
-    // Bump PO quantityInvoiced after successful match + create
-    if (poId) {
+    // Bump PO quantityInvoiced after successful match + create (posted bills only)
+    if (poId && !createAsDraft) {
       try {
         const PurchaseOrder = mongoose.model('PurchaseOrder');
         const po = await PurchaseOrder.findOne({ _id: poId, ...req.tenantFilter });
