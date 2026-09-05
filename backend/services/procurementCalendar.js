@@ -54,6 +54,7 @@ export async function fetchProcurementCalendarEvents({
   end,
   type = 'all',
   search = '',
+  createdBy = null,
 } = {}) {
   if (!tenantId || !start || !end) return [];
 
@@ -69,6 +70,7 @@ export async function fetchProcurementCalendarEvents({
 
   const range = { $gte: start, $lte: end };
   const tenantFilter = { tenantId, status: { $ne: 'cancelled' } };
+  if (createdBy) tenantFilter.createdBy = createdBy;
 
   const [orders, grns, returns, notes] = await Promise.all([
     include('purchase_order') || include('purchase_order_expected')

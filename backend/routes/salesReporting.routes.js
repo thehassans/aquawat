@@ -8,6 +8,7 @@ import Product from '../models/Product.js';
 import User from '../models/User.js';
 import { getDeliveredQuantities } from '../services/sales/invoicingPolicy.js';
 import { protect, tenantFilter, checkPermission, requireTenantFilter } from '../middleware/auth.js';
+import { shouldScopeInvoicesToSelf, applyCreatedByScope } from '../utils/accessScope.js';
 
 const router = express.Router();
 
@@ -59,6 +60,10 @@ function sellInvoiceMatch(req, from, to) {
   }
   if (req.query.customerId && mongoose.Types.ObjectId.isValid(req.query.customerId)) {
     match.customerId = new mongoose.Types.ObjectId(req.query.customerId);
+  }
+
+  if (shouldScopeInvoicesToSelf(req.user)) {
+    applyCreatedByScope(match, req.user._id);
   }
 
   return match;

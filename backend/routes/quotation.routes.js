@@ -23,6 +23,7 @@ import QuotationTemplate from '../models/sales/QuotationTemplate.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import { nextDailyDocNumber } from '../services/inventory/sequence.js';
 import { computePurchaseLineTotals } from '../services/purchasesLogic.js';
+import { applyOwnerScopeToQuery } from '../utils/accessScope.js';
 
 const router = express.Router();
 
@@ -81,7 +82,7 @@ function buildCustomerPayloadFromBuyer(buyer = {}) {
   };
 }
 
-async function ensureCustomerRecord(tenantId, buyer = {}, existingCustomer = null) {
+async function ensureCustomerRecord(tenantId, buyer = {}, existingCustomer = null, createdBy = null) {
   const payload = buildCustomerPayloadFromBuyer(buyer);
   if (!payload) return existingCustomer || null;
 
@@ -110,6 +111,7 @@ async function ensureCustomerRecord(tenantId, buyer = {}, existingCustomer = nul
     customer.mobile = payload.mobile || customer.mobile;
     customer.vatNumber = payload.vatNumber || customer.vatNumber;
     customer.crNumber = payload.crNumber || customer.crNumber;
+    if (!customer.createdBy && createdBy) customer.createdBy = createdBy;
     customer.address = {
       ...(customer.address?.toObject?.() || customer.address || {}),
       ...(payload.address || {}),
@@ -118,7 +120,7 @@ async function ensureCustomerRecord(tenantId, buyer = {}, existingCustomer = nul
     return customer;
   }
 
-  return await Customer.create({ tenantId, ...payload });
+  return await Customer.create({ tenantId, ...payload, ...(createdBy ? { createdBy } : {}) });
 }
 
 function resolveQuotationStatus(status) {
@@ -284,7 +286,7 @@ async function buildInvoiceFromQuotation({ quotation, tenant, user }) {
   }
 
   if (!customer && quotation?.businessContext === 'travel_agency') {
-    customer = await ensureCustomerRecord(quotation.tenantId, quotation?.buyer || {});
+    customer = await ensureCustomerRecord(quotation.tenantId, quotation?.buyer || {}, null, quotation.createdBy);
   }
 
   const buyer = {
@@ -406,6 +408,7 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
     const { page = 1, limit = 20, search = '', status = '', businessContext = '' } = req.query;
     const query = { ...req.tenantFilter };
+    applyOwnerScopeToQuery(query, req.user);
 
     if (status) query.status = status;
     if (businessContext) query.businessContext = businessContext;
@@ -507,7 +510,7 @@ async function resolveQuotationPayload(req, existingQuotation = null) {
   }
 
   if (!customer && businessContext === 'travel_agency') {
-    customer = await ensureCustomerRecord(req.user.tenantId, buyer);
+    customer = await ensureCustomerRecord(req.user.tenantId, buyer, null, req.user._id);
   }
 
   const lineItems = (req.body.lineItems || []).map((line, index) => ({

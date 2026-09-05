@@ -1,5 +1,6 @@
 import express from 'express';
 import { protect, tenantFilter, requireTenantFilter, checkPermission } from '../middleware/auth.js';
+import { applyOwnerScopeToQuery, shouldScopeInvoicesToSelf, applyCustomerOwnerScope } from '../utils/accessScope.js';
 import ChartOfAccount from '../models/ChartOfAccount.js';
 import JournalEntry from '../models/JournalEntry.js';
 import Customer from '../models/Customer.js';
@@ -1234,9 +1235,11 @@ router.get('/reports/journal-book-mapping', checkPermission('finance', 'read'), 
 router.get('/parties/customers', checkPermission('finance', 'read'), async (req, res) => {
   try {
     const filter = { tenantId: tenantIdOf(req), isCustomer: true };
+    await applyCustomerOwnerScope(filter, req.user, tenantIdOf(req));
     if (req.query.q) {
       const q = String(req.query.q).trim();
-      filter.$or = [{ name: new RegExp(q, 'i') }, { nameAr: new RegExp(q, 'i') }, { nameEn: new RegExp(q, 'i') }, { phone: new RegExp(q, 'i') }, { mobile: new RegExp(q, 'i') }];
+      const searchOr = [{ name: new RegExp(q, 'i') }, { nameAr: new RegExp(q, 'i') }, { nameEn: new RegExp(q, 'i') }, { phone: new RegExp(q, 'i') }, { mobile: new RegExp(q, 'i') }];
+      filter.$and = (filter.$and || []).concat([{ $or: searchOr }]);
     }
     const rows = await Customer.find(filter)
       .select('name nameAr phone mobile')
@@ -1276,6 +1279,7 @@ router.get('/invoices', checkPermission('finance', 'read'), async (req, res) => 
     } = req.query;
 
     const query = { tenantId: tenantIdOf(req), flow: 'sell', invoiceType: '388' };
+    applyOwnerScopeToQuery(query, req.user);
     if (status) query.status = status;
     if (paymentStatus) query.paymentStatus = paymentStatus;
     if (transactionType || type) query.transactionType = transactionType || type;
@@ -1361,6 +1365,7 @@ router.get('/customers', checkPermission('finance', 'read'), async (req, res) =>
       overdueOnly: req.query.overdueOnly,
       isActive: req.query.isActive || 'all',
       city: req.query.city || '',
+      ownerUser: shouldScopeInvoicesToSelf(req.user) ? req.user : null,
     });
     res.json(data);
   } catch (error) {
@@ -1426,8 +1431,16 @@ router.post('/customers/merge', checkPermission('finance', 'update'), async (req
 
 router.get('/customers/:id', checkPermission('finance', 'read'), async (req, res) => {
   try {
+    if (shouldScopeInvoicesToSelf(req.user)) {
+      const findQuery = { _id: req.params.id, tenantId: tenantIdOf(req) };
+      await applyCustomerOwnerScope(findQuery, req.user, tenantIdOf(req));
+      const allowed = await Customer.findOne(findQuery).select('_id').lean();
+      if (!allowed) return res.status(404).json({ error: 'Customer not found' });
+    }
     const { getAccountingCustomerDetail } = await import('../services/customerDirectoryService.js');
-    const data = await getAccountingCustomerDetail(tenantIdOf(req), req.params.id);
+    const data = await getAccountingCustomerDetail(tenantIdOf(req), req.params.id, {
+      ownerUser: shouldScopeInvoicesToSelf(req.user) ? req.user : null,
+    });
     res.json(data);
   } catch (error) {
     res.status(error?.status || 500).json({ error: error.message, code: error.code });

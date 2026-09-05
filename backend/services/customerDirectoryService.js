@@ -70,6 +70,7 @@ export async function listAccountingCustomers(tenantId, {
   overdueOnly = false,
   isActive = 'all',
   city = '',
+  ownerUser = null,
 } = {}) {
   const filter = {
     tenantId,
@@ -97,12 +98,23 @@ export async function listAccountingCustomers(tenantId, {
     }]);
   }
 
-  // Also pull partner IDs that appear on sell invoices but might not be flagged isCustomer
-  const invoicePartnerIds = await Invoice.distinct('customerId', {
+  const invoiceMatch = {
     tenantId,
     flow: { $ne: 'purchase' },
     customerId: { $ne: null },
-  });
+  };
+  if (ownerUser?._id) invoiceMatch.createdBy = ownerUser._id;
+
+  const invoicePartnerIds = await Invoice.distinct('customerId', invoiceMatch);
+
+  if (ownerUser?._id) {
+    filter.$and = (filter.$and || []).concat([{
+      $or: [
+        { createdBy: ownerUser._id },
+        { _id: { $in: invoicePartnerIds } },
+      ],
+    }]);
+  }
 
   const basePartners = await Partner.find(filter)
     .select('name nameEn nameAr vatNumber crNumber phone mobile email creditLimit paymentTermsCustomer address isActive customerCode tags type totalInvoices totalRevenue')
@@ -127,11 +139,19 @@ export async function listAccountingCustomers(tenantId, {
     tenantId,
     partnerType: 'customer',
   });
-  const balById = new Map(
-    (balances.partners || [])
-      .filter((b) => b.partnerId)
-      .map((b) => [String(b.partnerId), b]),
-  );
+  const balById = new Map();
+  for (const b of balances.partners || []) {
+    if (b.partnerId) balById.set(String(b.partnerId), b);
+  }
+  for (const b of balances.advances || []) {
+    if (!b.partnerId) continue;
+    const id = String(b.partnerId);
+    if (balById.has(id)) continue;
+    balById.set(id, {
+      ...b,
+      openResidual: round2(-(Number(b.advanceAmount) || Math.abs(b.openResidual) || 0)),
+    });
+  }
 
   let rows = allPartners.map((p) => {
     const bal = balById.get(String(p._id)) || null;
@@ -191,8 +211,10 @@ export async function listAccountingCustomers(tenantId, {
   const total = rows.length;
   const paged = rows.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
-  // KPI must equal COA 1200 / aged AR total (includes unallocated GL)
-  const receivablesSum = round2(balances.totals?.openResidual || 0);
+  // KPI receivables = sum of positive AR rows only (advances/unallocated separate)
+  const receivablesSum = round2(rows.reduce((s, r) => s + Math.max(0, Number(r.outstanding) || 0), 0));
+  const advancesSum = round2(balances.totals?.advanceResidual || 0);
+  const unallocatedAmount = round2(balances.totals?.unallocatedAmount || 0);
 
   return {
     customers: paged,
@@ -204,9 +226,12 @@ export async function listAccountingCustomers(tenantId, {
     },
     totals: {
       receivablesSum,
+      advancesSum,
+      unallocatedAmount,
       overdueSum: round2(rows.reduce((s, r) => s + r.overdue, 0)),
       customerCount: total,
       withOpenBalance: rows.filter((r) => Math.abs(r.outstanding) >= 0.01).length,
+      glControlBalance: round2(balances.totals?.glControlBalance ?? balances.totals?.openResidual ?? 0),
     },
   };
 }
@@ -298,7 +323,7 @@ export async function checkCustomerDuplicate(tenantId, {
   return { hasDuplicates: unique.length > 0, warnings: unique };
 }
 
-export async function getAccountingCustomerDetail(tenantId, customerId) {
+export async function getAccountingCustomerDetail(tenantId, customerId, { ownerUser = null } = {}) {
   const partner = await Partner.findOne({ _id: customerId, tenantId }).lean();
   if (!partner) {
     const err = new Error('Customer not found');
@@ -307,13 +332,16 @@ export async function getAccountingCustomerDetail(tenantId, customerId) {
     throw err;
   }
 
+  const invoiceFilter = {
+    tenantId,
+    customerId,
+    flow: { $ne: 'purchase' },
+  };
+  if (ownerUser?._id) invoiceFilter.createdBy = ownerUser._id;
+
   const [balances, invoices, payments] = await Promise.all([
     getPartnerBalances({ tenantId, partnerType: 'customer', partnerIds: [customerId] }),
-    Invoice.find({
-      tenantId,
-      customerId,
-      flow: { $ne: 'purchase' },
-    })
+    Invoice.find(invoiceFilter)
       .sort({ issueDate: -1 })
       .limit(50)
       .select('invoiceNumber issueDate dueDate grandTotal paidAmount paymentStatus status invoiceType currency')

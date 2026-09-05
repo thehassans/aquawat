@@ -9,12 +9,17 @@ import {
   toCustomerDto,
   nextCustomerCode,
 } from '../services/partnerService.js';
+import {
+  applyCustomerOwnerScope,
+} from '../utils/accessScope.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(tenantFilter);
 router.use(requireTenantFilter);
+
+const tenantIdOf = (req) => req.tenantFilter?.tenantId || req.user?.tenantId;
 
 // @route   GET /api/customers/apply-csv-vat
 // @desc    Apply VAT numbers extracted directly from Customer.csv
@@ -283,10 +288,11 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
     const { search, type, isActive, page = 1, limit = 20 } = req.query;
     
     const query = asCustomerQuery({ ...req.tenantFilter });
+    await applyCustomerOwnerScope(query, req.user, tenantIdOf(req));
     
     if (search) {
       const cleanSearch = String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      query.$or = [
+      const searchOr = [
         { customerCode: { $regex: cleanSearch, $options: 'i' } },
         { name: { $regex: cleanSearch, $options: 'i' } },
         { nameAr: { $regex: cleanSearch, $options: 'i' } },
@@ -296,6 +302,7 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
         { mobile: { $regex: cleanSearch, $options: 'i' } },
         { vatNumber: { $regex: cleanSearch, $options: 'i' } }
       ];
+      query.$and = (query.$and || []).concat([{ $or: searchOr }]);
     }
     
     if (type) {
@@ -375,9 +382,12 @@ router.get('/search', checkPermission('invoicing', 'read'), async (req, res) => 
     }
     
     const cleanQ = String(q).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const customers = await Customer.find(asCustomerQuery({
+    const query = asCustomerQuery({
       ...req.tenantFilter,
       isActive: true,
+    });
+    await applyCustomerOwnerScope(query, req.user, tenantIdOf(req));
+    query.$and = (query.$and || []).concat([{
       $or: [
         { customerCode: { $regex: cleanQ, $options: 'i' } },
         { name: { $regex: cleanQ, $options: 'i' } },
@@ -387,7 +397,8 @@ router.get('/search', checkPermission('invoicing', 'read'), async (req, res) => 
         { phone: { $regex: cleanQ, $options: 'i' } },
         { mobile: { $regex: cleanQ, $options: 'i' } }
       ]
-    }))
+    }]);
+    const customers = await Customer.find(query)
       .select('customerCode name nameAr nameEn email phone vatNumber taxNumber type address isCustomer isVendor')
       .limit(10)
       .lean();
@@ -406,6 +417,7 @@ router.get('/stats', checkPermission('invoicing', 'read'), async (req, res) => {
     if (req.user?.role !== 'super_admin' && req.user?.tenantId) {
       match.tenantId = new mongoose.Types.ObjectId(String(req.user.tenantId));
     }
+    await applyCustomerOwnerScope(match, req.user, tenantIdOf(req));
 
     const stats = await Customer.aggregate([
       { $match: match },
@@ -443,10 +455,12 @@ router.get('/stats', checkPermission('invoicing', 'read'), async (req, res) => {
 // @desc    Get single customer
 router.get('/:id', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const customer = await Customer.findOne(asCustomerQuery({
+    const findQuery = asCustomerQuery({
       _id: req.params.id,
       ...req.tenantFilter
-    }));
+    });
+    await applyCustomerOwnerScope(findQuery, req.user, tenantIdOf(req));
+    const customer = await Customer.findOne(findQuery);
     
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
@@ -471,6 +485,7 @@ router.post('/', checkTrialLimits('customers'), checkPermission('invoicing', 'cr
       ...req.body,
       tenantId: req.user.tenantId,
       isCustomer: true,
+      createdBy: req.user._id,
     });
 
     try {
@@ -520,10 +535,12 @@ router.post('/', checkTrialLimits('customers'), checkPermission('invoicing', 'cr
 // @desc    Update customer
 router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
   try {
-    const existingDoc = await Customer.findOne(asCustomerQuery({
+    const findQuery = asCustomerQuery({
       _id: req.params.id,
       ...req.tenantFilter,
-    }));
+    });
+    await applyCustomerOwnerScope(findQuery, req.user, tenantIdOf(req));
+    const existingDoc = await Customer.findOne(findQuery);
 
     if (!existingDoc) {
       return res.status(404).json({ error: 'Customer not found' });
@@ -581,10 +598,12 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
 // @desc    Delete customer (soft delete)
 router.delete('/:id', checkPermission('invoicing', 'delete'), async (req, res) => {
   try {
-    const customer = await Customer.findOne(asCustomerQuery({
+    const findQuery = asCustomerQuery({
       _id: req.params.id,
       ...req.tenantFilter
-    }));
+    });
+    await applyCustomerOwnerScope(findQuery, req.user, tenantIdOf(req));
+    const customer = await Customer.findOne(findQuery);
     
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });

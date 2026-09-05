@@ -23,6 +23,7 @@ import { enrichInvoiceArabicFields } from '../utils/invoiceArabic.js';
 import { sendTenantEmail } from '../utils/tenantEmailService.js';
 import { buildPremiumEmailShell, getTenantLoginUrl, getTenantWorkspaceHost, getTenantWorkspaceUrl } from '../utils/premiumEmailShell.js';
 import { sendRestaurantWhatsApp } from '../services/restaurantWhatsAppService.js';
+import { applyOwnerScopeToQuery } from '../utils/accessScope.js';
 
 const router = express.Router();
 
@@ -167,6 +168,7 @@ router.get('/', gateSellOrSupply('read'), async (req, res) => {
     const { page = 1, limit = 25, status, supplierId, warehouseId, search, startDate, endDate, receivable, flow } = req.query;
     
     const query = { ...req.tenantFilter };
+    applyOwnerScopeToQuery(query, req.user);
 
     if (flow === 'sell' || flow === 'purchase') query.flow = flow;
 
@@ -238,6 +240,7 @@ router.get('/', gateSellOrSupply('read'), async (req, res) => {
 router.get('/stats', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
     const match = { ...castTenantFilter(req.tenantFilter) };
+    applyOwnerScopeToQuery(match, req.user);
     const flow = String(req.query.flow || 'purchase').toLowerCase();
     if (flow === 'sell' || flow === 'purchase') match.flow = flow;
     const stats = await PurchaseOrder.aggregate([
@@ -282,6 +285,7 @@ router.get('/reports', checkPermission('supply_chain', 'read'), async (req, res)
   try {
     const { startDate, endDate, supplierId, warehouseId } = req.query;
     const matchQuery = { ...castTenantFilter(req.tenantFilter) };
+    applyOwnerScopeToQuery(matchQuery, req.user);
 
     if (supplierId) matchQuery.supplierId = new mongoose.Types.ObjectId(supplierId);
     if (warehouseId) matchQuery.warehouseId = new mongoose.Types.ObjectId(warehouseId);
@@ -465,7 +469,7 @@ router.get('/reports/stock-interim-received', checkPermission('supply_chain', 'r
 
 router.get('/:id', sellOrSupply('read'), async (req, res) => {
   try {
-    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter })
+    const order = await PurchaseOrder.findOne((() => { const q = { _id: req.params.id, ...req.tenantFilter }; applyOwnerScopeToQuery(q, req.user); return q; })())
       .populate('supplierId', 'supplierCode name nameEn nameAr phone email vatNumber crNumber address contactPerson')
       .populate('customerId', 'name nameEn nameAr entityType vatNumber crNumber phone mobile email address contactPerson')
       .populate('sourceQuotationId', 'quotationNumber status')
@@ -704,7 +708,7 @@ router.post('/', checkTrialLimits('purchaseOrders'), gateSellOrSupply('create'),
 
 router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) => {
   try {
-    const existing = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const existing = await PurchaseOrder.findOne((() => { const q = { _id: req.params.id, ...req.tenantFilter }; applyOwnerScopeToQuery(q, req.user); return q; })());
     if (!existing) {
       return res.status(404).json({ error: 'Purchase order not found' });
     }
@@ -782,7 +786,7 @@ router.put('/:id', checkPermission('supply_chain', 'update'), async (req, res) =
 
 router.post('/:id/approve', sellOrSupply('approve'), async (req, res) => {
   try {
-    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const order = await PurchaseOrder.findOne((() => { const q = { _id: req.params.id, ...req.tenantFilter }; applyOwnerScopeToQuery(q, req.user); return q; })());
     if (!order) {
       return res.status(404).json({ error: 'Purchase order not found' });
     }
@@ -1004,7 +1008,7 @@ router.post('/:id/approve', sellOrSupply('approve'), async (req, res) => {
 /** Finance / sales-manager: release credit or margin hold and confirm the SO */
 router.post('/:id/release-approval', sellOrSupply('approve'), async (req, res) => {
   try {
-    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const order = await PurchaseOrder.findOne((() => { const q = { _id: req.params.id, ...req.tenantFilter }; applyOwnerScopeToQuery(q, req.user); return q; })());
     if (!order) return res.status(404).json({ error: 'Purchase order not found' });
     if (order.flow !== 'sell' || order.status !== 'pending_approval') {
       return res.status(400).json({ error: 'Order is not pending approval' });
@@ -1093,7 +1097,7 @@ router.post('/:id/release-approval', sellOrSupply('approve'), async (req, res) =
 
 router.post('/:id/reject-approval', sellOrSupply('approve'), async (req, res) => {
   try {
-    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const order = await PurchaseOrder.findOne((() => { const q = { _id: req.params.id, ...req.tenantFilter }; applyOwnerScopeToQuery(q, req.user); return q; })());
     if (!order) return res.status(404).json({ error: 'Purchase order not found' });
     if (order.flow !== 'sell' || order.status !== 'pending_approval') {
       return res.status(400).json({ error: 'Order is not pending approval' });
@@ -1125,7 +1129,7 @@ router.post('/:id/reject-approval', sellOrSupply('approve'), async (req, res) =>
 
 router.post('/:id/send', sellOrSupply('update'), async (req, res) => {
   try {
-    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const order = await PurchaseOrder.findOne((() => { const q = { _id: req.params.id, ...req.tenantFilter }; applyOwnerScopeToQuery(q, req.user); return q; })());
     if (!order) {
       return res.status(404).json({ error: 'Purchase order not found' });
     }
@@ -1142,7 +1146,7 @@ router.post('/:id/send', sellOrSupply('update'), async (req, res) => {
 
 router.post('/:id/cancel', checkPermission('supply_chain', 'update'), async (req, res) => {
   try {
-    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const order = await PurchaseOrder.findOne((() => { const q = { _id: req.params.id, ...req.tenantFilter }; applyOwnerScopeToQuery(q, req.user); return q; })());
     if (!order) {
       return res.status(404).json({ error: 'Purchase order not found' });
     }
@@ -1176,7 +1180,7 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
       return res.status(400).json({ error: 'items is required' });
     }
 
-    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const order = await PurchaseOrder.findOne((() => { const q = { _id: req.params.id, ...req.tenantFilter }; applyOwnerScopeToQuery(q, req.user); return q; })());
     if (!order) {
       return res.status(404).json({ error: 'Purchase order not found' });
     }
@@ -1364,7 +1368,7 @@ router.post('/:id/receive', checkPermission('supply_chain', 'update'), async (re
 
 router.post('/:id/attachments', checkPermission('supply_chain', 'update'), vendorBillUpload.single('file'), async (req, res) => {
   try {
-    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const order = await PurchaseOrder.findOne((() => { const q = { _id: req.params.id, ...req.tenantFilter }; applyOwnerScopeToQuery(q, req.user); return q; })());
     if (!order) {
       return res.status(404).json({ error: 'Purchase order not found' });
     }
@@ -1398,7 +1402,7 @@ router.post('/:id/attachments', checkPermission('supply_chain', 'update'), vendo
 
 router.get('/:id/attachments/:fileId', checkPermission('supply_chain', 'read'), async (req, res) => {
   try {
-    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter }).select('attachments');
+    const order = await PurchaseOrder.findOne((() => { const q = { _id: req.params.id, ...req.tenantFilter }; applyOwnerScopeToQuery(q, req.user); return q; })()).select('attachments');
     if (!order) return res.status(404).json({ error: 'Purchase order not found' });
     const files = Array.isArray(order.attachments) ? order.attachments : [];
     const fileId = decodeURIComponent(String(req.params.fileId || ''));
@@ -1432,7 +1436,7 @@ router.get('/:id/attachments/:fileId', checkPermission('supply_chain', 'read'), 
 
 router.post('/:id/payment', checkPermission('supply_chain', 'update'), vendorBillUpload.single('receipt'), async (req, res) => {
   try {
-    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const order = await PurchaseOrder.findOne((() => { const q = { _id: req.params.id, ...req.tenantFilter }; applyOwnerScopeToQuery(q, req.user); return q; })());
     if (!order) return res.status(404).json({ error: 'Purchase order not found' });
     
     const amount = Math.round(Number(req.body.amount || 0) * 100) / 100;
@@ -1592,7 +1596,7 @@ router.post('/:id/payment', checkPermission('supply_chain', 'update'), vendorBil
 /** Create down-payment invoice from sell order (virtual product line, no stock impact) */
 router.post('/:id/down-payment-invoice', sellOrSupply('create'), async (req, res) => {
   try {
-    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter, flow: 'sell' });
+    const order = await PurchaseOrder.findOne((() => { const q = { _id: req.params.id, ...req.tenantFilter, flow: 'sell' }; applyOwnerScopeToQuery(q, req.user); return q; })());
     if (!order) return res.status(404).json({ error: 'Sales order not found' });
 
     const percent = Number(req.body?.percent || 0);
@@ -1658,7 +1662,7 @@ router.post('/:id/down-payment-invoice', sellOrSupply('create'), async (req, res
 // @desc    Email sales order bill PDF (sell flow only)
 router.post('/:id/send-email', checkPermission('invoicing', 'update'), async (req, res) => {
   try {
-    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter, flow: 'sell' });
+    const order = await PurchaseOrder.findOne((() => { const q = { _id: req.params.id, ...req.tenantFilter, flow: 'sell' }; applyOwnerScopeToQuery(q, req.user); return q; })());
     if (!order) {
       return res.status(404).json({ error: 'Sales order not found' });
     }
@@ -1719,7 +1723,7 @@ router.post('/:id/send-email', checkPermission('invoicing', 'update'), async (re
 // @desc    Send sales order via WhatsApp with wa.me link fallback
 router.post('/:id/send-whatsapp', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const order = await PurchaseOrder.findOne({ _id: req.params.id, ...req.tenantFilter, flow: 'sell' });
+    const order = await PurchaseOrder.findOne((() => { const q = { _id: req.params.id, ...req.tenantFilter, flow: 'sell' }; applyOwnerScopeToQuery(q, req.user); return q; })());
     if (!order) {
       return res.status(404).json({ error: 'Sales order not found' });
     }

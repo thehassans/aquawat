@@ -4,6 +4,11 @@ import Employee from '../models/Employee.js';
 import { WhatsAppContact } from '../models/WhatsApp.js';
 import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.js';
 import { cacheAside } from '../lib/redis.js';
+import {
+  getScopedCustomerIds,
+  getScopedSupplierIds,
+  shouldScopeCustomersToSelf,
+} from '../utils/accessScope.js';
 
 const router = express.Router();
 
@@ -127,6 +132,18 @@ router.get('/', async (req, res) => {
       mergedIntoId: null,
     };
 
+    if (shouldScopeCustomersToSelf(req.user) && (wantCustomers || wantSuppliers)) {
+      const tenantId = req.tenantFilter?.tenantId || req.user?.tenantId;
+      const [customerIds, supplierIds] = await Promise.all([
+        wantCustomers ? getScopedCustomerIds(req.user, tenantId) : Promise.resolve([]),
+        wantSuppliers ? getScopedSupplierIds(req.user, tenantId) : Promise.resolve([]),
+      ]);
+      const linkedIds = [...new Set([...(customerIds || []), ...(supplierIds || [])])];
+      const ownershipOr = [{ createdBy: req.user._id }];
+      if (linkedIds.length) ownershipOr.push({ _id: { $in: linkedIds } });
+      partnerMatch.$and = (partnerMatch.$and || []).concat([{ $or: ownershipOr }]);
+    }
+
     const isPartnerHub = requestedTypes.includes('customer')
       && requestedTypes.includes('supplier')
       && !requestedTypes.includes('employee');
@@ -192,7 +209,7 @@ router.get('/', async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
     const fetchCap = Math.min(500, skip + limitNum + 100);
 
-    const cacheKey = `contacts:v6:${req.user.tenantId}:${pageNum}:${limitNum}:${q}:${types || ''}:${isActive || ''}:${sortBy || ''}:${sortDir || ''}`;
+    const cacheKey = `contacts:v6:${req.user.tenantId}:${shouldScopeCustomersToSelf(req.user) ? `u:${req.user._id}` : 'all'}:${pageNum}:${limitNum}:${q}:${types || ''}:${isActive || ''}:${sortBy || ''}:${sortDir || ''}`;
 
     const payload = await cacheAside(cacheKey, 45, async () => {
     const wantPartners = (wantCustomers && access.customers)

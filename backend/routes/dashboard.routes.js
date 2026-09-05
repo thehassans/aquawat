@@ -32,6 +32,7 @@ import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.j
 import { getTenantBusinessTypes, normalizeBusinessTypes } from '../utils/businessTypes.js';
 import { DEFAULT_APP_CATALOG } from './appStore.routes.js';
 import { cacheAside } from '../lib/redis.js';
+import { shouldScopeInvoicesToSelf, applyCreatedByScope } from '../utils/accessScope.js';
 import { statsRead } from '../utils/mongoReadPreference.js';
 
 // Dashboard aggregates ~24 collections per request (see below) — this is the
@@ -67,7 +68,7 @@ const safeCount = async (model, filter) => {
 // @route   GET /api/dashboard
 router.get('/', async (req, res) => {
   try {
-    const cacheKey = `dashboard:v1:${req.tenant?._id || req.tenantFilter?.tenantId || 'unknown'}`;
+    const cacheKey = `dashboard:v1:${req.tenant?._id || req.tenantFilter?.tenantId || 'unknown'}:${shouldScopeInvoicesToSelf(req.user) ? `u:${req.user._id}` : 'all'}`;
     const payload = await cacheAside(
       cacheKey,
       DASHBOARD_CACHE_TTL_SECONDS,
@@ -84,6 +85,10 @@ async function buildDashboardPayload(req) {
     const businessTypes = getTenantBusinessTypes(req.tenant);
     const currentMonth = new Date().getMonth() + 1;
     const currentYear = new Date().getFullYear();
+    const ownerInvoiceFilter = { ...req.tenantFilter };
+    if (shouldScopeInvoicesToSelf(req.user)) {
+      applyCreatedByScope(ownerInvoiceFilter, req.user._id);
+    }
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -124,7 +129,7 @@ async function buildDashboardPayload(req) {
     ] = await Promise.all([
       // 1. Invoice stats
       safeAggregate(Invoice, [
-        { $match: req.tenantFilter },
+        { $match: ownerInvoiceFilter },
         {
           $facet: {
             total: [
@@ -187,7 +192,7 @@ async function buildDashboardPayload(req) {
       ]),
       
       // 5. Recent invoices
-      Invoice.find(req.tenantFilter)
+      Invoice.find(ownerInvoiceFilter)
         .sort({ createdAt: -1 })
         .limit(5)
         .select('invoiceNumber buyer.name grandTotal status issueDate zatca.submissionStatus')
@@ -253,7 +258,7 @@ async function buildDashboardPayload(req) {
       ]),
 
       // 7. Recent customers
-      Customer.find(req.tenantFilter)
+      Customer.find(ownerInvoiceFilter)
         .sort({ createdAt: -1 })
         .limit(5)
         .select('name nameAr email phone type createdAt')
@@ -262,7 +267,7 @@ async function buildDashboardPayload(req) {
 
       // 8. Top products
       safeAggregate(Invoice, [
-        { $match: { ...req.tenantFilter, issueDate: { $gte: topProductsSince }, status: { $nin: ['draft', 'cancelled', 'credited'] } } },
+        { $match: { ...ownerInvoiceFilter, issueDate: { $gte: topProductsSince }, status: { $nin: ['draft', 'cancelled', 'credited'] } } },
         { $unwind: '$lineItems' },
         {
           $group: {
@@ -288,7 +293,7 @@ async function buildDashboardPayload(req) {
       safeAggregate(Invoice, [
         {
           $match: {
-            ...req.tenantFilter,
+            ...ownerInvoiceFilter,
             issueDate: { $gte: today, $lt: tomorrow },
             status: { $nin: ['draft', 'cancelled', 'credited'] }
           }
@@ -726,7 +731,7 @@ async function buildDashboardPayload(req) {
 router.get('/charts/revenue', async (req, res) => {
   try {
     const { months = 12 } = req.query;
-    const cacheKey = `dashboard:v1:charts:revenue:${req.tenant?._id || req.tenantFilter?.tenantId || 'unknown'}:${months}`;
+    const cacheKey = `dashboard:v1:charts:revenue:${req.tenant?._id || req.tenantFilter?.tenantId || 'unknown'}:${months}:${shouldScopeInvoicesToSelf(req.user) ? `u:${req.user._id}` : 'all'}`;
     const merged = await cacheAside(cacheKey, DASHBOARD_CACHE_TTL_SECONDS, () => buildRevenueChart(req, months));
     return res.json(merged);
   } catch (error) {
@@ -736,6 +741,10 @@ router.get('/charts/revenue', async (req, res) => {
 
 async function buildRevenueChart(req, months) {
     const businessTypes = getTenantBusinessTypes(req.tenant);
+    const ownerInvoiceFilter = { ...req.tenantFilter };
+    if (shouldScopeInvoicesToSelf(req.user)) {
+      applyCreatedByScope(ownerInvoiceFilter, req.user._id);
+    }
     
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - parseInt(months));
@@ -757,7 +766,7 @@ async function buildRevenueChart(req, months) {
     const invoiceRevenue = await safeAggregate(Invoice, [
       {
         $match: {
-          ...req.tenantFilter,
+          ...ownerInvoiceFilter,
           issueDate: { $gte: startDate },
           status: { $nin: ['draft', 'cancelled', 'credited'] },
           flow: 'sell'

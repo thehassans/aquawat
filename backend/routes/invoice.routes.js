@@ -21,6 +21,7 @@ import {
   shouldScopeInvoicesToSelf,
   applyCreatedByScope,
   isElevatedRole,
+  scopedInvoiceFilter,
 } from '../utils/accessScope.js';
 import { enrichInvoiceArabicFields } from '../utils/invoiceArabic.js';
 import { buildDraftInvoiceQr } from '../utils/zatca/draftInvoiceQr.js';
@@ -800,7 +801,7 @@ function buildCustomerPayloadFromBuyer(buyer = {}) {
   };
 }
 
-async function ensureCustomerRecord(tenantId, buyer = {}, existingCustomer = null) {
+async function ensureCustomerRecord(tenantId, buyer = {}, existingCustomer = null, createdBy = null) {
   const payload = buildCustomerPayloadFromBuyer(buyer);
   if (!payload) return existingCustomer || null;
 
@@ -829,6 +830,7 @@ async function ensureCustomerRecord(tenantId, buyer = {}, existingCustomer = nul
     customer.mobile = payload.mobile || customer.mobile;
     customer.vatNumber = payload.vatNumber || customer.vatNumber;
     customer.crNumber = payload.crNumber || customer.crNumber;
+    if (!customer.createdBy && createdBy) customer.createdBy = createdBy;
     customer.address = {
       ...(customer.address?.toObject?.() || customer.address || {}),
       ...(payload.address || {}),
@@ -840,6 +842,7 @@ async function ensureCustomerRecord(tenantId, buyer = {}, existingCustomer = nul
   return await Customer.create({
     tenantId,
     ...payload,
+    ...(createdBy ? { createdBy } : {}),
   });
 }
 
@@ -1585,7 +1588,7 @@ router.get('/:id/pdf', checkPermission('invoicing', 'read'), async (req, res) =>
 // @route   POST /api/invoices/:id/attachments — supplier invoice PDF/photo (vendor bills)
 router.post('/:id/attachments', checkPermission('invoicing', 'update'), upload.single('file'), async (req, res) => {
   try {
-    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const invoice = await Invoice.findOne(scopedInvoiceFilter(req));
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
     if (!req.file?.buffer) return res.status(400).json({ error: 'File is required' });
 
@@ -1616,7 +1619,7 @@ router.post('/:id/attachments', checkPermission('invoicing', 'update'), upload.s
 // @route   POST /api/invoices/:id/payments
 router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req, res) => {
   try {
-    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const invoice = await Invoice.findOne(scopedInvoiceFilter(req));
     if (!invoice) {
       return res.status(404).json({ error: 'Invoice not found' });
     }
@@ -2275,7 +2278,7 @@ router.post('/sell', invoiceWriteLimiter, checkPermission('invoicing', 'create')
     }
 
     if (!customer && businessContext === 'travel_agency') {
-      customer = await ensureCustomerRecord(req.user.tenantId, buyer);
+      customer = await ensureCustomerRecord(req.user.tenantId, buyer, null, req.user._id);
       if (customer) {
         buyer.name = buyer.name || customer.name;
         buyer.nameAr = buyer.nameAr || customer.nameAr;
@@ -3105,7 +3108,7 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
 // @desc    No-op: invoices do not move stock (use Delivery Note / GRN)
 router.post('/:id/post-inventory', requireBusinessType('trading'), checkPermission('invoicing', 'update'), async (req, res) => {
   try {
-    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const invoice = await Invoice.findOne(scopedInvoiceFilter(req));
     if (!invoice) {
       return res.status(404).json({ error: 'Invoice not found' });
     }
@@ -3127,7 +3130,7 @@ router.post('/:id/post-inventory', requireBusinessType('trading'), checkPermissi
 router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
   try {
     req.body = sanitizeInvoicePayload(req.body);
-    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const invoice = await Invoice.findOne(scopedInvoiceFilter(req));
     
     if (!invoice) {
       return res.status(404).json({ error: 'Invoice not found' });
@@ -3422,7 +3425,7 @@ router.delete('/:id', checkPermission('invoicing', 'update'), async (req, res) =
       return res.status(403).json({ error: 'Only admins can delete invoices' });
     }
 
-    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const invoice = await Invoice.findOne(scopedInvoiceFilter(req));
 
     if (!invoice) {
       return res.status(404).json({ error: 'Invoice not found' });
@@ -3474,7 +3477,7 @@ router.delete('/:id', checkPermission('invoicing', 'update'), async (req, res) =
 
 router.post('/:id/sign', checkPermission('invoicing', 'approve'), async (req, res) => {
   try {
-    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const invoice = await Invoice.findOne(scopedInvoiceFilter(req));
     
     if (!invoice) {
       return res.status(404).json({ error: 'Invoice not found' });
@@ -3672,7 +3675,7 @@ router.post('/:id/sign', checkPermission('invoicing', 'approve'), async (req, re
 
 router.post('/:id/send-email', checkPermission('invoicing', 'update'), async (req, res) => {
   try {
-    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const invoice = await Invoice.findOne(scopedInvoiceFilter(req));
     if (!invoice) {
       return res.status(404).json({ error: 'Invoice not found' });
     }
@@ -3727,7 +3730,7 @@ router.post('/:id/send-email', checkPermission('invoicing', 'update'), async (re
 // @route   GET /api/invoices/:id/qr
 router.get('/:id/qr', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter })
+    const invoice = await Invoice.findOne(scopedInvoiceFilter(req))
       .select('zatca.qrCodeImage zatca.qrCodeData');
     
     if (!invoice || !invoice.zatca?.qrCodeImage) {
@@ -3746,7 +3749,7 @@ router.get('/:id/qr', checkPermission('invoicing', 'read'), async (req, res) => 
 // @route   GET /api/invoices/:id/xml
 router.get('/:id/xml', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter })
+    const invoice = await Invoice.findOne(scopedInvoiceFilter(req))
       .select('invoiceNumber zatca.signedXml');
     
     if (!invoice || !invoice.zatca?.signedXml) {
@@ -3765,7 +3768,7 @@ router.get('/:id/xml', checkPermission('invoicing', 'read'), async (req, res) =>
 router.post('/:id/cancel', checkPermission('invoicing', 'update'), async (req, res) => {
   try {
     const reason = String(req.body?.reason || req.body?.cancelReason || '').trim();
-    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const invoice = await Invoice.findOne(scopedInvoiceFilter(req));
     if (!invoice) {
       return res.status(404).json({ error: 'Invoice not found' });
     }
@@ -3798,7 +3801,7 @@ router.post('/:id/cancel', checkPermission('invoicing', 'update'), async (req, r
 // @route   POST /api/invoices/:id/credit-note
 router.post('/:id/credit-note', checkPermission('invoicing', 'create'), async (req, res) => {
   try {
-    const originalInvoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const originalInvoice = await Invoice.findOne(scopedInvoiceFilter(req));
     
     if (!originalInvoice) {
       return res.status(404).json({ error: 'Original invoice not found' });
@@ -3953,7 +3956,7 @@ router.post('/:id/credit-note', checkPermission('invoicing', 'create'), async (r
 // @route   POST /api/invoices/:id/debit-note
 router.post('/:id/debit-note', checkPermission('invoicing', 'create'), async (req, res) => {
   try {
-    const originalInvoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const originalInvoice = await Invoice.findOne(scopedInvoiceFilter(req));
 
     if (!originalInvoice) {
       return res.status(404).json({ error: 'Original invoice not found' });
@@ -4012,7 +4015,7 @@ router.post('/:id/debit-note', checkPermission('invoicing', 'create'), async (re
 // @desc    Convert a proforma invoice to a standard invoice
 router.post('/:id/convert-proforma', checkPermission('invoicing', 'create'), async (req, res) => {
   try {
-    const proforma = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const proforma = await Invoice.findOne(scopedInvoiceFilter(req));
     
     if (!proforma) return res.status(404).json({ error: 'Proforma invoice not found' });
     if (proforma.invoiceSubtype !== 'proforma') return res.status(400).json({ error: 'Invoice is not a proforma' });
@@ -4062,7 +4065,7 @@ router.post('/:id/convert-proforma', checkPermission('invoicing', 'create'), asy
 // @desc    Send invoice via WhatsApp (Official Cloud API or QR Baileys with wa.me link fallback)
 router.post('/:id/send-whatsapp', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const invoice = await Invoice.findOne(scopedInvoiceFilter(req));
     if (!invoice) {
       return res.status(404).json({ error: 'Invoice not found' });
     }

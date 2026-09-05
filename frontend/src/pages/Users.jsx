@@ -564,7 +564,7 @@ export default function Users() {
       setValue('accessScope', {
         productVisibility: 'all',
         canAddProducts: canAdd,
-        invoiceVisibility: ['manager', 'accountant'].includes(roleKey) ? 'all' : 'own',
+        invoiceVisibility: 'own',
         canManageOwnInvoiceSettings: ['manager', 'sales', 'accountant'].includes(roleKey),
       })
     } else {

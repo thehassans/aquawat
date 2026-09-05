@@ -3,6 +3,7 @@ import { protect, tenantFilter, requireTenantFilter } from '../middleware/auth.j
 import CalendarEvent from '../models/CalendarEvent.js';
 import logger from '../utils/logger.js';
 import { fetchProcurementCalendarEvents, PROCUREMENT_EVENT_TYPES } from '../services/procurementCalendar.js';
+import { shouldScopeInvoicesToSelf } from '../utils/accessScope.js';
 
 const router = express.Router();
 
@@ -43,6 +44,9 @@ router.get('/', async (req, res) => {
     } = req.query;
 
     const query = { tenantId };
+    if (shouldScopeInvoicesToSelf(req.user)) {
+      query.userId = req.user._id;
+    }
 
     // Date range filter
     if (startDate && endDate) {
@@ -107,6 +111,7 @@ router.get('/', async (req, res) => {
           end: rangeEnd,
           type: type || 'all',
           search,
+          createdBy: shouldScopeInvoicesToSelf(req.user) ? req.user._id : null,
         })
       : [];
 
@@ -144,27 +149,34 @@ router.get('/summary', async (req, res) => {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
+    const ownerScope = shouldScopeInvoicesToSelf(req.user) ? { userId: req.user._id } : {};
+    const createdByScope = shouldScopeInvoicesToSelf(req.user) ? { createdBy: req.user._id } : {};
+
     const [todayEvents, monthEvents, pendingTasks, upcomingMeetings, procurementToday, procurementMonth] = await Promise.all([
       CalendarEvent.countDocuments({
         tenantId,
+        ...ownerScope,
         startDate: { $gte: startOfToday, $lte: endOfToday },
       }),
       CalendarEvent.countDocuments({
         tenantId,
+        ...ownerScope,
         startDate: { $gte: startOfMonth, $lte: endOfMonth },
       }),
       CalendarEvent.countDocuments({
         tenantId,
+        ...ownerScope,
         type: { $in: ['task', 'reminder'] },
         isCompleted: false,
       }),
       CalendarEvent.countDocuments({
         tenantId,
+        ...ownerScope,
         type: 'meeting',
         startDate: { $gte: startOfToday },
       }),
-      fetchProcurementCalendarEvents({ tenantId, start: startOfToday, end: endOfToday }),
-      fetchProcurementCalendarEvents({ tenantId, start: startOfMonth, end: endOfMonth }),
+      fetchProcurementCalendarEvents({ tenantId, start: startOfToday, end: endOfToday, ...createdByScope }),
+      fetchProcurementCalendarEvents({ tenantId, start: startOfMonth, end: endOfMonth, ...createdByScope }),
     ]);
 
     res.json({
@@ -189,7 +201,9 @@ router.get('/summary', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const tenantId = getTenantId(req);
-    const event = await CalendarEvent.findOne({ _id: req.params.id, tenantId }).lean();
+    const eventQuery = { _id: req.params.id, tenantId };
+    if (shouldScopeInvoicesToSelf(req.user)) eventQuery.userId = req.user._id;
+    const event = await CalendarEvent.findOne(eventQuery).lean();
     if (!event) {
       return res.status(404).json({ error: 'Event not found' });
     }
@@ -322,7 +336,9 @@ router.post('/quick-note', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const tenantId = getTenantId(req);
-    const event = await CalendarEvent.findOne({ _id: req.params.id, tenantId });
+    const eventQuery = { _id: req.params.id, tenantId };
+    if (shouldScopeInvoicesToSelf(req.user)) eventQuery.userId = req.user._id;
+    const event = await CalendarEvent.findOne(eventQuery);
     if (!event) {
       return res.status(404).json({ error: 'Event not found' });
     }
@@ -386,7 +402,9 @@ router.put('/:id', async (req, res) => {
 router.patch('/:id/toggle-complete', async (req, res) => {
   try {
     const tenantId = getTenantId(req);
-    const event = await CalendarEvent.findOne({ _id: req.params.id, tenantId });
+    const eventQuery = { _id: req.params.id, tenantId };
+    if (shouldScopeInvoicesToSelf(req.user)) eventQuery.userId = req.user._id;
+    const event = await CalendarEvent.findOne(eventQuery);
     if (!event) {
       return res.status(404).json({ error: 'Event not found' });
     }
@@ -417,7 +435,9 @@ router.patch('/:id/toggle-complete', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const tenantId = getTenantId(req);
-    const event = await CalendarEvent.findOneAndDelete({ _id: req.params.id, tenantId });
+    const eventQuery = { _id: req.params.id, tenantId };
+    if (shouldScopeInvoicesToSelf(req.user)) eventQuery.userId = req.user._id;
+    const event = await CalendarEvent.findOneAndDelete(eventQuery);
     if (!event) {
       return res.status(404).json({ error: 'Event not found' });
     }
