@@ -29,10 +29,10 @@ import {
   deferredStatusLabel,
 } from '../../lib/accountingLabels'
 
-import { extractDateOnly } from '../../lib/dateOnly'
+import { extractDateOnly, todayDateOnly } from '../../lib/dateOnly'
 
 /** Local calendar today (Asia/Riyadh) — never UTC toISOString slice. */
-const todayIso = () => extractDateOnly(new Date()) || new Date().toISOString().slice(0, 10)
+const todayIso = () => todayDateOnly()
 const yearStartIso = () => {
   const y = Number((extractDateOnly(new Date()) || '').slice(0, 4)) || new Date().getFullYear()
   return `${y}-01-01`
@@ -3032,7 +3032,7 @@ function AgedReportPanel({ language, kind }) {
                       descriptionAr={kind === 'ar'
                         ? 'عند وجود فواتير عملاء غير مدفوعة تظهر هنا حسب شريحة التأخير.'
                         : 'عند وجود فواتير موردين غير مدفوعة تظهر هنا حسب شريحة التأخير.'}
-                      action={() => navigate(kind === 'ar' ? '/app/dashboard/accounting/invoices' : '/app/dashboard/accounting/vendor-bills')}
+                      action={() => navigate(kind === 'ar' ? '/app/dashboard/accounting/invoices' : '/app/dashboard/accounting/bills')}
                       actionLabel={kind === 'ar' ? 'View invoices' : 'View vendor bills'}
                       actionLabelAr={kind === 'ar' ? 'عرض الفواتير' : 'عرض فواتير الموردين'}
                     />
@@ -3116,7 +3116,7 @@ function AgedReportPanel({ language, kind }) {
                       descriptionAr={kind === 'ar'
                         ? 'عند وجود فواتير عملاء غير مدفوعة تظهر هنا حسب شريحة التأخير.'
                         : 'عند وجود فواتير موردين غير مدفوعة تظهر هنا حسب شريحة التأخير.'}
-                      action={() => navigate(kind === 'ar' ? '/app/dashboard/accounting/invoices' : '/app/dashboard/accounting/vendor-bills')}
+                      action={() => navigate(kind === 'ar' ? '/app/dashboard/accounting/invoices' : '/app/dashboard/accounting/bills')}
                       actionLabel={kind === 'ar' ? 'View invoices' : 'View vendor bills'}
                       actionLabelAr={kind === 'ar' ? 'عرض الفواتير' : 'عرض فواتير الموردين'}
                     />

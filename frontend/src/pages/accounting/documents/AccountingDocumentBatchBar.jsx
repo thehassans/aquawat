@@ -5,11 +5,13 @@ export default function AccountingDocumentBatchBar({
   language = 'en',
   onRegisterPayment,
   onSendPrint,
+  onPrint,
   onSepaExport,
   registerDisabled = false,
 }) {
   if (count < 1) return null
   const isAr = language === 'ar'
+  const printHandler = onPrint || onSendPrint
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
@@ -17,29 +19,35 @@ export default function AccountingDocumentBatchBar({
         {isAr ? `${count} محدد` : `${count} selected`}
       </p>
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          className="btn btn-primary btn-sm"
-          disabled={registerDisabled}
-          onClick={onRegisterPayment}
-        >
-          <Banknote className="h-4 w-4" />
-          {isAr ? 'تسجيل دفعة' : 'Register payment'}
-        </button>
+        {onRegisterPayment ? (
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={registerDisabled}
+            onClick={onRegisterPayment}
+          >
+            <Banknote className="h-4 w-4" />
+            {isAr ? 'تسجيل دفعة' : 'Register payment'}
+          </button>
+        ) : null}
         {onSepaExport ? (
           <button type="button" className="btn btn-secondary btn-sm" onClick={onSepaExport}>
             <Download className="h-4 w-4" />
-            {isAr ? 'تصدير SEPA' : 'SEPA export'}
+            {isAr ? 'تصدير SEPA (قديم)' : 'Legacy (SEPA)'}
           </button>
         ) : null}
-        <button type="button" className="btn btn-secondary btn-sm" onClick={onSendPrint}>
-          <Send className="h-4 w-4" />
-          {isAr ? 'إرسال وطباعة' : 'Send & print'}
-        </button>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={onSendPrint}>
-          <Printer className="h-4 w-4" />
-          {isAr ? 'طباعة' : 'Print'}
-        </button>
+        {onSendPrint ? (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onSendPrint}>
+            <Send className="h-4 w-4" />
+            {isAr ? 'إرسال وطباعة' : 'Send & print'}
+          </button>
+        ) : null}
+        {printHandler ? (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={printHandler}>
+            <Printer className="h-4 w-4" />
+            {isAr ? 'طباعة' : 'Print'}
+          </button>
+        ) : null}
       </div>
     </div>
   )

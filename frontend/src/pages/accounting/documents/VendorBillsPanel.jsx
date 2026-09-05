@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Search, Eye, Download, CreditCard, FileText } from 'lucide-react'
+import { Plus, Eye, Download, CreditCard, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useSelector } from 'react-redux'
 import api from '../../../lib/api'
@@ -22,9 +22,6 @@ import { resolveInvoiceListNumber } from '../../../lib/commercialDocumentLabels'
 import {
   docLinkClass,
   emptyStateClass,
-  fieldControlClass,
-  filterBarClass,
-  filterControlClass,
   listShellClass,
   rowActionBtnClass,
   rowActionsWrapClass,
@@ -36,6 +33,7 @@ import {
 } from '../../sales/salesUi'
 import { formatDateOnlyDisplay } from '../../../lib/dateOnly'
 import EmptyState from '../../../components/ui/EmptyState'
+import DocumentListFilterBar, { filterControlClass } from './DocumentListFilterBar'
 
 const trimName = (party) => {
   const en = String(party?.name || party?.nameEn || '').trim()
@@ -262,13 +260,28 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
   return (
     <div className="space-y-4">
       {!embedded ? (
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-            {isAr ? 'المحاسبة · الموردون' : 'Accounting · Vendors'}
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
-            {isAr ? 'فواتير المشتريات' : 'Bills'}
-          </h1>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              {isAr ? 'الموردون / الفواتير' : 'Vendors / Bills'}
+            </p>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
+              {isAr ? 'فواتير الموردين' : 'Vendor Bills'}
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              {isAr
+                ? 'فواتير الموردين والمطابقة الثلاثية'
+                : 'Supplier invoices and 3-way matching'}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => navigate('/app/dashboard/accounting/bills/new')}
+          >
+            <Plus className="h-4 w-4" />
+            {isAr ? 'فاتورة مورد جديدة' : 'New bill'}
+          </button>
         </div>
       ) : null}
       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -278,49 +291,80 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
             getRows={() => Promise.resolve(selectedRows.length ? selectedRows : rows)}
             label={isAr ? 'تصدير' : 'Export'}
           />
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={handlePaymentBatchCsv}
-            disabled={!selectedIds.size}
-          >
-            <Download className="h-4 w-4" />
-            {isAr ? 'دفعة CSV' : 'Payment batch CSV'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm opacity-70"
-            onClick={handleSepaExport}
-            disabled={!selectedIds.size}
-            title={isAr
-              ? 'تصدير SEPA اختياري (أوروبا) — السعودية تحتاج SARIE / صيغة البنك'
-              : 'Optional legacy SEPA (Europe) — KSA needs SARIE / bank-specific formats'}
-          >
-            <Download className="h-4 w-4" />
-            {isAr ? 'تصدير (SEPA · اختياري)' : 'Export (SEPA · optional)'}
-          </button>
-          {!embedded ? (
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={() => navigate('/app/dashboard/accounting/bills/new')}
-          >
-            <Plus className="h-4 w-4" />
-            {isAr ? 'فاتورة مورد جديدة' : 'New bill'}
-          </button>
+          {selectedIds.size > 0 ? (
+            <>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={handlePaymentBatchCsv}
+              >
+                <Download className="h-4 w-4" />
+                {isAr
+                  ? `إنشاء دفعة (${selectedIds.size})`
+                  : `Create payment batch (${selectedIds.size} bills)`}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm opacity-70"
+                onClick={handleSepaExport}
+                title={isAr
+                  ? 'Legacy SEPA (أوروبا) — السعودية: SARIE / صيغة البنك'
+                  : 'Legacy (SEPA) — KSA uses SARIE / bank-specific formats'}
+              >
+                <Download className="h-4 w-4" />
+                Legacy (SEPA)
+              </button>
+            </>
           ) : null}
       </div>
 
-      <div className={filterBarClass}>
-        <div className="relative min-w-[180px] flex-1">
-          <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            placeholder={isAr ? 'بحث…' : 'Search…'}
-            className={`${fieldControlClass} !py-2 ps-10`}
-          />
-        </div>
+      <DocumentListFilterBar
+        search={search}
+        onSearchChange={(v) => { setSearch(v); setPage(1) }}
+        searchPlaceholder={isAr ? 'بحث…' : 'Search…'}
+        clearAllLabel={isAr ? 'مسح الفلاتر' : 'Clear filters'}
+        chips={[
+          dateFrom ? { id: 'from', label: `${isAr ? 'من' : 'From'}: ${dateFrom}`, onClear: () => { setDateFrom(''); setPage(1) } } : null,
+          dateTo ? { id: 'to', label: `${isAr ? 'إلى' : 'To'}: ${dateTo}`, onClear: () => { setDateTo(''); setPage(1) } } : null,
+          supplierIdFilter ? {
+            id: 'supplier',
+            label: (Array.isArray(suppliers) ? suppliers : []).find((s) => String(s._id) === supplierIdFilter)?.nameEn
+              || (Array.isArray(suppliers) ? suppliers : []).find((s) => String(s._id) === supplierIdFilter)?.name
+              || supplierIdFilter,
+            onClear: () => {
+              const next = new URLSearchParams(searchParams)
+              next.delete('supplierId')
+              setSearchParams(next)
+              setPage(1)
+            },
+          } : null,
+          statusFilter ? { id: 'status', label: statusFilter, onClear: () => { setStatusFilter(''); setPage(1) } } : null,
+          paymentFilter ? { id: 'pay', label: paymentFilter, onClear: () => { setPaymentFilter(''); setPage(1) } } : null,
+          productIdFilter ? {
+            id: 'product',
+            label: `Product`,
+            onClear: () => {
+              const next = new URLSearchParams(searchParams)
+              next.delete('productId')
+              setSearchParams(next)
+              setPage(1)
+            },
+          } : null,
+        ].filter(Boolean)}
+        onClearAll={(productIdFilter || supplierIdFilter || dateFrom || dateTo || statusFilter || paymentFilter)
+          ? () => {
+            const next = new URLSearchParams(searchParams)
+            next.delete('productId')
+            next.delete('supplierId')
+            setSearchParams(next)
+            setDateFrom('')
+            setDateTo('')
+            setStatusFilter('')
+            setPaymentFilter('')
+            setPage(1)
+          }
+          : undefined}
+      >
         <input
           type="date"
           value={dateFrom}
@@ -365,31 +409,12 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
           <option value="partial">{isAr ? 'جزئي' : 'Partial'}</option>
           <option value="paid">{isAr ? 'مدفوعة' : 'Paid'}</option>
         </select>
-        {(productIdFilter || supplierIdFilter || dateFrom || dateTo) ? (
-          <button
-            type="button"
-            className={`${softChipClass} !px-3`}
-            onClick={() => {
-              const next = new URLSearchParams(searchParams)
-              next.delete('productId')
-              next.delete('supplierId')
-              setSearchParams(next)
-              setDateFrom('')
-              setDateTo('')
-              setPage(1)
-            }}
-          >
-            {isAr ? 'مسح الفلاتر' : 'Clear filters'}
-          </button>
-        ) : null}
-      </div>
+      </DocumentListFilterBar>
 
       <AccountingDocumentBatchBar
         count={selectedIds.size}
         language={language}
         onRegisterPayment={handleBatchRegisterPayment}
-        onSendPrint={handleSepaExport}
-        onSepaExport={handleSepaExport}
         registerDisabled={!selectedRows.some((row) => canRegisterPaymentOnBill(row))}
       />
 

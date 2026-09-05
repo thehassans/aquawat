@@ -616,7 +616,7 @@ export default function InvoiceView() {
                     queryClient.invalidateQueries(['customer-invoices'])
                     navigate(
                       invoice?.flow === 'purchase'
-                        ? '/app/dashboard/accounting/invoices?tab=purchase'
+                        ? '/app/dashboard/accounting/bills'
                         : '/app/dashboard/accounting/invoices',
                     )
                   } catch (error) {

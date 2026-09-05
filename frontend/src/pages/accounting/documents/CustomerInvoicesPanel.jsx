@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowDown, ArrowUp, Plus, RefreshCw, Search, Eye, FileText } from 'lucide-react'
+import { ArrowDown, ArrowUp, Plus, RefreshCw, Eye, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useSelector } from 'react-redux'
 import api from '../../../lib/api'
@@ -27,9 +27,6 @@ import { extractDateOnly, formatDateOnlyDisplay } from '../../../lib/dateOnly'
 import {
   docLinkClass,
   emptyStateClass,
-  fieldControlClass,
-  filterBarClass,
-  filterControlClass,
   listShellClass,
   paginationBarClass,
   rowActionBtnClass,
@@ -40,6 +37,7 @@ import {
   salesTableClass,
   softChipClass,
 } from '../../sales/salesUi'
+import DocumentListFilterBar, { filterControlClass } from './DocumentListFilterBar'
 
 const trimName = (party) => {
   const en = String(party?.name || party?.nameEn || '').trim()
@@ -334,16 +332,55 @@ export default function CustomerInvoicesPanel({ language: languageProp, embedded
         </div>
       )}
 
-      <div className={filterBarClass}>
-        <div className="relative min-w-[180px] flex-1">
-          <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            value={search}
-            onChange={(e) => resetPagingFilters(() => setSearch(e.target.value))}
-            placeholder={isAr ? 'بحث…' : 'Search…'}
-            className={`${fieldControlClass} !py-2 ps-10`}
-          />
-        </div>
+      <DocumentListFilterBar
+        search={search}
+        onSearchChange={(v) => resetPagingFilters(() => setSearch(v))}
+        searchPlaceholder={isAr ? 'بحث…' : 'Search…'}
+        clearAllLabel={isAr ? 'مسح الفلاتر' : 'Clear filters'}
+        chips={[
+          dateFrom ? { id: 'from', label: `${isAr ? 'من' : 'From'}: ${dateFrom}`, onClear: () => resetPagingFilters(() => setDateFrom('')) } : null,
+          dateTo ? { id: 'to', label: `${isAr ? 'إلى' : 'To'}: ${dateTo}`, onClear: () => resetPagingFilters(() => setDateTo('')) } : null,
+          typeFilter ? { id: 'type', label: typeFilter, onClear: () => resetPagingFilters(() => setTypeFilter('')) } : null,
+          statusFilter ? { id: 'status', label: statusFilter, onClear: () => resetPagingFilters(() => setStatusFilter('')) } : null,
+          paymentFilter ? { id: 'pay', label: paymentFilter, onClear: () => resetPagingFilters(() => setPaymentFilter('')) } : null,
+          zatcaFilter ? { id: 'zatca', label: `ZATCA: ${zatcaFilter}`, onClear: () => resetPagingFilters(() => setZatcaFilter('')) } : null,
+          customerIdFilter ? {
+            id: 'customer',
+            label: isAr ? 'عميل' : 'Customer',
+            onClear: () => {
+              const next = new URLSearchParams(searchParams)
+              next.delete('customerId')
+              setSearchParams(next)
+              setPage(1)
+            },
+          } : null,
+          productIdFilter ? {
+            id: 'product',
+            label: isAr ? 'منتج' : 'Product',
+            onClear: () => {
+              const next = new URLSearchParams(searchParams)
+              next.delete('productId')
+              setSearchParams(next)
+              setPage(1)
+            },
+          } : null,
+        ].filter(Boolean)}
+        onClearAll={(customerIdFilter || productIdFilter || dateFrom || dateTo || typeFilter || statusFilter || paymentFilter || zatcaFilter)
+          ? () => {
+            const next = new URLSearchParams(searchParams)
+            next.delete('customerId')
+            next.delete('productId')
+            setSearchParams(next)
+            setDateFrom('')
+            setDateTo('')
+            setTypeFilter('')
+            setStatusFilter('')
+            setPaymentFilter('')
+            setZatcaFilter('')
+            setPage(1)
+          }
+          : undefined}
+      >
         <input
           type="date"
           value={dateFrom}
@@ -400,35 +437,17 @@ export default function CustomerInvoicesPanel({ language: languageProp, embedded
             <option value="failed">{isAr ? 'فشل / مرفوضة' : 'Failed'}</option>
           </select>
         ) : null}
-        {(customerIdFilter || productIdFilter || dateFrom || dateTo || zatcaFilter) ? (
+        {!embedded ? (
           <button
             type="button"
-            className={`${softChipClass} !px-3`}
-            onClick={() => {
-              const next = new URLSearchParams(searchParams)
-              next.delete('customerId')
-              next.delete('productId')
-              setSearchParams(next)
-              setDateFrom('')
-              setDateTo('')
-              setZatcaFilter('')
-              setPage(1)
-            }}
+            className="btn btn-primary btn-sm ms-auto"
+            onClick={() => navigate('/app/dashboard/accounting/invoices/new/sell')}
           >
-            {isAr ? 'مسح الفلتر' : 'Clear filter'}
+            <Plus className="h-4 w-4" />
+            {isAr ? 'فاتورة جديدة' : 'New invoice'}
           </button>
         ) : null}
-        {!embedded ? (
-        <button
-          type="button"
-          className="btn btn-primary btn-sm ms-auto"
-          onClick={() => navigate('/app/dashboard/accounting/invoices/new/sell')}
-        >
-          <Plus className="h-4 w-4" />
-          {isAr ? 'فاتورة جديدة' : 'New invoice'}
-        </button>
-        ) : null}
-      </div>
+      </DocumentListFilterBar>
 
       <AccountingDocumentBatchBar
         count={selectedIds.size}

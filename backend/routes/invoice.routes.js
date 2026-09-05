@@ -1455,6 +1455,7 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
           'zatca.submissionStatus', 'zatca.reportingStatus', 'zatca.clearedAt', 'zatca.reportedAt',
           'createdByName', 'createdByNameAr', 'createdBy',
           'sourcePurchaseOrderId', 'pdfTemplateId', 'printFormat',
+          'purchaseBillType', 'purchaseSupplyType', 'originalInvoiceId',
           // Minimal line fields for travel VAT list display only (avoid shipping full line payloads)
           'lineItems.isTravelMargin', 'lineItems.lineTotalWithTax', 'lineItems.customerPrice',
           'lineItems.quantity', 'lineItems.taxCategory', 'lineItems.taxRate',
@@ -3029,6 +3030,13 @@ router.post('/purchase', invoiceWriteLimiter, checkPermission('invoicing', 'crea
       vendorInvoiceNumber,
       vendorInvoiceDate,
       contractNumber: vendorInvoiceNumber || String(req.body.contractNumber || '').trim(),
+      purchaseBillType: ['standard', 'simplified', 'non_taxable'].includes(String(req.body.purchaseBillType || ''))
+        ? String(req.body.purchaseBillType)
+        : 'standard',
+      purchaseSupplyType: ['domestic', 'import', 'reverse_charge'].includes(String(req.body.purchaseSupplyType || ''))
+        ? String(req.body.purchaseSupplyType)
+        : 'domestic',
+      originalInvoiceId: cleanObjectId(req.body.originalInvoiceId) || undefined,
       seller,
       supplierId: cleanObjectId(supplier?._id || req.body.supplierId),
       buyer: {

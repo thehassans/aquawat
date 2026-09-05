@@ -269,6 +269,17 @@ const invoiceSchema = new mongoose.Schema({
   /** GL recognition date; defaults to issueDate when unset (vendor bills). */
   accountingDate: { type: Date },
   printFormat: { type: String, enum: ['a4', 'thermal'], default: 'a4' },
+  /** Purchase-only classification (not ZATCA B2B/B2C). */
+  purchaseBillType: {
+    type: String,
+    enum: ['standard', 'simplified', 'non_taxable'],
+    default: 'standard',
+  },
+  purchaseSupplyType: {
+    type: String,
+    enum: ['domestic', 'import', 'reverse_charge'],
+    default: 'domestic',
+  },
   
   // Parties
   seller: partySchema,

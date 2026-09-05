@@ -1329,7 +1329,7 @@ export default function PurchaseOrderForm() {
             </button>
             <button
               type="button"
-              onClick={() => navigate(`/app/dashboard/accounting/invoices/new/purchase?poId=${id}`)}
+              onClick={() => navigate(`/app/dashboard/accounting/bills/new?poId=${id}`)}
               disabled={!isEdit || order?.status === 'cancelled' || order?.status === 'draft'}
               className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50/70 px-3 py-1.5 text-[12px] font-semibold text-sky-800 transition hover:bg-sky-100 disabled:opacity-40 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300"
               title={language === 'ar' ? 'إنشاء فاتورة مورد (قيد محاسبي: مخزون وسيط / ضريبة مدخلات / ذمم دائنة)' : 'Create vendor bill (GL: stock interim / VAT input / AP)'}

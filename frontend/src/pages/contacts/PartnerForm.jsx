@@ -917,7 +917,7 @@ export default function PartnerForm() {
               ) : null}
               {isVendor && isEditing && vendorApStats ? (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Link to={`/app/dashboard/accounting/vendor-bills?supplierId=${id}`} className={`${sectionCardClass} !p-3 transition hover:border-sky-300`}>
+                  <Link to={`/app/dashboard/accounting/bills?supplierId=${id}`} className={`${sectionCardClass} !p-3 transition hover:border-sky-300`}>
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{ar ? 'فواتير' : 'Billed'}</p>
                     <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900 dark:text-white">{vendorApStats.billCount || 0}</p>
                     <p className="text-xs text-slate-500">{Number(vendorApStats.billedTotal || 0).toFixed(2)} SAR</p>

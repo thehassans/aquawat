@@ -838,7 +838,7 @@ export default function Accounting() {
                       {isAr ? 'أحدث الفواتير' : 'Recent invoices'}
                     </h3>
                     <p className="mt-0.5 text-xs text-slate-400">
-                      {isAr ? 'فواتير البيع والشراء' : 'Sales and purchase invoices'}
+                      {isAr ? 'فواتير المبيعات' : 'Sales invoices'}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -850,7 +850,7 @@ export default function Accounting() {
                     </Link>
                     <span className="text-slate-300">·</span>
                     <Link
-                      to="/app/dashboard/accounting/invoices?tab=purchase"
+                      to="/app/dashboard/accounting/bills"
                       className="text-xs font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-300"
                     >
                       {isAr ? 'مشتريات' : 'Purchase'}

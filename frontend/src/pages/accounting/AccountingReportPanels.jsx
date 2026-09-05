@@ -5,9 +5,9 @@ import Money from '../../components/ui/Money'
 import { useAccountingQuery } from '../../hooks/useAccountingQuery'
 import { ReportFilterRibbon, compareRange, variance } from './ReportFilterRibbon'
 import AccountingQueryState from './AccountingQueryState'
-import { extractDateOnly } from '../../lib/dateOnly'
+import { extractDateOnly, todayDateOnly } from '../../lib/dateOnly'
 
-const todayIso = () => extractDateOnly(new Date()) || new Date().toISOString().slice(0, 10)
+const todayIso = () => todayDateOnly()
 const yearStartIso = () => {
   const y = Number((extractDateOnly(new Date()) || '').slice(0, 4)) || new Date().getFullYear()
   return `${y}-01-01`

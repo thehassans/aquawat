@@ -1094,7 +1094,7 @@ export default function ProductForm() {
                     <button
                       type="button"
                       className="rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-start shadow-sm hover:border-primary-300 dark:border-dark-600 dark:bg-dark-800"
-                      onClick={() => navigate(`/app/dashboard/accounting/vendor-bills?productId=${id}`)}
+                      onClick={() => navigate(`/app/dashboard/accounting/bills?productId=${id}`)}
                     >
                       <div className="text-lg font-semibold tabular-nums text-slate-900 dark:text-white">{productApStats.billCount || 0}</div>
                       <div className="text-[11px] uppercase tracking-wide text-slate-500">{language === 'ar' ? 'فواتير شراء' : 'Purchase bills'}</div>

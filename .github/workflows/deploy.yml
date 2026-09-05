@@ -33,9 +33,21 @@ jobs:
         working-directory: backend
         run: npm test
 
-  # Build in parallel with tests so wall-clock ≈ max(test, build) instead of sum.
+  # Backend + frontend images build in parallel (was sequential ≈ 2× wall time).
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - id: backend
+            context: ./backend
+            tag: maqder-backend:latest
+            scope: maqder-backend
+          - id: frontend
+            context: ./frontend
+            tag: maqder-frontend:latest
+            scope: maqder-frontend
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,39 +55,59 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build backend (shared with pdf-worker)
+      - name: Build ${{ matrix.id }}
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
+          context: ${{ matrix.context }}
           push: false
           load: true
-          tags: maqder-backend:latest
-          cache-from: type=gha,scope=maqder-backend
-          cache-to: type=gha,mode=max,scope=maqder-backend
+          tags: ${{ matrix.tag }}
+          cache-from: type=gha,scope=${{ matrix.scope }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.scope }}
           build-args: |
             BUILD_SHA=${{ github.sha }}
 
-      - name: Tag pdf-worker from backend (same image)
-        run: docker tag maqder-backend:latest maqder-pdf-worker:latest
-
-      - name: Build frontend
-        uses: docker/build-push-action@v6
-        with:
-          context: ./frontend
-          push: false
-          load: true
-          tags: maqder-frontend:latest
-          cache-from: type=gha,scope=maqder-frontend
-          cache-to: type=gha,mode=max,scope=maqder-frontend
-          build-args: |
-            BUILD_SHA=${{ github.sha }}
-
-      - name: Pack images (zstd — faster than gzip)
+      - name: Pack image (zstd)
         run: |
           set -euo pipefail
-          for img in maqder-backend maqder-frontend maqder-pdf-worker; do
-            docker image inspect "${img}:latest" >/dev/null
-          done
+          docker image inspect "${{ matrix.tag }}" >/dev/null
+          docker save "${{ matrix.tag }}" | zstd -T0 -3 -o "/tmp/maqder-${{ matrix.id }}.tar.zst"
+          ls -lh "/tmp/maqder-${{ matrix.id }}.tar.zst"
+
+      - name: Upload ${{ matrix.id }} image
+        uses: actions/upload-artifact@v4
+        with:
+          name: maqder-${{ matrix.id }}-image
+          path: /tmp/maqder-${{ matrix.id }}.tar.zst
+          retention-days: 1
+          compression-level: 0
+
+  # Combine images into one tarball for a single rsync + remote load.
+  pack:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download backend image
+        uses: actions/download-artifact@v4
+        with:
+          name: maqder-backend-image
+          path: /tmp/images
+
+      - name: Download frontend image
+        uses: actions/download-artifact@v4
+        with:
+          name: maqder-frontend-image
+          path: /tmp/images
+
+      - name: Load, tag pdf-worker, pack combined
+        run: |
+          set -euo pipefail
+          BACK="$(find /tmp/images -name 'maqder-backend.tar.zst' -type f | head -1)"
+          FRONT="$(find /tmp/images -name 'maqder-frontend.tar.zst' -type f | head -1)"
+          test -n "$BACK" && test -n "$FRONT"
+          zstd -d -c "$BACK" | docker load
+          zstd -d -c "$FRONT" | docker load
+          docker tag maqder-backend:latest maqder-pdf-worker:latest
           docker save \
             maqder-backend:latest \
             maqder-frontend:latest \
@@ -83,7 +115,7 @@ jobs:
             | zstd -T0 -3 -o /tmp/maqder-app-images.tar.zst
           ls -lh /tmp/maqder-app-images.tar.zst
 
-      - name: Upload image tarball
+      - name: Upload combined image tarball
         uses: actions/upload-artifact@v4
         with:
           name: maqder-app-images
@@ -92,7 +124,7 @@ jobs:
           compression-level: 0
 
   deploy:
-    needs: [test, build]
+    needs: [test, pack]
     runs-on: ubuntu-latest
 
     steps:
@@ -208,6 +240,7 @@ jobs:
             --exclude 'frontend/node_modules/' \
             --exclude 'backend/node_modules/' \
             --exclude 'frontend/dist/' \
+            --exclude 'desktop/' \
             --exclude 'desktop/node_modules/' \
             --exclude 'backend/storage/' \
             --exclude 'backend/tmp/' \
@@ -220,6 +253,7 @@ jobs:
             --exclude '.env.local' \
             --exclude '.env.production' \
             --exclude '.cursor/' \
+            --exclude 'agent-transcripts/' \
             --exclude 'maqder-app-images.tar.gz' \
             --exclude 'maqder-app-images.tar.zst' \
             ./ "${REMOTE}:${DEST}/"

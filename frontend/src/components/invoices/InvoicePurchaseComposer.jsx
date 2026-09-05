@@ -509,6 +509,20 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     enabled: isTradingContext,
   })
 
+  const refundModeActive = isManualRefund || isVendorRefund(initialInvoice || {})
+  const { data: refundSourceBills = [] } = useQuery({
+    queryKey: ['vendor-bills-for-refund-picker'],
+    queryFn: () => api.get('/invoices', {
+      params: {
+        flow: 'purchase',
+        invoiceType: '388',
+        status: 'approved',
+        limit: 100,
+      },
+    }).then((r) => r.data?.invoices || r.data?.items || []),
+    enabled: Boolean(refundModeActive && !isEdit),
+  })
+
   const { data: warehouses = [] } = useQuery({
     queryKey: ['warehouses'],
     queryFn: async () => {
@@ -625,7 +639,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
 
       if (res._mode === 'draft') {
         toast.success(language === 'ar' ? 'تم حفظ المسودة' : 'Draft saved')
-        navigate(isRefundDoc ? '/app/dashboard/accounting/vendor-refunds' : '/app/dashboard/accounting/invoices?tab=purchase')
+        navigate(isRefundDoc ? '/app/dashboard/accounting/vendor-refunds' : '/app/dashboard/accounting/bills')
         return
       }
 
@@ -633,7 +647,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         language === 'ar' ? 'تم ترحيل فاتورة الشراء بنجاح' : 'Purchase invoice posted successfully',
       )
       if (res.data?.offline) {
-        navigate('/app/dashboard/accounting/invoices?tab=purchase')
+        navigate(isRefundDoc ? '/app/dashboard/accounting/vendor-refunds' : '/app/dashboard/accounting/bills')
       } else {
         navigate(`/app/dashboard/accounting/invoices/${savedId}`)
       }
@@ -1036,6 +1050,10 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       toast.error(language === 'ar' ? 'أضف بنداً واحداً على الأقل قبل الحفظ' : 'Add at least one line item before saving')
       return null
     }
+    if (!asDraft && isManualRefund && !String(data.originalInvoiceId || originalInvoiceId || '').trim()) {
+      toast.error(language === 'ar' ? 'اختر الفاتورة الأصلية للمرتجع' : 'Select the original vendor bill to refund')
+      return null
+    }
     const vendorInvNo = String(data.vendorInvoiceNumber || data.contractNumber || '').trim()
     if (!asDraft && !vendorInvNo && !isManualRefund && !isVendorRefund(initialInvoice || {})) {
       toast.error(language === 'ar' ? 'رقم فاتورة المورد إلزامي (للتدقيق والزكاة)' : 'Vendor invoice number is required (ZATCA audit)')
@@ -1047,7 +1065,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
         toast.error(language === 'ar' ? 'رمز الضريبة إلزامي على كل بند' : 'Tax code is required on every bill line')
         return null
       }
-      const claimsInputVat = namedLines.some((line) => {
+      const claimsInputVat = purchaseBillType !== 'non_taxable' && namedLines.some((line) => {
         const treatment = String(line?.vatTreatment || 'recoverable')
         const rate = toNumber(line?.taxRate, 0)
         return rate > 0 && (treatment === 'recoverable' || treatment === 'reverse_charge')
@@ -1091,8 +1109,13 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       businessContext,
       invoiceSubtype,
       pdfTemplateId: selectedTemplateId,
-      transactionType,
-      invoiceTypeCode: transactionType === 'B2C' ? '0200000' : '0100000',
+      transactionType: 'B2B',
+      invoiceTypeCode: '0100000',
+      purchaseBillType: purchaseBillType || data.purchaseBillType || 'standard',
+      purchaseSupplyType: purchaseSupplyType || data.purchaseSupplyType || 'domestic',
+      originalInvoiceId: (isManualRefund || isVendorRefund(initialInvoice || {}))
+        ? (data.originalInvoiceId || originalInvoiceId || undefined)
+        : undefined,
       invoiceType: isManualRefund || isVendorRefund(initialInvoice || {}) ? '381' : (initialInvoice?.invoiceType || '388'),
       status: 'approved',
       issueDate,
@@ -1100,7 +1123,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       vendorInvoiceNumber: vendorInvNo,
       vendorInvoiceDate,
       contractNumber: vendorInvNo,
-      printFormat: data?.printFormat === 'thermal' ? 'thermal' : 'a4',
+      printFormat: 'a4',
       paymentTerms: data?.paymentTerms || 'immediate',
       dueDate: (() => {
         const raw = typeof data?.dueDate === 'string' ? data.dueDate.trim() : ''
@@ -1113,14 +1136,22 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       },
       lineItems: namedLines.map((line, index) => {
         const calc = computedTotals.lines[index] || {}
+        let vatTreatment = line.vatTreatment || 'recoverable'
+        let taxRate = Math.max(0, toNumber(line.taxRate, 15))
+        if (purchaseBillType === 'non_taxable') {
+          vatTreatment = 'none'
+          taxRate = 0
+        } else if (purchaseSupplyType === 'reverse_charge') {
+          vatTreatment = 'reverse_charge'
+        }
         return {
           ...line,
           lineNumber: index + 1,
           taxId: line.taxId || undefined,
           taxCode: line.taxCode || undefined,
-          taxCategory: line.taxCategory || 'S',
-          vatTreatment: line.vatTreatment || 'recoverable',
-          taxRate: Math.max(0, toNumber(line.taxRate, 15)),
+          taxCategory: purchaseBillType === 'non_taxable' ? 'Z' : (line.taxCategory || 'S'),
+          vatTreatment,
+          taxRate,
           productId: isTradingContext ? line.productId || undefined : undefined,
           productType: normalizeProductType(line.productType),
           lineTotal: calc.lineTotal,
@@ -1365,6 +1396,9 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const statusSteps = isRefundDoc ? VENDOR_REFUND_STATUS_STEPS : BILL_STATUS_STEPS
   const lineCount = (lineItems || []).filter((line) => line?.productName || line?.productId || Number(line?.unitPrice) > 0).length
   const draftNumberLabel = language === 'ar' ? 'مسودة' : 'Draft'
+  const billsListHref = '/app/dashboard/accounting/bills'
+  const refundsListHref = '/app/dashboard/accounting/vendor-refunds'
+  const listHref = isRefundDoc ? refundsListHref : billsListHref
   const shellTitle = (() => {
     const status = String(initialInvoice?.status || 'draft').toLowerCase()
     const num = String(initialInvoice?.invoiceNumber || '').trim()
@@ -1373,6 +1407,15 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
     }
     return num || draftNumberLabel
   })()
+  const supplierHeaderLine = [
+    selectedSupplier?.nameEn || selectedSupplier?.name || watch('seller.name') || null,
+    (selectedSupplier?.vatNumber || watch('seller.vatNumber'))
+      ? `VAT ${selectedSupplier?.vatNumber || watch('seller.vatNumber')}`
+      : null,
+    (selectedSupplier?.crNumber || watch('seller.crNumber'))
+      ? `CR ${selectedSupplier?.crNumber || watch('seller.crNumber')}`
+      : null,
+  ].filter(Boolean).join(' · ')
 
   const applyOcrToForm = (extracted) => {
     if (!extracted) return
@@ -1409,10 +1452,14 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
       <div className="mx-auto w-full max-w-6xl space-y-2.5">
         <AccountingDocumentShell
           language={language}
-          backTo={isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : (isRefundDoc ? '/app/dashboard/accounting/vendor-refunds' : '/app/dashboard/accounting/invoices?tab=purchase')}
-          eyebrow={isRefundDoc ? (language === 'ar' ? 'مرتجع مورد' : 'Vendor refund') : (language === 'ar' ? 'فاتورة شراء' : 'Purchase invoice')}
-          title={shellTitle}
-          subtitle={language === 'ar' ? 'منشئ المستند' : 'Document builder'}
+          backTo={isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : listHref}
+          eyebrow={isRefundDoc
+            ? (language === 'ar' ? 'الموردون · مرتجع' : 'Vendors · Refund')
+            : (language === 'ar' ? 'الموردون · فاتورة' : 'Vendors · Bill')}
+          title={isRefundDoc
+            ? (language === 'ar' ? 'مرتجع مورد' : 'VENDOR REFUND')
+            : (language === 'ar' ? 'فاتورة مورد' : 'VENDOR BILL')}
+          subtitle={shellTitle}
           statusSteps={statusSteps}
           activeStatusStep={ribbonStep}
           tabs={[
@@ -1520,45 +1567,54 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
             <div className="flex flex-wrap items-center gap-2">
               <div className={segmentWrapClass}>
                 {[
-                  { id: 'a4', labelEn: 'A4', labelAr: 'A4', Icon: FileText },
-                  { id: 'thermal', labelEn: 'Thermal', labelAr: 'حراري', Icon: Receipt },
-                ].map((fmt) => {
-                  const active = (values?.printFormat || 'a4') === fmt.id
-                  const Icon = fmt.Icon
-                  return (
-                    <button
-                      key={fmt.id}
-                      type="button"
-                      disabled={isBillPosted}
-                      onClick={() => setValue('printFormat', fmt.id, { shouldDirty: true, shouldTouch: true })}
-                      className={`${segmentBtnClass(active)} inline-flex items-center gap-1.5`}
-                    >
-                      <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      {language === 'ar' ? fmt.labelAr : fmt.labelEn}
-                    </button>
-                  )
-                })}
+                  { id: 'standard', labelEn: 'Standard', labelAr: 'قياسية' },
+                  { id: 'simplified', labelEn: 'Simplified', labelAr: 'مبسطة' },
+                  { id: 'non_taxable', labelEn: 'Non-taxable', labelAr: 'غير خاضعة' },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    disabled={isBillPosted}
+                    onClick={() => {
+                      setPurchaseBillType(opt.id)
+                      setValue('purchaseBillType', opt.id, { shouldDirty: true })
+                    }}
+                    className={segmentBtnClass(purchaseBillType === opt.id)}
+                    title={language === 'ar' ? 'نوع فاتورة المورد' : 'Supplier bill type'}
+                  >
+                    {language === 'ar' ? opt.labelAr : opt.labelEn}
+                  </button>
+                ))}
               </div>
 
               <div className={segmentWrapClass}>
-                <button type="button" disabled={isBillPosted} onClick={() => setTxnType('B2B')} className={segmentBtnClass(transactionType === 'B2B')}>
-                  B2B
-                </button>
-                <button type="button" disabled={isBillPosted} onClick={() => setTxnType('B2C')} className={segmentBtnClass(transactionType === 'B2C')}>
-                  B2C
-                </button>
+                {[
+                  { id: 'domestic', labelEn: 'Domestic', labelAr: 'محلي' },
+                  { id: 'import', labelEn: 'Import', labelAr: 'استيراد' },
+                  { id: 'reverse_charge', labelEn: 'Reverse charge', labelAr: 'احتساب عكسي' },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    disabled={isBillPosted}
+                    onClick={() => {
+                      setPurchaseSupplyType(opt.id)
+                      setValue('purchaseSupplyType', opt.id, { shouldDirty: true })
+                    }}
+                    className={segmentBtnClass(purchaseSupplyType === opt.id)}
+                    title={language === 'ar' ? 'نوع التوريد' : 'Supply type'}
+                  >
+                    {language === 'ar' ? opt.labelAr : opt.labelEn}
+                  </button>
+                ))}
               </div>
 
-              <div className="ms-auto flex min-w-0 max-w-full items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                {(tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo) ? (
-                  <img
-                    src={tenant?.branding?.logo || tenant?.settings?.invoiceBranding?.logo}
-                    alt=""
-                    className="h-7 w-7 shrink-0 rounded-lg border border-slate-200/80 object-contain bg-white p-0.5 dark:border-white/10"
-                  />
-                ) : null}
-                <span className="truncate font-medium text-slate-700 dark:text-slate-200" title={companyLine}>
-                  {companyLine || (language === 'ar' ? 'بيانات المنشأة' : 'Company')}
+              <div className="ms-auto flex min-w-0 max-w-full flex-col items-end gap-0.5 text-xs text-slate-500 dark:text-slate-400">
+                <span className="truncate font-semibold text-slate-800 dark:text-slate-100" title={supplierHeaderLine || undefined}>
+                  {supplierHeaderLine || (language === 'ar' ? 'اختر المورد' : 'Select supplier')}
+                </span>
+                <span className="truncate text-[10px] text-slate-400" title={companyLine}>
+                  {companyLine || (language === 'ar' ? 'شركتنا' : 'Our company')}
                 </span>
               </div>
             </div>
@@ -1567,7 +1623,44 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
             <input type="hidden" {...register('invoiceSubtype')} />
             <input type="hidden" {...register('pdfTemplateId')} />
             <input type="hidden" {...register('transactionType')} />
+            <input type="hidden" {...register('purchaseBillType')} />
+            <input type="hidden" {...register('purchaseSupplyType')} />
+            <input type="hidden" {...register('originalInvoiceId')} />
           </div>
+
+          {isRefundDoc && !isEdit ? (
+            <div className={`${sectionCardClass} !p-3`}>
+              <label className={fieldLabelClass}>
+                {language === 'ar' ? 'الفاتورة الأصلية *' : 'Original vendor bill *'}
+              </label>
+              <select
+                className={`mt-1 ${denseControlClass}`}
+                value={originalInvoiceId}
+                disabled={isBillPosted}
+                onChange={(e) => {
+                  const id = e.target.value
+                  setOriginalInvoiceId(id)
+                  setValue('originalInvoiceId', id, { shouldDirty: true, shouldValidate: true })
+                }}
+              >
+                <option value="">{language === 'ar' ? 'اختر فاتورة المورد…' : 'Select vendor bill…'}</option>
+                {(refundSourceBills || []).map((b) => (
+                  <option key={b._id} value={b._id}>
+                    {b.invoiceNumber}
+                    {b.seller?.name || b.vendorInvoiceNumber
+                      ? ` — ${b.seller?.name || b.vendorInvoiceNumber}`
+                      : ''}
+                    {b.grandTotal != null ? ` (${Number(b.grandTotal).toFixed(2)})` : ''}
+                  </option>
+                ))}
+              </select>
+              {!originalInvoiceId ? (
+                <p className="mt-1 text-[11px] text-rose-600">
+                  {language === 'ar' ? 'مطلوب لترحيل المرتجع' : 'Required to post the refund'}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           {availablePurchaseContexts.length > 1 ? (
             <div className={`${sectionCardClass} !p-2.5`}>
@@ -1692,11 +1785,6 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
                 {language === 'ar' ? 'المورد' : 'Supplier'}
               </h3>
-              {transactionType === 'B2C' ? (
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                  {language === 'ar' ? 'نقدي' : 'Cash'}
-                </span>
-              ) : null}
             </div>
 
             {isTravelContext ? (
@@ -1955,27 +2043,6 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
               </>
             )}
 
-            {transactionType === 'B2C' && !selectedSupplier?._id && invoiceSubtype !== 'travel_ticket' ? (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" dir="ltr">
-                <div>
-                  <FieldLabel en="Walk-in supplier" ar="مورد نقدي" />
-                  <input
-                    className={compactFieldClass}
-                    placeholder={language === 'ar' ? 'مورد نقدي' : 'Cash supplier'}
-                    value={watch('seller.name') || ''}
-                    onChange={(e) => setValue('seller.name', e.target.value, { shouldDirty: true })}
-                  />
-                </div>
-                <div>
-                  <FieldLabel en="Phone" ar="الهاتف" />
-                  <input
-                    className={compactFieldClass}
-                    value={watch('seller.contactPhone') || ''}
-                    onChange={(e) => setValue('seller.contactPhone', e.target.value, { shouldDirty: true })}
-                  />
-                </div>
-              </div>
-            ) : null}
           </div>
 
           <div className={`${sectionCardClass} !p-0 overflow-hidden`}>
@@ -2767,7 +2834,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                   : 'Tap Preview to review before saving'}
               </p>
               <div className="flex justify-end gap-3">
-                <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : (isRefundDoc ? '/app/dashboard/accounting/vendor-refunds' : '/app/dashboard/accounting/invoices?tab=purchase'))} className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:bg-transparent dark:text-slate-300">{t('cancel')}</button>
+                <button type="button" onClick={() => navigate(isEdit ? `/app/dashboard/accounting/invoices/${invoiceId}` : listHref)} className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 dark:border-dark-500 dark:bg-transparent dark:text-slate-300">{t('cancel')}</button>
                 <button type="submit" disabled={saveMutation.isPending || isBillPosted || (Boolean(selectedPoId) && threeWayQuery.data?.ok === false)} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 disabled:opacity-50 dark:bg-white dark:text-slate-900">
                   {saveMutation.isPending ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent dark:border-slate-900 dark:border-t-transparent" /> : <><Eye className="w-4 h-4" />{language === 'ar' ? 'معاينة' : 'Preview'}</>}
                 </button>
