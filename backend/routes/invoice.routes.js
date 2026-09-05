@@ -17,6 +17,11 @@ import EmailMessage from '../models/EmailMessage.js';
 import { protect, tenantFilter, requireTenantFilter, checkPermission, requireBusinessType, tenantHasEmailAddon } from '../middleware/auth.js';
 import { checkTrialLimits } from '../middleware/trialLimits.js';
 import { getPrimaryBusinessType, getTenantBusinessTypes } from '../utils/businessTypes.js';
+import {
+  shouldScopeInvoicesToSelf,
+  applyCreatedByScope,
+  isElevatedRole,
+} from '../utils/accessScope.js';
 import { enrichInvoiceArabicFields } from '../utils/invoiceArabic.js';
 import { buildDraftInvoiceQr } from '../utils/zatca/draftInvoiceQr.js';
 import ZatcaService from '../utils/zatca/ZatcaService.js';
@@ -1260,9 +1265,19 @@ async function ensureProductsExist(tenantId, userId, lineItems, flow) {
 // @route   GET /api/invoices
 router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, paymentStatus, transactionType, businessContext, search, startDate, endDate, dateFrom, dateTo, zatcaFilter, flow, invoiceType, cursor, supplierId, customerId, productId, sortBy, sortDir } = req.query;
+    const { page = 1, limit = 20, status, paymentStatus, transactionType, businessContext, search, startDate, endDate, dateFrom, dateTo, zatcaFilter, flow, invoiceType, cursor, supplierId, customerId, productId, sortBy, sortDir, createdBy } = req.query;
     
     const query = { ...req.tenantFilter };
+    if (shouldScopeInvoicesToSelf(req.user)) {
+      applyCreatedByScope(query, req.user._id);
+    } else if (createdBy && isElevatedRole(req.user)) {
+      const createdByFilter = cleanObjectId(createdBy);
+      if (createdByFilter) query.createdBy = createdByFilter;
+    } else if (createdBy && !shouldScopeInvoicesToSelf(req.user)) {
+      // Users with invoiceVisibility=all may still filter by creator
+      const createdByFilter = cleanObjectId(createdBy);
+      if (createdByFilter) query.createdBy = createdByFilter;
+    }
     if (status) query.status = status;
     if (paymentStatus) query.paymentStatus = paymentStatus;
     if (flow) query.flow = flow;
@@ -1444,6 +1459,12 @@ router.get('/', checkPermission('invoicing', 'read'), async (req, res) => {
 router.get('/stats', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
     const match = { ...req.tenantFilter };
+    if (shouldScopeInvoicesToSelf(req.user)) {
+      applyCreatedByScope(match, req.user._id);
+    } else if (req.query.createdBy) {
+      const createdByFilter = cleanObjectId(req.query.createdBy);
+      if (createdByFilter) match.createdBy = createdByFilter;
+    }
     if (req.query.from || req.query.to) {
       match.issueDate = {};
       if (req.query.from) match.issueDate.$gte = new Date(req.query.from);
@@ -1453,7 +1474,10 @@ router.get('/stats', checkPermission('invoicing', 'read'), async (req, res) => {
     const tenantKey = String(req.tenantFilter?.tenantId || 'none');
     const fromKey = req.query.from || 'all';
     const toKey = req.query.to || 'all';
-    const cacheKey = `invoices:stats:${tenantKey}:${fromKey}:${toKey}`;
+    const scopeKey = shouldScopeInvoicesToSelf(req.user)
+      ? `user:${req.user._id}`
+      : (req.query.createdBy ? `by:${req.query.createdBy}` : 'all');
+    const cacheKey = `invoices:stats:${tenantKey}:${fromKey}:${toKey}:${scopeKey}`;
 
     const stats = await cacheAside(cacheKey, 60, async () => {
       const rows = await Invoice.statsAggregate([
@@ -1505,7 +1529,11 @@ router.get('/stats', checkPermission('invoicing', 'read'), async (req, res) => {
 
 router.get('/:id/pdf', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter });
+    const scopeQuery = { _id: req.params.id, ...req.tenantFilter };
+    if (shouldScopeInvoicesToSelf(req.user)) {
+      applyCreatedByScope(scopeQuery, req.user._id);
+    }
+    const invoice = await Invoice.findOne(scopeQuery);
     if (!invoice) {
       return res.status(404).json({ error: 'Invoice not found' });
     }
@@ -1696,10 +1724,17 @@ router.post('/:id/payments', checkPermission('invoicing', 'update'), async (req,
 // Returns { prev: { _id, invoiceNumber }, next: { _id, invoiceNumber } } for nav arrows
 router.get('/:id/adjacent', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter }).select('issueDate flow').lean();
+    const scopeQuery = { _id: req.params.id, ...req.tenantFilter };
+    if (shouldScopeInvoicesToSelf(req.user)) {
+      applyCreatedByScope(scopeQuery, req.user._id);
+    }
+    const invoice = await Invoice.findOne(scopeQuery).select('issueDate flow').lean();
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
     const base = { ...req.tenantFilter, flow: invoice.flow };
+    if (shouldScopeInvoicesToSelf(req.user)) {
+      applyCreatedByScope(base, req.user._id);
+    }
     const [prevDoc, nextDoc] = await Promise.all([
       Invoice.findOne({ ...base, issueDate: { $lt: invoice.issueDate } })
         .sort({ issueDate: -1, _id: -1 })
@@ -1722,7 +1757,11 @@ router.get('/:id/adjacent', checkPermission('invoicing', 'read'), async (req, re
 
 router.get('/:id', checkPermission('invoicing', 'read'), async (req, res) => {
   try {
-    const invoice = await Invoice.findOne({ _id: req.params.id, ...req.tenantFilter })
+    const scopeQuery = { _id: req.params.id, ...req.tenantFilter };
+    if (shouldScopeInvoicesToSelf(req.user)) {
+      applyCreatedByScope(scopeQuery, req.user._id);
+    }
+    const invoice = await Invoice.findOne(scopeQuery)
       .populate('createdBy', 'firstName lastName firstNameAr lastNameAr email')
       .populate('sourceQuotationId', 'quotationNumber');
     if (!invoice) {

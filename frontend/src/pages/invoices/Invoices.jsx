@@ -141,13 +141,13 @@ const getInvoiceVatAmount = (invoice = {}) => {
 
 export default function Invoices() {
   const { language } = useSelector((state) => state.ui)
-  const { tenant } = useSelector((state) => state.auth)
+  const { tenant, user } = useSelector((state) => state.auth)
   const { t } = useTranslation(language)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [filters, setFilters] = useState({ status: '', paymentStatus: '', businessContext: '', flow: '' })
+  const [filters, setFilters] = useState({ status: '', paymentStatus: '', businessContext: '', flow: '', createdBy: '' })
   const [zatcaFilter, setZatcaFilter] = useState('')
   const [cursor, setCursor] = useState('')
   const [cursorStack, setCursorStack] = useState([])
@@ -170,6 +170,15 @@ export default function Invoices() {
   const posTenants = ['bakala', 'super market', 'khayyat', 'saloon', 'laundry', 'boutique']
   const showNewInvoiceBtn = true
   const isPosInvoice = (inv) => isThermalInvoice(inv)
+  const isAdminUser = user?.role === 'admin' || user?.role === 'super_admin'
+  const canFilterByUser = isAdminUser || user?.accessScope?.invoiceVisibility === 'all'
+  const showCreatedByColumn = canFilterByUser
+
+  const { data: usersForFilter } = useQuery({
+    queryKey: ['invoice-filter-users'],
+    queryFn: () => api.get('/users/directory').then((r) => r.data?.users || []),
+    enabled: canFilterByUser,
+  })
 
   useEffect(() => {
     const handle = setTimeout(() => setDebouncedSearch(search), 300)
@@ -863,6 +872,26 @@ export default function Invoices() {
             <option value="paid">{language === 'ar' ? 'مدفوعة' : 'Paid'}</option>
             <option value="overdue">{language === 'ar' ? 'متأخرة' : 'Overdue'}</option>
           </select>
+          {canFilterByUser ? (
+            <select
+              value={filters.createdBy}
+              onChange={(e) => {
+                setFilters({ ...filters, createdBy: e.target.value })
+                resetPaging()
+              }}
+              className={`${fieldControlClass} w-full sm:w-52`}
+            >
+              <option value="">{language === 'ar' ? 'كل المستخدمين' : 'All users'}</option>
+              {(usersForFilter || []).map((u) => {
+                const en = [u.firstName, u.lastName].filter(Boolean).join(' ')
+                const ar = [u.firstNameAr, u.lastNameAr].filter(Boolean).join(' ')
+                const label = (language === 'ar' ? (ar || en) : (en || ar)) || u.email
+                return (
+                  <option key={u._id} value={u._id}>{label}</option>
+                )
+              })}
+            </select>
+          ) : null}
         </div>
         {isSarTenant && tenant?.zatca?.phase !== 1 && (
         <div className="flex flex-wrap gap-2">
@@ -957,7 +986,9 @@ export default function Invoices() {
                     <th className={salesThClass}>{language === 'ar' ? 'العميل / المورد' : 'Customer / Supplier'}</th>
                     <th className={salesThClass}>{language === 'ar' ? 'النوع' : 'Type'}</th>
                     <th className={salesThClass}>{t('date')}</th>
-                    <th className={salesThClass}>{language === 'ar' ? 'تم الإنشاء بواسطة' : 'Created By'}</th>
+                    {showCreatedByColumn ? (
+                      <th className={salesThClass}>{language === 'ar' ? 'تم الإنشاء بواسطة' : 'Created By'}</th>
+                    ) : null}
                     {hasTravel && <th className={salesThClass}>{language === 'ar' ? 'سعر العميل' : 'Customer Price'}</th>}
                     <th className={salesThClass}>{t('total')}</th>
                     <th className={salesThClass}>{language === 'ar' ? 'ضريبة القيمة المضافة' : 'VAT'}</th>
@@ -1020,15 +1051,17 @@ export default function Invoices() {
                         <div>{new Date(invoice.issueDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US')}</div>
                         <div className="mt-0.5 text-xs text-slate-400">{new Date(invoice.issueDate).toLocaleTimeString(language === 'ar' ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' })}</div>
                       </td>
-                      <td className={`${salesTdClass} text-sm text-slate-600 dark:text-slate-400`}>
-                        {(() => {
-                          const en = [invoice?.createdBy?.firstName, invoice?.createdBy?.lastName].filter(Boolean).join(' ')
-                          const ar = [invoice?.createdBy?.firstNameAr, invoice?.createdBy?.lastNameAr].filter(Boolean).join(' ')
-                          return (language === 'ar'
-                            ? (invoice.createdByNameAr || ar || invoice.createdByName || en)
-                            : (invoice.createdByName || en || invoice.createdByNameAr || ar)) || '—'
-                        })()}
-                      </td>
+                      {showCreatedByColumn ? (
+                        <td className={`${salesTdClass} text-sm text-slate-600 dark:text-slate-400`}>
+                          {(() => {
+                            const en = [invoice?.createdBy?.firstName, invoice?.createdBy?.lastName].filter(Boolean).join(' ')
+                            const ar = [invoice?.createdBy?.firstNameAr, invoice?.createdBy?.lastNameAr].filter(Boolean).join(' ')
+                            return (language === 'ar'
+                              ? (invoice.createdByNameAr || ar || invoice.createdByName || en)
+                              : (invoice.createdByName || en || invoice.createdByNameAr || ar)) || '—'
+                          })()}
+                        </td>
+                      ) : null}
                       {hasTravel && (
                         <td className={`${salesTdClass} font-medium text-slate-700 dark:text-slate-300`}>
                           {isTravelAgencyInvoice(invoice) && invoice.customerPriceTotal > 0

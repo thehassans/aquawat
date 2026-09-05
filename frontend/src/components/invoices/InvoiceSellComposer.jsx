@@ -323,6 +323,8 @@ const buildSellInvoiceFormValues = ({ invoice, tenant, defaultBusinessContext, h
   internalNotes: invoice?.internalNotes || '',
   notes: invoice?.notes || '',
   termsAndConditions: invoice?.termsAndConditions || '',
+  termsAndConditionsAr: invoice?.termsAndConditionsAr || '',
+  notesAr: invoice?.notesAr || '',
   includeBankDetails: Boolean(invoice?.includeBankDetails),
   bankDetails: {
     bankName: invoice?.bankDetails?.bankName || '',
@@ -430,8 +432,12 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
       initialInvoice?.stampImage
     )
   })
-  const [showNotesPanel, setShowNotesPanel] = useState(() => Boolean(String(initialInvoice?.notes || '').trim()))
-  const [showTermsPanel, setShowTermsPanel] = useState(() => Boolean(String(initialInvoice?.termsAndConditions || '').trim()))
+  const [showNotesPanel, setShowNotesPanel] = useState(() => Boolean(
+    String(initialInvoice?.notes || '').trim() || String(initialInvoice?.notesAr || '').trim()
+  ))
+  const [showTermsPanel, setShowTermsPanel] = useState(() => Boolean(
+    String(initialInvoice?.termsAndConditions || '').trim() || String(initialInvoice?.termsAndConditionsAr || '').trim()
+  ))
   const [showBankPanel, setShowBankPanel] = useState(() => Boolean(
     initialInvoice?.includeBankDetails ||
     initialInvoice?.bankDetails?.bankName ||
@@ -491,15 +497,28 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
 
   useEffect(() => {
     if (invoiceId || !salesSettings) return
-    if (!getValues('termsAndConditions') && salesSettings.invoiceDefaultTerms) {
-      setValue('termsAndConditions', salesSettings.invoiceDefaultTerms)
+    const personal = user?.invoiceSettings || {}
+    const defaultTerms = personal.termsAndConditions || salesSettings.invoiceDefaultTerms
+    const defaultTermsAr = personal.termsAndConditionsAr || salesSettings.invoiceDefaultTermsAr
+    const defaultNotes = personal.notes || salesSettings.invoiceDefaultNotes
+    const defaultNotesAr = personal.notesAr || salesSettings.invoiceDefaultNotesAr
+    if (!getValues('termsAndConditions') && defaultTerms) {
+      setValue('termsAndConditions', defaultTerms)
       setShowTermsPanel(true)
     }
-    if (!getValues('notes') && salesSettings.invoiceDefaultNotes) {
-      setValue('notes', salesSettings.invoiceDefaultNotes)
+    if (!getValues('termsAndConditionsAr') && defaultTermsAr) {
+      setValue('termsAndConditionsAr', defaultTermsAr)
+      setShowTermsPanel(true)
+    }
+    if (!getValues('notes') && defaultNotes) {
+      setValue('notes', defaultNotes)
       setShowNotesPanel(true)
     }
-  }, [salesSettings, invoiceId, getValues, setValue])
+    if (!getValues('notesAr') && defaultNotesAr) {
+      setValue('notesAr', defaultNotesAr)
+      setShowNotesPanel(true)
+    }
+  }, [salesSettings, invoiceId, getValues, setValue, user?.invoiceSettings])
 
   const { fields, append, remove, replace } = useFieldArray({ control, name: 'lineItems', keyName: 'fieldId' })
   // Scoped watches — avoid full-form watch() re-rendering the whole composer on every keystroke
@@ -555,6 +574,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const isManpowerContext = businessContext === 'manpower'
   const isBoutiqueContext = businessContext === 'boutique' || showRentalPanel
   const tenantHasBoutique = tenantBusinessTypes.includes('boutique')
+  const enableInvoiceRental = salesSettings?.enableInvoiceRental === true
+  const showRentalExtra = enableInvoiceRental || showRentalPanel || (
+    tenantHasBoutique && Boolean(initialInvoice?.boutiqueDetails || initialInvoice?.rentalId)
+  )
   const emptyLine = useMemo(() => getEmptyLine(tenant), [tenant])
   const isMarqueeContext =
     businessContext === 'marquee' ||
@@ -632,33 +655,49 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const handleToggleTerms = (enable) => {
     setShowTermsPanel(enable)
     if (enable) {
-      const current = getValues('termsAndConditions')
-      if (!current) {
-        const defaultTerms = salesSettings?.invoiceDefaultTerms ||
+      const personal = user?.invoiceSettings || {}
+      if (!getValues('termsAndConditions')) {
+        const defaultTerms = personal.termsAndConditions ||
+          salesSettings?.invoiceDefaultTerms ||
           tenant?.settings?.invoiceBranding?.termsAndConditions ||
           tenant?.settings?.termsAndConditions ||
           tenant?.settings?.invoiceBranding?.defaultTermsAndConditions ||
           ''
         if (defaultTerms) setValue('termsAndConditions', defaultTerms)
       }
+      if (!getValues('termsAndConditionsAr')) {
+        const defaultTermsAr = personal.termsAndConditionsAr ||
+          salesSettings?.invoiceDefaultTermsAr ||
+          tenant?.settings?.invoiceBranding?.termsAndConditionsAr ||
+          tenant?.settings?.termsAndConditionsAr ||
+          ''
+        if (defaultTermsAr) setValue('termsAndConditionsAr', defaultTermsAr)
+      }
     } else {
       setValue('termsAndConditions', '')
+      setValue('termsAndConditionsAr', '')
     }
   }
 
   const handleToggleNotes = (enable) => {
     setShowNotesPanel(enable)
     if (enable) {
-      const current = getValues('notes')
-      if (!current) {
-        const defaultNotes = salesSettings?.invoiceDefaultNotes ||
+      const personal = user?.invoiceSettings || {}
+      if (!getValues('notes')) {
+        const defaultNotes = personal.notes ||
+          salesSettings?.invoiceDefaultNotes ||
           tenant?.settings?.invoiceBranding?.defaultNotes ||
           tenant?.settings?.notes ||
           ''
         if (defaultNotes) setValue('notes', defaultNotes)
       }
+      if (!getValues('notesAr')) {
+        const defaultNotesAr = personal.notesAr || salesSettings?.invoiceDefaultNotesAr || ''
+        if (defaultNotesAr) setValue('notesAr', defaultNotesAr)
+      }
     } else {
       setValue('notes', '')
+      setValue('notesAr', '')
     }
   }
 
@@ -1928,6 +1967,10 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
           swift: data?.bankDetails?.swift || '',
         }
       : { bankName: '', accountName: '', accountNumber: '', iban: '', swift: '' }
+    payload.termsAndConditions = showTermsPanel ? (data?.termsAndConditions || '') : ''
+    payload.termsAndConditionsAr = showTermsPanel ? (data?.termsAndConditionsAr || '') : ''
+    payload.notes = showNotesPanel ? (data?.notes || '') : ''
+    payload.notesAr = showNotesPanel ? (data?.notesAr || '') : ''
     // Confirm / Post — lift draft and run server pre-post gate
     payload.confirmPost = true
     if (payload.status === 'draft') delete payload.status
@@ -1985,7 +2028,9 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
         }
       : { bankName: '', accountName: '', accountNumber: '', iban: '', swift: '' },
     notes: showNotesPanel ? (values?.notes || '') : '',
+    notesAr: showNotesPanel ? (values?.notesAr || '') : '',
     termsAndConditions: showTermsPanel ? (values?.termsAndConditions || '') : '',
+    termsAndConditionsAr: showTermsPanel ? (values?.termsAndConditionsAr || '') : '',
     invoiceNumber: initialInvoice?.invoiceNumber || 'DRAFT-PREVIEW',
     issueDate: (() => {
       const raw = typeof values?.issueDate === 'string' ? values.issueDate.trim() : ''
@@ -3042,7 +3087,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                     labelAr: 'بنك',
                     onClick: () => handleToggleBankDetails(!showBankPanel),
                   },
-                  ...(tenantHasBoutique || showRentalPanel
+                  ...(showRentalExtra
                     ? [{
                         id: 'rental',
                         active: showRentalPanel,
@@ -3177,15 +3222,30 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   className="overflow-hidden border-t border-slate-100 pt-4 dark:border-white/5"
                 >
                   <RichTextNoteField
-                    label={language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}
+                    label={language === 'ar' ? 'الشروط والأحكام (EN)' : 'Terms & Conditions (EN)'}
                     value={watch('termsAndConditions')}
                     onChange={(val) => setValue('termsAndConditions', val, { shouldDirty: true })}
-                    onRemove={() => { setShowTermsPanel(false); setValue('termsAndConditions', '') }}
-                    placeholder={language === 'ar' ? 'أدخل الشروط والأحكام... حدد النص واضغط على عريض أو تمييز' : 'Enter terms and conditions... select text and click Bold or Highlight'}
-                    rows={5}
+                    onRemove={() => {
+                      setShowTermsPanel(false)
+                      setValue('termsAndConditions', '')
+                      setValue('termsAndConditionsAr', '')
+                    }}
+                    placeholder={language === 'ar' ? 'أدخل الشروط والأحكام بالإنجليزية...' : 'Enter terms and conditions in English...'}
+                    rows={4}
                     language={language}
                     fieldControlClass={fieldControlClass}
                   />
+                  <div className="mt-3">
+                    <RichTextNoteField
+                      label={language === 'ar' ? 'الشروط والأحكام (AR)' : 'Terms & Conditions (AR)'}
+                      value={watch('termsAndConditionsAr')}
+                      onChange={(val) => setValue('termsAndConditionsAr', val, { shouldDirty: true })}
+                      placeholder={language === 'ar' ? 'أدخل الشروط والأحكام بالعربية...' : 'Enter terms and conditions in Arabic...'}
+                      rows={4}
+                      language="ar"
+                      fieldControlClass={fieldControlClass}
+                    />
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -3199,15 +3259,30 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   className="overflow-hidden border-t border-slate-100 pt-4 dark:border-white/5"
                 >
                   <RichTextNoteField
-                    label={language === 'ar' ? 'ملاحظات' : 'Notes'}
+                    label={language === 'ar' ? 'ملاحظات (EN)' : 'Notes (EN)'}
                     value={watch('notes')}
                     onChange={(val) => setValue('notes', val, { shouldDirty: true })}
-                    onRemove={() => { setShowNotesPanel(false); setValue('notes', '') }}
+                    onRemove={() => {
+                      setShowNotesPanel(false)
+                      setValue('notes', '')
+                      setValue('notesAr', '')
+                    }}
                     placeholder={language === 'ar' ? 'أدخل ملاحظات الفاتورة...' : 'Enter invoice notes...'}
-                    rows={4}
+                    rows={3}
                     language={language}
                     fieldControlClass={fieldControlClass}
                   />
+                  <div className="mt-3">
+                    <RichTextNoteField
+                      label={language === 'ar' ? 'ملاحظات (AR)' : 'Notes (AR)'}
+                      value={watch('notesAr')}
+                      onChange={(val) => setValue('notesAr', val, { shouldDirty: true })}
+                      placeholder={language === 'ar' ? 'أدخل الملاحظات بالعربية...' : 'Enter notes in Arabic...'}
+                      rows={3}
+                      language="ar"
+                      fieldControlClass={fieldControlClass}
+                    />
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -3279,8 +3354,18 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                 </motion.div>
               )}
             </AnimatePresence>
-            {!showNotesPanel && <input type="hidden" {...register('notes')} />}
-            {!showTermsPanel && <input type="hidden" {...register('termsAndConditions')} />}
+            {!showTermsPanel && (
+              <>
+                <input type="hidden" {...register('termsAndConditions')} />
+                <input type="hidden" {...register('termsAndConditionsAr')} />
+              </>
+            )}
+            {!showNotesPanel && (
+              <>
+                <input type="hidden" {...register('notes')} />
+                <input type="hidden" {...register('notesAr')} />
+              </>
+            )}
             {!showBankPanel && (
               <>
                 <input type="hidden" {...register('includeBankDetails')} />

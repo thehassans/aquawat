@@ -35,6 +35,27 @@ const userSchema = new mongoose.Schema({
     module: { type: String },
     actions: [{ type: String, enum: ['create', 'read', 'update', 'delete', 'approve', 'export', 'margin'] }]
   }],
+  /**
+   * Fine-grained data scopes beyond module×action permissions.
+   * Admins/super_admins always bypass these (see accessScope helpers).
+   */
+  accessScope: {
+    /** Catalog visibility when picking products on invoices / product lists */
+    productVisibility: { type: String, enum: ['all', 'own'], default: 'all' },
+    /** Allow creating products even without full inventory.create (or alongside it) */
+    canAddProducts: { type: Boolean, default: false },
+    /** Invoice list/detail visibility */
+    invoiceVisibility: { type: String, enum: ['all', 'own'], default: 'own' },
+    /** User may edit personal invoice defaults (terms, notes, etc.) */
+    canManageOwnInvoiceSettings: { type: Boolean, default: false },
+  },
+  /** Personal invoice document defaults (used when canManageOwnInvoiceSettings) */
+  invoiceSettings: {
+    termsAndConditions: { type: String, default: '' },
+    termsAndConditionsAr: { type: String, default: '' },
+    notes: { type: String, default: '' },
+    notesAr: { type: String, default: '' },
+  },
   isActive: { type: Boolean, default: true },
   lastLogin: { type: Date },
   loginAttempts: { type: Number, default: 0 },

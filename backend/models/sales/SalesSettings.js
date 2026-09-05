@@ -50,12 +50,19 @@ const salesSettingsSchema = new mongoose.Schema({
 
   /** Invoice document defaults */
   invoiceDefaultTerms: { type: String, default: '' },
+  invoiceDefaultTermsAr: { type: String, default: '' },
   invoiceDefaultNotes: { type: String, default: '' },
+  invoiceDefaultNotesAr: { type: String, default: '' },
   invoiceShowCrVatOnLetterhead: { type: Boolean, default: true },
   /** Show GL account picker on invoice/bill line grids */
   invoiceShowAccountColumn: { type: Boolean, default: true },
   /** Show analytic account picker on invoice/bill line grids */
   invoiceShowAnalyticColumn: { type: Boolean, default: true },
+  /**
+   * Show Rental toggle in invoice extras.
+   * Default off — enable from Invoice settings when needed.
+   */
+  enableInvoiceRental: { type: Boolean, default: false },
 
   /** Quotation document defaults */
   quotationDefaultTerms: { type: String, default: '' },

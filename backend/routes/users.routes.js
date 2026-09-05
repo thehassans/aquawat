@@ -10,6 +10,13 @@ import { sendUserWelcomeEmail } from '../utils/tenantEmailService.js';
 import { recordUserActivity } from '../utils/auditLogger.js';
 import { isAppAccessValid } from '../utils/appTrial.js';
 import logger from '../utils/logger.js';
+import {
+  DEFAULT_ACCESS_SCOPE,
+  sanitizeAccessScopeInput,
+  ensureInventoryCreatePermission,
+  canManageOwnInvoiceSettings,
+  getAccessScope,
+} from '../utils/accessScope.js';
 
 const router = express.Router();
 
@@ -21,7 +28,26 @@ const sanitizeUserForClient = (u) => {
   if (!u) return null;
   const obj = typeof u.toObject === 'function' ? u.toObject() : u;
   const { password, ...rest } = obj;
-  return rest;
+  return {
+    ...rest,
+    accessScope: getAccessScope(rest),
+    invoiceSettings: rest.invoiceSettings || {
+      termsAndConditions: '',
+      termsAndConditionsAr: '',
+      notes: '',
+      notesAr: '',
+    },
+  };
+};
+
+const normalizeInvoiceSettingsInput = (input) => {
+  if (!input || typeof input !== 'object') return null;
+  return {
+    termsAndConditions: String(input.termsAndConditions ?? ''),
+    termsAndConditionsAr: String(input.termsAndConditionsAr ?? ''),
+    notes: String(input.notes ?? ''),
+    notesAr: String(input.notesAr ?? ''),
+  };
 };
 
 export const getTenantPermissibleModules = (tenant) => {
@@ -191,6 +217,65 @@ const sanitizePermissionsForTenant = (permissions = [], tenant) => {
     (permission) => permission?.module && allowed.has(String(permission.module))
   );
 };
+
+// @route   GET /api/users/me/invoice-settings
+// @desc    Current user's personal invoice defaults
+router.get('/me/invoice-settings', async (req, res) => {
+  try {
+    if (!canManageOwnInvoiceSettings(req.user)) {
+      return res.status(403).json({ error: 'Not authorized to manage personal invoice settings' });
+    }
+    const user = await User.findById(req.user._id).select('invoiceSettings accessScope role').lean();
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({
+      accessScope: getAccessScope(user),
+      invoiceSettings: user.invoiceSettings || {
+        termsAndConditions: '',
+        termsAndConditionsAr: '',
+        notes: '',
+        notesAr: '',
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   PATCH /api/users/me/invoice-settings
+// @desc    Update current user's personal invoice defaults
+router.patch('/me/invoice-settings', async (req, res) => {
+  try {
+    if (!canManageOwnInvoiceSettings(req.user)) {
+      return res.status(403).json({ error: 'Not authorized to manage personal invoice settings' });
+    }
+    const next = normalizeInvoiceSettingsInput(req.body);
+    if (!next) return res.status(400).json({ error: 'Invalid invoice settings' });
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { invoiceSettings: next },
+      { new: true, runValidators: true },
+    ).select('-password');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json(sanitizeUserForClient(user));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   GET /api/users/directory
+// @desc    Lightweight user list for invoice filters (name only)
+router.get('/directory', checkPermission('invoicing', 'read'), async (req, res) => {
+  try {
+    const users = await User.find({ ...req.tenantFilter, isActive: true })
+      .select('firstName lastName firstNameAr lastNameAr email role')
+      .sort({ firstName: 1, lastName: 1 })
+      .limit(200)
+      .lean();
+    res.json({ users });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // @route   GET /api/users
 // @desc    Get all users for tenant
@@ -442,6 +527,25 @@ router.post('/', checkTrialLimits('users'), checkPermission('settings', 'create'
       permissions = [{ module: 'restaurant', actions: ['read', 'update'] }];
     }
 
+    const accessScope = {
+      ...DEFAULT_ACCESS_SCOPE,
+      ...(sanitizeAccessScopeInput(req.body?.accessScope) || {}),
+    };
+    if (role === 'admin') {
+      accessScope.productVisibility = 'all';
+      accessScope.invoiceVisibility = 'all';
+      accessScope.canAddProducts = true;
+      accessScope.canManageOwnInvoiceSettings = true;
+    }
+    permissions = ensureInventoryCreatePermission(permissions, accessScope.canAddProducts);
+
+    const invoiceSettings = normalizeInvoiceSettingsInput(req.body?.invoiceSettings) || {
+      termsAndConditions: '',
+      termsAndConditionsAr: '',
+      notes: '',
+      notesAr: '',
+    };
+
     const created = await User.create({
       tenantId,
       branchId: req.body?.branchId || undefined,
@@ -455,6 +559,8 @@ router.post('/', checkTrialLimits('users'), checkPermission('settings', 'create'
       phone: req.body?.phone,
       role,
       permissions,
+      accessScope,
+      invoiceSettings,
       isActive: true,
     });
 
@@ -547,12 +653,42 @@ router.put('/:id', checkPermission('settings', 'update'), async (req, res) => {
       existing.role = role;
     }
 
-    if (typeof req.body?.permissions !== 'undefined') {
-      let permissions = sanitizePermissionsForTenant(req.body.permissions, req.tenant);
+    if (typeof req.body?.accessScope !== 'undefined') {
+      const nextScope = sanitizeAccessScopeInput(req.body.accessScope);
+      if (nextScope) {
+        existing.accessScope = {
+          ...DEFAULT_ACCESS_SCOPE,
+          ...(existing.accessScope?.toObject?.() || existing.accessScope || {}),
+          ...nextScope,
+        };
+      }
+    }
+
+    if (typeof req.body?.invoiceSettings !== 'undefined') {
+      const nextSettings = normalizeInvoiceSettingsInput(req.body.invoiceSettings);
+      if (nextSettings) existing.invoiceSettings = nextSettings;
+    }
+
+    if (typeof req.body?.permissions !== 'undefined' || typeof req.body?.accessScope !== 'undefined') {
+      let permissions = typeof req.body?.permissions !== 'undefined'
+        ? sanitizePermissionsForTenant(req.body.permissions, req.tenant)
+        : (existing.permissions || []);
       if (existing.role === 'kitchen_staff' && permissions.length === 0) {
         permissions = [{ module: 'restaurant', actions: ['read', 'update'] }];
       }
-      existing.permissions = permissions;
+      const canAdd = getAccessScope(existing).canAddProducts
+        || Boolean(sanitizeAccessScopeInput(req.body?.accessScope)?.canAddProducts);
+      existing.permissions = ensureInventoryCreatePermission(permissions, canAdd);
+    }
+
+    if (existing.role === 'admin') {
+      existing.accessScope = {
+        ...DEFAULT_ACCESS_SCOPE,
+        productVisibility: 'all',
+        invoiceVisibility: 'all',
+        canAddProducts: true,
+        canManageOwnInvoiceSettings: true,
+      };
     }
 
     if (typeof req.body?.isActive !== 'undefined') {

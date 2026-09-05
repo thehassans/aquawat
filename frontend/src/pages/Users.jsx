@@ -357,11 +357,18 @@ export default function Users() {
       permissions: [],
       warehouseIds: [],
       sendWelcomeEmail: true,
+      accessScope: {
+        productVisibility: 'all',
+        canAddProducts: false,
+        invoiceVisibility: 'own',
+        canManageOwnInvoiceSettings: false,
+      },
     },
   })
 
   const permissions = watch('permissions')
   const warehouseIds = watch('warehouseIds') || []
+  const accessScope = watch('accessScope') || {}
   const watchedRole = watch('role')
   const watchedFirstName = watch('firstName')
   const watchedLastName = watch('lastName')
@@ -448,6 +455,12 @@ export default function Users() {
   const openPanel = (u = null) => {
     setEditingUser(u)
     setActiveSection('info')
+    const defaultScope = {
+      productVisibility: 'all',
+      canAddProducts: false,
+      invoiceVisibility: 'own',
+      canManageOwnInvoiceSettings: false,
+    }
     if (u) {
       reset({
         firstName: u?.firstName || '',
@@ -462,6 +475,14 @@ export default function Users() {
         permissions: Array.isArray(u?.permissions) ? u.permissions : [],
         warehouseIds: Array.isArray(u?.warehouseIds) ? u.warehouseIds.map((id) => String(id?._id || id)) : [],
         sendWelcomeEmail: false,
+        accessScope: {
+          ...defaultScope,
+          ...(u?.accessScope || {}),
+          productVisibility: u?.accessScope?.productVisibility === 'own' ? 'own' : 'all',
+          invoiceVisibility: u?.accessScope?.invoiceVisibility === 'all' ? 'all' : 'own',
+          canAddProducts: Boolean(u?.accessScope?.canAddProducts),
+          canManageOwnInvoiceSettings: Boolean(u?.accessScope?.canManageOwnInvoiceSettings),
+        },
       })
     } else {
       reset({
@@ -477,6 +498,7 @@ export default function Users() {
         permissions: [],
         warehouseIds: [],
         sendWelcomeEmail: true,
+        accessScope: defaultScope,
       })
     }
     setPanelOpen(true)
@@ -524,6 +546,12 @@ export default function Users() {
     if (preset === 'ALL') {
       const allPerms = enabledModules.map((m) => ({ module: m.key, actions: [...ACTIONS] }))
       setValue('permissions', allPerms)
+      setValue('accessScope', {
+        productVisibility: 'all',
+        canAddProducts: true,
+        invoiceVisibility: 'all',
+        canManageOwnInvoiceSettings: true,
+      })
     } else if (preset) {
       const mapped = []
       enabledModules.forEach((m) => {
@@ -532,8 +560,21 @@ export default function Users() {
         }
       })
       setValue('permissions', mapped)
+      const canAdd = Boolean(preset.inventory?.includes('create'))
+      setValue('accessScope', {
+        productVisibility: 'all',
+        canAddProducts: canAdd,
+        invoiceVisibility: ['manager', 'accountant'].includes(roleKey) ? 'all' : 'own',
+        canManageOwnInvoiceSettings: ['manager', 'sales', 'accountant'].includes(roleKey),
+      })
     } else {
       setValue('permissions', [])
+      setValue('accessScope', {
+        productVisibility: 'all',
+        canAddProducts: false,
+        invoiceVisibility: 'own',
+        canManageOwnInvoiceSettings: false,
+      })
     }
   }
 
@@ -578,10 +619,33 @@ export default function Users() {
     return perm?.actions?.length === ACTIONS.length
   }
 
+  const setAccessScopeField = (key, value) => {
+    setValue('accessScope', { ...(accessScope || {}), [key]: value })
+    if (key === 'canAddProducts' && value === true) {
+      const list = Array.isArray(permissions) ? [...permissions] : []
+      const idx = list.findIndex((p) => p.module === 'inventory')
+      if (idx === -1) {
+        list.push({ module: 'inventory', actions: ['create', 'read'] })
+      } else {
+        const actions = new Set(list[idx].actions || [])
+        actions.add('create')
+        actions.add('read')
+        list[idx] = { ...list[idx], actions: Array.from(actions) }
+      }
+      setValue('permissions', list)
+    }
+  }
+
   const onSubmit = (formData) => {
     const payload = {
       ...formData,
       phone: formData.phone ? `+966${formData.phone}` : undefined,
+      accessScope: formData.accessScope || {
+        productVisibility: 'all',
+        canAddProducts: false,
+        invoiceVisibility: 'own',
+        canManageOwnInvoiceSettings: false,
+      },
     }
     if (!payload.password) delete payload.password
     mutation.mutate(payload)
@@ -1351,6 +1415,74 @@ export default function Users() {
                           </div>
                         </div>
                       )}
+
+                      {/* Data access scopes */}
+                      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-white/10 dark:bg-dark-800">
+                        <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                          {isAr ? 'نطاق البيانات' : 'Data access scopes'}
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          {isAr
+                            ? 'تحكم في المنتجات والفواتير والإعدادات الشخصية لهذا المستخدم.'
+                            : 'Control product catalog, invoice visibility, and personal invoice defaults for this user.'}
+                        </p>
+
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <label className="mb-1.5 block text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                              {isAr ? 'المنتجات في الفواتير' : 'Products on invoices'}
+                            </label>
+                            <select
+                              className={fieldClass}
+                              value={accessScope.productVisibility || 'all'}
+                              onChange={(e) => setAccessScopeField('productVisibility', e.target.value)}
+                              disabled={watchedRole === 'admin'}
+                            >
+                              <option value="all">{isAr ? 'كل منتجات الشركة' : 'All company products'}</option>
+                              <option value="own">{isAr ? 'منتجاته فقط' : 'Only products they created'}</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="mb-1.5 block text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                              {isAr ? 'رؤية الفواتير' : 'Invoice visibility'}
+                            </label>
+                            <select
+                              className={fieldClass}
+                              value={accessScope.invoiceVisibility || 'own'}
+                              onChange={(e) => setAccessScopeField('invoiceVisibility', e.target.value)}
+                              disabled={watchedRole === 'admin'}
+                            >
+                              <option value="own">{isAr ? 'فواتيره فقط' : 'Only their invoices'}</option>
+                              <option value="all">{isAr ? 'كل فواتير الشركة' : 'All company invoices'}</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex flex-col gap-2">
+                          <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-slate-100 px-3 py-2.5 text-xs font-semibold text-slate-700 dark:border-white/5 dark:text-slate-200">
+                            <input
+                              type="checkbox"
+                              className="rounded border-slate-300 text-slate-900"
+                              checked={Boolean(accessScope.canAddProducts) || watchedRole === 'admin'}
+                              disabled={watchedRole === 'admin'}
+                              onChange={(e) => setAccessScopeField('canAddProducts', e.target.checked)}
+                            />
+                            {isAr ? 'السماح بإضافة منتجات' : 'Allow adding products'}
+                          </label>
+                          <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-slate-100 px-3 py-2.5 text-xs font-semibold text-slate-700 dark:border-white/5 dark:text-slate-200">
+                            <input
+                              type="checkbox"
+                              className="rounded border-slate-300 text-slate-900"
+                              checked={Boolean(accessScope.canManageOwnInvoiceSettings) || watchedRole === 'admin'}
+                              disabled={watchedRole === 'admin'}
+                              onChange={(e) => setAccessScopeField('canManageOwnInvoiceSettings', e.target.checked)}
+                            />
+                            {isAr
+                              ? 'إدارة إعدادات فواتيره (شروط، ملاحظات…)'
+                              : 'Manage own invoice settings (terms, notes…)'}
+                          </label>
+                        </div>
+                      </div>
 
                       {/* Scoped Modules Checklist */}
                       <div className="space-y-3">

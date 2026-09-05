@@ -438,6 +438,8 @@ const invoiceSchema = new mongoose.Schema({
     pharmacistNote: { type: String, default: '' },
   },
   termsAndConditions: { type: String },
+  termsAndConditionsAr: { type: String },
+  notesAr: { type: String },
   includeBankDetails: { type: Boolean, default: false },
   bankDetails: {
     bankName: { type: String, default: '' },

@@ -9,12 +9,37 @@ import { provisionTenantApps } from '../utils/appProvisioning.js';
 import { serializeAuthTenant } from '../utils/authSerialize.js';
 import { emitPlatformEvent } from '../utils/platformEvents.js';
 import { recordUserActivity } from '../utils/auditLogger.js';
+import { getAccessScope } from '../utils/accessScope.js';
 
 const router = express.Router();
 const parsedDatabaseQueryTimeoutMs = Number(process.env.MONGODB_QUERY_TIMEOUT_MS || 10000);
 const databaseQueryTimeoutMs = Number.isFinite(parsedDatabaseQueryTimeoutMs) && parsedDatabaseQueryTimeoutMs > 0 ? parsedDatabaseQueryTimeoutMs : 10000;
 
 const withQueryTimeout = (query) => query.maxTimeMS(databaseQueryTimeoutMs);
+
+const serializeAuthUser = (user) => ({
+  id: user._id,
+  email: user.email,
+  firstName: user.firstName,
+  lastName: user.lastName,
+  firstNameAr: user.firstNameAr,
+  lastNameAr: user.lastNameAr,
+  role: user.role,
+  tenantId: user.tenantId || null,
+  branchId: user.branchId,
+  permissions: user.permissions,
+  preferences: user.preferences,
+  avatar: user.avatar,
+  firmHomeTenantId: user.firmHomeTenantId || null,
+  accessibleTenantIds: user.accessibleTenantIds || [],
+  accessScope: getAccessScope(user),
+  invoiceSettings: user.invoiceSettings || {
+    termsAndConditions: '',
+    termsAndConditionsAr: '',
+    notes: '',
+    notesAr: '',
+  },
+});
 
 const isDatabaseAvailabilityError = (error) => {
   const message = String(error?.message || '').toLowerCase();
@@ -153,14 +178,7 @@ router.post('/register', async (req, res) => {
 
     res.status(201).json({
       token,
-      user: {
-        id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        tenantId: user.tenantId
-      }
+      user: serializeAuthUser(user),
     });
   } catch (error) {
     sendRouteError(res, error);
@@ -381,22 +399,7 @@ router.post('/login', async (req, res) => {
 
     res.json({
       token,
-      user: {
-        id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        firstNameAr: user.firstNameAr,
-        lastNameAr: user.lastNameAr,
-        role: user.role,
-        tenantId: user.tenantId,
-        branchId: user.branchId,
-        permissions: user.permissions,
-        preferences: user.preferences,
-        avatar: user.avatar,
-        firmHomeTenantId: user.firmHomeTenantId || null,
-        accessibleTenantIds: user.accessibleTenantIds || [],
-      },
+      user: serializeAuthUser(user),
       tenant: responseTenant
     });
   } catch (error) {
@@ -430,22 +433,7 @@ router.get('/me', protect, async (req, res) => {
     }
 
     res.json({
-      user: {
-        id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        firstNameAr: user.firstNameAr,
-        lastNameAr: user.lastNameAr,
-        role: user.role,
-        branchId: user.branchId,
-        permissions: user.permissions,
-        preferences: user.preferences,
-        avatar: user.avatar,
-        tenantId: user.tenantId || null,
-        firmHomeTenantId: user.firmHomeTenantId || null,
-        accessibleTenantIds: user.accessibleTenantIds || [],
-      },
+      user: serializeAuthUser(user),
       tenant
     });
   } catch (error) {
@@ -616,19 +604,7 @@ router.post('/verify-otp', async (req, res) => {
 
     res.json({
       token,
-      user: {
-        id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        firstNameAr: user.firstNameAr,
-        lastNameAr: user.lastNameAr,
-        role: user.role,
-        branchId: user.branchId,
-        permissions: user.permissions,
-        preferences: user.preferences,
-        avatar: user.avatar
-      },
+      user: serializeAuthUser(user),
       tenant: responseTenant
     });
   } catch (error) {
@@ -740,20 +716,7 @@ router.post('/handoff/exchange', async (req, res) => {
     setAuthCookie(res, token);
     res.json({
       token,
-      user: {
-        id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        firstNameAr: user.firstNameAr,
-        lastNameAr: user.lastNameAr,
-        role: user.role,
-        tenantId: user.tenantId,
-        branchId: user.branchId,
-        permissions: user.permissions,
-        preferences: user.preferences,
-        avatar: user.avatar,
-      },
+      user: serializeAuthUser(user),
       tenant: serializeAuthTenant(tenant),
     });
   } catch (error) {

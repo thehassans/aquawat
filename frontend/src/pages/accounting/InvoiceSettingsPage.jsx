@@ -17,6 +17,7 @@ import {
   sectionEyebrowClass,
 } from '../sales/salesUi'
 import { INVOICE_DATE_CALENDAR_OPTIONS, resolveInvoiceDateCalendar } from '../../lib/invoiceDateFormat'
+import { INVOICE_LANGUAGE_OPTIONS } from '../../lib/invoiceLanguage'
 
 const saveBtnClass =
   'inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-40 dark:border-white/10 dark:bg-dark-800 dark:text-slate-100 dark:hover:bg-dark-700'
@@ -24,10 +25,16 @@ const saveBtnClass =
 export default function InvoiceSettingsPage() {
   const dispatch = useDispatch()
   const { language } = useSelector((s) => s.ui)
-  const { tenant } = useSelector((s) => s.auth)
+  const { tenant, user } = useSelector((s) => s.auth)
   const isAr = language === 'ar'
   const qc = useQueryClient()
   const [form, setForm] = useState({})
+  const [personalForm, setPersonalForm] = useState({
+    termsAndConditions: '',
+    termsAndConditionsAr: '',
+    notes: '',
+    notesAr: '',
+  })
   const [appearance, setAppearance] = useState(() => buildAppearanceFromTenant(tenant))
   const [appearanceDirty, setAppearanceDirty] = useState(false)
   const [signatory, setSignatory] = useState({
@@ -39,6 +46,11 @@ export default function InvoiceSettingsPage() {
     presetStamp: null,
   })
 
+  const canManageOwn =
+    user?.role === 'admin' ||
+    user?.role === 'super_admin' ||
+    Boolean(user?.accessScope?.canManageOwnInvoiceSettings)
+
   const { data } = useQuery({
     queryKey: ['sales-settings'],
     queryFn: async () => (await api.get('/sales/settings')).data,
@@ -49,14 +61,32 @@ export default function InvoiceSettingsPage() {
     queryFn: async () => (await api.get('/tenants/current')).data,
   })
 
+  const { data: personalSettings } = useQuery({
+    queryKey: ['my-invoice-settings'],
+    queryFn: async () => (await api.get('/users/me/invoice-settings')).data,
+    enabled: canManageOwn && user?.role !== 'admin' && user?.role !== 'super_admin',
+  })
+
   useEffect(() => {
     if (!data && !tenantFresh) return
     setForm((prev) => ({
       ...prev,
       ...(data || {}),
       invoiceDateCalendar: resolveInvoiceDateCalendar(tenantFresh || tenant),
+      invoiceLanguage: tenantFresh?.settings?.invoiceLanguage || tenant?.settings?.invoiceLanguage || 'auto',
+      enableInvoiceRental: data?.enableInvoiceRental === true,
     }))
   }, [data, tenantFresh, tenant])
+
+  useEffect(() => {
+    if (!personalSettings?.invoiceSettings) return
+    setPersonalForm({
+      termsAndConditions: personalSettings.invoiceSettings.termsAndConditions || '',
+      termsAndConditionsAr: personalSettings.invoiceSettings.termsAndConditionsAr || '',
+      notes: personalSettings.invoiceSettings.notes || '',
+      notesAr: personalSettings.invoiceSettings.notesAr || '',
+    })
+  }, [personalSettings])
 
   useEffect(() => {
     if (!tenantFresh) return
@@ -79,6 +109,7 @@ export default function InvoiceSettingsPage() {
   }, [tenantFresh, appearanceDirty])
 
   const set = (key, val) => setForm((p) => ({ ...p, [key]: val }))
+  const setPersonal = (key, val) => setPersonalForm((p) => ({ ...p, [key]: val }))
   const setSig = (key, val) => setSignatory((p) => ({ ...p, [key]: val }))
   const onAppearanceChange = (next) => {
     setAppearanceDirty(true)
@@ -97,6 +128,15 @@ export default function InvoiceSettingsPage() {
     reader.readAsDataURL(file)
   }
 
+  const savePersonal = useMutation({
+    mutationFn: async () => api.patch('/users/me/invoice-settings', personalForm),
+    onSuccess: () => {
+      toast.success(isAr ? 'تم حفظ إعداداتك الشخصية' : 'Personal invoice settings saved')
+      qc.invalidateQueries({ queryKey: ['my-invoice-settings'] })
+    },
+    onError: (e) => toast.error(e?.response?.data?.error || e.message),
+  })
+
   const save = useMutation({
     mutationFn: async () => {
       const base = tenantFresh || tenant
@@ -113,15 +153,20 @@ export default function InvoiceSettingsPage() {
         api.patch('/sales/settings', {
           defaultInvoicingPolicy: form.defaultInvoicingPolicy || 'ordered',
           invoiceDefaultTerms: form.invoiceDefaultTerms ?? '',
+          invoiceDefaultTermsAr: form.invoiceDefaultTermsAr ?? '',
           invoiceDefaultNotes: form.invoiceDefaultNotes ?? '',
+          invoiceDefaultNotesAr: form.invoiceDefaultNotesAr ?? '',
           invoiceShowAccountColumn: form.invoiceShowAccountColumn !== false,
           invoiceShowAnalyticColumn: form.invoiceShowAnalyticColumn !== false,
+          enableInvoiceRental: form.enableInvoiceRental === true,
         }),
         api.put('/tenants/current', {
           settings: {
             invoiceDateCalendar: form.invoiceDateCalendar || 'both',
             useHijriDates: form.invoiceDateCalendar !== 'gregorian',
+            invoiceLanguage: form.invoiceLanguage || 'auto',
             termsAndConditions: form.invoiceDefaultTerms ?? '',
+            termsAndConditionsAr: form.invoiceDefaultTermsAr ?? '',
             notes: form.invoiceDefaultNotes ?? '',
             invoiceBranding: {
               ...appearancePayload(appearance),
@@ -135,6 +180,7 @@ export default function InvoiceSettingsPage() {
               presetAuthorizedPersonDesignation: signatory.presetAuthorizedPersonDesignation || '',
               presetAuthorizedPersonDesignationAr: signatory.presetAuthorizedPersonDesignationAr || '',
               termsAndConditions: form.invoiceDefaultTerms ?? '',
+              termsAndConditionsAr: form.invoiceDefaultTermsAr ?? '',
               defaultNotes: form.invoiceDefaultNotes ?? '',
             },
           },
@@ -169,8 +215,8 @@ export default function InvoiceSettingsPage() {
           </h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             {isAr
-              ? 'سياسة الفوترة والمظهر والتوقيع الافتراضي'
-              : 'Invoicing policy, document appearance, and default signatory'}
+              ? 'سياسة الفوترة والمظهر والشروط والإيجار ولغة المستند'
+              : 'Invoicing policy, appearance, terms, rental extras, and document language'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -215,8 +261,33 @@ export default function InvoiceSettingsPage() {
               : 'Shown on PDF and preview: Gregorian, Hijri, or both.'}
           </p>
         </div>
+        <div>
+          <label className={fieldLabelClass}>{isAr ? 'لغة الفاتورة' : 'Invoice language'}</label>
+          <select
+            className={fieldControlClass}
+            value={form.invoiceLanguage || 'auto'}
+            onChange={(e) => set('invoiceLanguage', e.target.value)}
+          >
+            {INVOICE_LANGUAGE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{isAr ? opt.labelAr : opt.labelEn}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11px] text-slate-500">
+            {isAr
+              ? 'لغة واحدة (إنجليزي) أو ثنائية (إنجليزي + عربي / أخرى).'
+              : 'Single language (English) or bilingual (English + Arabic / other).'}
+          </p>
+        </div>
+        <label className={`${checkClass} sm:col-span-1 self-end`}>
+          <input
+            type="checkbox"
+            checked={form.enableInvoiceRental === true}
+            onChange={(e) => set('enableInvoiceRental', e.target.checked)}
+          />
+          {isAr ? 'إظهار الإيجار في إضافات الفاتورة' : 'Show Rental in invoice extras'}
+        </label>
         <div className="sm:col-span-2">
-          <label className={fieldLabelClass}>{isAr ? 'الشروط والأحكام الافتراضية' : 'Default terms & conditions'}</label>
+          <label className={fieldLabelClass}>{isAr ? 'الشروط والأحكام (EN)' : 'Default terms & conditions (EN)'}</label>
           <textarea
             rows={4}
             className={fieldControlClass}
@@ -225,12 +296,32 @@ export default function InvoiceSettingsPage() {
           />
         </div>
         <div className="sm:col-span-2">
-          <label className={fieldLabelClass}>{isAr ? 'الملاحظات الافتراضية' : 'Default notes'}</label>
+          <label className={fieldLabelClass}>{isAr ? 'الشروط والأحكام (AR)' : 'Default terms & conditions (AR)'}</label>
+          <textarea
+            rows={4}
+            dir="rtl"
+            className={fieldControlClass}
+            value={form.invoiceDefaultTermsAr || ''}
+            onChange={(e) => set('invoiceDefaultTermsAr', e.target.value)}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={fieldLabelClass}>{isAr ? 'الملاحظات الافتراضية (EN)' : 'Default notes (EN)'}</label>
           <textarea
             rows={3}
             className={fieldControlClass}
             value={form.invoiceDefaultNotes || ''}
             onChange={(e) => set('invoiceDefaultNotes', e.target.value)}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={fieldLabelClass}>{isAr ? 'الملاحظات الافتراضية (AR)' : 'Default notes (AR)'}</label>
+          <textarea
+            rows={3}
+            dir="rtl"
+            className={fieldControlClass}
+            value={form.invoiceDefaultNotesAr || ''}
+            onChange={(e) => set('invoiceDefaultNotesAr', e.target.value)}
           />
         </div>
         <label className={`${checkClass} sm:col-span-1`}>
@@ -250,6 +341,65 @@ export default function InvoiceSettingsPage() {
           {isAr ? 'عمود التحليلي على بنود الفاتورة' : 'Analytic column on invoice lines'}
         </label>
       </div>
+
+      {canManageOwn && user?.role !== 'admin' && user?.role !== 'super_admin' ? (
+        <div className={`${sectionCardClass} grid gap-4 sm:grid-cols-2`}>
+          <div className="sm:col-span-2 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className={sectionEyebrowClass}>{isAr ? 'إعداداتك' : 'Your defaults'}</p>
+              <h3 className="mt-1 text-base font-semibold text-slate-900 dark:text-white">
+                {isAr ? 'شروط وملاحظات فواتيرك' : 'Your invoice terms & notes'}
+              </h3>
+            </div>
+            <button
+              type="button"
+              disabled={savePersonal.isPending}
+              onClick={() => savePersonal.mutate()}
+              className={saveBtnClass}
+            >
+              {savePersonal.isPending ? '…' : (isAr ? 'حفظ إعداداتي' : 'Save my defaults')}
+            </button>
+          </div>
+          <div className="sm:col-span-2">
+            <label className={fieldLabelClass}>{isAr ? 'شروطك (EN)' : 'Your terms (EN)'}</label>
+            <textarea
+              rows={3}
+              className={fieldControlClass}
+              value={personalForm.termsAndConditions}
+              onChange={(e) => setPersonal('termsAndConditions', e.target.value)}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={fieldLabelClass}>{isAr ? 'شروطك (AR)' : 'Your terms (AR)'}</label>
+            <textarea
+              rows={3}
+              dir="rtl"
+              className={fieldControlClass}
+              value={personalForm.termsAndConditionsAr}
+              onChange={(e) => setPersonal('termsAndConditionsAr', e.target.value)}
+            />
+          </div>
+          <div className="sm:col-span-1">
+            <label className={fieldLabelClass}>{isAr ? 'ملاحظاتك (EN)' : 'Your notes (EN)'}</label>
+            <textarea
+              rows={2}
+              className={fieldControlClass}
+              value={personalForm.notes}
+              onChange={(e) => setPersonal('notes', e.target.value)}
+            />
+          </div>
+          <div className="sm:col-span-1">
+            <label className={fieldLabelClass}>{isAr ? 'ملاحظاتك (AR)' : 'Your notes (AR)'}</label>
+            <textarea
+              rows={2}
+              dir="rtl"
+              className={fieldControlClass}
+              value={personalForm.notesAr}
+              onChange={(e) => setPersonal('notesAr', e.target.value)}
+            />
+          </div>
+        </div>
+      ) : null}
 
       <div className={`${sectionCardClass} grid gap-4 sm:grid-cols-2`}>
         <div className="sm:col-span-2">

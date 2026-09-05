@@ -9,6 +9,11 @@ import { isInvEngineEnabled } from '../services/inventory/legacyAdapter.js';
 import { saveUploadBuffer } from '../utils/objectStorage.js';
 import { cacheAside } from '../lib/redis.js';
 import { applyEngineInventoryToProducts } from '../services/inventory/productListInventory.js';
+import {
+  shouldScopeProductsToSelf,
+  canUserAddProducts,
+  applyCreatedByScope,
+} from '../utils/accessScope.js';
 
 const router = express.Router();
 const imageUpload = multer({
@@ -132,6 +137,9 @@ router.get('/', checkPermission('inventory', 'read'), async (req, res) => {
     const { page = 1, limit = 50, category, categoryId, status, search, lowStock, allowNegativeStock, stockHealth, productType, ids } = req.query;
 
     const query = { ...req.tenantFilter };
+    if (shouldScopeProductsToSelf(req.user)) {
+      applyCreatedByScope(query, req.user._id);
+    }
     if (ids) {
       const idList = String(ids).split(',').map((s) => s.trim()).filter(Boolean);
       if (idList.length) query._id = { $in: idList };
@@ -437,7 +445,11 @@ router.get('/accounting-gaps', checkPermission('inventory', 'read'), async (req,
 // @route   GET /api/products/:id
 router.get('/:id', checkPermission('inventory', 'read'), async (req, res) => {
   try {
-    const product = await Product.findOne({ _id: req.params.id, ...req.tenantFilter })
+    const query = { _id: req.params.id, ...req.tenantFilter };
+    if (shouldScopeProductsToSelf(req.user)) {
+      applyCreatedByScope(query, req.user._id);
+    }
+    const product = await Product.findOne(query)
       .populate('stocks.warehouseId', 'nameEn nameAr code')
       .populate('suppliers.supplierId', 'name')
       .populate('bomComponents.productId', 'sku nameEn nameAr costPrice')
@@ -456,7 +468,12 @@ router.get('/:id', checkPermission('inventory', 'read'), async (req, res) => {
 });
 
 // @route   POST /api/products
-router.post('/', checkTrialLimits('products'), checkPermission('inventory', 'create'), async (req, res) => {
+router.post('/', checkTrialLimits('products'), async (req, res, next) => {
+  if (!canUserAddProducts(req.user)) {
+    return res.status(403).json({ error: 'Not authorized to create in inventory module' });
+  }
+  return next();
+}, async (req, res) => {
   try {
     const { nextProductId } = await import('../services/inventory/productIdentity.js');
     const {
