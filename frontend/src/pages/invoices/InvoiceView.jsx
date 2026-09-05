@@ -402,8 +402,8 @@ export default function InvoiceView() {
         onBack={() => navigate(-1)}
         prevHref={adjacentInvoices?.prev?._id ? `/app/dashboard/accounting/invoices/${adjacentInvoices.prev._id}` : undefined}
         nextHref={adjacentInvoices?.next?._id ? `/app/dashboard/accounting/invoices/${adjacentInvoices.next._id}` : undefined}
-        prevLabel={adjacentInvoices?.prev?.invoiceNumber || undefined}
-        nextLabel={adjacentInvoices?.next?.invoiceNumber || undefined}
+        prevLabel={adjacentInvoices?.prev ? resolveInvoiceListNumber(adjacentInvoices.prev, language).label : undefined}
+        nextLabel={adjacentInvoices?.next ? resolveInvoiceListNumber(adjacentInvoices.next, language).label : undefined}
         eyebrow={
           isPurchaseRefund
             ? (language === 'ar' ? 'مرتجع مورد' : 'Vendor refund')

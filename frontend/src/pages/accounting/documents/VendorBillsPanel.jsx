@@ -18,6 +18,7 @@ import {
   invoiceRemainingBalance,
   paymentStatusLabel,
 } from '../../../lib/accountingDocumentStatus'
+import { resolveInvoiceListNumber } from '../../../lib/commercialDocumentLabels'
 import {
   docLinkClass,
   emptyStateClass,
@@ -411,10 +412,16 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
                 actionLabelAr="فاتورة مورد جديدة"
               />
             )}
-            renderCard={(row) => (
+            renderCard={(row) => {
+              const numberMeta = resolveInvoiceListNumber(row, language)
+              return (
               <div key={row._id} className="space-y-2 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-dark-800">
                 <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={`${docLinkClass} text-base`}>
-                  {row.invoiceNumber}
+                  {numberMeta.isDraft ? (
+                    <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                      {numberMeta.label}
+                    </span>
+                  ) : numberMeta.label}
                 </Link>
                 <p className="text-sm text-slate-500">{trimName(row.seller)}</p>
                 <p className="text-xs text-slate-400">{row.vendorInvoiceNumber || row.contractNumber || '—'}</p>
@@ -438,7 +445,8 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
                   </button>
                 ) : null}
               </div>
-            )}
+              )
+            }}
           >
             <table className={salesTableClass}>
               <thead>
@@ -474,6 +482,7 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
               <tbody>
                 {rows.map((row) => {
                   const due = invoiceRemainingBalance(row)
+                  const numberMeta = resolveInvoiceListNumber(row, language)
                   return (
                   <tr key={row._id} className={salesTrClass}>
                     <td className={salesTdClass}>
@@ -481,12 +490,16 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
                         type="checkbox"
                         checked={selectedIds.has(String(row._id))}
                         onChange={() => toggleSelect(row._id)}
-                        aria-label={row.invoiceNumber}
+                        aria-label={numberMeta.label}
                       />
                     </td>
                     <td className={salesTdClass}>
                       <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={docLinkClass}>
-                        {row.invoiceNumber}
+                        {numberMeta.isDraft ? (
+                          <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                            {numberMeta.label}
+                          </span>
+                        ) : numberMeta.label}
                       </Link>
                     </td>
                     <td className={salesTdClass}>{row.vendorInvoiceNumber || row.contractNumber || '—'}</td>

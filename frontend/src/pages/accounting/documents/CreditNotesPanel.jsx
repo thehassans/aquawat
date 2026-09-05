@@ -8,6 +8,7 @@ import Money from '../../../components/ui/Money'
 import ResponsiveDataList from '../../../components/ui/ResponsiveDataList'
 import CreditNoteFromInvoiceModal from '../../../components/accounting/CreditNoteFromInvoiceModal'
 import { documentStatusLabel } from '../../../lib/accountingDocumentStatus'
+import { resolveInvoiceListNumber } from '../../../lib/commercialDocumentLabels'
 import {
   docLinkClass,
   emptyStateClass,

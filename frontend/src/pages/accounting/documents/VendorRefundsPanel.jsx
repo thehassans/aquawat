@@ -7,6 +7,7 @@ import Money from '../../../components/ui/Money'
 import ResponsiveDataList from '../../../components/ui/ResponsiveDataList'
 import EmptyState from '../../../components/ui/EmptyState'
 import { documentStatusLabel } from '../../../lib/accountingDocumentStatus'
+import { resolveInvoiceListNumber } from '../../../lib/commercialDocumentLabels'
 import {
   docLinkClass,
   emptyStateClass,
@@ -100,10 +101,16 @@ export default function VendorRefundsPanel({ language = 'en' }) {
                 actionLabelAr="مرتجع جديد"
               />
             )}
-            renderCard={(row) => (
+            renderCard={(row) => {
+              const numberMeta = resolveInvoiceListNumber(row, language)
+              return (
               <div key={row._id} className="space-y-2 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-dark-800">
                 <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={`${docLinkClass} text-base`}>
-                  {row.invoiceNumber}
+                  {numberMeta.isDraft ? (
+                    <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                      {numberMeta.label}
+                    </span>
+                  ) : numberMeta.label}
                 </Link>
                 <p className="text-sm text-slate-500">{trimName(row.seller)}</p>
                 <div className="flex items-center justify-between text-sm">
@@ -111,7 +118,8 @@ export default function VendorRefundsPanel({ language = 'en' }) {
                   <span className={softChipClass}>{documentStatusLabel(row.status, language)}</span>
                 </div>
               </div>
-            )}
+              )
+            }}
           >
             <table className={salesTableClass}>
               <thead>
@@ -126,11 +134,17 @@ export default function VendorRefundsPanel({ language = 'en' }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
+                {rows.map((row) => {
+                  const numberMeta = resolveInvoiceListNumber(row, language)
+                  return (
                   <tr key={row._id} className={salesTrClass}>
                     <td className={salesTdClass}>
                       <Link to={`/app/dashboard/accounting/invoices/${row._id}`} className={docLinkClass}>
-                        {row.invoiceNumber}
+                        {numberMeta.isDraft ? (
+                          <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                            {numberMeta.label}
+                          </span>
+                        ) : numberMeta.label}
                       </Link>
                     </td>
                     <td className={salesTdClass}>{trimName(row.seller)}</td>
@@ -161,7 +175,8 @@ export default function VendorRefundsPanel({ language = 'en' }) {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </ResponsiveDataList>

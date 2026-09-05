@@ -16,6 +16,8 @@ logs/
 backend/logs/
 
 storage/invoice-pdfs/
+backend/storage/invoice-pdfs/
+backend/storage/
 
 coverage/
 dist/

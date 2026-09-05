@@ -1815,17 +1815,21 @@ router.get('/:id/adjacent', checkPermission('invoicing', 'read'), async (req, re
     const [prevDoc, nextDoc] = await Promise.all([
       Invoice.findOne({ ...base, issueDate: { $lt: invoice.issueDate } })
         .sort({ issueDate: -1, _id: -1 })
-        .select('_id invoiceNumber')
+        .select('_id invoiceNumber status')
         .lean(),
       Invoice.findOne({ ...base, issueDate: { $gt: invoice.issueDate } })
         .sort({ issueDate: 1, _id: 1 })
-        .select('_id invoiceNumber')
+        .select('_id invoiceNumber status')
         .lean(),
     ]);
 
     res.json({
-      prev: prevDoc ? { _id: prevDoc._id, invoiceNumber: prevDoc.invoiceNumber } : null,
-      next: nextDoc ? { _id: nextDoc._id, invoiceNumber: nextDoc.invoiceNumber } : null,
+      prev: prevDoc
+        ? { _id: prevDoc._id, invoiceNumber: prevDoc.invoiceNumber, status: prevDoc.status }
+        : null,
+      next: nextDoc
+        ? { _id: nextDoc._id, invoiceNumber: nextDoc.invoiceNumber, status: nextDoc.status }
+        : null,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
