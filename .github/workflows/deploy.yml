@@ -33,7 +33,7 @@ jobs:
         working-directory: backend
         run: npm test
 
-  # Backend + frontend images build in parallel (was sequential ≈ 2× wall time).
+  # Backend + frontend images build in parallel.
   build:
     runs-on: ubuntu-latest
     strategy:
@@ -82,11 +82,14 @@ jobs:
           retention-days: 1
           compression-level: 0
 
-  # Combine images into one tarball for a single rsync + remote load.
-  pack:
-    needs: [build]
+  deploy:
+    needs: [test, build]
     runs-on: ubuntu-latest
+
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download backend image
         uses: actions/download-artifact@v4
         with:
@@ -98,44 +101,6 @@ jobs:
         with:
           name: maqder-frontend-image
           path: /tmp/images
-
-      - name: Load, tag pdf-worker, pack combined
-        run: |
-          set -euo pipefail
-          BACK="$(find /tmp/images -name 'maqder-backend.tar.zst' -type f | head -1)"
-          FRONT="$(find /tmp/images -name 'maqder-frontend.tar.zst' -type f | head -1)"
-          test -n "$BACK" && test -n "$FRONT"
-          zstd -d -c "$BACK" | docker load
-          zstd -d -c "$FRONT" | docker load
-          docker tag maqder-backend:latest maqder-pdf-worker:latest
-          docker save \
-            maqder-backend:latest \
-            maqder-frontend:latest \
-            maqder-pdf-worker:latest \
-            | zstd -T0 -3 -o /tmp/maqder-app-images.tar.zst
-          ls -lh /tmp/maqder-app-images.tar.zst
-
-      - name: Upload combined image tarball
-        uses: actions/upload-artifact@v4
-        with:
-          name: maqder-app-images
-          path: /tmp/maqder-app-images.tar.zst
-          retention-days: 1
-          compression-level: 0
-
-  deploy:
-    needs: [test, pack]
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download image tarball
-        uses: actions/download-artifact@v4
-        with:
-          name: maqder-app-images
-          path: /tmp
 
       - name: Write SSH key and known_hosts
         env:
@@ -206,6 +171,21 @@ jobs:
           fi
           chmod 600 "$HOME/.ssh/known_hosts" "$HOME/.ssh/plesk_deploy"
 
+          # Fast path for large binary blobs: no SSH Compression, no rsync -z
+          # (re-gzipping a .zst burns CPU and looks "stuck" for 1GB+ transfers).
+          SSH_FAST=(
+            -i "$HOME/.ssh/plesk_deploy"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o Compression=no
+            -o Ciphers=aes128-gcm@openssh.com,chacha20-poly1305@openssh.com,aes128-ctr
+            -o ConnectTimeout=15
+            -o ServerAliveInterval=20
+            -o ServerAliveCountMax=30
+            -p "${SSH_PORT}"
+          )
           SSH_BASE=(
             -i "$HOME/.ssh/plesk_deploy"
             -o IdentitiesOnly=yes
@@ -219,22 +199,21 @@ jobs:
           )
           REMOTE="${SSH_USER}@${SSH_HOST}"
           DEST="/var/www/vhosts/maqder.com/httpdocs"
-          RSYNC_RSH="ssh -i $HOME/.ssh/plesk_deploy -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o ConnectTimeout=15 -p ${SSH_PORT}"
+          # Explicit string (array join breaks rsync -e quoting)
+          RSYNC_IMG_RSH="ssh -i $HOME/.ssh/plesk_deploy -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o Compression=no -o Ciphers=aes128-gcm@openssh.com,chacha20-poly1305@openssh.com,aes128-ctr -o ConnectTimeout=15 -o ServerAliveInterval=20 -o ServerAliveCountMax=30 -p ${SSH_PORT}"
+          RSYNC_CODE_RSH="ssh -i $HOME/.ssh/plesk_deploy -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o ConnectTimeout=15 -p ${SSH_PORT}"
 
-          IMG_ZST="/tmp/maqder-app-images.tar.zst"
-          if [ ! -f "$IMG_ZST" ]; then
-            # artifact download may nest the file
-            IMG_ZST="$(find /tmp -name 'maqder-app-images.tar.zst' -type f | head -1)"
-          fi
-          if [ -z "${IMG_ZST}" ] || [ ! -f "$IMG_ZST" ]; then
-            echo "Missing maqder-app-images.tar.zst from build artifact"
-            find /tmp -maxdepth 3 -type f -name 'maqder*' 2>/dev/null || true
+          BACK_ZST="$(find /tmp/images -name 'maqder-backend.tar.zst' -type f | head -1)"
+          FRONT_ZST="$(find /tmp/images -name 'maqder-frontend.tar.zst' -type f | head -1)"
+          if [ -z "${BACK_ZST}" ] || [ ! -f "${BACK_ZST}" ] || [ -z "${FRONT_ZST}" ] || [ ! -f "${FRONT_ZST}" ]; then
+            echo "Missing split image artifacts (backend/frontend .tar.zst)"
+            find /tmp -maxdepth 4 -type f -name 'maqder*' 2>/dev/null || true
             exit 1
           fi
 
           echo "=== rsync code to ${REMOTE}:${DEST} (sha=${BUILD_SHA}) ==="
           rsync -az --delete \
-            -e "$RSYNC_RSH" \
+            -e "$RSYNC_CODE_RSH" \
             --exclude '.git/' \
             --exclude 'node_modules/' \
             --exclude 'frontend/node_modules/' \
@@ -256,13 +235,26 @@ jobs:
             --exclude 'agent-transcripts/' \
             --exclude 'maqder-app-images.tar.gz' \
             --exclude 'maqder-app-images.tar.zst' \
+            --exclude 'maqder-backend.tar.zst' \
+            --exclude 'maqder-frontend.tar.zst' \
             ./ "${REMOTE}:${DEST}/"
 
-          echo "=== rsync pre-built images ==="
-          ls -lh "$IMG_ZST"
-          rsync -az -e "$RSYNC_RSH" \
-            "$IMG_ZST" \
-            "${REMOTE}:/tmp/maqder-app-images.tar.zst"
+          echo "=== transfer pre-built images (NO rsync -z — already zstd; progress below) ==="
+          ls -lh "$BACK_ZST" "$FRONT_ZST"
+
+          echo "--- backend image ---"
+          rsync -a --whole-file --inplace --info=progress2 \
+            -e "$RSYNC_IMG_RSH" \
+            "$BACK_ZST" \
+            "${REMOTE}:/tmp/maqder-backend.tar.zst"
+
+          echo "--- frontend image ---"
+          rsync -a --whole-file --inplace --info=progress2 \
+            -e "$RSYNC_IMG_RSH" \
+            "$FRONT_ZST" \
+            "${REMOTE}:/tmp/maqder-frontend.tar.zst"
+
+          echo "Image transfer complete."
 
           echo "=== remote deploy.sh (prebuilt images, no Docker Hub) ==="
           set +e
@@ -274,4 +266,5 @@ jobs:
             echo "Remote deploy exited ${status} (255 = SSH never started the script)."
             exit "$status"
           fi
-          ssh "${SSH_BASE[@]}" "${REMOTE}" "rm -f /tmp/maqder-app-images.tar.gz /tmp/maqder-app-images.tar.zst" || true
+          ssh "${SSH_BASE[@]}" "${REMOTE}" \
+            "rm -f /tmp/maqder-app-images.tar.gz /tmp/maqder-app-images.tar.zst /tmp/maqder-backend.tar.zst /tmp/maqder-frontend.tar.zst" || true
