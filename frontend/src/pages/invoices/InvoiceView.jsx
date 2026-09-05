@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { motion } from 'framer-motion'
-import { FileText, Download, Send, CheckCircle, Clock, QrCode, Printer, Mail, Edit, RefreshCw, Undo2, Trash2, Banknote, MessageCircle, Ban } from 'lucide-react'
+import { FileText, Download, Send, CheckCircle, Clock, QrCode, Printer, Mail, Edit, RefreshCw, Undo2, Trash2, Banknote, MessageCircle, Ban, RotateCcw } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
@@ -29,6 +29,7 @@ import CancelInvoiceModal from '../../components/accounting/CancelInvoiceModal'
 import {
   BILL_STATUS_STEPS,
   canCancelInvoice,
+  canResetInvoiceToDraft,
   canRegisterPaymentOnBill,
   canRegisterPaymentOnInvoice,
   CREDIT_NOTE_STATUS_STEPS,
@@ -264,6 +265,20 @@ export default function InvoiceView() {
     },
   })
 
+  const resetDraftMutation = useMutation({
+    mutationFn: () => api.post(`/invoices/${id}/reset-to-draft`),
+    onSuccess: () => {
+      toast.success(language === 'ar' ? 'أُعيدت إلى مسودة' : 'Reset to draft')
+      queryClient.invalidateQueries(['invoices'])
+      queryClient.invalidateQueries(['invoice', id])
+      queryClient.invalidateQueries(['vendor-bills'])
+      navigate(`/app/dashboard/accounting/invoices/${id}/edit`)
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || (language === 'ar' ? 'فشلت إعادة المسودة' : 'Reset to draft failed'))
+    },
+  })
+
   const remainingBalance = invoiceRemainingBalance(invoice)
   const isPurchaseBill = isVendorBill(invoice)
   const isPurchaseRefund = isVendorRefund(invoice)
@@ -271,6 +286,7 @@ export default function InvoiceView() {
     ? canRegisterPaymentOnBill(invoice)
     : canRegisterPaymentOnInvoice(invoice)
   const canCancel = canCancelInvoice(invoice, tenant?.zatca?.phase || 2)
+  const canResetDraft = canResetInvoiceToDraft(invoice, tenant?.zatca?.phase || 2)
   const isCreditNote = String(invoice?.invoiceType || '') === '381' && !isPurchaseBill
   const ribbonStep = resolveInvoiceRibbonStep(invoice)
   const statusSteps = isPurchaseRefund
@@ -478,6 +494,25 @@ export default function InvoiceView() {
               <button type="button" onClick={() => convertProformaMutation.mutate()} disabled={convertProformaMutation.isPending} className="btn btn-action-dark btn-sm">
                 {convertProformaMutation.isPending ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                 {language === 'ar' ? 'تحويل لفاتورة' : 'Convert to Invoice'}
+              </button>
+            )}
+            {canResetDraft && (
+              <button
+                type="button"
+                onClick={() => {
+                  const ok = window.confirm(
+                    language === 'ar'
+                      ? 'إعادة الفاتورة إلى مسودة؟ سيتم عكس القيود المرتبطة.'
+                      : 'Reset this invoice to draft? Linked journal entries will be reversed.',
+                  )
+                  if (!ok) return
+                  resetDraftMutation.mutate()
+                }}
+                disabled={resetDraftMutation.isPending}
+                className={ghostActionClass}
+              >
+                {resetDraftMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                {language === 'ar' ? 'إعادة إلى مسودة' : 'Reset to draft'}
               </button>
             )}
             {canCancel && (

@@ -10,6 +10,7 @@ import Supplier from '../models/Supplier.js';
 import Voucher from '../models/Voucher.js';
 import Expense from '../models/Expense.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
+import AccountPayment from '../models/AccountPayment.js';
 import { applyPaidAmountStatus } from '../utils/invoicePaymentStatus.js';
 import {
   getAccountBalances,
@@ -8144,6 +8145,152 @@ export async function cancelInvoiceDocument({
   return invoice;
 }
 
+/**
+ * Reset a posted invoice/bill back to draft so it can be edited and re-posted.
+ * Blocks ZATCA-cleared sales invoices, paid documents, and linked credit notes.
+ */
+export async function resetInvoiceToDraft({
+  tenantId,
+  userId,
+  invoice,
+  zatcaPhase = 2,
+}) {
+  if (!invoice?._id) {
+    const err = new Error('Invoice not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const status = String(invoice.status || '').toLowerCase();
+  if (['draft', 'pending'].includes(status)) {
+    const err = new Error('Invoice is already a draft');
+    err.status = 400;
+    err.code = 'ALREADY_DRAFT';
+    throw err;
+  }
+  if (status === 'cancelled') {
+    const err = new Error('Cancelled invoices cannot be reset to draft');
+    err.status = 400;
+    throw err;
+  }
+  if (status === 'credited') {
+    const err = new Error('This invoice was reversed with a credit note and cannot be reset to draft');
+    err.status = 400;
+    throw err;
+  }
+
+  const isCreditOrRefund = String(invoice.invoiceType || '') === '381';
+  const phase = Number(zatcaPhase) || 2;
+  const hasSignedXml = Boolean(invoice.zatca?.signedXml);
+  if (
+    !isCreditOrRefund
+    && phase >= 2
+    && hasSignedXml
+    && String(invoice.flow || 'sell') !== 'purchase'
+  ) {
+    const err = new Error(
+      'This invoice was cleared with ZATCA. Issue a credit note to reverse it instead of resetting to draft.',
+    );
+    err.status = 400;
+    err.code = 'USE_CREDIT_NOTE';
+    throw err;
+  }
+
+  const paid = Number(invoice.paidAmount || 0);
+  const embeddedPayments = Array.isArray(invoice.payments) ? invoice.payments.length : 0;
+  if (paid > 0.005 || embeddedPayments > 0) {
+    const err = new Error('Remove or reverse all payments before resetting this invoice to draft');
+    err.status = 400;
+    err.code = 'HAS_PAYMENTS';
+    throw err;
+  }
+
+  const linkedPayment = await AccountPayment.findOne({
+    tenantId,
+    status: { $ne: 'cancelled' },
+    'allocations.invoiceId': invoice._id,
+  }).select('_id number').lean();
+  if (linkedPayment) {
+    const err = new Error(
+      `Payment ${linkedPayment.number || linkedPayment._id} is allocated to this invoice. Reverse it first.`,
+    );
+    err.status = 400;
+    err.code = 'HAS_PAYMENTS';
+    throw err;
+  }
+
+  if (!isCreditOrRefund && String(invoice.invoiceType || '388') === '388') {
+    const linkedCn = await Invoice.findOne({
+      tenantId,
+      originalInvoiceId: invoice._id,
+      invoiceType: '381',
+      status: { $ne: 'cancelled' },
+    }).select('_id invoiceNumber').lean();
+    if (linkedCn) {
+      const err = new Error(
+        `Cannot reset: credit note ${linkedCn.invoiceNumber || linkedCn._id} exists. Cancel or reverse that document first.`,
+      );
+      err.status = 400;
+      err.code = 'HAS_CREDIT_NOTE';
+      throw err;
+    }
+  }
+
+  await reverseInvoiceLinkedJournals(
+    tenantId,
+    invoice._id,
+    userId,
+    `Reset to draft ${invoice.invoiceNumber || invoice._id}`,
+  );
+
+  const stamp = `[reset to draft ${new Date().toISOString()}]`;
+  const previousNotes = String(invoice.internalNotes || '').trim();
+
+  invoice.status = 'draft';
+  invoice.paidAmount = 0;
+  invoice.paymentStatus = 'unposted';
+  invoice.cancelReason = undefined;
+  invoice.cancelledAt = undefined;
+  invoice.cancelledBy = undefined;
+  invoice.journalEntryId = undefined;
+  invoice.internalNotes = previousNotes ? `${previousNotes}\n${stamp}` : stamp;
+
+  if (!invoice.zatca?.signedXml) {
+    if (!invoice.zatca) invoice.zatca = {};
+    invoice.zatca.qrCodeData = undefined;
+    invoice.zatca.qrCodeImage = undefined;
+    if (invoice.countryCompliance) {
+      invoice.countryCompliance.qrCode = undefined;
+    }
+    if (invoice.fbr) {
+      invoice.fbr.qrCode = undefined;
+    }
+  }
+
+  applyPaidAmountStatus(invoice);
+
+  if (invoice.flow === 'purchase' && invoice.sourcePurchaseOrderId) {
+    try {
+      const po = await PurchaseOrder.findOne({
+        _id: invoice.sourcePurchaseOrderId,
+        tenantId,
+      });
+      if (po && String(po.billedInvoiceId || '') === String(invoice._id)) {
+        po.billedInvoiceId = undefined;
+        if (String(po.status || '') === 'billed') {
+          po.status = 'received';
+        }
+        await po.save();
+      }
+    } catch {
+      /* best-effort */
+    }
+  }
+
+  await invoice.save();
+  return invoice;
+}
+
 export default {
   ensureDefaultChartOfAccounts,
   ensureDefaultTaxes,
@@ -8180,6 +8327,7 @@ export default {
   reverseJournalEntry,
   reverseInvoiceLinkedJournals,
   cancelInvoiceDocument,
+  resetInvoiceToDraft,
   getAccountingLockDates,
   setAccountingLockDates,
   assertAccountingPeriodOpen,

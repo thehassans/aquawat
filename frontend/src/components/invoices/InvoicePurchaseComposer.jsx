@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Clock3, PackageCheck, Plus, Trash2, UploadCloud, FileText, Receipt, Eye } from 'lucide-react'
+import { Clock3, PackageCheck, Plus, Trash2, UploadCloud, FileText, Receipt, Eye, RotateCcw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
 import { contactToSupplier, fetchContactsList } from '../../lib/contactMappers'
@@ -46,6 +46,7 @@ import VendorBillOcrPanel from '../accounting/VendorBillOcrPanel'
 import {
   BILL_STATUS_STEPS,
   canCancelInvoice,
+  canResetInvoiceToDraft,
   isVendorRefund,
   resolveInvoiceRibbonStep,
   VENDOR_REFUND_STATUS_STEPS,
@@ -1003,6 +1004,7 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const [billAttachment, setBillAttachment] = useState(null)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelPending, setCancelPending] = useState(false)
+  const [resetDraftPending, setResetDraftPending] = useState(false)
 
   const buildPayload = (data) => {
     const namedLines = (data.lineItems || []).filter((line) => String(line?.productName || '').trim() || toNumber(line?.unitPrice, 0) > 0)
@@ -1373,6 +1375,37 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
                 >
                   <Eye className="h-3.5 w-3.5" />
                   {language === 'ar' ? 'معاينة' : 'Preview'}
+                </button>
+              ) : null}
+              {isEdit && canResetInvoiceToDraft(initialInvoice, tenant?.zatca?.phase || 2) ? (
+                <button
+                  type="button"
+                  className={ghostActionClass}
+                  disabled={resetDraftPending}
+                  onClick={async () => {
+                    const ok = window.confirm(
+                      language === 'ar'
+                        ? 'إعادة الفاتورة إلى مسودة؟ سيتم عكس القيود المرتبطة.'
+                        : 'Reset this bill to draft? Linked journal entries will be reversed.',
+                    )
+                    if (!ok) return
+                    setResetDraftPending(true)
+                    try {
+                      await api.post(`/invoices/${invoiceId}/reset-to-draft`)
+                      toast.success(language === 'ar' ? 'أُعيدت إلى مسودة' : 'Reset to draft')
+                      queryClient.invalidateQueries(['invoices'])
+                      queryClient.invalidateQueries(['invoice', invoiceId])
+                      queryClient.invalidateQueries(['vendor-bills'])
+                      navigate(`/app/dashboard/accounting/invoices/${invoiceId}/edit`)
+                    } catch (error) {
+                      toast.error(error?.response?.data?.error || (language === 'ar' ? 'فشلت إعادة المسودة' : 'Reset to draft failed'))
+                    } finally {
+                      setResetDraftPending(false)
+                    }
+                  }}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  {language === 'ar' ? 'إعادة إلى مسودة' : 'Reset to draft'}
                 </button>
               ) : null}
               {isEdit && canCancelInvoice(initialInvoice, tenant?.zatca?.phase || 2) ? (

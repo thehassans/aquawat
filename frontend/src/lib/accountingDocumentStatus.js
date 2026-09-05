@@ -141,3 +141,29 @@ export function canCancelInvoice(invoice = {}, zatcaPhase = 2) {
   }
   return true
 }
+
+/**
+ * Whether a posted invoice/bill can be reset to draft for editing.
+ * ZATCA-cleared sales invoices and documents with payments cannot reset.
+ */
+export function canResetInvoiceToDraft(invoice = {}, zatcaPhase = 2) {
+  if (!invoice?._id) return false
+  const status = String(invoice?.status || '').toLowerCase()
+  if (['draft', 'pending', 'cancelled', 'credited'].includes(status)) return false
+  if (String(invoice?.invoiceSubtype || '') === 'proforma') return false
+  if (Number(invoice?.paidAmount || 0) > 0.005) return false
+  if (Array.isArray(invoice?.payments) && invoice.payments.length > 0) return false
+
+  const phase = Number(zatcaPhase) || 2
+  const isPurchase = String(invoice?.flow || '') === 'purchase'
+  const isCreditNote = String(invoice?.invoiceType || '') === '381'
+  if (
+    !isPurchase
+    && !isCreditNote
+    && phase >= 2
+    && Boolean(invoice?.zatca?.signedXml)
+  ) {
+    return false
+  }
+  return true
+}

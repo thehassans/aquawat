@@ -3798,6 +3798,38 @@ router.post('/:id/cancel', checkPermission('invoicing', 'update'), async (req, r
   }
 });
 
+// @route   POST /api/invoices/:id/reset-to-draft
+router.post('/:id/reset-to-draft', checkPermission('invoicing', 'update'), async (req, res) => {
+  try {
+    const invoice = await Invoice.findOne(scopedInvoiceFilter(req));
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const { resetInvoiceToDraft } = await import('../services/accountingService.js');
+    const draft = await resetInvoiceToDraft({
+      tenantId: invoice.tenantId,
+      userId: req.user?._id,
+      invoice,
+      zatcaPhase: req.tenant?.zatca?.phase || 2,
+    });
+
+    afterInvoiceWrite(draft, { userId: req.user?._id });
+
+    if (draft.customerId) {
+      await syncCustomerStats(draft.tenantId, draft.customerId);
+    }
+
+    res.json(draft);
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({
+      error: error.message || 'Failed to reset invoice to draft',
+      code: error.code || undefined,
+    });
+  }
+});
+
 // @route   POST /api/invoices/:id/credit-note
 router.post('/:id/credit-note', checkPermission('invoicing', 'create'), async (req, res) => {
   try {

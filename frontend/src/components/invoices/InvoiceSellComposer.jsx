@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Plus, Save, Trash2, UploadCloud, FileText, Receipt, Eye } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, UploadCloud, FileText, Receipt, Eye, RotateCcw } from 'lucide-react'
 import InvoicePrePostChecklist from './InvoicePrePostChecklist'
 import toast from 'react-hot-toast'
 import api from '../../lib/api'
@@ -63,6 +63,7 @@ import {
   CREDIT_NOTE_STATUS_STEPS,
   INVOICE_STATUS_STEPS,
   canCancelInvoice,
+  canResetInvoiceToDraft,
   canRegisterPaymentOnInvoice,
   invoiceRemainingBalance,
   resolveInvoiceRibbonStep,
@@ -856,6 +857,19 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   }
 
   const openTypeOverrideModal = () => {
+    // Switching to Standard (B2B / business) does not require a reason.
+    if (invoiceType === 'B2C') {
+      const override = {
+        from: 'B2C',
+        to: 'B2B',
+        reason: language === 'ar' ? 'تبديل يدوي إلى قياسية (B2B)' : 'Manual switch to Standard (B2B)',
+        at: new Date().toISOString(),
+      }
+      typeOverrideRef.current = override
+      setTypeOverride(override)
+      applyTransactionType('B2B', { clearBuyerTax: false })
+      return
+    }
     setOverrideReasonDraft('')
     setOverrideModalOpen(true)
   }
@@ -1604,6 +1618,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
   const [pendingPayload, setPendingPayload] = useState(null)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelPending, setCancelPending] = useState(false)
+  const [resetDraftPending, setResetDraftPending] = useState(false)
   const [prePostDebounced, setPrePostDebounced] = useState(null)
 
   // Live pre-post checklist (server evaluates lock date, credit, income accounts, duplicates)
@@ -2215,6 +2230,36 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
                   {language === 'ar' ? 'إضافة إشعار دائن' : 'Add credit note'}
                 </button>
               ) : null}
+              {isEdit && canResetInvoiceToDraft(initialInvoice, tenant?.zatca?.phase || 2) ? (
+                <button
+                  type="button"
+                  className={ghostActionClass}
+                  disabled={resetDraftPending}
+                  onClick={async () => {
+                    const ok = window.confirm(
+                      language === 'ar'
+                        ? 'إعادة الفاتورة إلى مسودة؟ سيتم عكس القيود المرتبطة.'
+                        : 'Reset this invoice to draft? Linked journal entries will be reversed.',
+                    )
+                    if (!ok) return
+                    setResetDraftPending(true)
+                    try {
+                      await api.post(`/invoices/${invoiceId}/reset-to-draft`)
+                      toast.success(language === 'ar' ? 'أُعيدت إلى مسودة' : 'Reset to draft')
+                      queryClient.invalidateQueries(['invoices'])
+                      queryClient.invalidateQueries(['invoice', invoiceId])
+                      navigate(`/app/dashboard/accounting/invoices/${invoiceId}/edit`)
+                    } catch (error) {
+                      toast.error(error?.response?.data?.error || (language === 'ar' ? 'فشلت إعادة المسودة' : 'Reset to draft failed'))
+                    } finally {
+                      setResetDraftPending(false)
+                    }
+                  }}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  {language === 'ar' ? 'إعادة إلى مسودة' : 'Reset to draft'}
+                </button>
+              ) : null}
               {isEdit && canCancelInvoice(initialInvoice, tenant?.zatca?.phase || 2) ? (
                 <button
                   type="button"
@@ -2286,7 +2331,7 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
               {language === 'ar'
                 ? 'فاتورة مرحّلة — البنود مقفلة؛ يمكنك تغيير نوع الفاتورة (مع سبب) ثم الحفظ.'
-                : 'Posted invoice — lines are locked; you can change document type (with a reason) and save.'}
+                : 'Posted invoice — lines are locked; you can change document type and save.'}
             </div>
           ) : null}
           <div className={`${sectionCardClass} !p-3 space-y-2`}>
@@ -2517,27 +2562,6 @@ export default function InvoiceSellComposer({ invoiceId = '', initialInvoice = n
             )}
             {invoiceSubtype === 'travel_ticket' ? (
               <TravelInvoiceFields language={language} register={register} control={control} watch={watch} setValue={setValue} />
-            ) : null}
-            {invoiceType === 'B2C' && !selectedCustomer?._id ? (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" dir="ltr">
-                <div>
-                  <FieldLabel en="Walk-in name" ar="اسم نقدي" />
-                  <input
-                    className={compactFieldClass}
-                    placeholder={language === 'ar' ? 'عميل نقدي' : 'Cash customer'}
-                    value={watch('buyer.name') || ''}
-                    onChange={(e) => setValue('buyer.name', e.target.value, { shouldDirty: true })}
-                  />
-                </div>
-                <div>
-                  <FieldLabel en="Phone" ar="الهاتف" />
-                  <input
-                    className={compactFieldClass}
-                    value={watch('buyer.contactPhone') || ''}
-                    onChange={(e) => setValue('buyer.contactPhone', e.target.value, { shouldDirty: true })}
-                  />
-                </div>
-              </div>
             ) : null}
           </div>
 
