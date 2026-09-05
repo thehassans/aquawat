@@ -3299,6 +3299,9 @@ router.put('/:id', checkPermission('invoicing', 'update'), async (req, res) => {
 
     const confirmPost = Boolean(req.body.confirmPost);
     delete req.body.confirmPost;
+    // Never let the client allocate / override official or reserved numbers
+    delete req.body.invoiceNumber;
+    delete req.body.reservedInvoiceNumber;
 
     const prevTxnType = invoice.transactionType === 'B2B' ? 'B2B' : 'B2C';
     const overrideGate = requireOverrideReasonIfNeeded(req);
