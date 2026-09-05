@@ -18,6 +18,8 @@ const Dashboard = lazy(() => import('./pages/Dashboard'))
 // Lazy-load invoice/quotation modules (previously eager — large PDF/composer chunks)
 const AccountingInvoicesHub = lazy(() => import('./pages/accounting/documents/AccountingInvoicesHub'))
 const VendorBillsPanel = lazy(() => import('./pages/accounting/documents/VendorBillsPanel'))
+const VendorBillCreatePage = lazy(() => import('./pages/accounting/documents/VendorBillCreatePage'))
+const VendorRefundCreatePage = lazy(() => import('./pages/accounting/documents/VendorRefundCreatePage'))
 const InvoiceCreate = lazy(() => import('./pages/invoices/InvoiceCreate'))
 const InvoiceCreateSell = lazy(() => import('./pages/invoices/InvoiceCreateSellPage'))
 const InvoiceCreatePurchase = lazy(() => import('./pages/invoices/InvoiceCreatePurchasePage'))
@@ -1122,7 +1124,10 @@ function App() {
         <Route path="accounting" element={<AccountingLayout />}>
           <Route index element={<Accounting />} />
           <Route path="invoices" element={<AccountingInvoicesHub />} />
-          <Route path="vendor-bills" element={<VendorBillsPanel />} />
+          <Route path="bills" element={<VendorBillsPanel />} />
+          <Route path="bills/new" element={<VendorBillCreatePage />} />
+          <Route path="vendor-bills" element={<Navigate to="/app/dashboard/accounting/bills" replace />} />
+          <Route path="vendor-refunds/new" element={<VendorRefundCreatePage />} />
           <Route path="invoices/settings" element={<InvoiceSettingsPage />} />
           <Route path="invoices/new" element={<InvoiceCreate />} />
           <Route path="invoices/new/sell" element={<InvoiceCreateSell />} />

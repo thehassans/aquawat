@@ -74,3 +74,8 @@ export function formatDateOnlyDisplay(value, locale = 'en-GB') {
   const [y, m, d] = only.split('-').map(Number)
   return new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString(locale, { timeZone: 'UTC' })
 }
+
+/** Calendar today as YYYY-MM-DD in Asia/Riyadh — shared by Aged AR/AP and reports. */
+export function todayDateOnly() {
+  return extractDateOnly(new Date()) || new Date().toISOString().slice(0, 10)
+}

@@ -10,6 +10,10 @@ export const ACCOUNTING_PATH = {
   root: A,
   invoices: `${A}/invoices`,
   invoiceSettings: `${A}/invoices/settings`,
+  bills: `${A}/bills`,
+  billsNew: `${A}/bills/new`,
+  vendorRefunds: `${A}/vendor-refunds`,
+  vendorRefundsNew: `${A}/vendor-refunds/new`,
 }
 
 /**
@@ -49,7 +53,7 @@ export const ACCOUNTING_MENU = [
     labelEn: 'Vendors',
     labelAr: 'الموردون',
     children: [
-      { href: `${A}/vendor-bills`, labelEn: 'Bills', labelAr: 'فواتير المشتريات' },
+      { href: `${A}/bills`, labelEn: 'Bills', labelAr: 'فواتير المشتريات', end: true },
       { href: `${A}/vendor-refunds`, labelEn: 'Refunds', labelAr: 'المرتجعات' },
       { href: `${A}/vendor-payments`, labelEn: 'Payments', labelAr: 'المدفوعات' },
       { href: `${A}/payment-batches`, labelEn: 'Payment batches', labelAr: 'دفعات البنك' },
@@ -178,13 +182,22 @@ export function flattenAccountingMenuHrefs(menu = ACCOUNTING_MENU) {
 }
 
 export function hubIsActive(hub, pathname, search = '') {
-  const params = new URLSearchParams(typeof search === 'string' ? search.replace(/^\?/, '') : '')
-  const invoiceTab = String(params.get('tab') || params.get('flow') || '').toLowerCase()
-  const onPurchaseInvoices = pathname.includes('/accounting/invoices')
-    && ['purchase', 'purchases', 'vendor', 'bills', 'ap'].includes(invoiceTab)
+  // Bills / refunds / purchase composers belong to Vendors — never Customers
+  const vendorPaths = [
+    '/accounting/bills',
+    '/accounting/vendor-bills',
+    '/accounting/vendor-refunds',
+    '/accounting/vendor-payments',
+    '/accounting/payment-batches',
+    '/accounting/aged-ap',
+    '/accounting/vendors',
+    '/accounting/invoices/new/purchase',
+  ]
+  const onVendorSurface = vendorPaths.some((p) => pathname.includes(p))
+    || (pathname.includes('/accounting/invoices') && /[?&](tab|flow)=(purchase|purchases|vendor|bills|ap)/i.test(search))
 
-  if (hub.id === 'vendors' && onPurchaseInvoices) return true
-  if (hub.id === 'customers' && onPurchaseInvoices) return false
+  if (hub.id === 'vendors' && onVendorSurface) return true
+  if (hub.id === 'customers' && onVendorSurface) return false
 
   if (hub.href) {
     if (hub.end) return pathname === hub.href || pathname === `${hub.href}/`

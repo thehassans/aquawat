@@ -129,6 +129,9 @@ const buildPurchaseInvoiceFormValues = ({ invoice, tenant, defaultBusinessContex
     pdfTemplateId: invoice?.pdfTemplateId || getInvoiceTemplateId(tenant, invoice?.businessContext || defaultBusinessContext),
     transactionType: invoice?.transactionType || 'B2B',
     invoiceTypeCode: invoice?.invoiceTypeCode || (invoice?.transactionType === 'B2C' ? '0200000' : '0100000'),
+    purchaseBillType: invoice?.purchaseBillType || 'standard',
+    purchaseSupplyType: invoice?.purchaseSupplyType || 'domestic',
+    originalInvoiceId: invoice?.originalInvoiceId?._id || invoice?.originalInvoiceId || '',
     warehouseId: invoice?.warehouseId?._id || invoice?.warehouseId || '',
     supplierId: invoice?.supplierId?._id || invoice?.supplierId || '',
     sourcePurchaseOrderId: invoice?.sourcePurchaseOrderId?._id || invoice?.sourcePurchaseOrderId || '',
@@ -208,13 +211,19 @@ function isFutureDate(value) {
   return date > today
 }
 
-export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice = null }) {
+export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice = null, mode = null }) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const poIdParam = String(searchParams.get('poId') || '').trim()
   const partnerIdParam = String(searchParams.get('partnerId') || '').trim()
+  const originalBillParam = String(searchParams.get('originalInvoiceId') || searchParams.get('billId') || '').trim()
   const isEdit = Boolean(invoiceId)
-  const isManualRefund = !isEdit && ['1', 'true', 'refund', '381'].includes(String(searchParams.get('refund') || '').toLowerCase())
+  // Route mode wins: /bills/new is always a bill; /vendor-refunds/new is always a refund.
+  // Never infer refund from query when mode === 'bill'.
+  const isManualRefund = !isEdit && (
+    mode === 'refund'
+    || (mode !== 'bill' && ['1', 'true', 'refund', '381'].includes(String(searchParams.get('refund') || '').toLowerCase()))
+  )
   const queryClient = useQueryClient()
   const { language } = useSelector((state) => state.ui)
   const { tenant, user } = useSelector((state) => state.auth)
@@ -225,6 +234,11 @@ export default function InvoicePurchaseComposer({ invoiceId = '', initialInvoice
   const { t } = useTranslation(language)
   const [activeInvoiceId, setActiveInvoiceId] = useState(invoiceId || '')
   const [transactionType, setTransactionType] = useState('B2B')
+  const [purchaseBillType, setPurchaseBillType] = useState(() => initialInvoice?.purchaseBillType || 'standard')
+  const [purchaseSupplyType, setPurchaseSupplyType] = useState(() => initialInvoice?.purchaseSupplyType || 'domestic')
+  const [originalInvoiceId, setOriginalInvoiceId] = useState(
+    () => partyId(initialInvoice?.originalInvoiceId) || originalBillParam || '',
+  )
   const tenantBusinessTypes = getTenantBusinessTypes(tenant)
   const [selectedSupplier, setSelectedSupplier] = useState(() => {
     const s = initialInvoice?.supplierId

@@ -130,7 +130,7 @@ function NavDropdown({ label, items, isAr, open, onToggle, onClose, onAction, ac
 
 /** True when path is a document composer under accounting (hide module chrome). */
 export function isAccountingInvoiceComposerPath(pathname = '') {
-  return /\/accounting\/(invoices\/(new|[^/]+\/edit)|general-voucher\/new|journal-books\/new)/.test(pathname)
+  return /\/accounting\/(invoices\/(new|[^/]+\/edit)|bills\/new|vendor-refunds\/new|general-voucher\/new|journal-books\/new)/.test(pathname)
 }
 
 export default function AccountingLayout() {

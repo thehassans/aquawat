@@ -303,7 +303,7 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
           <button
             type="button"
             className="btn btn-primary btn-sm"
-            onClick={() => navigate('/app/dashboard/accounting/invoices/new/purchase')}
+            onClick={() => navigate('/app/dashboard/accounting/bills/new')}
           >
             <Plus className="h-4 w-4" />
             {isAr ? 'فاتورة مورد جديدة' : 'New bill'}
@@ -407,7 +407,7 @@ export default function VendorBillsPanel({ language: languageProp, embedded = fa
                 titleAr="لا توجد فواتير مورد بعد"
                 description="Create a bill from a received PO (Create Bill) or start a new purchase invoice. Bills post Dr Stock Interim / expense + VAT Input, Cr Accounts Payable."
                 descriptionAr="أنشئ فاتورة من أمر شراء مستلم أو فاتورة مشتريات جديدة. الترحيل: مدين مخزون وسيط/مصروف + ضريبة مدخلات، دائن ذمم دائنة."
-                action={() => navigate('/app/dashboard/accounting/invoices/new/purchase')}
+                action={() => navigate('/app/dashboard/accounting/bills/new')}
                 actionLabel="New bill"
                 actionLabelAr="فاتورة مورد جديدة"
               />

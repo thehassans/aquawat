@@ -2,12 +2,17 @@ import { useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { ArrowLeft } from 'lucide-react'
 
-function backHref(pathname) {
+function backHref(pathname, search = '') {
   if (pathname.includes('/quotations')) return '/app/dashboard/quotations'
   if (pathname.includes('/sales/orders')) return '/app/dashboard/sales/orders'
   if (pathname.includes('/general-voucher')) return '/app/dashboard/accounting/general-voucher'
   if (pathname.includes('/journal-books')) return '/app/dashboard/accounting/journal-books'
-  if (pathname.includes('/purchase')) return '/app/dashboard/accounting/vendor-bills'
+  if (pathname.includes('/vendor-refunds')) return '/app/dashboard/accounting/vendor-refunds'
+  if (pathname.includes('/bills/new') || pathname.includes('/bills/')) return '/app/dashboard/accounting/bills'
+  if (pathname.includes('/purchase')) {
+    if (/refund=/.test(search)) return '/app/dashboard/accounting/vendor-refunds'
+    return '/app/dashboard/accounting/bills'
+  }
   if (pathname.includes('/accounting/invoices')) return '/app/dashboard/accounting/invoices'
   return '/app/dashboard/accounting/invoices'
 }
@@ -20,7 +25,11 @@ function titleFor(pathname, search, isAr) {
   }
   if (pathname.includes('/general-voucher')) return isAr ? 'سند قيد عام' : 'General voucher'
   if (pathname.includes('/journal-books')) return isAr ? 'دفتر قيد جديد' : 'New journal book'
-  if (pathname.includes('/purchase')) return isAr ? 'فاتورة مشتريات' : 'New purchase invoice'
+  if (pathname.includes('/vendor-refunds')) return isAr ? 'مرتجع مورد' : 'Vendor refund'
+  if (pathname.includes('/bills/new') || (pathname.includes('/purchase') && !/refund=/.test(search))) {
+    return isAr ? 'فاتورة مورد' : 'Vendor bill'
+  }
+  if (pathname.includes('/purchase')) return isAr ? 'فاتورة مورد' : 'Vendor bill'
   if (search.includes('proforma=1')) return isAr ? 'فاتورة مبدئية' : 'New proforma'
   if (pathname.includes('/edit')) return isAr ? 'تعديل الفاتورة' : 'Edit invoice'
   return isAr ? 'فاتورة مبيعات جديدة' : 'New sales invoice'
@@ -39,7 +48,7 @@ export default function SalesComposerChrome({ pathname, search = '' }) {
       <div className="flex items-center gap-3 px-3 py-3">
         <button
           type="button"
-          onClick={() => navigate(backHref(pathname))}
+          onClick={() => navigate(backHref(pathname, search))}
           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-dark-600 dark:bg-dark-800 dark:text-slate-200"
           aria-label={isAr ? 'رجوع' : 'Back'}
         >
@@ -57,7 +66,7 @@ export default function SalesComposerChrome({ pathname, search = '' }) {
 }
 
 export function isSalesComposerPath(pathname = '') {
-  if (/\/accounting\/invoices\/(new|[^/]+\/edit)/.test(pathname)) return true
+  if (/\/accounting\/(invoices\/(new|[^/]+\/edit)|bills\/new|vendor-refunds\/new)/.test(pathname)) return true
   if (/\/invoices\/new(\/|$)/.test(pathname)) return true
   if (/\/invoices\/[^/]+\/edit/.test(pathname)) return true
   if (/\/quotations\/new(\/|$)/.test(pathname)) return true

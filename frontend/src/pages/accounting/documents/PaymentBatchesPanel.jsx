@@ -74,7 +74,7 @@ export default function PaymentBatchesPanel({ language: languageProp }) {
     onError: (err) => toast.error(err.response?.data?.error || (isAr ? 'فشل التأكيد' : 'Confirm failed')),
   })
 
-  const goNewBatch = () => navigate('/app/dashboard/accounting/vendor-bills')
+  const goNewBatch = () => navigate('/app/dashboard/accounting/bills')
 
   return (
     <div className="space-y-4">

@@ -57,7 +57,7 @@ export default function VendorRefundsPanel({ language = 'en' }) {
         <button
           type="button"
           className="btn btn-primary btn-sm"
-          onClick={() => navigate('/app/dashboard/accounting/invoices/new/purchase?refund=1')}
+          onClick={() => navigate('/app/dashboard/accounting/vendor-refunds/new')}
         >
           <Plus className="h-4 w-4" />
           {isAr ? 'مرتجع جديد' : 'New refund'}
@@ -96,7 +96,7 @@ export default function VendorRefundsPanel({ language = 'en' }) {
                 titleAr="لا توجد مرتجعات مورد بعد"
                 description="Record a vendor credit note (refund) when goods are returned or a bill is corrected."
                 descriptionAr="سجّل إشعار دائن للمورد عند إرجاع البضاعة أو تصحيح فاتورة."
-                action={() => navigate('/app/dashboard/accounting/invoices/new/purchase?refund=1')}
+                action={() => navigate('/app/dashboard/accounting/vendor-refunds/new')}
                 actionLabel="New refund"
                 actionLabelAr="مرتجع جديد"
               />

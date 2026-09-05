@@ -240,14 +240,20 @@ export default function CreditNotesPanel({ language = 'en' }) {
           <ResponsiveDataList
             items={rows}
             empty={emptyState}
-            renderCard={(row) => (
+            renderCard={(row) => {
+              const numberMeta = resolveInvoiceListNumber(row, language)
+              return (
               <div key={row._id} className="space-y-2 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-dark-800">
                 <button
                   type="button"
                   className={`${docLinkClass} text-base`}
                   onClick={() => navigate(`/app/dashboard/accounting/invoices/${row._id}`)}
                 >
-                  {row.invoiceNumber}
+                  {numberMeta.isDraft ? (
+                    <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                      {numberMeta.label}
+                    </span>
+                  ) : numberMeta.label}
                 </button>
                 <p className="text-sm text-slate-500">{trimName(row.buyer)}</p>
                 <div className="flex items-center justify-between text-sm">
@@ -255,7 +261,8 @@ export default function CreditNotesPanel({ language = 'en' }) {
                   <span className={softChipClass}>{documentStatusLabel(row.status, language)}</span>
                 </div>
               </div>
-            )}
+              )
+            }}
           >
             <div className="overflow-x-auto">
               <table className={`${salesTableClass} min-w-[980px]`}>
@@ -276,6 +283,7 @@ export default function CreditNotesPanel({ language = 'en' }) {
                     const original = row.originalInvoiceId
                     const originalId = original?._id || original
                     const originalNumber = original?.invoiceNumber || row.originalInvoiceNumber || null
+                    const numberMeta = resolveInvoiceListNumber(row, language)
                     return (
                       <tr key={row._id} className={salesTrClass}>
                         <td className={salesTdClass}>
@@ -284,7 +292,11 @@ export default function CreditNotesPanel({ language = 'en' }) {
                             className={docLinkClass}
                             onClick={() => navigate(`/app/dashboard/accounting/invoices/${row._id}`)}
                           >
-                            {row.invoiceNumber}
+                            {numberMeta.isDraft ? (
+                              <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                {numberMeta.label}
+                              </span>
+                            ) : numberMeta.label}
                           </button>
                         </td>
                         <td className={salesTdClass}>{trimName(row.buyer)}</td>
